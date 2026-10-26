@@ -16,7 +16,8 @@ export async function registrarResposta({ lead, canal, origem_id, de, assunto = 
   const limpo = limparTextoResposta(texto) || String(texto ?? "").slice(0, 2000);
   let c;
   try {
-    c = await classificarResposta({ texto: limpo, assunto, lead, mensagemOriginal, campanha });
+    const historico = await db.historicoConversa(lead.id);
+    c = await classificarResposta({ texto: limpo, assunto, lead, historico, campanha, canal });
   } catch (e) {
     c = { classificacao: "outro", resumo: `Não foi possível classificar automaticamente: ${e.message}`, sugestao_resposta: "" };
   }

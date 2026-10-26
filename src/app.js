@@ -3,9 +3,12 @@ import express from "express";
 import { config, carregarCampanha } from "./config.js";
 import * as db from "./db.js";
 import * as pipeline from "./pipeline.js";
-import { assinaturaValida, processarWebhookWhatsapp } from "./respostas/whatsapp.js";
+import { waitUntil } from "@vercel/functions";
+import { carregarCampanhaCompleta, CAMPOS_EMPRESA } from "./campanha.js";
+import { assinaturaValida, processarWebhookWhatsapp, processarWebhookUazap } from "./respostas/whatsapp.js";
 import { rodapeDescadastro } from "./envio/email.js";
 import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
+import * as uazap from "./envio/uazap.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -79,11 +82,23 @@ app.post("/webhooks/whatsapp", async (req, res) => {
   }
   // Processa antes de responder: em ambiente serverless nada roda depois da resposta.
   try {
-    await processarWebhookWhatsapp(req.body, carregarCampanha());
+    await processarWebhookWhatsapp(req.body, await carregarCampanhaCompleta());
   } catch (e) {
     console.error("Erro no webhook do WhatsApp:", e);
   }
   res.sendStatus(200);
+});
+
+// Webhook da UAZap: o segredo na URL e o token da instância no corpo provam a origem.
+app.post("/webhooks/uazap/:segredo", async (req, res) => {
+  if (!(await uazap.webhookValido(req.params.segredo, req.body))) return res.sendStatus(401);
+  // A UAZap espera resposta rápida; a classificação com IA continua depois (waitUntil na Vercel).
+  res.sendStatus(200);
+  waitUntil(
+    carregarCampanhaCompleta()
+      .then((campanha) => processarWebhookUazap(req.body, campanha))
+      .catch((e) => console.error("Erro no webhook da UAZap:", e))
+  );
 });
 
 // ---------- Cron da Vercel (protegido pelo CRON_SECRET) ----------
@@ -91,13 +106,15 @@ app.post("/webhooks/whatsapp", async (req, res) => {
 const TAREFAS_CRON = {
   ciclo: (c) => pipeline.executarCiclo(c),
   respostas: (c) => pipeline.verificarRespostas(c),
+  // Chamado várias vezes ao dia (GitHub Actions); só envia em horário comercial.
+  envios: (c) => pipeline.rodadaDeEnvios(c),
 };
 
 app.get("/api/cron/:tarefa", async (req, res) => {
   const tarefa = TAREFAS_CRON[req.params.tarefa];
   if (!tarefa) return res.sendStatus(404);
   if (!config.cronSecret || req.get("authorization") !== `Bearer ${config.cronSecret}`) return res.sendStatus(401);
-  res.json((await tarefa(carregarCampanha())) ?? {});
+  res.json((await tarefa(await carregarCampanhaCompleta())) ?? {});
 });
 
 // ---------- Login do painel ----------
@@ -149,7 +166,7 @@ app.post("/api/login", async (req, res) => {
 });
 
 // Só o nome da empresa, para a tela de login (sem dados sensíveis).
-app.get("/api/marca", (req, res) => res.json({ empresa: carregarCampanha().empresa.nome }));
+app.get("/api/marca", async (req, res) => res.json({ empresa: (await carregarCampanhaCompleta()).empresa.nome }));
 
 app.post("/api/logout", (req, res) => {
   res.clearCookie(COOKIE, { path: "/" });
@@ -163,11 +180,16 @@ app.use("/api", (req, res, next) => {
 
 // ---------- API do painel (exige login) ----------
 
-app.get("/api/sessao", (req, res) => {
-  const campanha = carregarCampanha();
+app.get("/api/sessao", async (req, res) => {
+  const campanha = await carregarCampanhaCompleta();
+  const modo = await pipeline.modoWhatsapp();
   res.json({
     empresa: campanha.empresa.nome,
-    whatsappAutomatico: pipeline.whatsappAutomatico(),
+    modoWhatsapp: modo,
+    whatsappAutomatico: modo !== "manual",
+    perfilIncompleto: !campanha.empresa.responsavel || !campanha.empresa.telefone,
+    horario: campanha.limites.horarioComercial,
+    cadencia: campanha.cadencia?.diasUteisEntreEtapas ?? [2, 3],
     rodapeWhatsapp: RODAPE_WHATSAPP,
     modoTeste: Boolean(config.modoTeste.email || config.modoTeste.whatsapp),
     dentroDoHorario: pipeline.dentroDoHorario(campanha.limites),
@@ -196,22 +218,23 @@ app.post("/api/maps/capturar", async (req, res) => {
 });
 
 /** O que a empresa vai receber de fato, com o rodapé que é adicionado no envio. */
-function prepararMensagem({ token, ...m }) {
-  const automatico = m.canal === "email" || pipeline.whatsappAutomatico();
-  const rodape = m.canal === "email" ? rodapeDescadastro(token) : RODAPE_WHATSAPP;
+function prepararMensagem({ token, ...m }, modo) {
+  const automatico = m.canal === "email" || modo !== "manual";
+  const rodape = m.tipo === "resposta" ? "" : m.canal === "email" ? rodapeDescadastro(token) : RODAPE_WHATSAPP;
   return {
     ...m,
     oportunidades: JSON.parse(m.oportunidades || "[]"),
     rodape,
     previa: m.corpo + rodape,
     envioManual: !automatico,
-    linkWhatsapp: !automatico ? linkWhatsapp(m.destino, m.corpo) : null,
+    linkWhatsapp: !automatico ? linkWhatsapp(m.destino, m.corpo, m.tipo !== "resposta") : null,
   };
 }
 
 app.get("/api/mensagens", async (req, res) => {
-  const mensagens = await db.mensagensPorStatus(req.query.status || "rascunho", 200);
-  res.json(mensagens.map(prepararMensagem));
+  const mensagens = await db.mensagensPorStatus(req.query.status || "rascunho", 300);
+  const modo = await pipeline.modoWhatsapp();
+  res.json(mensagens.map((m) => prepararMensagem(m, modo)));
 });
 
 app.put("/api/mensagens/:id", async (req, res) => {
@@ -220,7 +243,7 @@ app.put("/api/mensagens/:id", async (req, res) => {
   const { assunto, corpo } = req.body ?? {};
   if (corpo !== undefined && !String(corpo).trim()) return res.status(400).json({ erro: "A mensagem não pode ficar vazia" });
   await db.atualizarMensagem(m.id, { assunto: assunto ?? m.assunto, corpo: corpo ?? m.corpo });
-  res.json(prepararMensagem(await db.buscarMensagem(m.id)));
+  res.json(prepararMensagem(await db.buscarMensagem(m.id), await pipeline.modoWhatsapp()));
 });
 
 // Aprovar = autorizar o envio. Se estiver no horário e dentro do limite, já envia na hora.
@@ -228,8 +251,20 @@ app.post("/api/mensagens/:id/aprovar", async (req, res) => {
   const m = await db.buscarMensagem(req.params.id);
   if (!m || !["rascunho", "erro", "aprovada"].includes(m.status)) return res.status(400).json({ erro: "Mensagem não pode ser aprovada" });
   await db.atualizarMensagem(m.id, { status: "aprovada", erro: null });
-  const resultado = await pipeline.enviarMensagem({ ...m, status: "aprovada" }, carregarCampanha());
+  const resultado = await pipeline.enviarMensagem({ ...m, status: "aprovada" }, await carregarCampanhaCompleta());
   res.json(resultado);
+});
+
+// Sequência gradual: aprova ou descarta as 3 etapas de um lead em um canal de uma vez.
+app.post("/api/sequencias/:leadId/:canal/:acao", async (req, res) => {
+  const { leadId, canal, acao } = req.params;
+  if (!["email", "whatsapp"].includes(canal)) return res.status(400).json({ erro: "Canal inválido" });
+  if (acao === "aprovar") return res.json(await pipeline.aprovarSequencia(leadId, canal, await carregarCampanhaCompleta()));
+  if (acao === "rejeitar") {
+    await pipeline.rejeitarSequencia(leadId, canal);
+    return res.json({ ok: true });
+  }
+  res.status(404).json({ erro: "Ação desconhecida" });
 });
 
 app.post("/api/mensagens/:id/rejeitar", async (req, res) => {
@@ -241,7 +276,7 @@ app.post("/api/mensagens/:id/rejeitar", async (req, res) => {
 
 // WhatsApp manual: você abriu o link e enviou pelo seu WhatsApp.
 app.post("/api/mensagens/:id/enviada-manual", async (req, res) => {
-  const ok = await pipeline.marcarEnviadaManual(req.params.id);
+  const ok = await pipeline.marcarEnviadaManual(req.params.id, await carregarCampanhaCompleta());
   ok ? res.json({ ok }) : res.status(400).json({ erro: "Não foi possível registrar o envio" });
 });
 
@@ -273,12 +308,83 @@ app.post("/api/respostas/:id/lida", async (req, res) => {
   res.json({ ok: true });
 });
 
+// Envia a próxima mensagem da conversa (a sugestão da IA, revisada por você).
+app.post("/api/respostas/:id/enviar", async (req, res) => {
+  const r = await pipeline.responderConversa(req.params.id, req.body?.texto, await carregarCampanhaCompleta());
+  if (r.manual) {
+    const m = await db.buscarMensagem(r.id);
+    return res.json({ ...r, linkWhatsapp: linkWhatsapp(m.destino, m.corpo, false) });
+  }
+  res.json(r);
+});
+
+app.get("/api/leads/:id/conversa", async (req, res) => {
+  res.json(await db.historicoConversa(req.params.id));
+});
+
+// ---------- Configurações ----------
+
+app.get("/api/config", async (req, res) => {
+  const campanha = await carregarCampanhaCompleta();
+  const u = await uazap.obterConfig();
+  res.json({
+    empresa: Object.fromEntries(CAMPOS_EMPRESA.map((c) => [c, campanha.empresa[c] ?? ""])),
+    uazap: {
+      url: u.url,
+      tokenDefinido: Boolean(u.token),
+      webhook: u.segredoWebhook ? `${config.painel.urlPublica}/webhooks/uazap/•••` : null,
+    },
+  });
+});
+
+app.put("/api/config/empresa", async (req, res) => {
+  const dados = Object.fromEntries(CAMPOS_EMPRESA.map((c) => [c, String(req.body?.[c] ?? "").trim().slice(0, 200)]));
+  if (!dados.nome) return res.status(400).json({ erro: "Informe o nome da empresa" });
+  await db.gravarConfig("empresa", dados);
+  res.json({ ok: true });
+});
+
+// UAZap: salvar a conexão já aponta o webhook da instância para este sistema.
+app.post("/api/uazap/config", async (req, res) => {
+  try {
+    await uazap.salvarConfig({ url: req.body?.url, token: req.body?.token });
+    const webhook = await uazap.configurarWebhook();
+    res.json({ ok: true, webhook: webhook.replace(/[^/]+$/, "•••"), status: await uazap.status() });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.get("/api/uazap/status", async (req, res) => {
+  try {
+    res.json(await uazap.status());
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.post("/api/uazap/conectar", async (req, res) => {
+  try {
+    res.json(await uazap.conectar(req.body?.telefone));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.post("/api/uazap/desconectar", async (req, res) => {
+  try {
+    await uazap.desconectar();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 const ETAPAS = {
   respostas: (c) => pipeline.verificarRespostas(c),
   descobrir: (c) => pipeline.descobrir(c),
   analisar: () => pipeline.analisar(),
   propor: (c) => pipeline.propor(c),
-  followup: (c) => pipeline.criarFollowups(c),
   enviar: (c) => pipeline.enviar(c),
 };
 
@@ -286,7 +392,7 @@ const ETAPAS = {
 app.post("/api/etapas/:etapa", async (req, res) => {
   const etapa = ETAPAS[req.params.etapa];
   if (!etapa) return res.status(404).json({ erro: "Etapa desconhecida" });
-  res.json(await etapa(carregarCampanha()));
+  res.json(await etapa(await carregarCampanhaCompleta()));
 });
 
 app.use("/api", (req, res) => res.status(404).json({ erro: "Rota não encontrada" }));

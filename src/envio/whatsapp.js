@@ -6,9 +6,9 @@ export const RODAPE_WHATSAPP = "\n\nSe não quiser receber mais mensagens, é s�
  * Link "clique para conversar" com a mensagem já escrita. Usado no modo manual:
  * você revisa no painel, abre o link e aperta enviar no seu próprio WhatsApp.
  */
-export function linkWhatsapp(numero, corpo) {
+export function linkWhatsapp(numero, corpo, comRodape = true) {
   const destino = String(config.modoTeste.whatsapp || numero).replace(/\D/g, "");
-  return `https://wa.me/${destino}?text=${encodeURIComponent(corpo + RODAPE_WHATSAPP)}`;
+  return `https://wa.me/${destino}?text=${encodeURIComponent(corpo + (comRodape ? RODAPE_WHATSAPP : ""))}`;
 }
 
 /**
@@ -55,6 +55,23 @@ export async function enviarWhatsapp({ para, empresa, corpo }) {
     }),
   });
 
+  const dados = await resp.json();
+  if (!resp.ok) throw new Error(`WhatsApp API ${resp.status}: ${dados.error?.message ?? JSON.stringify(dados)}`);
+  return dados.messages?.[0]?.id;
+}
+
+/**
+ * Texto livre pela API oficial. Só é aceito dentro das 24 h seguintes a uma mensagem
+ * do contato, então serve para responder conversas, não para o primeiro contato.
+ */
+export async function enviarTextoWhatsappOficial({ para, corpo }) {
+  const { token, phoneNumberId, apiVersion } = config.whatsapp;
+  if (config.modoTeste.whatsapp) para = config.modoTeste.whatsapp;
+  const resp = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", to: para, type: "text", text: { body: corpo } }),
+  });
   const dados = await resp.json();
   if (!resp.ok) throw new Error(`WhatsApp API ${resp.status}: ${dados.error?.message ?? JSON.stringify(dados)}`);
   return dados.messages?.[0]?.id;

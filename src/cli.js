@@ -1,17 +1,17 @@
-import { carregarCampanha } from "./config.js";
+import { carregarCampanhaCompleta } from "./campanha.js";
 import * as db from "./db.js";
 import * as pipeline from "./pipeline.js";
 
-const [comando, ...flags] = process.argv.slice(2);
-const campanha = carregarCampanha();
+const [comando] = process.argv.slice(2);
+const campanha = await carregarCampanhaCompleta();
 
 const comandos = {
   respostas: () => pipeline.verificarRespostas(campanha),
   descobrir: () => pipeline.descobrir(campanha),
   analisar: () => pipeline.analisar(),
   propor: () => pipeline.propor(campanha),
-  followup: () => pipeline.criarFollowups(campanha),
-  enviar: () => pipeline.enviar(campanha, { ignorarHorario: flags.includes("--agora") }),
+  enviar: () => pipeline.enviar(campanha),
+  envios: () => pipeline.rodadaDeEnvios(campanha),
   ciclo: () => pipeline.executarCiclo(campanha),
   stats: async () => console.log(JSON.stringify(await db.estatisticas(), null, 2)),
 };
@@ -23,8 +23,8 @@ if (!comandos[comando]) {
   descobrir   busca empresas no Google Maps (nichos e cidades de config/campanha.json)
   analisar    visita os sites, acha e-mail/WhatsApp e identifica oportunidades
   propor      a IA escreve as propostas personalizadas
-  followup    cria o lembrete para quem não respondeu após N dias
-  enviar      envia as mensagens aprovadas (use --agora para ignorar o horário comercial)
+  enviar      envia as etapas aprovadas que já chegaram no dia (só em horário comercial)
+  envios      lê as respostas e envia a fila (a rotina do horário comercial)
   ciclo       roda todas as etapas em sequência
   stats       mostra os números do funil`);
   process.exit(comando ? 1 : 0);

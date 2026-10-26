@@ -9,6 +9,7 @@ const { variantesWhatsappBR } = await import("../src/analise/telefone.js");
 const { assinaturaValida, extrairMensagens } = await import("../src/respostas/whatsapp.js");
 const { idsReferenciados } = await import("../src/respostas/email.js");
 const { registrarResposta } = await import("../src/respostas/processar.js");
+const { extrairMensagemUazap, webhookValido, resumirStatus } = await import("../src/envio/uazap.js");
 
 const campanha = { empresa: { nome: "X", responsavel: "Y", telefone: "1" }, servicos: [] };
 
@@ -75,21 +76,34 @@ test("idsReferenciados junta In-Reply-To e References", () => {
   assert.deepEqual(idsReferenciados({ references: "<b@x> <c@x>" }), ["<b@x>", "<c@x>"]);
 });
 
-test("follow-up só para quem não respondeu e já passou o prazo", async () => {
-  const antigo = await novoLead("Antigo", "antigo@pet.com");
-  const recente = await novoLead("Recente", "recente@pet.com");
-  const respondeu = await novoLead("Respondeu", "respondeu@pet.com");
-  const original = await enviada(antigo, 5);
-  await enviada(recente, 1);
-  await enviada(respondeu, 5);
-  await db.criarResposta({ lead_id: respondeu.id, canal: "email", origem_id: "r1", de: respondeu.email, texto: "oi" });
+test("histórico da conversa junta o que enviamos e o que o lead respondeu, em ordem", async () => {
+  const lead = await novoLead("Historico", "historico@pet.com");
+  await enviada(lead, 2);
+  await db.criarResposta({ lead_id: lead.id, canal: "email", origem_id: "h1", de: lead.email, texto: "Quanto custa?" });
+  const h = await db.historicoConversa(lead.id);
+  assert.deepEqual(h.map((x) => x.autor), ["nos", "lead"]);
+  assert.equal(h[1].texto, "Quanto custa?");
+});
 
-  assert.deepEqual((await db.candidatosFollowup(4)).map((m) => m.empresa), ["Antigo"]);
+test("extrairMensagemUazap lê o evento de mensagem recebida", () => {
+  const base = { EventType: "messages", token: "T", message: { messageid: "M1", chatid: "5585988887777@s.whatsapp.net",
+    sender: "5585988887777@s.whatsapp.net", fromMe: false, isGroup: false, text: "Tenho interesse" } };
+  assert.deepEqual(extrairMensagemUazap(base), { id: "M1", de: "5585988887777", texto: "Tenho interesse", nome: null });
+  assert.equal(extrairMensagemUazap({ ...base, message: { ...base.message, fromMe: true } }), null);
+  assert.equal(extrairMensagemUazap({ ...base, message: { ...base.message, isGroup: true } }), null);
+  assert.equal(extrairMensagemUazap({ ...base, EventType: "connection" }), null);
+  assert.equal(extrairMensagemUazap({ ...base, message: { ...base.message, chatid: "123@lid", sender: "123@lid" } }), null);
+});
 
-  // Depois de criado o follow-up, o lead não aparece de novo.
-  await db.criarMensagem({ lead_id: antigo.id, canal: "email", destino: antigo.email, corpo: "lembrete",
-                           tipo: "followup", responde_a: original });
-  assert.deepEqual(await db.candidatosFollowup(4), []);
+test("webhook da UAZap só é aceito com o segredo certo e o token da instância", async () => {
+  await db.gravarConfig("uazap", { url: "https://x.uazapi.com", token: "TOKEN-INST", segredoWebhook: "segredo123" });
+  assert.equal(await webhookValido("segredo123", { token: "TOKEN-INST" }), true);
+  assert.equal(await webhookValido("errado", { token: "TOKEN-INST" }), false);
+  assert.equal(await webhookValido("segredo123", { token: "OUTRO" }), false);
+  assert.equal(resumirStatus({ instance: { status: "connecting", qrcode: "data:image/png;base64,AAA" }, status: { connected: false } }).qrcode,
+               "data:image/png;base64,AAA");
+  assert.equal(resumirStatus({ instance: { status: "connected" }, status: { connected: true, loggedIn: true, jid: "5585999990000:12@s.whatsapp.net" } }).numero,
+               "5585999990000");
 });
 
 test("resposta 'SAIR' descadastra o lead e cancela o follow-up pendente", async () => {

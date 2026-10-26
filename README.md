@@ -18,11 +18,15 @@ IA que **encontra empresas no Google Maps**, **analisa a presença digital** de 
 1. **Captura no Google Maps** — na aba **Buscar no Google Maps** do painel você digita o segmento e a cidade (ex.: "pet shop" em "Fortaleza - CE"), vê as empresas encontradas com telefone, site, avaliação e link do Maps, e escolhe quais capturar. Celulares são marcados como *WhatsApp provável*. A busca também roda sozinha para os nichos/cidades de `config/campanha.json`. Usa a **Google Places API** oficial.
 2. **Análise** — visita o site de cada empresa (respeitando o `robots.txt`) e verifica: tem site? HTTPS? funciona no celular? está lento? rodapé desatualizado? tem loja virtual? tem agendamento online? tem WhatsApp? Também encontra o e-mail e o WhatsApp de contato.
 3. **Oportunidades** — transforma a análise em serviços do seu catálogo, com o motivo concreto (ex.: *"loja de roupas sem loja virtual"*, *"site sem versão para celular e com rodapé de 2017"*).
-4. **Proposta com IA** — o Claude escreve um e-mail e uma mensagem de WhatsApp curtos, citando o que foi observado, oferecendo um serviço principal com os preços do seu catálogo e terminando com uma pergunta simples.
-5. **Aprovação (obrigatória)** — toda primeira mensagem escrita pela IA aparece na aba **Aprovar mensagens**, ao lado de uma prévia exata do que a empresa vai receber (com o rodapé). Você edita se quiser e clica em **Aprovar e enviar** ou **Não enviar**. Nenhuma primeira mensagem sai sem esse clique. Os follow-ups também pedem aprovação, a não ser que você mude `"followUp": { "aprovacaoManual": false }`.
-6. **Envio** — ao aprovar, a mensagem sai na hora se estiver no horário comercial e dentro do limite diário; senão fica na fila. Nunca contata o mesmo e-mail/telefone duas vezes e respeita a lista de descadastro. No WhatsApp, sem a API oficial configurada, o botão **Abrir no WhatsApp** abre a conversa com o texto pronto no seu WhatsApp; você aperta enviar e confirma no painel.
-7. **Respostas** — lê a caixa de entrada (IMAP) a cada 10 minutos e recebe as respostas do WhatsApp pelo webhook. A IA classifica cada resposta (*interessado*, *quer informações*, *sem interesse*, *pediu para sair*, *resposta automática*) e escreve uma sugestão de retorno. Quem pede para sair vai direto para a lista de supressão; quando alguém demonstra interesse, você recebe um aviso por e-mail.
-8. **Follow-up** — quem não respondeu em 4 dias (configurável em `"followUp"`) recebe **um único** lembrete curto, na mesma conversa do e-mail original. Quem responde, mesmo que seja "não", nunca recebe follow-up.
+4. **Sequência gradual com IA** — em vez de uma proposta direta, o Claude escreve 3 mensagens curtas por canal, que revelam a informação aos poucos:
+   1. **Primeiro contato:** cumprimenta, cita algo positivo da empresa e faz uma pergunta leve. Sem preço, sem lista de serviços.
+   2. **Se não responder (2 dias úteis depois):** traz uma observação concreta e o impacto para o negócio. Ainda sem preço.
+   3. **Último toque (3 dias úteis depois):** oferece exemplos sem compromisso e cita o "a partir de" uma única vez.
+
+   Quando a empresa responde, a sequência para na hora.
+5. **Aprovação (obrigatória)** — cada sequência aparece na aba **Aprovar mensagens**, com as 3 etapas editáveis e a prévia exata do que a empresa vai receber. Você clica em **Aprovar sequência** ou **Não enviar**. Nada sai sem esse clique.
+6. **Envio só em horário comercial** — de segunda a sexta, das 9h às 18h (Brasília), uma rodada de envios roda a cada 20 minutos e envia as etapas aprovadas que já chegaram no dia, com intervalo entre elas e limite diário. Fora desse horário nada é enviado (a regra está no próprio código, não só no agendamento). Nunca contata o mesmo e-mail/telefone duas vezes e respeita a lista de descadastro.
+7. **Conversa conduzida pela IA** — as respostas chegam pelo e-mail (IMAP) e pelo WhatsApp (UAZap). A IA lê a conversa inteira, classifica a resposta (*interessado*, *quer informações*, *sem interesse*, *pediu para sair*, *resposta automática*) e escreve a **próxima mensagem**: responde o que foi perguntado, entrega uma informação nova por vez e só fala de preço quando perguntam. Você revisa e clica em **Enviar resposta**. Quem pede para sair vai direto para a lista de supressão; interessados geram aviso no seu e-mail.
 
 ## Instalação
 
@@ -87,7 +91,7 @@ Ou tudo de uma vez:
 npm run ciclo
 ```
 
-Também existem `npm run respostas` (lê a caixa de entrada agora) e `npm run followup` (gera os lembretes). `npm run stats` mostra os números do funil e `npm test` roda os testes.
+Também existem `npm run respostas` (lê a caixa de entrada agora) e `npm run envios` (a rodada do horário comercial: lê respostas e envia a fila). `npm run stats` mostra os números do funil e `npm test` roda os testes.
 
 ### Modo teste (faça isto antes de ligar de verdade)
 
@@ -126,7 +130,13 @@ Também dá para cadastrar pelo terminal, uma por vez (o valor é pedido de form
 vercel env add PAINEL_SENHA production
 ```
 
-Depois de cadastrar, publique de novo para valer:
+Para ligar a rodada de envios do horário comercial (a cada 20 minutos, pelo GitHub Actions, porque o plano gratuito da Vercel só agenda uma vez por dia), rode uma vez:
+
+```bash
+sh scripts/configurar-envios.sh
+```
+
+Ele gera um segredo, salva o mesmo valor na Vercel e no GitHub e publica. Depois de cadastrar variáveis, publique de novo para valer:
 
 ```bash
 vercel deploy --prod
@@ -136,8 +146,9 @@ As tabelas são criadas sozinhas na primeira vez que o sistema conecta no banco.
 
 ## WhatsApp
 
-O WhatsApp funciona de dois jeitos:
+O WhatsApp funciona de três jeitos:
 
+- **UAZap (recomendado para automatizar)** — em **Configurações**, cole a *Server URL* e o *token da instância* da UAZap e clique em **Salvar e configurar webhook** (o sistema testa a conexão antes de salvar e aponta o webhook da instância para cá). Depois clique em **Conectar com QR code** e leia o código no celular (WhatsApp → Aparelhos conectados). As etapas aprovadas e as respostas passam a sair por esse número, e as respostas dos clientes chegam sozinhas no painel. A UAZap usa o WhatsApp Web, que não é a API oficial: por isso o sistema mantém volume baixo, intervalo entre envios, só horário comercial e opção de sair em toda sequência.
 - **Manual (padrão)** — a IA escreve a mensagem, você revisa no painel e clica em **Abrir no WhatsApp**: abre a conversa no seu WhatsApp (Web ou celular) com o texto pronto. Você aperta enviar e confirma no painel. Não precisa de API nem de aprovação da Meta, e como é você quem envia, uma a uma, o risco de bloqueio do número é baixo. As respostas chegam no seu WhatsApp; marque no painel quem respondeu.
 - **Automático (API oficial da Meta)** — o envio sai direto do sistema ao aprovar. Exige a WhatsApp Cloud API.
 

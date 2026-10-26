@@ -58,22 +58,44 @@
     }
   ],
   "buscas": [
-    { "nicho": "clínica odontológica", "cidades": ["Fortaleza - CE"] },
-    { "nicho": "loja de roupas", "cidades": ["Fortaleza - CE"] },
-    { "nicho": "pet shop", "cidades": ["Fortaleza - CE"] }
+    {
+      "nicho": "clínica odontológica",
+      "cidades": [
+        "Fortaleza - CE"
+      ]
+    },
+    {
+      "nicho": "loja de roupas",
+      "cidades": [
+        "Fortaleza - CE"
+      ]
+    },
+    {
+      "nicho": "pet shop",
+      "cidades": [
+        "Fortaleza - CE"
+      ]
+    }
   ],
   "limites": {
     "maxEmpresasPorBusca": 20,
     "maxPropostasPorCiclo": 20,
     "envioDiarioMax": 30,
     "intervaloEntreEnviosSegundos": 90,
-    "horarioComercial": { "inicio": 9, "fim": 18 },
+    "horarioComercial": {
+      "inicio": 9,
+      "fim": 18
+    },
     "somenteDiasUteis": true
   },
-  "followUp": {
-    "ativo": true,
-    "diasDepois": 4,
-    "aprovacaoManual": true
+  "cadencia": {
+    "diasUteisEntreEtapas": [
+      2,
+      3
+    ]
   },
-  "canais": ["email", "whatsapp"]
+  "canais": [
+    "email",
+    "whatsapp"
+  ]
 }

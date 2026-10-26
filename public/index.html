@@ -264,6 +264,34 @@
   details.ver-msg summary::-webkit-details-marker { display: none; }
   details.ver-msg[open] summary { margin-bottom: 10px; }
 
+  /* ---------- Sequência gradual ---------- */
+  .seq-linha { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 14px 20px 0; font-size: 13px; color: var(--muted); }
+  .seq-linha span { display: inline-flex; align-items: center; gap: 6px; }
+  .etapa-seq { border-top: 1px solid var(--border); }
+  .etapa-seq:first-of-type { border-top: 0; }
+  .etapa-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 16px 20px 0; }
+  .etapa-cab .num { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 800;
+                    background: var(--accent); color: #fff; flex: none; }
+  .etapa-cab b { font-size: 14.5px; }
+  .etapa-cab .muted { font-size: 13px; }
+  details.mais-etapas > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 14px 20px;
+                                  border-top: 1px solid var(--border); font-weight: 600; font-size: 14px; color: var(--accent-text); }
+  details.mais-etapas > summary::-webkit-details-marker { display: none; }
+  details.mais-etapas[open] > summary .seta { transform: rotate(90deg); }
+  .seta { transition: transform .15s; }
+  .conversa { display: grid; gap: 8px; margin-top: 10px; }
+  .balao { max-width: 88%; padding: 8px 12px; border-radius: 12px; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .balao.nos { justify-self: end; background: var(--accent-soft); color: var(--text); border-bottom-right-radius: 4px; }
+  .balao.lead { justify-self: start; background: var(--surface-2); border-bottom-left-radius: 4px; }
+  .balao small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* ---------- Configurações ---------- */
+  .config-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  .qr { display: grid; place-items: center; gap: 10px; padding: 18px; border: 1px dashed var(--border); border-radius: 12px; text-align: center; }
+  .qr img { width: 240px; max-width: 100%; height: auto; background: #fff; padding: 10px; border-radius: 12px; }
+  .codigo-pareamento { font: 700 26px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .18em; }
+  @media (max-width: 640px) { .config-grade { grid-template-columns: 1fr; } }
+
   /* ---------- Automação ---------- */
   .etapas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
   .etapa { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
@@ -410,8 +438,51 @@
       <!-- Automação -->
       <section id="view-automacao" hidden>
         <div class="alerta info" style="margin-bottom:16px"><span data-ic="spark"></span>
-          <div>O ciclo completo também roda sozinho de segunda a sexta às 9h30. As mensagens novas nunca saem sem a sua aprovação.</div></div>
+          <div>De segunda a sexta, em horário comercial, o sistema faz uma rodada de envios a cada 20 minutos: envia as etapas que você aprovou e que já chegaram no dia.
+            Fora desse horário nada é enviado. Toda manhã ele também busca empresas da campanha e prepara sequências novas para você aprovar.</div></div>
         <div class="etapas" id="etapas"></div>
+      </section>
+
+      <!-- Configurações -->
+      <section id="view-configuracoes" hidden>
+        <form class="cartao" id="form-empresa">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="building"></span><div class="titulos"><h3>Sua empresa</h3>
+            <div class="meta">A IA usa estes dados para se apresentar e assinar as mensagens. Campos vazios não são citados.</div></div></div>
+          <div class="cartao-corpo config-grade">
+            <div class="campo"><label for="emp-nome">Nome da empresa</label><input id="emp-nome" name="nome" required></div>
+            <div class="campo"><label for="emp-responsavel">Seu nome (quem assina)</label><input id="emp-responsavel" name="responsavel" placeholder="Ex.: Felipe"></div>
+            <div class="campo"><label for="emp-cargo">Cargo</label><input id="emp-cargo" name="cargo" placeholder="Ex.: Fundador"></div>
+            <div class="campo"><label for="emp-telefone">Telefone / WhatsApp</label><input id="emp-telefone" name="telefone" placeholder="(85) 99999-0000"></div>
+            <div class="campo"><label for="emp-email">E-mail</label><input id="emp-email" name="email" type="email"></div>
+            <div class="campo"><label for="emp-site">Site</label><input id="emp-site" name="site" placeholder="https://"></div>
+            <div class="campo" style="grid-column:1/-1"><label for="emp-portfolio">Link do portfólio</label><input id="emp-portfolio" name="portfolio" placeholder="https://"></div>
+          </div>
+          <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar perfil</button></div>
+        </form>
+
+        <div class="cartao" id="cartao-uazap" style="margin-top:16px">
+          <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="message"></span><div class="titulos"><h3>WhatsApp pela UAZap <span id="uazap-status"></span></h3>
+            <div class="meta">Conecte um número de WhatsApp para enviar as etapas e receber as respostas aqui no painel.</div></div></div>
+          <form class="cartao-corpo config-grade" id="form-uazap">
+            <div class="campo"><label for="uazap-url">Server URL</label><input id="uazap-url" name="url" placeholder="https://suaempresa.uazapi.com" required></div>
+            <div class="campo"><label for="uazap-token">Token da instância</label><input id="uazap-token" name="token" type="password" autocomplete="off"></div>
+            <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <button class="btn primario" type="submit"><span data-ic="save"></span>Salvar e configurar webhook</button>
+              <span class="muted" id="uazap-webhook" style="font-size:13px"></span>
+            </div>
+          </form>
+          <div class="cartao-corpo" style="border-top:1px solid var(--border);display:grid;gap:14px">
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              <button class="btn" data-uazap="qr"><span data-ic="grid"></span>Conectar com QR code</button>
+              <button class="btn" data-uazap="codigo"><span data-ic="phone"></span>Conectar com código</button>
+              <button class="btn fantasma" data-uazap="status"><span data-ic="refresh"></span>Atualizar status</button>
+              <button class="btn perigo" data-uazap="desconectar"><span data-ic="x"></span>Desconectar</button>
+            </div>
+            <div id="uazap-conexao"></div>
+            <div class="alerta info"><span data-ic="alert"></span><div>A UAZap usa o WhatsApp Web, que não é a API oficial. Para reduzir o risco de bloqueio do número,
+              o sistema envia poucas mensagens por dia, com intervalo, só em horário comercial, e toda primeira mensagem oferece a opção de sair.</div></div>
+          </div>
+        </div>
       </section>
 
       <!-- Listas dinâmicas -->
@@ -462,6 +533,9 @@ const ICONES = {
   trend: '<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',
   ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
   heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
+  settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+  chevron: '<path d="m9 18 6-6-6-6"/>',
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
   repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
 };
 const ic = (nome, cls = "") => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONES[nome] ?? ""}</svg>`;
@@ -507,9 +581,9 @@ const VIEWS = {
   maps:      { grupo: "Prospecção", nome: "Buscar no Maps", curto: "Buscar", icone: "pin", titulo: "Buscar no Google Maps",
                sub: "Encontre empresas por segmento e cidade e escolha quem prospectar." },
   rascunho:  { grupo: "Prospecção", nome: "Aprovar mensagens", curto: "Aprovar", icone: "checkCircle", titulo: "Aprovar mensagens",
-               sub: "Revise o que a IA escreveu. Nada é enviado sem a sua aprovação.", contador: () => stats?.mensagens.rascunho },
+               sub: "Revise a sequência que a IA escreveu. Nada é enviado sem a sua aprovação.", contador: () => stats?.sequenciasPendentes },
   aprovada:  { grupo: "Prospecção", nome: "Fila de envio", icone: "clock", titulo: "Fila de envio",
-               sub: "Aprovadas aguardando o horário comercial ou o limite do dia.", contador: () => stats?.mensagens.aprovada },
+               sub: "Etapas aprovadas e quando cada uma sai (sempre em horário comercial, de segunda a sexta).", contador: () => stats?.mensagens.aprovada },
   enviada:   { grupo: "Prospecção", nome: "Enviadas", icone: "send", titulo: "Mensagens enviadas", sub: "Tudo o que já saiu, por e-mail e WhatsApp." },
   erro:      { grupo: "Prospecção", nome: "Com erro", icone: "alert", titulo: "Mensagens com erro",
                sub: "Corrija e tente de novo, ou descarte.", contador: () => stats?.mensagens.erro, perigo: true },
@@ -519,6 +593,8 @@ const VIEWS = {
                sub: "Todas as empresas capturadas e em que etapa do funil estão." },
   automacao: { grupo: "Sistema", nome: "Automação", icone: "zap", titulo: "Automação",
                sub: "Rode as etapas do funil manualmente quando quiser." },
+  configuracoes: { grupo: "Sistema", nome: "Configurações", icone: "settings", titulo: "Configurações",
+               sub: "Perfil da sua empresa e conexão do WhatsApp pela UAZap." },
 };
 const NAV_INFERIOR = ["maps", "rascunho", "respostas", "leads"];
 
@@ -553,7 +629,10 @@ function irParaHash() {
   marcarNav();
   $("#view-maps").hidden = viewAtual !== "maps";
   $("#view-automacao").hidden = viewAtual !== "automacao";
-  $("#view-lista").hidden = ["maps", "automacao"].includes(viewAtual);
+  $("#view-configuracoes").hidden = viewAtual !== "configuracoes";
+  $("#view-lista").hidden = ["maps", "automacao", "configuracoes"].includes(viewAtual);
+  if (viewAtual === "configuracoes") carregarConfiguracoes();
+  else pararPollingUazap();
   if (!$("#view-lista").hidden) carregarLista();
   window.scrollTo({ top: 0 });
 }
@@ -588,10 +667,10 @@ async function iniciar() {
   $$("[data-empresa]").forEach((el) => (el.textContent = sessao.empresa));
   $("#status-lista").innerHTML = [
     sessao.modoTeste ? `<span class="pilula atencao">${ic("alert", "sm")}Modo teste: os envios vão para você</span>` : "",
-    `<span class="pilula wa">${ic("message", "sm")}WhatsApp ${sessao.whatsappAutomatico ? "automático (API oficial)" : "manual, pelo seu número"}</span>`,
+    `<span class="pilula wa">${ic("message", "sm")}WhatsApp ${{ uazap: "pela UAZap", oficial: "pela API oficial", manual: "manual, pelo seu número" }[sessao.modoWhatsapp]}</span>`,
     sessao.dentroDoHorario
       ? `<span class="pilula ok">${ic("clock", "sm")}Dentro do horário de envio</span>`
-      : `<span class="pilula">${ic("clock", "sm")}Fora do horário: aprovadas vão para a fila</span>`,
+      : `<span class="pilula">${ic("clock", "sm")}Fora do horário: envios retomam às ${sessao.horario.inicio}h</span>`,
   ].join("");
   $("#nichos").innerHTML = sessao.nichosSugeridos.map((n) => `<option value="${esc(n)}">`).join("");
   $("#cidades").innerHTML = sessao.cidadesSugeridas.map((c) => `<option value="${esc(c)}">`).join("");
@@ -602,11 +681,12 @@ async function iniciar() {
 // ===================== Indicadores =====================
 async function carregarStats() {
   stats = await api("/api/stats");
+  stats.sequenciasPendentes = stats.sequenciasPendentes ?? stats.mensagens.rascunho;
   const capturadas = Object.values(stats.leads).reduce((a, b) => a + b, 0);
   const interessados = (stats.respostas.interessado ?? 0) + (stats.respostas.quer_informacoes ?? 0);
   const itens = [
     ["building", "", capturadas, "Empresas capturadas"],
-    ["checkCircle", "atencao", stats.mensagens.rascunho ?? 0, "Aguardando aprovação"],
+    ["checkCircle", "atencao", stats.sequenciasPendentes ?? 0, "Sequências para aprovar"],
     ["send", "", stats.enviadasHoje, "Enviadas hoje"],
     ["trend", "", stats.mensagens.enviada ?? 0, "Total enviadas"],
     ["heart", "ok", interessados, "Interessados"],
@@ -751,8 +831,7 @@ const ETAPAS = [
   ["descobrir", "pin", "Buscar pela campanha", "Captura empresas dos segmentos e cidades da campanha."],
   ["analisar", "globe", "Analisar sites", "Encontra e-mail, WhatsApp e oportunidades de cada empresa."],
   ["propor", "spark", "Gerar propostas", "A IA escreve as mensagens. Elas ficam esperando sua aprovação."],
-  ["followup", "repeat", "Gerar follow-ups", "Um lembrete para quem não respondeu depois de alguns dias."],
-  ["enviar", "send", "Enviar fila aprovada", "Envia o que você já aprovou, respeitando horário e limite."],
+  ["envios", "send", "Rodada de envios", "Lê as respostas e envia as etapas já agendadas para agora. Só funciona em horário comercial."],
 ];
 const NOMES_CAMPOS = { lidas: "e-mails lidos", respostas: "respostas", novas: "novas", analisados: "analisadas", descartados: "descartadas",
                        geradas: "geradas", criados: "criados", enviadas: "enviadas" };
@@ -814,13 +893,29 @@ function vazio(icone, titulo, texto, acao = "") {
   return `<div class="cartao vazio"><div class="ic-grande">${ic(icone, "lg")}</div><h3>${titulo}</h3><p>${texto}</p>${acao}</div>`;
 }
 
+const NOMES_ETAPA = { 1: "Primeiro contato", 2: "Se não responder", 3: "Último toque" };
+
+function etiquetaEtapa(m) {
+  if (m.tipo === "seq") return "<!--etapa-->";
+  if (m.tipo === "resposta") return `<span class="pilula acc">${ic("message", "sm")}Resposta na conversa</span>`;
+  if (m.tipo === "followup") return `<span class="pilula">${ic("repeat", "sm")}Follow-up</span>`;
+  return `<span class="pilula">${ic("repeat", "sm")}Etapa ${m.etapa} de 3</span>`;
+}
+
+/** Quando uma etapa aprovada vai sair. */
+function quandoSai(m) {
+  if (m.etapa > 1 && !m.agendada_para) return "Aguardando a etapa anterior ser enviada";
+  if (m.agendada_para && new Date(m.agendada_para) > new Date()) return `Agendada para ${dataHora(m.agendada_para)} (em horário comercial)`;
+  return "Sai na próxima rodada de envios em horário comercial";
+}
+
 function cabecalhoMensagem(m) {
   return `<div class="cartao-cab">
     <span class="avatar">${inicial(m.empresa)}</span>
     <div class="titulos">
       <h3>${esc(m.empresa)}
         <span class="pilula ${m.canal === "whatsapp" ? "wa" : "acc"}">${ic(m.canal === "whatsapp" ? "message" : "mail", "sm")}${CANAL[m.canal]}</span>
-        ${m.tipo === "followup" ? `<span class="pilula">${ic("repeat", "sm")}Follow-up</span>` : ""}
+        ${etiquetaEtapa(m)}
       </h3>
       <div class="meta">
         <span>${ic(m.canal === "whatsapp" ? "phone" : "mail", "sm")}${esc(m.destino)}</span>
@@ -856,6 +951,7 @@ function cardMensagem(m) {
     ? `<div class="oportunidades">${m.oportunidades.map((o) => `<span class="pilula acc">${ic("spark", "sm")}${esc(o.motivo)}</span>`).join("")}</div>`
     : "";
   const erro = m.erro ? `<div style="padding:14px 20px 0"><div class="alerta perigo">${ic("alert")}<div>${esc(m.erro)}</div></div></div>` : "";
+  const agenda = m.status === "aprovada" ? `<div class="seq-linha"><span>${ic("calendar", "sm")}${quandoSai(m)}</span></div>` : "";
 
   if (!editavel) {
     return `<article class="cartao">${cabecalhoMensagem(m)}${erro}
@@ -870,7 +966,7 @@ function cardMensagem(m) {
     : `<button class="btn ok principal-acao" data-acao="aprovar">${ic("send")}${m.status === "aprovada" ? "Tentar enviar agora" : "Aprovar e enviar"}</button>`;
 
   return `<article class="cartao" data-id="${m.id}" data-link="${esc(m.linkWhatsapp ?? "")}">
-    ${cabecalhoMensagem(m)}${oportunidades}${erro}
+    ${cabecalhoMensagem(m)}${agenda}${oportunidades}${erro}
     <div class="editor">
       <div class="campos">
         ${m.canal === "email" ? `<div class="campo"><label for="assunto-${m.id}">Assunto</label><input id="assunto-${m.id}" name="assunto" value="${esc(m.assunto)}"></div>` : ""}
@@ -887,6 +983,117 @@ function cardMensagem(m) {
   </article>`;
 }
 
+// ===================== Sequência gradual (aprovação) =====================
+function agruparSequencias(lista) {
+  const grupos = new Map();
+  for (const m of lista) {
+    const chave = `${m.lead_id}:${m.canal}`;
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave).push(m);
+  }
+  return [...grupos.values()].map((ms) => ms.sort((a, b) => a.etapa - b.etapa));
+}
+
+function blocoEtapa(m, total) {
+  const quando = m.etapa === 1 ? "sai ao aprovar, em horário comercial"
+    : `${sessao.cadencia[m.etapa - 2] ?? 2} dias úteis depois da etapa ${m.etapa - 1}, se não houver resposta`;
+  return `<div class="etapa-seq" data-id="${m.id}" data-link="${esc(m.linkWhatsapp ?? "")}">
+    <div class="etapa-cab"><span class="num">${m.etapa}</span><b>${NOMES_ETAPA[m.etapa] ?? `Etapa ${m.etapa}`}</b>
+      <span class="muted">${total > 1 ? quando : "mensagem única"}</span></div>
+    <div class="editor">
+      <div class="campos">
+        ${m.canal === "email" && m.etapa === 1 ? `<div class="campo"><label for="assunto-${m.id}">Assunto</label><input id="assunto-${m.id}" name="assunto" value="${esc(m.assunto)}"></div>` : ""}
+        <div class="campo"><label for="corpo-${m.id}">Mensagem (edite se quiser)</label><textarea id="corpo-${m.id}" name="corpo" style="min-height:${m.canal === "whatsapp" ? 150 : 200}px">${esc(m.corpo)}</textarea></div>
+      </div>
+      <div class="campo"><span class="rotulo">Como ${esc(m.empresa)} vai receber</span>${previaHtml(m)}</div>
+    </div>
+  </div>`;
+}
+
+function cardSequencia(ms) {
+  const m = ms[0];
+  const oportunidades = m.oportunidades.length
+    ? `<div class="oportunidades">${m.oportunidades.map((o) => `<span class="pilula acc">${ic("spark", "sm")}${esc(o.motivo)}</span>`).join("")}</div>` : "";
+  const primeira = ms.find((x) => x.etapa === 1) ?? m;
+  const resto = ms.filter((x) => x !== primeira);
+  const enviar = m.envioManual
+    ? `<button class="btn wa principal-acao" data-seq-acao="whatsapp">${ic("message")}Abrir no WhatsApp</button>`
+    : `<button class="btn ok principal-acao" data-seq-acao="aprovar">${ic("send")}${ms.length > 1 ? "Aprovar sequência" : "Aprovar e enviar"}</button>`;
+  const selo = ms.length > 1 ? `<span class="pilula">${ic("repeat", "sm")}Sequência de ${ms.length} etapas</span>` : "";
+  return `<article class="cartao" data-seq data-lead="${m.lead_id}" data-canal="${m.canal}">
+    ${cabecalhoMensagem({ ...m, tipo: "seq" }).replace("<!--etapa-->", selo)}
+    ${oportunidades}
+    ${ms.length > 1 ? `<div class="seq-linha"><span>${ic("calendar", "sm")}A primeira sai ao aprovar; as outras só se não houver resposta. Tudo em horário comercial, de segunda a sexta.</span></div>` : ""}
+    ${blocoEtapa(primeira, ms.length)}
+    ${resto.length ? `<details class="mais-etapas"><summary>${ic("chevron", "sm seta")}Ver e editar as etapas ${resto.map((x) => x.etapa).join(" e ")}</summary>
+      ${resto.map((x) => blocoEtapa(x, ms.length)).join("")}</details>` : ""}
+    <div class="acoes" data-botoes>
+      ${enviar}
+      <button class="btn" data-seq-acao="salvar">${ic("save")}Salvar</button>
+      <span class="espaco"></span>
+      <button class="btn perigo" data-seq-acao="rejeitar">${ic("x")}Não enviar</button>
+    </div>
+  </article>`;
+}
+
+async function salvarSequencia(card) {
+  for (const bloco of $$(".etapa-seq[data-id]", card)) {
+    const assunto = $("input[name=assunto]", bloco)?.value;
+    const corpo = $("textarea[name=corpo]", bloco).value;
+    await api(`/api/mensagens/${bloco.dataset.id}`, { method: "PUT", body: JSON.stringify({ assunto, corpo }) });
+  }
+}
+
+async function acaoSequencia(btn) {
+  const card = btn.closest("[data-seq]");
+  const { lead, canal } = card.dataset;
+  const acao = btn.dataset.seqAcao;
+  const primeira = $(".etapa-seq[data-id]", card);
+
+  if (acao === "whatsapp") {
+    const janela = window.open("about:blank", "_blank");
+    await salvarSequencia(card);
+    const base = primeira.dataset.link.split("?")[0];
+    const texto = $("textarea[name=corpo]", primeira).value + sessao.rodapeWhatsapp;
+    if (janela) janela.location = `${base}?text=${encodeURIComponent(texto)}`;
+    $("[data-botoes]", card).innerHTML = `
+      <span style="font-weight:600">Você enviou a primeira mensagem no WhatsApp?</span><span class="espaco"></span>
+      <button class="btn ok" data-seq-acao="confirmar-whatsapp">${ic("check")}Sim, enviei</button>
+      <button class="btn" data-seq-acao="cancelar-whatsapp">Ainda não</button>`;
+    return;
+  }
+  if (acao === "cancelar-whatsapp") return carregarLista();
+
+  btn.disabled = true;
+  try {
+    if (acao === "salvar") {
+      await salvarSequencia(card);
+      avisar("Edições salvas", "ok");
+      btn.disabled = false;
+      return;
+    }
+    if (acao === "confirmar-whatsapp") {
+      await post(`/api/mensagens/${primeira.dataset.id}/enviada-manual`);
+      avisar("Primeira mensagem registrada. As próximas etapas aparecem na fila quando chegar o dia.", "ok", 7000);
+    } else if (acao === "rejeitar") {
+      await post(`/api/sequencias/${lead}/${canal}/rejeitar`);
+      avisar("Sequência descartada: nada será enviado");
+    } else if (acao === "aprovar") {
+      await salvarSequencia(card);
+      const r = await post(`/api/sequencias/${lead}/${canal}/aprovar`);
+      if (r.enviada) avisar("Sequência aprovada e primeira mensagem enviada", "ok");
+      else if (r.naFila) avisar(`Sequência aprovada: ${r.motivo}`, "info", 7000);
+      else avisar(`Aprovada, mas a primeira mensagem não saiu: ${r.motivo}`, "perigo", 9000);
+    }
+    card.style.transition = "opacity .2s";
+    card.style.opacity = "0";
+    setTimeout(atualizar, 180);
+  } catch (e) {
+    avisar(e.message, "perigo");
+    btn.disabled = false;
+  }
+}
+
 // ===================== Respostas e empresas =====================
 const ROTULOS_RESPOSTA = {
   interessado: ["Interessado", "ok", "heart"], quer_informacoes: ["Quer informações", "ok", "message"],
@@ -896,7 +1103,7 @@ const ROTULOS_RESPOSTA = {
 
 function cardResposta(r) {
   const [rotulo, cor, icone] = ROTULOS_RESPOSTA[r.classificacao] ?? ["Sem classificação", "", "message"];
-  return `<article class="cartao" data-resposta="${r.id}" ${r.lida ? "" : 'style="border-left:4px solid var(--accent)"'}>
+  return `<article class="cartao" data-resposta="${r.id}" data-canal="${r.canal}" ${r.lida ? "" : 'style="border-left:4px solid var(--accent)"'}>
     <div class="cartao-cab">
       <span class="avatar">${inicial(r.empresa)}</span>
       <div class="titulos">
@@ -906,11 +1113,13 @@ function cardResposta(r) {
     </div>
     <div class="cartao-corpo" style="display:grid;gap:12px">
       ${r.resumo ? `<div class="alerta info">${ic("spark")}<div>${esc(r.resumo)}</div></div>` : ""}
+      <details class="ver-msg" data-conversa="${r.lead_id}"><summary>${ic("message", "sm")}Ver a conversa inteira</summary><div class="conversa">Carregando…</div></details>
       <div class="texto-bloco">${esc(r.texto)}</div>
-      ${r.sugestao ? `<div class="campo"><label for="sug-${r.id}">Sugestão de resposta da IA (revise antes de enviar)</label><textarea id="sug-${r.id}" style="min-height:140px">${esc(r.sugestao)}</textarea></div>` : ""}
+      ${r.sugestao ? `<div class="campo"><label for="sug-${r.id}">Próxima mensagem sugerida pela IA (revise antes de enviar)</label><textarea id="sug-${r.id}" style="min-height:140px">${esc(r.sugestao)}</textarea></div>` : ""}
     </div>
-    ${r.sugestao || !r.lida ? `<div class="acoes">
-      ${r.sugestao ? `<button class="btn primario" data-copiar>${ic("copy")}Copiar sugestão</button>` : ""}
+    ${r.sugestao || !r.lida ? `<div class="acoes" data-botoes>
+      ${r.sugestao ? `<button class="btn primario principal-acao" data-responder>${ic("send")}Enviar resposta</button>
+        <button class="btn" data-copiar>${ic("copy")}Copiar</button>` : ""}
       ${r.lida ? "" : `<button class="btn" data-lida>${ic("check")}Marcar como lida</button>`}
     </div>` : ""}
   </article>`;
@@ -955,9 +1164,9 @@ function cardLead(l) {
 
 // ===================== Listas =====================
 const VAZIOS = {
-  rascunho: ["checkCircle", "Tudo revisado por aqui", "Capture empresas no Google Maps e a IA escreve as propostas para você aprovar.",
+  rascunho: ["checkCircle", "Tudo revisado por aqui", "Capture empresas no Google Maps e a IA escreve uma sequência gradual de mensagens para você aprovar.",
              `<a class="btn primario" href="#maps">${ic("pin")}Buscar no Google Maps</a>`],
-  aprovada: ["clock", "A fila está vazia", "Mensagens aprovadas fora do horário comercial aparecem aqui até serem enviadas."],
+  aprovada: ["clock", "A fila está vazia", "Etapas aprovadas aparecem aqui com a data em que vão sair, sempre em horário comercial."],
   enviada: ["send", "Nenhuma mensagem enviada ainda", "Assim que você aprovar as primeiras propostas, elas aparecem aqui."],
   erro: ["checkCircle", "Nenhum erro", "Se algum envio falhar, ele aparece aqui para você tentar de novo."],
   respostas: ["inbox", "Nenhuma resposta ainda", "Quando as empresas responderem, a IA classifica cada resposta e sugere um retorno."],
@@ -982,7 +1191,13 @@ async function carregarLista() {
         ${lista.length ? `<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(330px,1fr))">${lista.map(cardLead).join("")}</div>` : vazio(...VAZIOS.leads)}`;
     } else {
       const lista = await api(`/api/mensagens?status=${view}`);
-      html = lista.length ? lista.map(cardMensagem).join("") : vazio(...VAZIOS[view]);
+      if (view === "rascunho") {
+        const avisoPerfil = sessao.perfilIncompleto
+          ? `<div class="alerta info" style="margin-bottom:16px">${ic("alert")}<div>Complete seu nome e telefone em <a href="#configuracoes">Configurações</a> para a IA assinar as mensagens com seus dados.</div></div>` : "";
+        html = lista.length ? avisoPerfil + agruparSequencias(lista).map(cardSequencia).join("") : vazio(...VAZIOS[view]);
+      } else {
+        html = lista.length ? lista.map(cardMensagem).join("") : vazio(...VAZIOS[view]);
+      }
     }
     if (view === viewAtual) alvo.innerHTML = html;
   } catch (e) {
@@ -992,6 +1207,163 @@ async function carregarLista() {
 
 async function atualizar() {
   await Promise.all([carregarStats(), $("#view-lista").hidden ? null : carregarLista()]);
+}
+
+// ===================== Conversa =====================
+async function carregarConversa(det) {
+  if (det.dataset.carregada) return;
+  det.dataset.carregada = "1";
+  const alvo = $(".conversa", det);
+  try {
+    const h = await api(`/api/leads/${det.dataset.conversa}/conversa`);
+    alvo.innerHTML = h.length
+      ? h.map((x) => `<div class="balao ${x.autor}">${esc(x.texto)}<small>${x.autor === "nos" ? "Você" : "Empresa"} · ${dataHora(x.quando)}${x.etapa ? ` · etapa ${x.etapa}` : ""}</small></div>`).join("")
+      : `<span class="muted">Sem mensagens registradas.</span>`;
+  } catch (e) {
+    alvo.innerHTML = `<span class="erro-texto">${esc(e.message)}</span>`;
+  }
+}
+
+async function responder(btn) {
+  const card = btn.closest("[data-resposta]");
+  const texto = $("textarea", card).value;
+  // No WhatsApp manual a janela precisa abrir no clique, senão o navegador bloqueia.
+  const janela = card.dataset.canal === "whatsapp" && sessao.modoWhatsapp === "manual" ? window.open("about:blank", "_blank") : null;
+  btn.disabled = true;
+  try {
+    const r = await post(`/api/respostas/${card.dataset.resposta}/enviar`, { texto });
+    if (r.manual) {
+      if (janela) janela.location = r.linkWhatsapp;
+      $("[data-botoes]", card).innerHTML = `
+        <span style="font-weight:600">Você enviou a resposta no WhatsApp?</span><span class="espaco"></span>
+        <button class="btn ok" data-confirmar-resposta="${r.id}">${ic("check")}Sim, enviei</button>`;
+      return;
+    }
+    janela?.close();
+    if (r.enviada) avisar("Resposta enviada", "ok");
+    else if (r.naFila) avisar(`Resposta na fila: ${r.motivo}`, "info", 7000);
+    else avisar(`Não foi enviada: ${r.motivo}`, "perigo", 8000);
+    await atualizar();
+  } catch (e) {
+    janela?.close();
+    avisar(e.message, "perigo");
+    btn.disabled = false;
+  }
+}
+
+// ===================== Configurações =====================
+let pollingUazap = null;
+function pararPollingUazap() { clearInterval(pollingUazap); pollingUazap = null; }
+
+const ESTADOS_UAZAP = {
+  connected: ["Conectado", "ok"], connecting: ["Aguardando leitura", "atencao"],
+  disconnected: ["Desconectado", "perigo"], hibernated: ["Hibernando", "atencao"],
+};
+
+function mostrarStatusUazap(st) {
+  const [rotulo, cor] = ESTADOS_UAZAP[st.estado] ?? [st.estado ?? "Desconhecido", ""];
+  $("#uazap-status").innerHTML = `<span class="pilula ${cor}">${esc(rotulo)}${st.numero ? ` · ${esc(st.numero)}` : ""}</span>`;
+  const alvo = $("#uazap-conexao");
+  if (st.conectado) {
+    pararPollingUazap();
+    alvo.innerHTML = `<div class="alerta info">${ic("checkCircle")}<div>WhatsApp conectado${st.perfil ? ` como <b>${esc(st.perfil)}</b>` : ""}. As etapas aprovadas e as respostas passam a sair por este número.</div></div>`;
+  } else if (st.qrcode) {
+    alvo.innerHTML = `<div class="qr"><img src="${esc(st.qrcode)}" alt="QR code para conectar o WhatsApp">
+      <div>No celular: WhatsApp → <b>Aparelhos conectados</b> → <b>Conectar aparelho</b> e aponte para o código.</div></div>`;
+  } else if (st.paircode) {
+    alvo.innerHTML = `<div class="qr"><div class="codigo-pareamento">${esc(st.paircode)}</div>
+      <div>No celular: WhatsApp → <b>Aparelhos conectados</b> → <b>Conectar com número de telefone</b> e digite o código.</div></div>`;
+  } else alvo.innerHTML = "";
+}
+
+function iniciarPollingUazap() {
+  pararPollingUazap();
+  pollingUazap = setInterval(async () => {
+    try { mostrarStatusUazap(await api("/api/uazap/status")); } catch { pararPollingUazap(); }
+  }, 3000);
+}
+
+async function carregarConfiguracoes() {
+  try {
+    const c = await api("/api/config");
+    for (const [k, v] of Object.entries(c.empresa)) {
+      const el = $(`#form-empresa [name=${k}]`);
+      if (el) el.value = v ?? "";
+    }
+    $("#uazap-url").value = c.uazap.url ?? "";
+    $("#uazap-token").placeholder = c.uazap.tokenDefinido ? "•••••••• já salvo (preencha só para trocar)" : "Cole o token da instância";
+    $("#uazap-token").required = !c.uazap.tokenDefinido;
+    $("#uazap-webhook").textContent = c.uazap.webhook ? `Webhook: ${c.uazap.webhook}` : "";
+    if (c.uazap.url && c.uazap.tokenDefinido) {
+      mostrarStatusUazap(await api("/api/uazap/status").catch((e) => ({ estado: e.message })));
+    } else {
+      $("#uazap-status").innerHTML = `<span class="pilula">Não configurado</span>`;
+      $("#uazap-conexao").innerHTML = "";
+    }
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+}
+
+$("#form-empresa").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    await api("/api/config/empresa", { method: "PUT", body: JSON.stringify(Object.fromEntries(new FormData(ev.target))) });
+    sessao = await api("/api/sessao");
+    $$("[data-empresa]").forEach((el) => (el.textContent = sessao.empresa));
+    avisar("Perfil salvo. As próximas mensagens da IA já usam estes dados.", "ok");
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#form-uazap").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    const r = await post("/api/uazap/config", { url: $("#uazap-url").value, token: $("#uazap-token").value });
+    $("#uazap-token").value = "";
+    $("#uazap-token").required = false;
+    $("#uazap-webhook").textContent = `Webhook: ${r.webhook}`;
+    mostrarStatusUazap(r.status);
+    sessao = await api("/api/sessao");
+    avisar("UAZap configurada e webhook apontado para o sistema", "ok");
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+async function acaoUazap(btn) {
+  const acao = btn.dataset.uazap;
+  btn.disabled = true;
+  try {
+    if (acao === "qr") {
+      mostrarStatusUazap(await post("/api/uazap/conectar"));
+      iniciarPollingUazap();
+    } else if (acao === "codigo") {
+      const telefone = prompt("Número do WhatsApp que vai conectar (com DDI e DDD, só números):", "55");
+      if (telefone) {
+        mostrarStatusUazap(await post("/api/uazap/conectar", { telefone }));
+        iniciarPollingUazap();
+      }
+    } else if (acao === "status") {
+      mostrarStatusUazap(await api("/api/uazap/status"));
+    } else if (acao === "desconectar" && confirm("Desconectar o WhatsApp deste sistema?")) {
+      await post("/api/uazap/desconectar");
+      mostrarStatusUazap(await api("/api/uazap/status"));
+    }
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // ===================== Ações =====================
@@ -1058,6 +1430,11 @@ document.addEventListener("input", (ev) => {
   if (ev.target.name === "assunto") $("[data-previa-assunto]", card).textContent = ev.target.value;
 });
 
+// "Ver a conversa inteira" carrega o histórico só quando é aberto.
+document.addEventListener("toggle", (ev) => {
+  if (ev.target.matches?.("details[data-conversa]") && ev.target.open) carregarConversa(ev.target);
+}, true);
+
 document.addEventListener("change", (ev) => {
   if (ev.target.dataset.check !== undefined) alternarEmpresa(Number(ev.target.dataset.check), ev.target.checked);
 });
@@ -1076,7 +1453,15 @@ document.addEventListener("click", async (ev) => {
     else if (btn.dataset.maps === "limpar") [...selecionadas].forEach((i) => alternarEmpresa(i, false));
     else if (btn.dataset.maps === "capturar") await capturarSelecionadas(btn);
     else if (btn.dataset.maps === "processar") await processarCapturadas(btn);
+    else if (btn.dataset.seqAcao) await acaoSequencia(btn);
     else if (btn.dataset.acao) await acaoMensagem(btn);
+    else if (btn.dataset.uazap) await acaoUazap(btn);
+    else if ("responder" in btn.dataset) await responder(btn);
+    else if (btn.dataset.confirmarResposta) {
+      await post(`/api/mensagens/${btn.dataset.confirmarResposta}/enviada-manual`);
+      avisar("Resposta registrada", "ok");
+      await atualizar();
+    }
     else if (btn.dataset.filtro) { filtroLeads = btn.dataset.filtro; await carregarLista(); }
     else if ("copiar" in btn.dataset) {
       await navigator.clipboard.writeText($("textarea", btn.closest("[data-resposta]")).value);
@@ -1097,6 +1482,7 @@ document.addEventListener("click", async (ev) => {
 // ===================== Início =====================
 $$("[data-logo]").forEach((el) => (el.innerHTML = LOGO));
 $$("[data-ic]").forEach((el) => (el.outerHTML = ic(el.dataset.ic)));
+$$("[data-ic-span]").forEach((el) => (el.innerHTML = ic(el.dataset.icSpan)));
 $("#sair").innerHTML = `${ic("logout")}Sair`;
 desenharNav();
 desenharEtapas();

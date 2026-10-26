@@ -4,9 +4,10 @@ import { buscarEmpresas } from "./descoberta/googlePlaces.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
-import { gerarFollowup, gerarProposta } from "./ia/proposta.js";
+import { gerarSequencia } from "./ia/proposta.js";
 import { enviarEmail } from "./envio/email.js";
-import { enviarWhatsapp } from "./envio/whatsapp.js";
+import { enviarWhatsapp, enviarTextoWhatsappOficial, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
+import * as uazap from "./envio/uazap.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -16,13 +17,53 @@ const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { ti
 // e o que sobrar continua na próxima execução (ou no próximo clique no painel).
 const TEMPO_POR_EXECUCAO_MS = 240_000;
 
+// Dias úteis de espera antes das etapas 2 e 3 da sequência.
+const CADENCIA_PADRAO = [2, 3];
+
 /** Momento-limite para uma etapa terminar. */
 export function prazoPadrao() {
   return config.naVercel ? Date.now() + TEMPO_POR_EXECUCAO_MS : Infinity;
 }
 
-/** WhatsApp pela API oficial (automático) ou manual (você envia pelo seu WhatsApp, a partir do painel). */
-export const whatsappAutomatico = () => config.whatsapp.ativo;
+/**
+ * Como o WhatsApp sai: pela UAZap (número conectado no painel), pela API oficial da Meta,
+ * ou manual (você envia pelo seu WhatsApp a partir do painel).
+ */
+export async function modoWhatsapp() {
+  if (await uazap.configurada()) return "uazap";
+  if (config.whatsapp.ativo) return "oficial";
+  return "manual";
+}
+
+// ---------- Datas e horário comercial ----------
+
+function partesNoFuso(data) {
+  return Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: config.timezone, hour: "numeric", hourCycle: "h23", weekday: "short" })
+      .formatToParts(data)
+      .map((p) => [p.type, p.value])
+  );
+}
+
+const ehFimDeSemana = (data) => ["Sat", "Sun"].includes(partesNoFuso(data).weekday);
+
+export function dentroDoHorario(limites, agora = new Date()) {
+  const partes = partesNoFuso(agora);
+  const hora = Number(partes.hour);
+  if (limites.somenteDiasUteis && ["Sat", "Sun"].includes(partes.weekday)) return false;
+  return hora >= limites.horarioComercial.inicio && hora < limites.horarioComercial.fim;
+}
+
+/** Soma dias úteis (segunda a sexta) mantendo o horário. */
+export function somarDiasUteis(data, dias) {
+  const resultado = new Date(data);
+  let faltam = dias;
+  while (faltam > 0) {
+    resultado.setTime(resultado.getTime() + 24 * 3600 * 1000);
+    if (!ehFimDeSemana(resultado)) faltam--;
+  }
+  return resultado;
+}
 
 // ---------- Captura de empresas ----------
 
@@ -50,6 +91,7 @@ export async function descobrir(campanha, { ate = prazoPadrao() } = {}) {
 export async function buscarNoMaps(nicho, cidade, quantidade = 20) {
   const empresas = await buscarEmpresas(`${nicho} em ${cidade}`, Math.min(Number(quantidade) || 20, 60));
   const capturados = await db.placeIdsCapturados(empresas.map((e) => e.place_id));
+  log(`🔎 Busca no painel "${nicho} em ${cidade}": ${empresas.length} empresas`);
   return empresas.map((e) => ({
     ...e,
     jaCapturado: capturados.has(e.place_id),
@@ -81,7 +123,7 @@ export async function capturarDoMaps(empresas, nicho, cidade) {
   return { novas };
 }
 
-// ---------- Análise e propostas ----------
+// ---------- Análise e sequências ----------
 
 /** Etapa 2: visita o site de cada empresa nova, encontra contatos e oportunidades. */
 export async function analisar({ ate = prazoPadrao() } = {}) {
@@ -119,8 +161,8 @@ export async function analisar({ ate = prazoPadrao() } = {}) {
 }
 
 /**
- * Etapa 3: a IA escreve uma proposta personalizada para cada empresa analisada.
- * A primeira mensagem SEMPRE fica como rascunho, aguardando sua aprovação no painel.
+ * Etapa 3: a IA escreve a sequência gradual (3 etapas por canal) de cada empresa analisada.
+ * Tudo fica como rascunho, aguardando sua aprovação no painel.
  */
 export async function propor(campanha, { ate = prazoPadrao() } = {}) {
   const leads = await db.leadsPorStatus("analisado", campanha.limites.maxPropostasPorCiclo);
@@ -143,20 +185,25 @@ export async function propor(campanha, { ate = prazoPadrao() } = {}) {
     }
 
     try {
-      const p = await gerarProposta(lead, JSON.parse(lead.oportunidades), campanha);
+      const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades), campanha);
       for (const [canal, destino] of destinosLivres) {
-        await db.criarMensagem({
-          lead_id: lead.id,
-          canal,
-          destino,
-          assunto: canal === "email" ? p.assunto_email : null,
-          corpo: canal === "email" ? p.corpo_email : p.mensagem_whatsapp,
-          status: "rascunho",
-        });
+        const textos = canal === "email" ? s.email : s.whatsapp;
+        for (const [i, corpo] of textos.entries()) {
+          await db.criarMensagem({
+            lead_id: lead.id,
+            canal,
+            destino,
+            // As etapas seguintes do e-mail vão como resposta na mesma conversa.
+            assunto: canal === "email" ? (i === 0 ? s.assunto_email : `Re: ${s.assunto_email}`) : null,
+            corpo,
+            etapa: i + 1,
+            tipo: i === 0 ? "inicial" : "sequencia",
+          });
+        }
       }
-      await db.atualizarLead(lead.id, { status: "proposta_gerada", observacao: p.resumo_interno });
+      await db.atualizarLead(lead.id, { status: "proposta_gerada", observacao: s.resumo_interno });
       geradas++;
-      log(`✍️  Proposta para ${lead.nome} (${p.servico_principal})`);
+      log(`✍️  Sequência para ${lead.nome} (${s.servico_principal})`);
     } catch (e) {
       ultimoErro = e.message;
       await db.atualizarLead(lead.id, { observacao: `erro ao gerar proposta: ${e.message}` });
@@ -165,7 +212,7 @@ export async function propor(campanha, { ate = prazoPadrao() } = {}) {
   }
 
   const restantes = await db.contarLeadsPorStatus("analisado");
-  log(`✍️  ${geradas} propostas geradas, aguardando aprovação no painel (${restantes} empresas na fila)`);
+  log(`✍️  ${geradas} sequências geradas, aguardando aprovação no painel (${restantes} empresas na fila)`);
   return { geradas, restantes, ...(ultimoErro ? { erro: ultimoErro } : {}) };
 }
 
@@ -179,104 +226,79 @@ export async function verificarRespostas(campanha) {
   }
 }
 
-/** Etapa 3b: um único lembrete, na mesma conversa, para quem não respondeu após N dias. */
-export async function criarFollowups(campanha, { ate = prazoPadrao() } = {}) {
-  const fu = campanha.followUp;
-  if (!fu?.ativo) return { criados: 0 };
-
-  const statusInicial = fu.aprovacaoManual === false ? "aprovada" : "rascunho";
-  let criados = 0;
-  for (const original of await db.candidatosFollowup(fu.diasDepois, campanha.limites.maxPropostasPorCiclo)) {
-    if (Date.now() > ate) break;
-    if (await db.estaDescadastrado(original.destino)) continue;
-    try {
-      const corpo = await gerarFollowup(original, campanha);
-      await db.criarMensagem({
-        lead_id: original.lead_id,
-        canal: "email",
-        destino: original.destino,
-        assunto: /^re:/i.test(original.assunto ?? "") ? original.assunto : `Re: ${original.assunto ?? ""}`,
-        corpo,
-        status: statusInicial,
-        tipo: "followup",
-        responde_a: original.id,
-      });
-      criados++;
-      log(`🔁 Follow-up para ${original.empresa}`);
-    } catch (e) {
-      log(`⚠️  Falha ao gerar follow-up para ${original.empresa}: ${e.message}`);
-    }
-  }
-  log(`🔁 ${criados} follow-ups criados`);
-  return { criados };
-}
-
 // ---------- Envio ----------
-
-export function dentroDoHorario(limites, agora = new Date()) {
-  const partes = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", {
-      timeZone: config.timezone,
-      hour: "numeric",
-      hourCycle: "h23",
-      weekday: "short",
-    })
-      .formatToParts(agora)
-      .map((p) => [p.type, p.value])
-  );
-  const hora = Number(partes.hour);
-  const fimDeSemana = partes.weekday === "Sat" || partes.weekday === "Sun";
-  if (limites.somenteDiasUteis && fimDeSemana) return false;
-  return hora >= limites.horarioComercial.inicio && hora < limites.horarioComercial.fim;
-}
 
 /** Último passo antes de enviar: confere descadastro, duplicidade e status do lead. */
 async function bloqueioDeEnvio(m) {
   if (await db.estaDescadastrado(m.destino)) return "contato descadastrado";
-  if (m.tipo === "inicial" && (await db.contatoJaUsado(m.destino, ["enviada"]))) return "contato já recebeu outra proposta";
-  if (m.tipo === "followup" && m.status_lead !== "contatado") return `follow-up cancelado: lead está como ${m.status_lead}`;
+  if (m.tipo === "resposta") return null;
+  if (m.etapa <= 1 && (await db.contatoJaUsado(m.destino, ["enviada"]))) return "contato já recebeu outra proposta";
+  if (m.etapa > 1 && m.status_lead !== "contatado") return `sequência encerrada: lead está como ${m.status_lead}`;
   return null;
 }
 
-/**
- * Envia uma mensagem aprovada. Retorna { enviada, motivo }.
- * Fora do horário ou acima do limite diário, ela fica na fila para a próxima rodada.
- */
-export async function enviarMensagem(m, campanha, { ignorarHorario = false } = {}) {
-  if (m.status !== "aprovada") return { enviada: false, motivo: `mensagem está como ${m.status}` };
-  if (m.canal === "whatsapp" && !whatsappAutomatico()) {
-    return { enviada: false, motivo: "WhatsApp manual: envie pelo botão do painel" };
+/** Message-ID do e-mail da etapa 1, para as etapas seguintes caírem na mesma conversa. */
+async function threadDoEmail(m) {
+  if (m.tipo === "resposta") return m.em_resposta_a;
+  if (m.etapa > 1) {
+    const anteriores = await db.mensagensDaSequencia(m.lead_id, "email");
+    return anteriores.find((x) => x.status === "enviada" && x.message_id)?.message_id ?? null;
   }
+  return m.responde_a ? (await db.buscarMensagem(m.responde_a))?.message_id ?? null : null;
+}
+
+async function registrarEnvio(m, campanha, messageId = null) {
+  await db.atualizarMensagem(m.id, { status: "enviada", enviada_em: new Date().toISOString(), erro: null, message_id: messageId });
+  if (m.tipo === "resposta") return;
+  await db.atualizarLead(m.lead_id, { status: "contatado" });
+  if (m.etapa < 3) {
+    const cadencia = campanha.cadencia?.diasUteisEntreEtapas ?? CADENCIA_PADRAO;
+    await db.agendarProximaEtapa(m, somarDiasUteis(new Date(), cadencia[m.etapa - 1] ?? 2).toISOString());
+  }
+}
+
+/**
+ * Envia uma mensagem aprovada, SOMENTE em horário comercial e dentro do limite diário.
+ * Fora disso, ela fica na fila e sai na próxima janela. Retorna { enviada, naFila, motivo }.
+ */
+export async function enviarMensagem(m, campanha) {
+  if (m.status !== "aprovada") return { enviada: false, motivo: `mensagem está como ${m.status}` };
+  const modo = m.canal === "whatsapp" ? await modoWhatsapp() : null;
+  if (modo === "manual") return { enviada: false, motivo: "WhatsApp manual: envie pelo botão do painel" };
 
   const bloqueio = await bloqueioDeEnvio(m);
   if (bloqueio) {
     await db.atualizarMensagem(m.id, { status: "rejeitada", erro: bloqueio });
     return { enviada: false, motivo: bloqueio };
   }
-  if (!ignorarHorario && !dentroDoHorario(campanha.limites)) {
-    return { enviada: false, naFila: true, motivo: "fora do horário comercial; sai no próximo envio" };
+  if (!dentroDoHorario(campanha.limites)) {
+    return { enviada: false, naFila: true, motivo: "fora do horário comercial; sai no próximo horário de envio" };
   }
-  if ((await db.enviadasHoje()) >= campanha.limites.envioDiarioMax) {
+  if (m.tipo !== "resposta" && (await db.enviadasHoje()) >= campanha.limites.envioDiarioMax) {
     return { enviada: false, naFila: true, motivo: `limite diário de ${campanha.limites.envioDiarioMax} envios atingido` };
   }
 
   try {
     let messageId = null;
+    const rodape = m.tipo === "resposta" ? "" : RODAPE_WHATSAPP;
     if (m.canal === "email") {
-      const original = m.responde_a ? await db.buscarMensagem(m.responde_a) : null;
       messageId = await enviarEmail({
         para: m.destino,
         assunto: m.assunto,
         corpo: m.corpo,
         token: m.token,
-        respondendoA: original?.message_id ?? null,
+        respondendoA: await threadDoEmail(m),
       });
+    } else if (modo === "uazap") {
+      if (config.modoTeste.email && !config.modoTeste.whatsapp) throw new Error("modo teste ativo sem MODO_TESTE_WHATSAPP; WhatsApp não enviado");
+      messageId = await uazap.enviarTexto(config.modoTeste.whatsapp || m.destino, m.corpo + rodape);
+    } else if (m.tipo === "resposta") {
+      messageId = await enviarTextoWhatsappOficial({ para: m.destino, corpo: m.corpo });
     } else {
-      await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo });
+      messageId = await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo });
     }
-    await db.atualizarMensagem(m.id, { status: "enviada", enviada_em: new Date().toISOString(), erro: null, message_id: messageId });
-    await db.atualizarLead(m.lead_id, { status: "contatado" });
-    log(`📨 ${m.canal} enviado para ${m.empresa} <${m.destino}>`);
+    await registrarEnvio(m, campanha, messageId);
+    log(`📨 ${m.canal} (etapa ${m.etapa}) enviado para ${m.empresa} <${m.destino}>`);
     return { enviada: true };
   } catch (e) {
     await db.atualizarMensagem(m.id, { status: "erro", erro: e.message });
@@ -285,8 +307,24 @@ export async function enviarMensagem(m, campanha, { ignorarHorario = false } = {
   }
 }
 
-/** Você enviou pelo seu WhatsApp (botão do painel): registra como enviada. */
-export async function marcarEnviadaManual(id) {
+/** Aprova as 3 etapas de uma vez. A etapa 1 sai na hora se for horário comercial. */
+export async function aprovarSequencia(leadId, canal, campanha) {
+  const etapas = (await db.mensagensDaSequencia(leadId, canal)).filter((m) => ["rascunho", "erro"].includes(m.status));
+  if (!etapas.length) throw new Error("Nada para aprovar nesta sequência");
+  for (const m of etapas) await db.atualizarMensagem(m.id, { status: "aprovada", erro: null });
+  const primeira = etapas.find((m) => m.etapa <= 1);
+  if (!primeira) return { enviada: false, naFila: true, motivo: "etapas aprovadas; saem nas datas agendadas" };
+  return enviarMensagem({ ...primeira, status: "aprovada" }, campanha);
+}
+
+export async function rejeitarSequencia(leadId, canal) {
+  for (const m of await db.mensagensDaSequencia(leadId, canal)) {
+    if (["rascunho", "aprovada", "erro"].includes(m.status)) await db.atualizarMensagem(m.id, { status: "rejeitada", erro: "rejeitada no painel" });
+  }
+}
+
+/** Você enviou pelo seu WhatsApp (botão do painel): registra como enviada e agenda a próxima etapa. */
+export async function marcarEnviadaManual(id, campanha) {
   const m = await db.buscarMensagem(id);
   if (!m || m.canal !== "whatsapp" || !["rascunho", "aprovada"].includes(m.status)) return false;
   const bloqueio = await bloqueioDeEnvio(m);
@@ -294,33 +332,67 @@ export async function marcarEnviadaManual(id) {
     await db.atualizarMensagem(m.id, { status: "rejeitada", erro: bloqueio });
     return false;
   }
-  await db.atualizarMensagem(m.id, { status: "enviada", enviada_em: new Date().toISOString(), erro: null });
-  await db.atualizarLead(m.lead_id, { status: "contatado" });
+  // Enviar o primeiro contato manualmente também aprova as etapas seguintes da sequência.
+  if (m.etapa <= 1 && m.tipo !== "resposta") {
+    for (const x of await db.mensagensDaSequencia(m.lead_id, "whatsapp")) {
+      if (x.id !== m.id && x.status === "rascunho") await db.atualizarMensagem(x.id, { status: "aprovada" });
+    }
+  }
+  await registrarEnvio(m, campanha);
   return true;
 }
 
-/** Etapa 4: envia a fila de mensagens aprovadas, com intervalo entre elas. */
-export async function enviar(campanha, { ignorarHorario = false, ate = prazoPadrao() } = {}) {
+/** Responde uma conversa com o texto revisado no painel. Respeita o horário comercial. */
+export async function responderConversa(respostaId, texto, campanha) {
+  const r = await db.buscarResposta(respostaId);
+  if (!r) throw new Error("Resposta não encontrada");
+  if (!String(texto ?? "").trim()) throw new Error("Escreva a mensagem antes de enviar");
+  const destino = r.canal === "email" ? r.email || r.de : r.whatsapp || r.de;
+  const id = await db.criarMensagem({
+    lead_id: r.lead_id,
+    canal: r.canal,
+    destino,
+    assunto: r.canal === "email" ? (/^re:/i.test(r.assunto ?? "") ? r.assunto : `Re: ${r.assunto ?? ""}`) : null,
+    corpo: texto.trim(),
+    status: "aprovada",
+    tipo: "resposta",
+    etapa: 0,
+    em_resposta_a: r.canal === "email" ? r.origem_id : null,
+  });
+  await db.marcarRespostaLida(respostaId);
+  const m = await db.buscarMensagem(id);
+  if (r.canal === "whatsapp" && (await modoWhatsapp()) === "manual") {
+    return { enviada: false, manual: true, id, motivo: "envie pelo seu WhatsApp" };
+  }
+  return { id, ...(await enviarMensagem(m, campanha)) };
+}
+
+/**
+ * Etapa 4: envia a fila (etapas aprovadas e já no dia agendado), com intervalo entre elas.
+ * Nada sai fora do horário comercial de segunda a sexta.
+ */
+export async function enviar(campanha, { ate = prazoPadrao() } = {}) {
   const { limites } = campanha;
-  if (!ignorarHorario && !dentroDoHorario(limites)) {
-    log("📭 Fora do horário comercial configurado; nada enviado");
+  if (!dentroDoHorario(limites)) {
+    log("📭 Fora do horário comercial; nada enviado");
     return { enviadas: 0, motivo: "fora do horário comercial" };
   }
 
   const restante = limites.envioDiarioMax - (await db.enviadasHoje());
-  if (restante <= 0) {
-    log(`📭 Limite diário de ${limites.envioDiarioMax} envios atingido`);
-    return { enviadas: 0, motivo: "limite diário atingido" };
+  const manual = (await modoWhatsapp()) === "manual";
+  let vagas = restante;
+  const fila = (await db.filaDeEnvio(200))
+    .filter((m) => m.canal === "email" || !manual)
+    .filter((m) => m.tipo === "resposta" || vagas-- > 0);
+  if (!fila.length) {
+    log(restante <= 0 ? `📭 Limite diário de ${limites.envioDiarioMax} envios atingido` : "📭 Nada para enviar agora");
+    return { enviadas: 0, ...(restante <= 0 ? { motivo: "limite diário atingido" } : {}) };
   }
 
-  const fila = (await db.mensagensPorStatus("aprovada", restante * 2))
-    .filter((m) => m.canal === "email" || whatsappAutomatico())
-    .slice(0, restante);
   const intervalo = limites.intervaloEntreEnviosSegundos * 1000;
   let enviadas = 0;
-
   for (const [i, m] of fila.entries()) {
-    const r = await enviarMensagem(m, campanha, { ignorarHorario });
+    const r = await enviarMensagem(m, campanha);
     if (r.enviada) enviadas++;
     if (i === fila.length - 1) break;
     // Intervalo entre envios para não parecer disparo em massa (e não cair no spam).
@@ -332,14 +404,23 @@ export async function enviar(campanha, { ignorarHorario = false, ate = prazoPadr
   return { enviadas };
 }
 
-// ---------- Ciclo completo ----------
+// ---------- Rotinas ----------
+
+/** Rodada de envios do horário comercial: lê respostas (para parar sequências) e envia a fila. */
+export async function rodadaDeEnvios(campanha) {
+  const ate = prazoPadrao();
+  return {
+    respostas: await verificarRespostas(campanha),
+    envio: await enviar(campanha, { ate }),
+  };
+}
 
 let cicloEmAndamento = false;
 
 /**
  * Roda o funil completo. As respostas são lidas primeiro para que ninguém que já
- * respondeu receba follow-up no mesmo ciclo. As propostas novas ficam aguardando
- * aprovação; só a fila já aprovada é enviada.
+ * respondeu receba a próxima etapa. As sequências novas ficam aguardando aprovação;
+ * só o que você já aprovou é enviado.
  */
 export async function executarCiclo(campanha) {
   if (cicloEmAndamento) {
@@ -354,7 +435,6 @@ export async function executarCiclo(campanha) {
       descoberta: await descobrir(campanha, { ate }),
       analise: await analisar({ ate }),
       propostas: await propor(campanha, { ate }),
-      followups: await criarFollowups(campanha, { ate }),
       envio: await enviar(campanha, { ate }),
     };
   } finally {

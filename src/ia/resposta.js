@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { gerarJson } from "./cliente.js";
+import { contextoEmpresa } from "./proposta.js";
 
 export const CLASSIFICACOES = ["interessado", "quer_informacoes", "sem_interesse", "descadastro", "automatica", "outro"];
 
@@ -23,7 +24,7 @@ const CLASSIFICACAO_JSON_SCHEMA = {
     resumo: { type: "string", description: "1 frase com o que a pessoa disse" },
     sugestao_resposta: {
       type: "string",
-      description: "rascunho de resposta para o vendedor revisar; vazio se for descadastro, sem_interesse ou automatica",
+      description: "próxima mensagem da conversa para o vendedor revisar; vazio se for descadastro, sem_interesse ou automatica",
     },
   },
   required: ["classificacao", "resumo", "sugestao_resposta"],
@@ -54,27 +55,44 @@ export function classificarPorRegra(texto, assunto = "") {
   return null;
 }
 
-/** Classifica a resposta de um lead e sugere um rascunho de retorno para o vendedor. */
-export async function classificarResposta({ texto, assunto, lead, mensagemOriginal, campanha }) {
+/** Texto da conversa até aqui, para a IA não repetir o que já foi dito. */
+export function formatarHistorico(historico) {
+  if (!historico?.length) return "(nenhuma mensagem anterior registrada)";
+  return historico
+    .map((h) => `${h.autor === "nos" ? "NÓS" : "EMPRESA"} (${h.canal}${h.etapa ? `, etapa ${h.etapa}` : ""}): ${h.texto}`)
+    .join("\n\n");
+}
+
+/**
+ * Classifica a resposta de um lead e sugere o próximo passo da conversa.
+ * A sugestão avança aos poucos: responde o que foi perguntado e entrega uma informação nova por vez.
+ */
+export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email" }) {
   const porRegra = classificarPorRegra(texto, assunto);
   if (porRegra) return porRegra;
 
-  const { empresa } = campanha;
+  const limite = canal === "whatsapp" ? "no máximo 3 frases curtas (até ~400 caracteres), sem assinatura" : "até 100 palavras, com assinatura curta";
   return gerarJson({
-    system: `Você ajuda o time comercial da ${empresa.nome} (sites, lojas virtuais e sistemas) a tratar respostas de prospecção.
-Classifique a resposta recebida e, se fizer sentido, escreva um rascunho de retorno em português do Brasil,
-cordial e curto (até 120 palavras), assinado por ${empresa.responsavel}. Responda às perguntas usando apenas
-informações do catálogo e da mensagem original; quando não souber algo, proponha uma conversa rápida
-em vez de inventar. Telefone para contato: ${empresa.telefone}.
+    system: `${contextoEmpresa(campanha)}
 
-Catálogo:
-${campanha.servicos.map((s) => `- ${s.nome}: a partir de ${s.aPartirDe}, prazo ${s.prazo}`).join("\n")}`,
-    pedido: `Empresa que respondeu: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""})
+Você está conduzindo, aos poucos, uma conversa de prospecção que já começou. Classifique a última resposta da empresa
+e escreva a PRÓXIMA mensagem da conversa (sugestão que o vendedor vai revisar antes de enviar).
 
-Mensagem que enviamos:
-${mensagemOriginal ? `Assunto: ${mensagemOriginal.assunto ?? ""}\n${mensagemOriginal.corpo}` : "(não encontrada)"}
+Como conduzir:
+- Responda primeiro, de forma direta, o que a empresa perguntou ou comentou.
+- Entregue no máximo UMA informação nova por mensagem; não despeje tudo de uma vez.
+- Faça uma pergunta curta de descoberta (como fazem hoje, o que é prioridade, quem decide), exceto se já houver interesse claro.
+- Preço: só quando perguntarem ou quando já houver interesse claro, sempre como "a partir de", e explique o que está incluído.
+- Interesse claro: proponha uma conversa rápida de 15 minutos com duas opções de horário em dias úteis.
+- Nunca repita frases ou informações que já aparecem no histórico. Não invente fatos.
+- Tamanho: ${limite}. Português do Brasil, tom humano e cordial.
+- Se for descadastro, sem interesse ou resposta automática, deixe a sugestão vazia.`,
+    pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""}) · canal: ${canal}
 
-Resposta recebida${assunto ? ` (assunto: ${assunto})` : ""}:
+Histórico da conversa (mais antigo primeiro):
+${formatarHistorico(historico)}
+
+Última resposta da empresa${assunto ? ` (assunto: ${assunto})` : ""}:
 ${texto}`,
     jsonSchema: CLASSIFICACAO_JSON_SCHEMA,
     zodSchema: ClassificacaoSchema,

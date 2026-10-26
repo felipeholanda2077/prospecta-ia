@@ -29,8 +29,8 @@
       "schedule": "30 12 * * 1-5"
     },
     {
-      "path": "/api/cron/respostas",
-      "schedule": "0 22 * * *"
+      "path": "/api/cron/envios",
+      "schedule": "0 16 * * 1-5"
     }
   ]
 }

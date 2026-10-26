@@ -67,6 +67,20 @@ export async function gravarEstado(chave, valor) {
   );
 }
 
+/** Configurações salvas pelo painel (perfil da empresa, conexão UAZap), em JSON. */
+export async function lerConfig(chave) {
+  const valor = await lerEstado(`config:${chave}`);
+  try {
+    return valor ? JSON.parse(valor) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function gravarConfig(chave, objeto) {
+  await gravarEstado(`config:${chave}`, JSON.stringify(objeto));
+}
+
 // ---------- Descadastros ----------
 
 export function normalizarContato(contato) {
@@ -156,7 +170,7 @@ export async function descadastrarLead(lead, motivo = "pedido do contato") {
 
 // ---------- Mensagens ----------
 
-const COLUNAS_MENSAGEM = new Set(["assunto", "corpo", "status", "erro", "enviada_em", "message_id"]);
+const COLUNAS_MENSAGEM = new Set(["assunto", "corpo", "status", "erro", "enviada_em", "message_id", "agendada_para"]);
 
 /** Evita contatar o mesmo e-mail/telefone duas vezes, mesmo vindo de empresas diferentes. */
 export async function contatoJaUsado(destino, status = ["rascunho", "aprovada", "enviada"]) {
@@ -168,11 +182,14 @@ export async function contatoJaUsado(destino, status = ["rascunho", "aprovada", 
   );
 }
 
-export async function criarMensagem({ lead_id, canal, destino, assunto, corpo, status = "rascunho", tipo = "inicial", responde_a = null }) {
+export async function criarMensagem({
+  lead_id, canal, destino, assunto, corpo, status = "rascunho", tipo = "inicial", responde_a = null, etapa = 1,
+  enviada_em = null, em_resposta_a = null,
+}) {
   const linha = await um(
-    `INSERT INTO mensagens (lead_id, canal, destino, assunto, corpo, status, tipo, responde_a)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-    [lead_id, canal, normalizarContato(destino), assunto ?? null, corpo, status, tipo, responde_a]
+    `INSERT INTO mensagens (lead_id, canal, destino, assunto, corpo, status, tipo, responde_a, etapa, enviada_em, em_resposta_a)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+    [lead_id, canal, normalizarContato(destino), assunto ?? null, corpo, status, tipo, responde_a, etapa, enviada_em, em_resposta_a]
   );
   return linha.id;
 }
@@ -198,7 +215,50 @@ const SELECT_MENSAGEM = `
     FROM mensagens m JOIN leads l ON l.id = m.lead_id`;
 
 export async function mensagensPorStatus(status, limite = 1000) {
-  return q(`${SELECT_MENSAGEM} WHERE m.status = $1 ORDER BY m.id LIMIT $2`, [status, limite]);
+  return q(`${SELECT_MENSAGEM} WHERE m.status = $1 ORDER BY m.lead_id, m.canal, m.etapa, m.id LIMIT $2`, [status, limite]);
+}
+
+/** As etapas de um lead em um canal (a sequência inteira). */
+export async function mensagensDaSequencia(leadId, canal) {
+  return q(`${SELECT_MENSAGEM} WHERE m.lead_id = $1 AND m.canal = $2 AND m.tipo <> 'resposta' ORDER BY m.etapa, m.id`, [leadId, canal]);
+}
+
+/**
+ * Mensagens aprovadas que já podem sair: a etapa 1 assim que aprovada; as etapas
+ * seguintes só quando a data agendada chegou (ela é definida quando a anterior sai).
+ */
+export async function filaDeEnvio(limite = 100) {
+  return q(
+    `${SELECT_MENSAGEM}
+      WHERE m.status = 'aprovada'
+        AND (CASE WHEN m.etapa <= 1 THEN (m.agendada_para IS NULL OR m.agendada_para <= now())
+                  ELSE (m.agendada_para IS NOT NULL AND m.agendada_para <= now()) END)
+      ORDER BY m.etapa, COALESCE(m.agendada_para, m.criado_em), m.id
+      LIMIT $1`,
+    [limite]
+  );
+}
+
+/** Agenda a próxima etapa da sequência (se existir e estiver aprovada). */
+export async function agendarProximaEtapa(m, quando) {
+  await q(
+    `UPDATE mensagens SET agendada_para = $4
+      WHERE lead_id = $1 AND canal = $2 AND etapa = $3 AND status = 'aprovada' AND agendada_para IS NULL`,
+    [m.lead_id, m.canal, m.etapa + 1, quando]
+  );
+}
+
+/** Conversa completa com um lead (o que enviamos e o que ele respondeu), em ordem. */
+export async function historicoConversa(leadId) {
+  return q(
+    `SELECT 'nos' AS autor, canal, assunto, corpo AS texto, enviada_em AS quando, etapa
+       FROM mensagens WHERE lead_id = $1 AND status = 'enviada'
+     UNION ALL
+     SELECT 'lead' AS autor, canal, assunto, texto, recebida_em AS quando, NULL AS etapa
+       FROM respostas WHERE lead_id = $1 AND classificacao IS DISTINCT FROM 'automatica'
+     ORDER BY quando`,
+    [leadId]
+  );
 }
 
 export async function buscarMensagem(id) {
@@ -238,27 +298,11 @@ export async function enviadasHoje() {
   return (
     await um(
       `SELECT count(*)::int AS n FROM mensagens
-        WHERE status = 'enviada' AND (enviada_em AT TIME ZONE $1::text)::date = (now() AT TIME ZONE $1::text)::date`,
+        WHERE status = 'enviada' AND tipo <> 'resposta'
+          AND (enviada_em AT TIME ZONE $1::text)::date = (now() AT TIME ZONE $1::text)::date`,
       [config.timezone]
     )
   ).n;
-}
-
-/**
- * E-mails iniciais enviados há pelo menos `dias` dias, de leads que não responderam
- * e que ainda não receberam follow-up.
- */
-export async function candidatosFollowup(dias, limite = 100) {
-  return q(
-    `${SELECT_MENSAGEM}
-      WHERE m.canal = 'email' AND m.tipo = 'inicial' AND m.status = 'enviada'
-        AND l.status = 'contatado'
-        AND m.enviada_em <= now() - make_interval(days => $1::int)
-        AND NOT EXISTS (SELECT 1 FROM mensagens f WHERE f.responde_a = m.id)
-        AND NOT EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id)
-      ORDER BY m.id LIMIT $2`,
-    [dias, limite]
-  );
 }
 
 // ---------- Respostas ----------
@@ -272,6 +316,10 @@ export async function criarResposta(r) {
     [r.lead_id, r.canal, r.origem_id, r.de, r.assunto, r.texto, r.classificacao, r.resumo, r.sugestao]
   );
   return linha?.id ?? null;
+}
+
+export async function buscarResposta(id) {
+  return um(`SELECT r.*, l.nome AS empresa, l.token, l.email, l.whatsapp FROM respostas r JOIN leads l ON l.id = r.lead_id WHERE r.id = $1`, [id]);
 }
 
 export async function respostaJaRegistrada(origemId) {
@@ -306,5 +354,6 @@ export async function estatisticas() {
     descadastros: (await um("SELECT count(*)::int AS n FROM descadastros")).n,
     respostas: await contagem("SELECT classificacao AS chave, count(*)::int AS n FROM respostas GROUP BY classificacao"),
     respostasNaoLidas: (await um("SELECT count(*)::int AS n FROM respostas WHERE NOT lida")).n,
+    sequenciasPendentes: (await um("SELECT count(DISTINCT (lead_id, canal))::int AS n FROM mensagens WHERE status = 'rascunho'")).n,
   };
 }

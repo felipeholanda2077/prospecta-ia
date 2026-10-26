@@ -73,6 +73,14 @@ CREATE TABLE IF NOT EXISTS descadastros (
   criado_em timestamptz NOT NULL DEFAULT now()
 );
 
+-- Sequência gradual: cada lead recebe até 3 etapas por canal; a próxima só é
+-- agendada depois que a anterior sai, e tudo para quando o lead responde.
+ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS etapa integer NOT NULL DEFAULT 1;
+ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS agendada_para timestamptz;
+-- Message-ID do e-mail do lead que esta mensagem responde (para cair na mesma conversa).
+ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS em_resposta_a text;
+-- tipo: inicial (etapa 1) | sequencia (etapas 2 e 3) | followup (versão antiga) | resposta (enviada na conversa)
+
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_mensagens_status ON mensagens(status);
 CREATE INDEX IF NOT EXISTS idx_mensagens_destino ON mensagens(destino);

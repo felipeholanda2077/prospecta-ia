@@ -1,51 +1,93 @@
 import { z } from "zod";
 import { gerarJson } from "./cliente.js";
 
-const PropostaSchema = z.object({
+const Etapas = z.object({ etapa1: z.string(), etapa2: z.string(), etapa3: z.string() });
+
+const SequenciaSchema = z.object({
   servico_principal: z.string(),
-  assunto_email: z.string(),
-  corpo_email: z.string(),
-  mensagem_whatsapp: z.string(),
   resumo_interno: z.string(),
+  assunto_email: z.string(),
+  email: Etapas,
+  whatsapp: Etapas,
+});
+
+const etapasJson = (descricao) => ({
+  type: "object",
+  description: descricao,
+  properties: {
+    etapa1: { type: "string", description: "primeiro contato" },
+    etapa2: { type: "string", description: "se não houver resposta" },
+    etapa3: { type: "string", description: "último toque" },
+  },
+  required: ["etapa1", "etapa2", "etapa3"],
+  additionalProperties: false,
 });
 
 // JSON Schema equivalente, usado pelo structured output da API.
-const PROPOSTA_JSON_SCHEMA = {
+const SEQUENCIA_JSON_SCHEMA = {
   type: "object",
   properties: {
     servico_principal: { type: "string", description: "id do serviço do catálogo mais indicado" },
-    assunto_email: { type: "string", description: "assunto curto, sem caixa alta nem emojis" },
-    corpo_email: { type: "string", description: "corpo do e-mail em texto simples" },
-    mensagem_whatsapp: { type: "string", description: "versão curta para WhatsApp, até 500 caracteres" },
-    resumo_interno: { type: "string", description: "1 frase para o vendedor explicando o ângulo da proposta" },
+    resumo_interno: { type: "string", description: "1 frase para o vendedor explicando o ângulo da abordagem" },
+    assunto_email: { type: "string", description: "assunto curto e pessoal, sem caixa alta, sem emojis e sem cara de anúncio" },
+    email: etapasJson("corpo das 3 etapas por e-mail, em texto simples"),
+    whatsapp: etapasJson("as 3 etapas por WhatsApp"),
   },
-  required: ["servico_principal", "assunto_email", "corpo_email", "mensagem_whatsapp", "resumo_interno"],
+  required: ["servico_principal", "resumo_interno", "assunto_email", "email", "whatsapp"],
   additionalProperties: false,
 };
 
-function montarSistema(campanha) {
+/** Como a IA deve se apresentar e assinar, sem inventar dados que a empresa ainda não preencheu. */
+export function identidade(empresa) {
+  const quem = empresa.responsavel ? `${empresa.responsavel}, da ${empresa.nome}` : `a equipe da ${empresa.nome}`;
+  const assinatura = [empresa.responsavel, empresa.nome, empresa.telefone].filter(Boolean).join(" · ");
+  return { quem, assinatura };
+}
+
+export function contextoEmpresa(campanha) {
   const { empresa, servicos } = campanha;
-  return `Você é um consultor comercial da ${empresa.nome}, empresa que desenvolve sites, lojas virtuais e sistemas.
-Sua tarefa é escrever a PRIMEIRA mensagem de contato para uma empresa que ainda não conhece vocês.
+  const { quem, assinatura } = identidade(empresa);
+  return `Você escreve em nome de ${quem}. A ${empresa.nome} desenvolve sites, lojas virtuais e sistemas.
+Assinatura dos e-mails: ${assinatura}
+${empresa.site ? `Site: ${empresa.site}\n` : ""}${empresa.portfolio ? `Portfólio: ${empresa.portfolio}\n` : ""}Diferenciais: ${empresa.diferenciais.join("; ")}
 
-Quem assina: ${empresa.responsavel} (${empresa.cargo}) — ${empresa.nome}
-Contato: ${empresa.telefone} · ${empresa.email} · ${empresa.site}
-Portfólio: ${empresa.portfolio}
-Diferenciais: ${empresa.diferenciais.join("; ")}
-
-Catálogo de serviços (use apenas estes, com estes valores):
+Catálogo (use apenas estes serviços e valores, e só quando a etapa permitir):
 ${servicos.map((s) => `- [${s.id}] ${s.nome}: ${s.descricao} A partir de ${s.aPartirDe}, prazo ${s.prazo}.`).join("\n")}
 
-Regras da mensagem:
-- Português do Brasil, tom cordial e direto, como um profissional local escrevendo pessoalmente.
-- Cite 1 ou 2 observações concretas que foram encontradas sobre a empresa (as "oportunidades" fornecidas). Nunca invente fatos, números, clientes ou resultados que não foram informados.
-- Ofereça UM serviço principal (o mais relevante) e, no máximo, mencione um segundo de passagem.
-- Mostre o benefício para o negócio dela (mais clientes, menos trabalho manual, vendas fora do horário), não jargão técnico.
-- Termine com uma pergunta simples e de baixo compromisso (ex.: se pode enviar um exemplo ou marcar 15 minutos).
-- E-mail: 90 a 160 palavras, texto simples, sem markdown, saudação com o nome da empresa, assinatura com nome, empresa e telefone.
-- WhatsApp: até 500 caracteres, sem links encurtados, sem emojis em excesso.
-- Proibido: urgência falsa, "promoção só hoje", promessas de resultado garantido, caixa alta, criticar a empresa de forma ofensiva.
-- Não escreva o rodapé de descadastro; ele é adicionado automaticamente.`;
+Nunca invente nomes, telefones, sites, clientes, números ou resultados que não estejam aqui.`;
+}
+
+function montarSistema(campanha) {
+  return `${contextoEmpresa(campanha)}
+
+Sua tarefa: escrever uma SEQUÊNCIA de 3 mensagens para iniciar contato com uma empresa que ainda não conhece vocês.
+A abordagem é gradual, como uma pessoa de verdade puxando conversa: a informação vai sendo revelada aos poucos.
+Cada etapa só é enviada se a anterior não teve resposta; quando a empresa responder, a sequência para.
+
+Etapa 1 — primeiro contato (curtíssima e leve):
+- Cumprimente, diga quem é em poucas palavras e cite UMA coisa positiva e concreta observada sobre a empresa (ex.: as avaliações no Google).
+- Termine com UMA pergunta simples e aberta sobre como eles trabalham hoje, ligada à oportunidade observada (ex.: como os pacientes costumam encontrar vocês).
+- PROIBIDO na etapa 1: preço, prazo, lista de serviços, link, pedido de reunião, dizer que "falta" algo à empresa.
+- WhatsApp: no máximo 2 frases curtas (até ~240 caracteres). E-mail: 40 a 70 palavras.
+
+Etapa 2 — se não houver resposta (2 dias úteis depois):
+- Retome com naturalidade, sem cobrar resposta.
+- Compartilhe UMA observação concreta da análise e o impacto prático para o negócio (ex.: muita gente pesquisa no Google antes de escolher, e sem site esse cliente vai para quem aparece).
+- Ainda sem preço. Pergunte se faz sentido mostrar um exemplo de como ficaria para eles.
+- WhatsApp: até ~350 caracteres. E-mail: 60 a 100 palavras.
+
+Etapa 3 — último toque (3 dias úteis depois):
+- Ofereça algo útil e sem compromisso: enviar 2 ou 3 exemplos parecidos com o negócio deles.
+- Pode citar uma única vez o serviço principal com "a partir de" e o prazo do catálogo.
+- Deixe claro, com gentileza, que é a última mensagem e que tudo bem se não for o momento.
+- WhatsApp: até ~400 caracteres. E-mail: 70 a 110 palavras.
+
+Regras gerais:
+- Português do Brasil, tom cordial, simples e humano, como alguém da região escrevendo pessoalmente. Frases curtas.
+- Não repita a mesma informação entre as etapas; cada uma acrescenta algo novo.
+- Nada de urgência falsa, promessas de resultado, caixa alta, excesso de emojis (no máximo 1 por mensagem no WhatsApp) ou jargão técnico.
+- E-mail em texto simples, sem markdown; assine apenas na etapa 1 e de forma curta nas seguintes.
+- Não escreva rodapé de descadastro; ele é adicionado automaticamente.`;
 }
 
 function montarPedido(lead, oportunidades) {
@@ -59,52 +101,20 @@ function montarPedido(lead, oportunidades) {
 Oportunidades encontradas na análise (da mais para a menos relevante):
 ${oportunidades.map((o) => `- [${o.servico}] ${o.motivo}`).join("\n")}
 
-Escreva a proposta.`;
+Escreva a sequência.`;
 }
 
-/** Gera assunto, e-mail e mensagem de WhatsApp personalizados para um lead. */
-export async function gerarProposta(lead, oportunidades, campanha) {
-  return gerarJson({
+/**
+ * Gera as 3 etapas (e-mail e WhatsApp) da abordagem gradual para um lead.
+ * Retorna `email` e `whatsapp` como listas na ordem das etapas.
+ */
+export async function gerarSequencia(lead, oportunidades, campanha) {
+  const r = await gerarJson({
     system: montarSistema(campanha),
     pedido: montarPedido(lead, oportunidades),
-    jsonSchema: PROPOSTA_JSON_SCHEMA,
-    zodSchema: PropostaSchema,
+    jsonSchema: SEQUENCIA_JSON_SCHEMA,
+    zodSchema: SequenciaSchema,
   });
-}
-
-const FollowupSchema = z.object({ corpo_email: z.string() });
-
-const FOLLOWUP_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    corpo_email: { type: "string", description: "corpo do e-mail de follow-up em texto simples" },
-  },
-  required: ["corpo_email"],
-  additionalProperties: false,
-};
-
-/** Gera um lembrete curto para quem não respondeu. `original` é a mensagem enviada, com os dados da empresa. */
-export async function gerarFollowup(original, campanha) {
-  const { empresa } = campanha;
-  const { corpo_email } = await gerarJson({
-    system: `${montarSistema(campanha)}
-
-Agora você vai escrever um FOLLOW-UP: a empresa recebeu o e-mail abaixo há alguns dias e não respondeu.
-Regras do follow-up:
-- 40 a 80 palavras, respondendo na mesma conversa (não repita a proposta inteira).
-- Traga UM elemento novo e útil: um exemplo concreto do benefício, ou uma pergunta sobre como eles fazem hoje.
-- Deixe claro que é o último contato se não houver interesse, sem tom de cobrança.
-- Assine como ${empresa.responsavel}, ${empresa.nome}.`,
-    pedido: `Empresa: ${original.empresa} (${original.nicho ?? "segmento não informado"}, ${original.cidade ?? ""})
-
-E-mail enviado anteriormente:
-Assunto: ${original.assunto}
-${original.corpo}
-
-Escreva o follow-up.`,
-    jsonSchema: FOLLOWUP_JSON_SCHEMA,
-    zodSchema: FollowupSchema,
-    effort: "low",
-  });
-  return corpo_email;
+  const lista = (e) => [e.etapa1, e.etapa2, e.etapa3];
+  return { ...r, email: lista(r.email), whatsapp: lista(r.whatsapp) };
 }

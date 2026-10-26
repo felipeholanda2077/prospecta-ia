@@ -3,6 +3,7 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import { variantesWhatsappBR } from "../analise/telefone.js";
 import { registrarResposta } from "./processar.js";
+import { extrairMensagemUazap } from "../envio/uazap.js";
 
 /** Confere o cabeçalho X-Hub-Signature-256 enviado pela Meta. */
 export function assinaturaValida(corpoBruto, cabecalho, segredo) {
@@ -55,4 +56,22 @@ export async function processarWebhookWhatsapp(payload, campanha) {
     if (r) registradas++;
   }
   return registradas;
+}
+
+/** Respostas que chegam pelo webhook da UAZap. */
+export async function processarWebhookUazap(payload, campanha) {
+  const m = extrairMensagemUazap(payload);
+  if (!m) return 0;
+  const original = await mensagemOriginalWhatsapp(m.de);
+  if (!original) return 0; // conversa que não veio de uma prospecção nossa
+  const r = await registrarResposta({
+    lead: await db.buscarLead(original.lead_id),
+    canal: "whatsapp",
+    origem_id: m.id,
+    de: m.de,
+    texto: m.texto,
+    mensagemOriginal: original,
+    campanha,
+  });
+  return r ? 1 : 0;
 }

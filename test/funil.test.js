@@ -8,7 +8,7 @@ const pipeline = await import("../src/pipeline.js");
 const { dentroDoHorario } = pipeline;
 
 const LIMITES = { horarioComercial: { inicio: 9, fim: 18 }, somenteDiasUteis: true };
-const campanha = { limites: { ...LIMITES, envioDiarioMax: 30, intervaloEntreEnviosSegundos: 0 } };
+const campanha = { limites: { ...LIMITES, envioDiarioMax: 30, intervaloEntreEnviosSegundos: 0 }, cadencia: { diasUteisEntreEtapas: [2, 3] } };
 
 const lead = (place_id, extra = {}) => ({ place_id, nome: `Empresa ${place_id}`, nicho: "pet shop", cidade: "Fortaleza - CE",
   endereco: null, telefone: null, site: null, maps_url: null, avaliacao: null, total_avaliacoes: null, ...extra });
@@ -53,7 +53,7 @@ test("captura do Google Maps salva só as novas e marca a origem", async () => {
 test("rascunho nunca é enviado sem aprovação", async () => {
   const [l] = (await db.leadsPorStatus("novo")).filter((x) => x.place_id === "maps-2");
   const id = await db.criarMensagem({ lead_id: l.id, canal: "email", destino: "dono@maps2.com", assunto: "Oi", corpo: "..." });
-  const r = await pipeline.enviarMensagem(await db.buscarMensagem(id), campanha, { ignorarHorario: true });
+  const r = await pipeline.enviarMensagem(await db.buscarMensagem(id), campanha);
   assert.equal(r.enviada, false);
   assert.match(r.motivo, /rascunho/);
   assert.equal((await db.buscarMensagem(id)).status, "rascunho");
@@ -62,11 +62,11 @@ test("rascunho nunca é enviado sem aprovação", async () => {
 test("WhatsApp manual: não sai sozinho, só quando você confirma no painel", async () => {
   const [l] = (await db.leadsPorStatus("novo")).filter((x) => x.place_id === "maps-1");
   const id = await db.criarMensagem({ lead_id: l.id, canal: "whatsapp", destino: "5585977776666", corpo: "Olá!", status: "aprovada" });
-  const r = await pipeline.enviarMensagem(await db.buscarMensagem(id), campanha, { ignorarHorario: true });
+  const r = await pipeline.enviarMensagem(await db.buscarMensagem(id), campanha);
   assert.equal(r.enviada, false);
   assert.match(r.motivo, /manual/);
 
-  assert.equal(await pipeline.marcarEnviadaManual(id), true);
+  assert.equal(await pipeline.marcarEnviadaManual(id, campanha), true);
   assert.equal((await db.buscarMensagem(id)).status, "enviada");
   assert.equal((await db.buscarLead(l.id)).status, "contatado");
   assert.equal(await db.enviadasHoje(), 1);
@@ -75,7 +75,54 @@ test("WhatsApp manual: não sai sozinho, só quando você confirma no painel", a
 test("mensagem aprovada para contato descadastrado é barrada no envio", async () => {
   const [l] = await db.leadsPorStatus("novo");
   const id = await db.criarMensagem({ lead_id: l.id, canal: "email", destino: "contato@petfeliz.com.br", corpo: "...", status: "aprovada" });
-  const r = await pipeline.enviarMensagem(await db.buscarMensagem(id), campanha, { ignorarHorario: true });
+  const r = await pipeline.enviarMensagem(await db.buscarMensagem(id), campanha);
   assert.equal(r.enviada, false);
   assert.equal((await db.buscarMensagem(id)).status, "rejeitada");
+});
+
+test("somarDiasUteis pula o fim de semana", () => {
+  const sexta = new Date("2026-10-30T13:00:00Z"); // sexta, 10h em São Paulo
+  assert.equal(pipeline.somarDiasUteis(sexta, 2).toISOString(), "2026-11-03T13:00:00.000Z"); // terça
+  assert.equal(pipeline.somarDiasUteis(new Date("2026-10-27T13:00:00Z"), 3).toISOString(), "2026-10-30T13:00:00.000Z");
+});
+
+test("sequência gradual: cada etapa só entra na fila depois da anterior e para quando o lead responde", async () => {
+  await db.inserirLead(lead("seq-1"));
+  const [l] = (await db.leadsPorStatus("novo")).filter((x) => x.place_id === "seq-1");
+  const ids = [];
+  for (const etapa of [1, 2, 3]) {
+    ids.push(await db.criarMensagem({ lead_id: l.id, canal: "whatsapp", destino: "5585966665555", corpo: `etapa ${etapa}`,
+                                      etapa, tipo: etapa === 1 ? "inicial" : "sequencia" }));
+  }
+
+  // Aprovar a sequência aprova as 3 etapas; no modo manual nada sai sozinho.
+  const r = await pipeline.aprovarSequencia(l.id, "whatsapp", campanha);
+  assert.match(r.motivo, /manual/);
+  const etapas = await db.mensagensDaSequencia(l.id, "whatsapp");
+  assert.deepEqual(etapas.map((m) => m.status), ["aprovada", "aprovada", "aprovada"]);
+  assert.deepEqual((await db.filaDeEnvio()).filter((m) => m.lead_id === l.id).map((m) => m.etapa), [1]);
+
+  // Enviada a etapa 1, a etapa 2 é agendada para 2 dias úteis depois; a 3 continua esperando.
+  assert.equal(await pipeline.marcarEnviadaManual(ids[0], campanha), true);
+  const depois = await db.mensagensDaSequencia(l.id, "whatsapp");
+  assert.ok(depois[1].agendada_para > new Date(Date.now() + 36 * 3600 * 1000));
+  assert.equal(depois[2].agendada_para, null);
+  assert.deepEqual((await db.filaDeEnvio()).filter((m) => m.lead_id === l.id), []);
+
+  // Chegou o dia: a etapa 2 entra na fila.
+  await db.atualizarMensagem(ids[1], { agendada_para: new Date(Date.now() - 60_000).toISOString() });
+  assert.deepEqual((await db.filaDeEnvio()).filter((m) => m.lead_id === l.id).map((m) => m.etapa), [2]);
+
+  // O lead respondeu: as etapas que faltavam são canceladas.
+  await db.cancelarPendentes(l.id, "lead respondeu");
+  const final = await db.mensagensDaSequencia(l.id, "whatsapp");
+  assert.deepEqual(final.map((m) => m.status), ["enviada", "rejeitada", "rejeitada"]);
+});
+
+test("respostas da conversa não contam no limite diário de prospecção", async () => {
+  const antes = await db.enviadasHoje();
+  const [l] = (await db.leadsPorStatus("novo")).filter((x) => x.place_id === "maps-2");
+  await db.criarMensagem({ lead_id: l.id, canal: "email", destino: "dono@maps2.com", corpo: "oi", status: "enviada",
+                           tipo: "resposta", etapa: 0, enviada_em: new Date().toISOString() });
+  assert.equal(await db.enviadasHoje(), antes);
 });

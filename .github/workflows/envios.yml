@@ -1,0 +1,21 @@
+# Rodada de envios em horário comercial.
+# O plano gratuito da Vercel só permite agendar uma execução por dia, então este
+# agendamento chama o sistema a cada 20 minutos. O próprio sistema confere o horário
+# (9h às 18h de Brasília, segunda a sexta) e não envia nada fora dele.
+name: Envios em horário comercial
+
+on:
+  schedule:
+    - cron: "*/20 12-20 * * 1-5" # 9h às 17h40 em Brasília (UTC-3), segunda a sexta
+  workflow_dispatch:
+
+jobs:
+  envios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Rodada de envios
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          URL: ${{ vars.PROSPECTA_URL || 'https://prospecta-ia-three.vercel.app' }}
+        run: curl -fsS --max-time 300 -H "Authorization: Bearer $CRON_SECRET" "$URL/api/cron/envios"
