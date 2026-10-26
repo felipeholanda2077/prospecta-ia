@@ -220,6 +220,9 @@
   .empresa:hover { border-color: var(--subtle); }
   .empresa.selecionada { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow); }
   .empresa.capturada { cursor: default; opacity: .7; }
+  .empresa.prioridade:not(.capturada) { border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+                                        background: linear-gradient(180deg, color-mix(in srgb, var(--warn) 7%, var(--surface)), var(--surface) 70%); }
+  .empresa.prioridade.selecionada { border-color: var(--accent); }
   .empresa .topo-empresa { display: flex; gap: 12px; align-items: flex-start; }
   .empresa h3 { font-size: 15.5px; line-height: 1.3; flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .empresa .endereco { font-size: 13px; color: var(--muted); display: flex; gap: 6px; }
@@ -705,6 +708,7 @@ $("#form-maps").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const btn = ev.submitter;
   buscaMaps = { nicho: $("#nicho").value.trim(), cidade: $("#cidade").value.trim() };
+  filtroMaps = "todas";
   btn.disabled = true;
   selecionadas.clear();
   atualizarSelecao();
@@ -721,9 +725,11 @@ $("#form-maps").addEventListener("submit", async (ev) => {
   }
 });
 
+const semSite = (e) => e.semSite ?? !e.site;
+
 function cartaoEmpresaMaps(e, i) {
   const sel = selecionadas.has(i);
-  return `<article class="cartao empresa ${e.jaCapturado ? "capturada" : ""} ${sel ? "selecionada" : ""}" data-indice="${i}">
+  return `<article class="cartao empresa ${e.jaCapturado ? "capturada" : ""} ${sel ? "selecionada" : ""} ${semSite(e) ? "prioridade" : ""}" data-indice="${i}">
     <div class="topo-empresa">
       <span class="avatar">${inicial(e.nome)}</span>
       <h3>${esc(e.nome)}</h3>
@@ -732,8 +738,9 @@ function cartaoEmpresaMaps(e, i) {
     </div>
     ${e.endereco ? `<div class="endereco">${ic("pin", "sm")}<span>${esc(e.endereco)}</span></div>` : ""}
     <div class="pilulas">
+      ${semSite(e) && !e.jaCapturado ? `<span class="pilula atencao">${ic("star", "sm")}Prioridade</span>` : ""}
       ${e.telefone ? `<span class="pilula ${e.celular ? "wa" : ""}">${ic(e.celular ? "message" : "phone", "sm")}${esc(e.telefone)}</span>` : `<span class="pilula">Sem telefone</span>`}
-      ${e.site ? `<span class="pilula acc">${ic("globe", "sm")}Tem site</span>` : `<span class="pilula atencao">${ic("globe", "sm")}Sem site</span>`}
+      ${!semSite(e) ? `<span class="pilula acc">${ic("globe", "sm")}Tem site</span>` : `<span class="pilula atencao">${ic("globe", "sm")}${e.site ? "Só rede social" : "Sem site"}</span>`}
       ${e.avaliacao ? `<span class="pilula">${ic("star", "sm")}${String(e.avaliacao).replace(".", ",")} · ${e.total_avaliacoes ?? 0}</span>` : ""}
     </div>
     <div class="links">
@@ -743,20 +750,36 @@ function cartaoEmpresaMaps(e, i) {
   </article>`;
 }
 
+// Filtro da lista de resultados: todas | sem | com (site).
+let filtroMaps = "todas";
+
 function desenharMaps() {
   if (!resultadosMaps.length) {
     $("#resultado-maps").innerHTML = `<div style="margin-top:18px">${vazio("search", "Nenhuma empresa encontrada", "Tente outro segmento ou uma cidade vizinha.")}</div>`;
     return;
   }
-  const novas = resultadosMaps.filter((e) => !e.jaCapturado).length;
+  const novas = resultadosMaps.filter((e) => !e.jaCapturado);
+  const novasSemSite = novas.filter(semSite).length;
+  const total = { todas: resultadosMaps.length, sem: resultadosMaps.filter(semSite).length };
+  total.com = total.todas - total.sem;
+  const visiveis = resultadosMaps
+    .map((e, i) => [e, i])
+    .filter(([e]) => filtroMaps === "todas" || (filtroMaps === "sem") === semSite(e));
+  const filtros = [["todas", "Todas"], ["sem", "Sem site"], ["com", "Com site"]]
+    .map(([v, t]) => `<button class="filtro" data-filtro-maps="${v}" aria-pressed="${v === filtroMaps}">${t} · ${total[v]}</button>`).join("");
   $("#resultado-maps").innerHTML = `
     <div class="resultados-cab">
       <h2>${resultadosMaps.length} empresas encontradas</h2>
-      <span class="pilula acc">${novas} ${novas === 1 ? "nova" : "novas"}</span>
+      <span class="pilula acc">${novas.length} ${novas.length === 1 ? "nova" : "novas"}</span>
+      ${novasSemSite ? `<span class="pilula atencao">${ic("star", "sm")}${novasSemSite} sem site</span>` : ""}
       <span class="espaco"></span>
-      ${novas ? `<button class="btn sm" data-maps="todas">${ic("check", "sm")}Selecionar todas as novas</button>` : ""}
+      ${novasSemSite ? `<button class="btn sm primario" data-maps="sem-site">${ic("check", "sm")}Selecionar as sem site</button>` : ""}
+      ${novas.length ? `<button class="btn sm" data-maps="todas">${ic("check", "sm")}Todas as novas</button>` : ""}
     </div>
-    <div class="grade">${resultadosMaps.map(cartaoEmpresaMaps).join("")}</div>`;
+    <div class="filtros" role="group" aria-label="Filtrar resultados">${filtros}</div>
+    ${novasSemSite ? `<p class="muted" style="margin:-4px 0 14px;font-size:13.5px">As empresas sem site aparecem primeiro: são as que mais precisam de um site e as melhores para prospectar.</p>` : ""}
+    ${visiveis.length ? `<div class="grade">${visiveis.map(([e, i]) => cartaoEmpresaMaps(e, i)).join("")}</div>`
+      : vazio("search", "Nenhuma empresa neste filtro", "Troque o filtro acima para ver as outras.")}`;
 }
 
 function atualizarSelecao() {
@@ -1450,6 +1473,8 @@ document.addEventListener("click", async (ev) => {
     if ("menu" in btn.dataset) abrirMenu(true);
     else if (btn.dataset.etapa) await executarEtapa(btn);
     else if (btn.dataset.maps === "todas") resultadosMaps.forEach((e, i) => !e.jaCapturado && alternarEmpresa(i, true));
+    else if (btn.dataset.maps === "sem-site") resultadosMaps.forEach((e, i) => !e.jaCapturado && semSite(e) && alternarEmpresa(i, true));
+    else if (btn.dataset.filtroMaps) { filtroMaps = btn.dataset.filtroMaps; desenharMaps(); }
     else if (btn.dataset.maps === "limpar") [...selecionadas].forEach((i) => alternarEmpresa(i, false));
     else if (btn.dataset.maps === "capturar") await capturarSelecionadas(btn);
     else if (btn.dataset.maps === "processar") await processarCapturadas(btn);

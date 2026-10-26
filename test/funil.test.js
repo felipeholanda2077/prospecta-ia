@@ -126,3 +126,23 @@ test("respostas da conversa não contam no limite diário de prospecção", asyn
                            tipo: "resposta", etapa: 0, enviada_em: new Date().toISOString() });
   assert.equal(await db.enviadasHoje(), antes);
 });
+
+test("busca no Maps: empresas sem site vêm primeiro (e as já capturadas por último)", () => {
+  const r = pipeline.ordenarPorPrioridade([
+    { nome: "Com site", site: "https://a.com.br", celular: true, total_avaliacoes: 500 },
+    { nome: "Capturada sem site", site: null, jaCapturado: true },
+    { nome: "Sem site fixo", site: null, celular: false, total_avaliacoes: 10 },
+    { nome: "Só Instagram", site: "https://instagram.com/loja", celular: true, total_avaliacoes: 5 },
+    { nome: "Sem site celular", site: null, celular: true, total_avaliacoes: 2 },
+  ]);
+  assert.deepEqual(r.map((e) => e.nome), ["Só Instagram", "Sem site celular", "Sem site fixo", "Com site", "Capturada sem site"]);
+});
+
+test("análise e propostas começam pelas empresas sem site", async () => {
+  await db.inserirLead(lead("prio-com", { site: "https://tem.com.br" }));
+  await db.inserirLead(lead("prio-sem"));
+  await db.inserirLead(lead("prio-insta", { site: "https://www.instagram.com/x" }));
+  const ordem = (await db.leadsPorStatus("novo")).map((l) => l.place_id).filter((p) => p.startsWith("prio-"));
+  assert.deepEqual(ordem.slice(-1), ["prio-com"]);
+  assert.deepEqual(ordem.slice(0, 2).sort(), ["prio-insta", "prio-sem"]);
+});

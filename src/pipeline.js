@@ -88,15 +88,38 @@ export async function descobrir(campanha, { ate = prazoPadrao() } = {}) {
 }
 
 /** Busca no Google Maps pelo painel, sem salvar: mostra o resultado para você escolher quem capturar. */
+// Perfil no Google só com rede social ou link agregador conta como "sem site próprio".
+const SO_REDE_SOCIAL = /instagram\.com|facebook\.com|linktr\.ee|wa\.me|ifood\.com/i;
+
+export const semSiteProprio = (site) => !site || SO_REDE_SOCIAL.test(site);
+
+/**
+ * Ordem de prioridade dos resultados: empresas sem site primeiro (são o melhor lead
+ * para vender um site), depois as com celular (dá para chamar no WhatsApp) e as mais
+ * avaliadas (negócio ativo). As já capturadas vão para o fim.
+ */
+export function ordenarPorPrioridade(empresas) {
+  const pontos = (e) => (semSiteProprio(e.site) ? 100 : 0) + (e.celular ? 10 : 0);
+  return [...empresas].sort(
+    (a, b) =>
+      Number(Boolean(a.jaCapturado)) - Number(Boolean(b.jaCapturado)) ||
+      pontos(b) - pontos(a) ||
+      (b.total_avaliacoes ?? 0) - (a.total_avaliacoes ?? 0)
+  );
+}
+
 export async function buscarNoMaps(nicho, cidade, quantidade = 20) {
   const empresas = await buscarEmpresas(`${nicho} em ${cidade}`, Math.min(Number(quantidade) || 20, 60));
   const capturados = await db.placeIdsCapturados(empresas.map((e) => e.place_id));
   log(`🔎 Busca no painel "${nicho} em ${cidade}": ${empresas.length} empresas`);
-  return empresas.map((e) => ({
-    ...e,
-    jaCapturado: capturados.has(e.place_id),
-    celular: ehCelularBR(e.telefone),
-  }));
+  return ordenarPorPrioridade(
+    empresas.map((e) => ({
+      ...e,
+      jaCapturado: capturados.has(e.place_id),
+      celular: ehCelularBR(e.telefone),
+      semSite: semSiteProprio(e.site),
+    }))
+  );
 }
 
 /** Salva como leads as empresas escolhidas no painel. */

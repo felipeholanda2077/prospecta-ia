@@ -130,8 +130,14 @@ export async function atualizarLead(id, campos) {
   await q(`UPDATE leads SET ${sets}, atualizado_em = now() WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
 }
 
+/** Leads em um status, com as empresas sem site próprio primeiro (são a prioridade). */
 export async function leadsPorStatus(status, limite = 1000) {
-  return q("SELECT * FROM leads WHERE status = $1 ORDER BY id LIMIT $2", [status, limite]);
+  return q(
+    `SELECT * FROM leads WHERE status = $1
+      ORDER BY (site IS NULL OR site = '' OR site ~* 'instagram\\.com|facebook\\.com|linktr\\.ee|wa\\.me|ifood\\.com') DESC, id
+      LIMIT $2`,
+    [status, limite]
+  );
 }
 
 export async function contarLeadsPorStatus(status) {
