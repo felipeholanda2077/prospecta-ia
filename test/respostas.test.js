@@ -12,17 +12,17 @@ const { registrarResposta } = await import("../src/respostas/processar.js");
 
 const campanha = { empresa: { nome: "X", responsavel: "Y", telefone: "1" }, servicos: [] };
 
-function novoLead(nome, email) {
-  db.inserirLead({ place_id: nome, nome, nicho: "pet shop", cidade: "Fortaleza", endereco: null,
-                   telefone: null, site: null, avaliacao: null, total_avaliacoes: null });
-  const lead = db.leadsPorStatus("novo").find((l) => l.nome === nome);
-  db.atualizarLead(lead.id, { email, status: "contatado", oportunidades: "[]" });
+async function novoLead(nome, email) {
+  await db.inserirLead({ place_id: nome, nome, nicho: "pet shop", cidade: "Fortaleza", endereco: null,
+                         telefone: null, site: null, maps_url: null, avaliacao: null, total_avaliacoes: null });
+  const lead = (await db.leadsPorStatus("novo")).find((l) => l.nome === nome);
+  await db.atualizarLead(lead.id, { email, status: "contatado", oportunidades: "[]" });
   return db.buscarLead(lead.id);
 }
 
-function enviada(lead, diasAtras) {
-  const id = db.criarMensagem({ lead_id: lead.id, canal: "email", destino: lead.email, assunto: "Proposta", corpo: "..." });
-  db.atualizarMensagem(id, {
+async function enviada(lead, diasAtras) {
+  const id = await db.criarMensagem({ lead_id: lead.id, canal: "email", destino: lead.email, assunto: "Proposta", corpo: "..." });
+  await db.atualizarMensagem(id, {
     status: "enviada",
     enviada_em: new Date(Date.now() - diasAtras * 86400000).toISOString(),
     message_id: `<${id}@teste>`,
@@ -75,36 +75,36 @@ test("idsReferenciados junta In-Reply-To e References", () => {
   assert.deepEqual(idsReferenciados({ references: "<b@x> <c@x>" }), ["<b@x>", "<c@x>"]);
 });
 
-test("follow-up só para quem não respondeu e já passou o prazo", () => {
-  const antigo = novoLead("Antigo", "antigo@pet.com");
-  const recente = novoLead("Recente", "recente@pet.com");
-  const respondeu = novoLead("Respondeu", "respondeu@pet.com");
-  const original = enviada(antigo, 5);
-  enviada(recente, 1);
-  enviada(respondeu, 5);
-  db.criarResposta({ lead_id: respondeu.id, canal: "email", origem_id: "r1", de: respondeu.email, texto: "oi" });
+test("follow-up só para quem não respondeu e já passou o prazo", async () => {
+  const antigo = await novoLead("Antigo", "antigo@pet.com");
+  const recente = await novoLead("Recente", "recente@pet.com");
+  const respondeu = await novoLead("Respondeu", "respondeu@pet.com");
+  const original = await enviada(antigo, 5);
+  await enviada(recente, 1);
+  await enviada(respondeu, 5);
+  await db.criarResposta({ lead_id: respondeu.id, canal: "email", origem_id: "r1", de: respondeu.email, texto: "oi" });
 
-  assert.deepEqual(db.candidatosFollowup(4).map((m) => m.empresa), ["Antigo"]);
+  assert.deepEqual((await db.candidatosFollowup(4)).map((m) => m.empresa), ["Antigo"]);
 
   // Depois de criado o follow-up, o lead não aparece de novo.
-  db.criarMensagem({ lead_id: antigo.id, canal: "email", destino: antigo.email, corpo: "lembrete",
-                     tipo: "followup", responde_a: original });
-  assert.deepEqual(db.candidatosFollowup(4), []);
+  await db.criarMensagem({ lead_id: antigo.id, canal: "email", destino: antigo.email, corpo: "lembrete",
+                           tipo: "followup", responde_a: original });
+  assert.deepEqual(await db.candidatosFollowup(4), []);
 });
 
 test("resposta 'SAIR' descadastra o lead e cancela o follow-up pendente", async () => {
-  const lead = novoLead("Sair", "sair@pet.com");
-  const original = enviada(lead, 5);
-  db.criarMensagem({ lead_id: lead.id, canal: "email", destino: lead.email, corpo: "lembrete",
+  const lead = await novoLead("Sair", "sair@pet.com");
+  const original = await enviada(lead, 5);
+  await db.criarMensagem({ lead_id: lead.id, canal: "email", destino: lead.email, corpo: "lembrete",
                      status: "aprovada", tipo: "followup", responde_a: original });
 
-  assert.equal(db.mensagemPorMessageIds([`<${original}@teste>`]).id, original);
+  assert.equal((await db.mensagemPorMessageIds([`<${original}@teste>`])).id, original);
   const r = await registrarResposta({ lead, canal: "email", origem_id: "<resp1@x>", de: lead.email,
-                                      texto: "SAIR", mensagemOriginal: db.buscarMensagem(original), campanha });
+                                      texto: "SAIR", mensagemOriginal: await db.buscarMensagem(original), campanha });
   assert.equal(r.classificacao, "descadastro");
-  assert.equal(db.buscarLead(lead.id).status, "descadastrado");
-  assert.equal(db.estaDescadastrado("sair@pet.com"), true);
-  assert.equal(db.mensagensPorStatus("aprovada").filter((m) => m.lead_id === lead.id).length, 0);
+  assert.equal((await db.buscarLead(lead.id)).status, "descadastrado");
+  assert.equal(await db.estaDescadastrado("sair@pet.com"), true);
+  assert.equal((await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id).length, 0);
 
   // A mesma resposta lida de novo não é registrada duas vezes.
   assert.equal(await registrarResposta({ lead, canal: "email", origem_id: "<resp1@x>", de: lead.email,
@@ -112,10 +112,10 @@ test("resposta 'SAIR' descadastra o lead e cancela o follow-up pendente", async 
 });
 
 test("resposta automática não encerra o lead", async () => {
-  const lead = novoLead("Ferias", "ferias@pet.com");
-  enviada(lead, 5);
+  const lead = await novoLead("Ferias", "ferias@pet.com");
+  await enviada(lead, 5);
   const r = await registrarResposta({ lead, canal: "email", origem_id: "<auto1@x>", de: lead.email,
                                       assunto: "Resposta automática", texto: "Estou de férias", campanha });
   assert.equal(r.classificacao, "automatica");
-  assert.equal(db.buscarLead(lead.id).status, "contatado");
+  assert.equal((await db.buscarLead(lead.id)).status, "contatado");
 });

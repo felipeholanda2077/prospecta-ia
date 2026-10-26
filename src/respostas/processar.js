@@ -10,7 +10,7 @@ const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR"), ...
  * Em qualquer resposta humana, follow-ups pendentes são cancelados.
  */
 export async function registrarResposta({ lead, canal, origem_id, de, assunto = null, texto, mensagemOriginal, campanha }) {
-  if (origem_id && db.respostaJaRegistrada(origem_id)) return null;
+  if (origem_id && (await db.respostaJaRegistrada(origem_id))) return null;
 
   const limpo = limparTextoResposta(texto) || String(texto ?? "").slice(0, 2000);
   let c;
@@ -20,7 +20,7 @@ export async function registrarResposta({ lead, canal, origem_id, de, assunto = 
     c = { classificacao: "outro", resumo: `Não foi possível classificar automaticamente: ${e.message}`, sugestao_resposta: "" };
   }
 
-  const id = db.criarResposta({
+  const id = await db.criarResposta({
     lead_id: lead.id,
     canal,
     origem_id,
@@ -35,17 +35,17 @@ export async function registrarResposta({ lead, canal, origem_id, de, assunto = 
 
   switch (c.classificacao) {
     case "descadastro":
-      db.descadastrarLead(lead, `pediu por ${canal}`);
+      await db.descadastrarLead(lead, `pediu por ${canal}`);
       break;
     case "sem_interesse":
-      db.cancelarPendentes(lead.id, "lead sem interesse");
-      db.atualizarLead(lead.id, { status: "sem_interesse" });
+      await db.cancelarPendentes(lead.id, "lead sem interesse");
+      await db.atualizarLead(lead.id, { status: "sem_interesse" });
       break;
     case "automatica":
       break; // resposta automática não conta como resposta; o follow-up continua valendo
     default:
-      db.cancelarPendentes(lead.id, "lead respondeu");
-      db.atualizarLead(lead.id, { status: "respondeu" });
+      await db.cancelarPendentes(lead.id, "lead respondeu");
+      await db.atualizarLead(lead.id, { status: "respondeu" });
       if (c.classificacao === "interessado" || c.classificacao === "quer_informacoes") {
         await enviarNotificacao(
           `${lead.nome} respondeu (${c.classificacao.replace("_", " ")})`,

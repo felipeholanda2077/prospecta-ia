@@ -1,5 +1,16 @@
 import { config } from "../config.js";
 
+export const RODAPE_WHATSAPP = "\n\nSe não quiser receber mais mensagens, é só responder SAIR.";
+
+/**
+ * Link "clique para conversar" com a mensagem já escrita. Usado no modo manual:
+ * você revisa no painel, abre o link e aperta enviar no seu próprio WhatsApp.
+ */
+export function linkWhatsapp(numero, corpo) {
+  const destino = String(config.modoTeste.whatsapp || numero).replace(/\D/g, "");
+  return `https://wa.me/${destino}?text=${encodeURIComponent(corpo + RODAPE_WHATSAPP)}`;
+}
+
 /**
  * Envia mensagem pela WhatsApp Cloud API oficial da Meta usando um template aprovado.
  *

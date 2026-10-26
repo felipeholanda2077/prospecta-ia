@@ -9,6 +9,7 @@ const CAMPOS = [
   "places.nationalPhoneNumber",
   "places.internationalPhoneNumber",
   "places.websiteUri",
+  "places.googleMapsUri",
   "places.rating",
   "places.userRatingCount",
   "places.businessStatus",
@@ -57,6 +58,7 @@ export async function buscarEmpresas(consulta, maxResultados = 20) {
         endereco: p.formattedAddress ?? null,
         telefone: p.internationalPhoneNumber ?? p.nationalPhoneNumber ?? null,
         site: p.websiteUri ?? null,
+        maps_url: p.googleMapsUri ?? null,
         avaliacao: p.rating ?? null,
         total_avaliacoes: p.userRatingCount ?? null,
       });

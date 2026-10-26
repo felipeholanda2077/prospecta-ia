@@ -8,7 +8,14 @@ let client;
  * e valida o resultado com o schema Zod `zodSchema`.
  */
 export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort = "medium" }) {
-  client ??= new Anthropic();
+  if (!client && config.naVercel && !process.env.ANTHROPIC_API_KEY) {
+    throw new Error("ANTHROPIC_API_KEY não configurada nas variáveis de ambiente da Vercel");
+  }
+  try {
+    client ??= new Anthropic();
+  } catch (e) {
+    throw new Error(`Chave da IA não configurada (ANTHROPIC_API_KEY): ${e.message}`);
+  }
   const resposta = await client.beta.messages.create({
     model: config.claude.model,
     max_tokens: 16000,

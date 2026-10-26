@@ -72,8 +72,8 @@
   },
   "followUp": {
     "ativo": true,
-    "diasDepois": 4
+    "diasDepois": 4,
+    "aprovacaoManual": true
   },
-  "canais": ["email", "whatsapp"],
-  "aprovacaoManual": true
+  "canais": ["email", "whatsapp"]
 }

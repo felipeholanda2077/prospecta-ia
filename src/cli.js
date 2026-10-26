@@ -13,7 +13,7 @@ const comandos = {
   followup: () => pipeline.criarFollowups(campanha),
   enviar: () => pipeline.enviar(campanha, { ignorarHorario: flags.includes("--agora") }),
   ciclo: () => pipeline.executarCiclo(campanha),
-  stats: async () => console.log(JSON.stringify(db.estatisticas(), null, 2)),
+  stats: async () => console.log(JSON.stringify(await db.estatisticas(), null, 2)),
 };
 
 if (!comandos[comando]) {
@@ -30,4 +30,7 @@ if (!comandos[comando]) {
   process.exit(comando ? 1 : 0);
 }
 
-await comandos[comando]();
+const resultado = await comandos[comando]();
+if (resultado?.restantes) console.log(`Ainda há ${resultado.restantes} na fila; rode o comando de novo para continuar.`);
+// A conexão com o banco mantém o processo vivo; encerra ao terminar o comando.
+process.exit(0);

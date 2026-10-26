@@ -29,7 +29,7 @@ export function extrairMensagens(payload) {
 }
 
 /** Encontra a última proposta nossa enviada para esse número. */
-export function mensagemOriginalWhatsapp(numero) {
+export async function mensagemOriginalWhatsapp(numero) {
   const variantes = variantesWhatsappBR(numero);
   const teste = config.modoTeste.whatsapp;
   if (teste && variantes.some((v) => variantesWhatsappBR(teste).includes(v))) {
@@ -41,10 +41,10 @@ export function mensagemOriginalWhatsapp(numero) {
 export async function processarWebhookWhatsapp(payload, campanha) {
   let registradas = 0;
   for (const m of extrairMensagens(payload)) {
-    const original = mensagemOriginalWhatsapp(m.de);
+    const original = await mensagemOriginalWhatsapp(m.de);
     if (!original) continue; // conversa que não veio de uma proposta nossa
     const r = await registrarResposta({
-      lead: db.buscarLead(original.lead_id),
+      lead: await db.buscarLead(original.lead_id),
       canal: "whatsapp",
       origem_id: m.id,
       de: m.de,

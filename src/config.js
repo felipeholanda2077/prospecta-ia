@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 
 dotenv.config({ quiet: true });
@@ -53,11 +54,17 @@ export const config = {
     senha: env.PAINEL_SENHA || "",
   },
   cicloCron: env.CICLO_CRON || "",
-  timezone: env.TZ || "America/Sao_Paulo",
-  dbPath: env.DB_PATH || "data/prospecta.db",
+  // Não usa TZ: na Vercel ela é reservada e fica em UTC.
+  timezone: env.FUSO_HORARIO || "America/Sao_Paulo",
+  // Postgres do Supabase (obrigatório na Vercel). Vazio = Postgres embutido em DB_PATH.
+  databaseUrl: env.DATABASE_URL || env.POSTGRES_URL || "",
+  dbPath: env.DB_PATH || "data/pglite",
+  // Na Vercel cada execução tem limite de tempo; as etapas param antes e continuam na próxima.
+  naVercel: Boolean(env.VERCEL),
+  cronSecret: env.CRON_SECRET || "",
 };
 
-const CAMPANHA_PATH = path.resolve("config/campanha.json");
+const CAMPANHA_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "config", "campanha.json");
 
 export function carregarCampanha() {
   return JSON.parse(fs.readFileSync(CAMPANHA_PATH, "utf8"));

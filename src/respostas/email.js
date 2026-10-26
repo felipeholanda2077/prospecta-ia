@@ -15,8 +15,8 @@ export function idsReferenciados(email) {
 }
 
 /** Descobre qual mensagem nossa um e-mail recebido está respondendo. */
-export function encontrarMensagemOriginal(email) {
-  const porThread = db.mensagemPorMessageIds(idsReferenciados(email));
+export async function encontrarMensagemOriginal(email) {
+  const porThread = await db.mensagemPorMessageIds(idsReferenciados(email));
   if (porThread) return porThread;
   const remetente = email.from?.value?.[0]?.address;
   return remetente ? db.ultimaEnviadaPara(remetente) : null;
@@ -39,8 +39,8 @@ export async function verificarRespostasEmail(campanha) {
     try {
       // Se a caixa foi recriada (UIDVALIDITY mudou), os UIDs antigos não valem mais.
       const validade = String(cliente.mailbox.uidValidity);
-      let ultimoUid = Number(db.lerEstado("imap_ultimo_uid") ?? 0);
-      if (db.lerEstado("imap_uidvalidity") !== validade) ultimoUid = 0;
+      let ultimoUid = Number((await db.lerEstado("imap_ultimo_uid")) ?? 0);
+      if ((await db.lerEstado("imap_uidvalidity")) !== validade) ultimoUid = 0;
 
       const criterio = ultimoUid
         ? { uid: `${ultimoUid + 1}:*` }
@@ -53,8 +53,8 @@ export async function verificarRespostasEmail(campanha) {
         }
       }
       const maior = Math.max(ultimoUid, ...uids);
-      db.gravarEstado("imap_ultimo_uid", maior);
-      db.gravarEstado("imap_uidvalidity", validade);
+      await db.gravarEstado("imap_ultimo_uid", maior);
+      await db.gravarEstado("imap_uidvalidity", validade);
     } finally {
       trava.release();
     }
@@ -69,14 +69,14 @@ export async function verificarRespostasEmail(campanha) {
     const remetente = email.from?.value?.[0]?.address ?? "";
     if (!remetente) continue;
     // Cópias das nossas próprias propostas (ex.: no modo teste, enviadas para a mesma caixa).
-    if (email.messageId && db.mensagemPorMessageIds([email.messageId])) continue;
+    if (email.messageId && (await db.mensagemPorMessageIds([email.messageId]))) continue;
     // No modo teste você responde do seu próprio e-mail, então ele não pode ser ignorado.
     if (!config.modoTeste.email && normalizarContato(remetente) === proprioEndereco) continue;
 
-    const original = encontrarMensagemOriginal(email);
+    const original = await encontrarMensagemOriginal(email);
     if (!original) continue; // não é resposta a uma proposta nossa
 
-    const lead = db.buscarLead(original.lead_id);
+    const lead = await db.buscarLead(original.lead_id);
     const r = await registrarResposta({
       lead,
       canal: "email",

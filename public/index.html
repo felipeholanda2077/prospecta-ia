@@ -7,132 +7,400 @@
 <style>
   :root {
     --bg: #f6f7f9; --card: #fff; --text: #1f2328; --muted: #656d76; --border: #d8dee4;
-    --accent: #0b6bcb; --ok: #1a7f37; --danger: #cf222e; --chip: #eef3f8;
+    --accent: #0b6bcb; --ok: #1a7f37; --danger: #cf222e; --warn: #9a6700; --chip: #eef3f8; --wa: #128c4b;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #0d1117; --card: #161b22; --text: #e6edf3; --muted: #8d96a0; --border: #30363d;
-            --accent: #4493f8; --ok: #3fb950; --danger: #f85149; --chip: #1f2a37; }
+            --accent: #4493f8; --ok: #3fb950; --danger: #f85149; --warn: #d29922; --chip: #1f2a37; --wa: #25a35a; }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
-  header { padding: 20px 16px 8px; max-width: 980px; margin: auto; }
-  h1 { margin: 0 0 4px; font-size: 22px; }
-  main { max-width: 980px; margin: auto; padding: 0 16px 48px; }
+  header { padding: 20px 16px 8px; max-width: 1040px; margin: auto; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  header .titulo { flex: 1; min-width: 220px; }
+  h1 { margin: 0; font-size: 22px; }
+  h2 { font-size: 18px; margin: 20px 0 8px; }
+  main { max-width: 1040px; margin: auto; padding: 0 16px 64px; }
   .muted { color: var(--muted); }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 16px 0; }
-  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
-  .stat b { display: block; font-size: 24px; font-variant-numeric: tabular-nums; }
-  .acoes, .abas { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-  button { font: inherit; border: 1px solid var(--border); background: var(--card); color: var(--text);
-           border-radius: 8px; padding: 6px 12px; cursor: pointer; }
-  button:hover { border-color: var(--accent); }
+  .selos { display: flex; flex-wrap: wrap; gap: 6px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 12px 0; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .acoes, .abas, .linha { display: flex; flex-wrap: wrap; gap: 8px; }
+  .acoes, .abas { margin: 12px 0; }
+  .linha { margin-top: 12px; align-items: center; }
+  button, .botao { font: inherit; border: 1px solid var(--border); background: var(--card); color: var(--text);
+           border-radius: 8px; padding: 6px 12px; cursor: pointer; text-decoration: none; display: inline-block; }
+  button:hover, .botao:hover { border-color: var(--accent); }
+  button:disabled { opacity: .55; cursor: wait; }
   button.primario { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.ok { color: var(--ok); } button.perigo { color: var(--danger); }
+  button.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+  button.wa { background: var(--wa); border-color: var(--wa); color: #fff; }
+  button.perigo { color: var(--danger); }
   .abas button[aria-selected="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin: 12px 0; }
-  .card h3 { margin: 0; font-size: 17px; }
+  .card h3 { margin: 0; font-size: 17px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
   .chip { background: var(--chip); border-radius: 999px; padding: 2px 10px; font-size: 13px; }
   .chip.forte { background: var(--ok); color: #fff; }
   .chip.alerta { background: var(--danger); color: #fff; }
+  .chip.atencao { background: var(--warn); color: #fff; }
   .card.nova { border-left: 4px solid var(--accent); }
-  .texto { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 10px; margin-top: 8px; }
-  #badge:not(:empty) { background: var(--accent); color: #fff; border-radius: 999px; padding: 0 7px; font-size: 12px; }
-  input, textarea { width: 100%; font: inherit; color: var(--text); background: var(--bg);
+  input, textarea, select { width: 100%; font: inherit; color: var(--text); background: var(--bg);
                     border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
-  textarea { min-height: 200px; resize: vertical; }
+  input[type=checkbox] { width: 18px; height: 18px; flex: none; }
+  textarea { min-height: 180px; resize: vertical; }
   label { display: block; font-size: 13px; color: var(--muted); margin-top: 10px; }
-  .linha { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 760px) { .grade { grid-template-columns: 1fr; } }
+  .previa { white-space: pre-wrap; background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; padding: 10px; font-size: 14px; min-height: 180px; }
+  .texto { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 10px; margin-top: 8px; }
   .erro { color: var(--danger); font-size: 14px; }
+  .form-busca { display: grid; grid-template-columns: 2fr 2fr 1fr auto; gap: 8px; align-items: end; }
+  @media (max-width: 760px) { .form-busca { grid-template-columns: 1fr; } }
+  .empresa { display: flex; gap: 12px; align-items: flex-start; }
+  .empresa .info { flex: 1; min-width: 0; }
   .aviso { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg);
-           padding: 10px 16px; border-radius: 8px; display: none; max-width: calc(100% - 32px); }
+           padding: 10px 16px; border-radius: 8px; display: none; max-width: calc(100% - 32px); z-index: 10; }
+  .progresso { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
   a { color: var(--accent); word-break: break-all; }
+  #badge:not(:empty) { background: var(--accent); color: #fff; border-radius: 999px; padding: 0 7px; font-size: 12px; margin-left: 4px; }
+  .login { max-width: 360px; margin: 14vh auto; padding: 0 16px; }
 </style>
 </head>
 <body>
-<header>
+
+<section class="login" id="tela-login" hidden>
   <h1>Prospecta IA</h1>
-  <div class="muted">Empresas encontradas, propostas geradas pela IA e envios.</div>
+  <p class="muted">Entre para acessar o painel.</p>
+  <form id="form-login">
+    <label for="usuario">Usuário</label>
+    <input id="usuario" name="usuario" autocomplete="username" value="admin" required>
+    <label for="senha">Senha</label>
+    <input id="senha" name="senha" type="password" autocomplete="current-password" required>
+    <div class="linha"><button class="primario" type="submit">Entrar</button></div>
+    <p class="erro" id="erro-login"></p>
+  </form>
+</section>
+
+<div id="painel" hidden>
+<header>
+  <div class="titulo">
+    <h1>Prospecta IA</h1>
+    <div class="muted" id="empresa"></div>
+  </div>
+  <div class="selos" id="selos"></div>
+  <button id="sair">Sair</button>
 </header>
 <main>
   <section class="stats" id="stats"></section>
 
-  <div class="acoes">
-    <button data-etapa="respostas">Ler respostas</button>
-    <button data-etapa="descobrir">1. Buscar empresas</button>
-    <button data-etapa="analisar">2. Analisar sites</button>
-    <button data-etapa="propor">3. Gerar propostas</button>
-    <button data-etapa="followup">4. Gerar follow-ups</button>
-    <button data-etapa="enviar">5. Enviar aprovadas</button>
-    <button data-etapa="ciclo" class="primario">Rodar ciclo completo</button>
-  </div>
-
   <nav class="abas" role="tablist">
-    <button role="tab" data-aba="respostas">Respostas <span id="badge"></span></button>
-    <button role="tab" data-aba="rascunho" aria-selected="true">Para aprovar</button>
-    <button role="tab" data-aba="aprovada">Na fila de envio</button>
+    <button role="tab" data-aba="maps">📍 Buscar no Google Maps</button>
+    <button role="tab" data-aba="rascunho" aria-selected="true">✅ Aprovar mensagens <span id="badge-aprovar"></span></button>
+    <button role="tab" data-aba="aprovada">Na fila</button>
     <button role="tab" data-aba="enviada">Enviadas</button>
     <button role="tab" data-aba="erro">Com erro</button>
-    <button role="tab" data-aba="leads:contatado">Empresas contatadas</button>
-    <button role="tab" data-aba="leads:respondeu">Responderam</button>
+    <button role="tab" data-aba="respostas">Respostas <span id="badge"></span></button>
+    <button role="tab" data-aba="leads">Empresas</button>
+    <button role="tab" data-aba="automacao">⚙️ Automação</button>
   </nav>
+
+  <!-- Busca no Google Maps -->
+  <section data-painel="maps" hidden>
+    <form class="form-busca" id="form-maps">
+      <div><label for="nicho">Segmento</label><input id="nicho" list="nichos" placeholder="ex.: pet shop, clínica odontológica" required></div>
+      <div><label for="cidade">Cidade</label><input id="cidade" list="cidades" placeholder="ex.: Fortaleza - CE" required></div>
+      <div><label for="quantidade">Quantidade</label>
+        <select id="quantidade"><option>20</option><option>40</option><option>60</option></select></div>
+      <button class="primario" type="submit">Buscar</button>
+    </form>
+    <datalist id="nichos"></datalist><datalist id="cidades"></datalist>
+    <div id="resultado-maps"></div>
+  </section>
+
+  <!-- Automação -->
+  <section data-painel="automacao" hidden>
+    <p class="muted">Rode cada etapa manualmente. Na Vercel, o ciclo completo também roda sozinho de segunda a sexta às 9h30.
+      As mensagens novas nunca saem sem a sua aprovação.</p>
+    <div class="acoes">
+      <button data-etapa="respostas">Ler respostas do e-mail</button>
+      <button data-etapa="descobrir">Buscar pela campanha</button>
+      <button data-etapa="analisar">Analisar sites</button>
+      <button data-etapa="propor">Gerar propostas com IA</button>
+      <button data-etapa="followup">Gerar follow-ups</button>
+      <button data-etapa="enviar">Enviar fila aprovada</button>
+    </div>
+    <div id="log-etapas"></div>
+  </section>
 
   <section id="lista"></section>
 </main>
+</div>
 <div class="aviso" id="aviso"></div>
 
 <script>
 const $ = (s, el = document) => el.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const dataHora = (d) => (d ? new Date(d).toLocaleString("pt-BR") : "");
 let abaAtual = "rascunho";
+let sessao = null;
+let resultadosMaps = [];
+let buscaMaps = {};
 
 async function api(caminho, opcoes = {}) {
-  const resp = await fetch(caminho, { headers: { "Content-Type": "application/json" }, ...opcoes });
+  const resp = await fetch(caminho, { headers: { "Content-Type": "application/json" }, credentials: "same-origin", ...opcoes });
   const dados = await resp.json().catch(() => ({}));
+  if (resp.status === 401 && dados.login) { mostrarLogin(); throw new Error("Sessão expirada"); }
   if (!resp.ok) throw new Error(dados.erro || resp.statusText);
   return dados;
 }
+const post = (caminho, corpo) => api(caminho, { method: "POST", body: JSON.stringify(corpo ?? {}) });
 
-function avisar(texto) {
+function avisar(texto, ms = 4000) {
   const el = $("#aviso");
   el.textContent = texto;
   el.style.display = "block";
   clearTimeout(avisar.t);
-  avisar.t = setTimeout(() => (el.style.display = "none"), 3500);
+  avisar.t = setTimeout(() => (el.style.display = "none"), ms);
 }
+
+// ---------- Login ----------
+
+function mostrarLogin() {
+  $("#painel").hidden = true;
+  $("#tela-login").hidden = false;
+  $("#senha").focus();
+}
+
+$("#form-login").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  $("#erro-login").textContent = "";
+  try {
+    await post("/api/login", { usuario: $("#usuario").value, senha: $("#senha").value });
+    $("#senha").value = "";
+    await iniciar();
+  } catch (e) {
+    $("#erro-login").textContent = e.message;
+  }
+});
+
+$("#sair").addEventListener("click", async () => {
+  await post("/api/logout");
+  mostrarLogin();
+});
+
+async function iniciar() {
+  try {
+    sessao = await api("/api/sessao");
+  } catch { return; }
+  $("#tela-login").hidden = true;
+  $("#painel").hidden = false;
+  $("#empresa").textContent = sessao.empresa;
+  $("#selos").innerHTML = [
+    sessao.modoTeste ? `<span class="chip atencao">MODO TESTE: envios vão para você</span>` : "",
+    `<span class="chip">WhatsApp: ${sessao.whatsappAutomatico ? "automático (API oficial)" : "manual pelo seu WhatsApp"}</span>`,
+    `<span class="chip">${sessao.dentroDoHorario ? "Dentro do horário de envio" : "Fora do horário: aprovadas ficam na fila"}</span>`,
+  ].join("");
+  $("#nichos").innerHTML = sessao.nichosSugeridos.map((n) => `<option value="${esc(n)}">`).join("");
+  $("#cidades").innerHTML = sessao.cidadesSugeridas.map((c) => `<option value="${esc(c)}">`).join("");
+  await atualizar();
+}
+
+// ---------- Indicadores ----------
 
 async function carregarStats() {
   const s = await api("/api/stats");
+  const capturadas = Object.values(s.leads).reduce((a, b) => a + b, 0);
   const itens = [
-    ["Empresas analisadas", (s.leads.analisado ?? 0) + (s.leads.proposta_gerada ?? 0) + (s.leads.contatado ?? 0) + (s.leads.respondeu ?? 0)],
-    ["Para aprovar", s.mensagens.rascunho ?? 0],
-    ["Na fila", s.mensagens.aprovada ?? 0],
+    ["Empresas capturadas", capturadas],
+    ["Aguardando aprovação", s.mensagens.rascunho ?? 0],
+    ["Na fila de envio", s.mensagens.aprovada ?? 0],
     ["Enviadas hoje", s.enviadasHoje],
     ["Total enviadas", s.mensagens.enviada ?? 0],
-    ["Responderam", s.leads.respondeu ?? 0],
     ["Interessados", (s.respostas.interessado ?? 0) + (s.respostas.quer_informacoes ?? 0)],
     ["Descadastros", s.descadastros],
   ];
   $("#stats").innerHTML = itens.map(([t, n]) => `<div class="stat"><b>${n}</b><span class="muted">${t}</span></div>`).join("");
   $("#badge").textContent = s.respostasNaoLidas || "";
+  $("#badge-aprovar").textContent = s.mensagens.rascunho ? `(${s.mensagens.rascunho})` : "";
 }
 
-const ROTULOS = {
-  interessado: ["Interessado", "forte"],
-  quer_informacoes: ["Quer informações", "forte"],
-  sem_interesse: ["Sem interesse", ""],
-  descadastro: ["Pediu para sair", "alerta"],
-  automatica: ["Resposta automática", ""],
-  outro: ["Outro", ""],
-};
+// ---------- Google Maps ----------
+
+$("#form-maps").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = ev.submitter;
+  buscaMaps = { nicho: $("#nicho").value.trim(), cidade: $("#cidade").value.trim() };
+  btn.disabled = true;
+  $("#resultado-maps").innerHTML = `<div class="progresso">Buscando "${esc(buscaMaps.nicho)}" em ${esc(buscaMaps.cidade)} no Google Maps…</div>`;
+  try {
+    resultadosMaps = await post("/api/maps/buscar", { ...buscaMaps, quantidade: $("#quantidade").value });
+    desenharMaps();
+  } catch (e) {
+    $("#resultado-maps").innerHTML = `<p class="erro">${esc(e.message)}</p>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function desenharMaps() {
+  if (!resultadosMaps.length) {
+    $("#resultado-maps").innerHTML = `<p class="muted">Nenhuma empresa encontrada.</p>`;
+    return;
+  }
+  const novas = resultadosMaps.filter((e) => !e.jaCapturado).length;
+  $("#resultado-maps").innerHTML = `
+    <div class="linha">
+      <b>${resultadosMaps.length} empresas encontradas</b><span class="muted">(${novas} novas)</span>
+      <button data-maps="todos">Selecionar todas as novas</button>
+      <button data-maps="capturar" class="primario">Capturar selecionadas</button>
+    </div>
+    ${resultadosMaps.map((e, i) => `
+      <article class="card empresa">
+        <input type="checkbox" data-indice="${i}" ${e.jaCapturado ? "disabled" : ""} aria-label="Selecionar ${esc(e.nome)}">
+        <div class="info">
+          <h3>${esc(e.nome)} ${e.jaCapturado ? `<span class="chip">já capturada</span>` : ""}</h3>
+          <div class="muted">${esc(e.endereco)}</div>
+          <div class="chips">
+            ${e.telefone ? `<span class="chip ${e.celular ? "forte" : ""}">${esc(e.telefone)}${e.celular ? " · WhatsApp provável" : " · fixo"}</span>` : `<span class="chip">sem telefone</span>`}
+            ${e.site ? `<span class="chip">tem site</span>` : `<span class="chip atencao">sem site</span>`}
+            ${e.avaliacao ? `<span class="chip">★ ${e.avaliacao} (${e.total_avaliacoes ?? 0})</span>` : ""}
+          </div>
+          <div class="linha" style="margin-top:4px">
+            ${e.site ? `<a href="${esc(e.site)}" target="_blank" rel="noopener">${esc(e.site)}</a>` : ""}
+            ${e.maps_url ? `<a href="${esc(e.maps_url)}" target="_blank" rel="noopener">Ver no Google Maps</a>` : ""}
+          </div>
+        </div>
+      </article>`).join("")}`;
+}
+
+async function capturarSelecionadas() {
+  const escolhidas = [...document.querySelectorAll("[data-indice]:checked")].map((c) => resultadosMaps[c.dataset.indice]);
+  if (!escolhidas.length) return avisar("Selecione ao menos uma empresa");
+  const r = await post("/api/maps/capturar", { empresas: escolhidas, ...buscaMaps });
+  for (const e of escolhidas) e.jaCapturado = true;
+  desenharMaps();
+  $("#resultado-maps").insertAdjacentHTML("afterbegin", `
+    <div class="progresso" id="pos-captura">
+      <b>${r.novas} empresas capturadas.</b> Agora a IA analisa o site de cada uma, encontra e-mail/WhatsApp e escreve as propostas.
+      Nada é enviado antes de você aprovar.
+      <div class="linha"><button class="primario" data-maps="processar">Analisar e gerar propostas agora</button></div>
+    </div>`);
+  carregarStats();
+}
+
+async function processarCapturadas(btn) {
+  btn.disabled = true;
+  const caixa = $("#pos-captura");
+  try {
+    await rodarEtapa("analisar", (t) => (caixa.innerHTML = `<b>Analisando sites…</b> ${t}`));
+    await rodarEtapa("propor", (t) => (caixa.innerHTML = `<b>A IA está escrevendo as propostas…</b> ${t}`));
+    caixa.innerHTML = `<b>Pronto!</b> As propostas estão na aba "Aprovar mensagens". <div class="linha"><button class="primario" data-ir="rascunho">Revisar e aprovar</button></div>`;
+    carregarStats();
+  } catch (e) {
+    caixa.innerHTML = `<span class="erro">${esc(e.message)}</span>`;
+  }
+}
+
+// ---------- Etapas (repetem enquanto houver fila) ----------
+
+async function rodarEtapa(etapa, progresso = () => {}) {
+  let total = {};
+  for (let rodada = 1; rodada <= 30; rodada++) {
+    const r = await post(`/api/etapas/${etapa}`);
+    let progrediu = false;
+    for (const [k, v] of Object.entries(r)) {
+      if (typeof v !== "number" || k === "restantes") continue;
+      total[k] = (total[k] ?? 0) + v;
+      if (v > 0) progrediu = true;
+    }
+    progresso(`${Object.entries(total).map(([k, v]) => `${k}: ${v}`).join(" · ")}${r.restantes ? ` · faltam ${r.restantes}` : ""}`);
+    if (r.erro && !progrediu) throw new Error(r.erro);
+    // Só repete se ainda há fila e esta rodada avançou (evita repetir um erro em loop).
+    if (!r.restantes || !progrediu) return { ...r, ...total };
+  }
+  return total;
+}
+
+const NOMES_ETAPAS = { respostas: "Leitura de respostas", descobrir: "Busca pela campanha", analisar: "Análise dos sites",
+                       propor: "Propostas com IA", followup: "Follow-ups", enviar: "Envio da fila" };
+
+async function executarEtapa(btn) {
+  const etapa = btn.dataset.etapa;
+  const linha = document.createElement("div");
+  linha.className = "progresso";
+  linha.textContent = `${NOMES_ETAPAS[etapa]}: rodando…`;
+  $("#log-etapas").prepend(linha);
+  btn.disabled = true;
+  try {
+    const r = await rodarEtapa(etapa, (t) => (linha.textContent = `${NOMES_ETAPAS[etapa]}: ${t}`));
+    linha.textContent = `${NOMES_ETAPAS[etapa]} concluída: ${Object.entries(r).map(([k, v]) => `${k}: ${v}`).join(" · ") || "nada a fazer"}`;
+  } catch (e) {
+    linha.innerHTML = `<span class="erro">${NOMES_ETAPAS[etapa]}: ${esc(e.message)}</span>`;
+  } finally {
+    btn.disabled = false;
+    carregarStats();
+  }
+}
+
+// ---------- Mensagens ----------
+
+const CANAL = { email: "E-mail", whatsapp: "WhatsApp" };
+
+function cardMensagem(m) {
+  const editavel = ["rascunho", "aprovada", "erro"].includes(m.status);
+  const contexto = `
+    <div class="muted">${esc(m.nicho)} · ${esc(m.cidade)} · ${CANAL[m.canal]}: <b>${esc(m.destino)}</b></div>
+    <div class="linha" style="margin-top:4px">
+      ${m.site ? `<a href="${esc(m.site)}" target="_blank" rel="noopener">${esc(m.site)}</a>` : `<span class="muted">Sem site</span>`}
+      ${m.maps_url ? `<a href="${esc(m.maps_url)}" target="_blank" rel="noopener">Google Maps</a>` : ""}
+    </div>
+    <div class="chips">${m.oportunidades.map((o) => `<span class="chip" title="${esc(o.motivo)}">${esc(o.servico)}: ${esc(o.motivo)}</span>`).join("")}</div>
+    ${m.erro ? `<div class="erro">${esc(m.erro)}</div>` : ""}`;
+
+  if (!editavel) {
+    return `<article class="card"><h3>${esc(m.empresa)} <span class="chip">${CANAL[m.canal]}</span></h3>${contexto}
+      ${m.assunto ? `<div><b>${esc(m.assunto)}</b></div>` : ""}<div class="texto">${esc(m.previa)}</div>
+      <div class="muted" style="margin-top:8px">${m.status === "enviada" ? `Enviada em ${dataHora(m.enviada_em)}` : esc(m.status)}</div></article>`;
+  }
+
+  const botaoEnviar = m.envioManual
+    ? `<button class="wa" data-acao="whatsapp">Abrir no WhatsApp para enviar</button>`
+    : `<button class="ok" data-acao="aprovar">${m.status === "aprovada" ? "Tentar enviar agora" : "Aprovar e enviar"}</button>`;
+
+  return `<article class="card" data-id="${m.id}" data-canal="${m.canal}" data-link="${esc(m.linkWhatsapp ?? "")}">
+    <h3>${esc(m.empresa)} <span class="chip">${CANAL[m.canal]}</span>${m.tipo === "followup" ? `<span class="chip">Follow-up</span>` : ""}</h3>
+    ${contexto}
+    <div class="grade">
+      <div>
+        ${m.canal === "email" ? `<label for="assunto-${m.id}">Assunto</label><input id="assunto-${m.id}" name="assunto" value="${esc(m.assunto)}">` : ""}
+        <label for="corpo-${m.id}">Mensagem (edite se quiser)</label><textarea id="corpo-${m.id}" name="corpo">${esc(m.corpo)}</textarea>
+      </div>
+      <div>
+        <label>Como a empresa vai receber</label>
+        <div class="previa" data-previa data-rodape="${esc(m.rodape)}">${esc(m.previa)}</div>
+      </div>
+    </div>
+    <div class="linha" data-botoes>
+      ${botaoEnviar}
+      <button data-acao="salvar">Salvar edição</button>
+      <button class="perigo" data-acao="rejeitar">Não enviar</button>
+    </div>
+  </article>`;
+}
 
 function cardResposta(r) {
+  const ROTULOS = {
+    interessado: ["Interessado", "forte"], quer_informacoes: ["Quer informações", "forte"],
+    sem_interesse: ["Sem interesse", ""], descadastro: ["Pediu para sair", "alerta"],
+    automatica: ["Resposta automática", ""], outro: ["Outro", ""],
+  };
   const [rotulo, classe] = ROTULOS[r.classificacao] ?? ["Sem classificação", ""];
   return `<article class="card ${r.lida ? "" : "nova"}" data-resposta="${r.id}">
-    <h3>${esc(r.empresa)}</h3>
-    <div class="muted">${esc(r.nicho)} · ${esc(r.cidade)} · ${r.canal === "email" ? "E-mail" : "WhatsApp"}: ${esc(r.de)} · ${new Date(r.recebida_em + "Z").toLocaleString("pt-BR")}</div>
-    <div class="chips"><span class="chip ${classe}">${rotulo}</span></div>
-    <div>${esc(r.resumo)}</div>
+    <h3>${esc(r.empresa)} <span class="chip ${classe}">${rotulo}</span></h3>
+    <div class="muted">${esc(r.nicho)} · ${esc(r.cidade)} · ${CANAL[r.canal]}: ${esc(r.de)} · ${dataHora(r.recebida_em)}</div>
+    <div style="margin-top:6px">${esc(r.resumo)}</div>
     <div class="texto">${esc(r.texto)}</div>
     ${r.sugestao ? `<label>Sugestão de resposta da IA (revise antes de enviar)</label><textarea>${esc(r.sugestao)}</textarea>` : ""}
     <div class="linha">
@@ -142,49 +410,56 @@ function cardResposta(r) {
   </article>`;
 }
 
-function cardMensagem(m) {
-  const editavel = m.status === "rascunho" || m.status === "aprovada" || m.status === "erro";
-  return `<article class="card" data-id="${m.id}">
-    <h3>${esc(m.empresa)}${m.tipo === "followup" ? ` <span class="chip">Follow-up</span>` : ""}</h3>
-    <div class="muted">${esc(m.nicho)} · ${esc(m.cidade)} · ${m.canal === "email" ? "E-mail" : "WhatsApp"}: ${esc(m.destino)}</div>
-    ${m.site ? `<div><a href="${esc(m.site)}" target="_blank" rel="noopener">${esc(m.site)}</a></div>` : `<div class="muted">Sem site</div>`}
-    <div class="chips">${m.oportunidades.map((o) => `<span class="chip" title="${esc(o.motivo)}">${esc(o.servico)}: ${esc(o.motivo)}</span>`).join("")}</div>
-    ${m.erro ? `<div class="erro">${esc(m.erro)}</div>` : ""}
-    ${m.canal === "email" ? `<label>Assunto</label><input name="assunto" value="${esc(m.assunto)}" ${editavel ? "" : "disabled"}>` : ""}
-    <label>Mensagem</label><textarea name="corpo" ${editavel ? "" : "disabled"}>${esc(m.corpo)}</textarea>
-    ${editavel ? `<div class="linha">
-      ${m.status !== "aprovada" ? `<button class="ok" data-acao="aprovar">Aprovar e pôr na fila</button>` : ""}
-      <button data-acao="salvar">Salvar edição</button>
-      <button class="perigo" data-acao="rejeitar">Rejeitar</button>
-    </div>` : `<div class="muted" style="margin-top:8px">Enviada em ${new Date(m.enviada_em).toLocaleString("pt-BR")}</div>`}
-  </article>`;
-}
+const STATUS_LEAD = {
+  novo: "Aguardando análise", analisado: "Aguardando proposta", proposta_gerada: "Proposta para aprovar",
+  contatado: "Contatado", respondeu: "Respondeu", sem_interesse: "Sem interesse", descartado: "Descartado", descadastrado: "Descadastrado",
+};
 
 function cardLead(l) {
   return `<article class="card" data-lead="${l.id}">
-    <h3>${esc(l.nome)}</h3>
-    <div class="muted">${esc(l.nicho)} · ${esc(l.cidade)} · ${esc(l.email || "")} ${esc(l.whatsapp || "")}</div>
-    ${l.observacao ? `<div>${esc(l.observacao)}</div>` : ""}
-    <div class="linha">
-      ${l.status !== "respondeu" ? `<button class="ok" data-status="respondeu">Marcar que respondeu</button>` : ""}
-      <button data-status="descartado">Descartar</button>
-      <button class="perigo" data-status="descadastrado">Pediu para não receber</button>
+    <h3>${esc(l.nome)} <span class="chip">${STATUS_LEAD[l.status] ?? esc(l.status)}</span>${l.origem === "maps" ? `<span class="chip">via Google Maps</span>` : ""}</h3>
+    <div class="muted">${esc(l.nicho)} · ${esc(l.cidade)}${l.email ? ` · ${esc(l.email)}` : ""}${l.whatsapp ? ` · WhatsApp ${esc(l.whatsapp)}` : ""}</div>
+    <div class="linha" style="margin-top:4px">
+      ${l.site ? `<a href="${esc(l.site)}" target="_blank" rel="noopener">${esc(l.site)}</a>` : ""}
+      ${l.maps_url ? `<a href="${esc(l.maps_url)}" target="_blank" rel="noopener">Google Maps</a>` : ""}
     </div>
+    ${l.observacao ? `<div style="margin-top:6px">${esc(l.observacao)}</div>` : ""}
+    ${["contatado", "respondeu"].includes(l.status) ? `<div class="linha">
+      ${l.status !== "respondeu" ? `<button data-status="respondeu">Marcar que respondeu</button>` : ""}
+      <button data-status="sem_interesse">Sem interesse</button>
+      <button class="perigo" data-status="descadastrado">Pediu para não receber</button>
+    </div>` : ""}
   </article>`;
 }
 
 async function carregarLista() {
   const lista = $("#lista");
+  document.querySelectorAll("[data-painel]").forEach((p) => (p.hidden = p.dataset.painel !== abaAtual));
+  if (abaAtual === "maps" || abaAtual === "automacao") return (lista.innerHTML = "");
   try {
     if (abaAtual === "respostas") {
       const respostas = await api("/api/respostas");
       lista.innerHTML = respostas.length ? respostas.map(cardResposta).join("") : `<p class="muted">Nenhuma resposta ainda.</p>`;
-    } else if (abaAtual.startsWith("leads:")) {
-      const leads = await api(`/api/leads?status=${abaAtual.split(":")[1]}`);
-      lista.innerHTML = leads.length ? leads.map(cardLead).join("") : `<p class="muted">Nada por aqui ainda.</p>`;
+    } else if (abaAtual === "leads") {
+      const filtro = lista.dataset.filtro || "novo,analisado,proposta_gerada,contatado,respondeu";
+      const leads = await api(`/api/leads?status=${filtro}`);
+      lista.dataset.filtro = filtro;
+      lista.innerHTML = `
+        <label for="filtro-leads">Mostrar</label>
+        <select id="filtro-leads" style="max-width:340px">
+          ${[["novo,analisado,proposta_gerada,contatado,respondeu", "Em andamento"], ["novo,analisado", "Aguardando análise/proposta"],
+             ["contatado", "Contatadas"], ["respondeu", "Responderam"], ["sem_interesse,descartado,descadastrado", "Encerradas"]]
+            .map(([v, t]) => `<option value="${v}" ${v === filtro ? "selected" : ""}>${t}</option>`).join("")}
+        </select>
+        ${leads.length ? leads.map(cardLead).join("") : `<p class="muted">Nenhuma empresa nesta lista.</p>`}`;
     } else {
       const msgs = await api(`/api/mensagens?status=${abaAtual}`);
-      lista.innerHTML = msgs.length ? msgs.map(cardMensagem).join("") : `<p class="muted">Nada por aqui ainda.</p>`;
+      const vazio = abaAtual === "rascunho"
+        ? `<p class="muted">Nenhuma mensagem esperando aprovação. Capture empresas na aba "Buscar no Google Maps".</p>`
+        : `<p class="muted">Nada por aqui ainda.</p>`;
+      const intro = abaAtual === "rascunho" && msgs.length
+        ? `<p class="muted">Revise cada mensagem escrita pela IA. Ela só é enviada quando você clica em <b>Aprovar e enviar</b>.</p>` : "";
+      lista.innerHTML = msgs.length ? intro + msgs.map(cardMensagem).join("") : vazio;
     }
   } catch (e) {
     lista.innerHTML = `<p class="erro">${esc(e.message)}</p>`;
@@ -195,35 +470,97 @@ async function atualizar() {
   await Promise.all([carregarStats(), carregarLista()]);
 }
 
+function irPara(aba) {
+  abaAtual = aba;
+  document.querySelectorAll("[data-aba]").forEach((b) => b.setAttribute("aria-selected", b.dataset.aba === aba));
+  carregarLista();
+}
+
+// Prévia atualiza enquanto você edita.
+document.addEventListener("input", (ev) => {
+  const card = ev.target.closest("[data-id]");
+  if (!card || ev.target.name !== "corpo") return;
+  const previa = $("[data-previa]", card);
+  previa.textContent = ev.target.value + previa.dataset.rodape;
+});
+
+document.addEventListener("change", (ev) => {
+  if (ev.target.id === "filtro-leads") {
+    $("#lista").dataset.filtro = ev.target.value;
+    carregarLista();
+  }
+});
+
+async function salvar(card) {
+  const assunto = $("input[name=assunto]", card)?.value;
+  const corpo = $("textarea[name=corpo]", card).value;
+  return api(`/api/mensagens/${card.dataset.id}`, { method: "PUT", body: JSON.stringify({ assunto, corpo }) });
+}
+
+async function acaoMensagem(btn) {
+  const card = btn.closest("[data-id]");
+  const id = card.dataset.id;
+  const acao = btn.dataset.acao;
+
+  if (acao === "whatsapp") {
+    // Abre a janela já no clique (senão o navegador bloqueia) e depois coloca o link com o texto editado.
+    const janela = window.open("about:blank", "_blank");
+    await salvar(card);
+    const base = card.dataset.link.split("?")[0];
+    const texto = $("textarea[name=corpo]", card).value + sessao.rodapeWhatsapp;
+    if (janela) janela.location = `${base}?text=${encodeURIComponent(texto)}`;
+    $("[data-botoes]", card).innerHTML = `
+      <span>Enviou a mensagem no WhatsApp?</span>
+      <button class="ok" data-acao="confirmar-whatsapp">Sim, enviei</button>
+      <button data-acao="cancelar-whatsapp">Não enviei</button>`;
+    return;
+  }
+  if (acao === "cancelar-whatsapp") return carregarLista();
+
+  btn.disabled = true;
+  try {
+    if (acao === "confirmar-whatsapp") {
+      await post(`/api/mensagens/${id}/enviada-manual`);
+      avisar("Registrada como enviada");
+    } else if (acao === "salvar") {
+      await salvar(card);
+      avisar("Edição salva");
+      btn.disabled = false;
+      return;
+    } else if (acao === "rejeitar") {
+      await post(`/api/mensagens/${id}/rejeitar`);
+      avisar("Mensagem descartada: não será enviada");
+    } else if (acao === "aprovar") {
+      await salvar(card);
+      const r = await post(`/api/mensagens/${id}/aprovar`);
+      avisar(r.enviada ? "✅ Aprovada e enviada" : r.naFila ? `Aprovada e na fila: ${r.motivo}` : `Não foi enviada: ${r.motivo}`, 7000);
+    }
+    await atualizar();
+  } catch (e) {
+    avisar(`Erro: ${e.message}`);
+    btn.disabled = false;
+  }
+}
+
 document.addEventListener("click", async (ev) => {
   const btn = ev.target.closest("button");
-  if (!btn) return;
+  if (!btn || btn.closest("form")) return; // botões de formulário têm seus próprios handlers
   try {
-    if (btn.dataset.etapa) {
-      const r = await api(`/api/etapas/${btn.dataset.etapa}`, { method: "POST" });
-      avisar(r.mensagem);
-    } else if (btn.dataset.aba) {
-      abaAtual = btn.dataset.aba;
-      document.querySelectorAll("[data-aba]").forEach((b) => b.setAttribute("aria-selected", b === btn));
-      await carregarLista();
-    } else if (btn.dataset.acao) {
-      const card = btn.closest("[data-id]");
-      const id = card.dataset.id;
-      const corpo = $("textarea", card).value;
-      const assunto = $("input[name=assunto]", card)?.value;
-      await api(`/api/mensagens/${id}`, { method: "PUT", body: JSON.stringify({ assunto, corpo }) });
-      if (btn.dataset.acao !== "salvar") await api(`/api/mensagens/${id}/${btn.dataset.acao}`, { method: "POST" });
-      avisar({ aprovar: "Aprovada e na fila de envio", rejeitar: "Rejeitada", salvar: "Edição salva" }[btn.dataset.acao]);
-      await atualizar();
-    } else if ("copiar" in btn.dataset) {
+    if (btn.dataset.aba) irPara(btn.dataset.aba);
+    else if (btn.dataset.ir) irPara(btn.dataset.ir);
+    else if (btn.dataset.etapa) await executarEtapa(btn);
+    else if (btn.dataset.maps === "todos") document.querySelectorAll("[data-indice]:not(:disabled)").forEach((c) => (c.checked = true));
+    else if (btn.dataset.maps === "capturar") await capturarSelecionadas();
+    else if (btn.dataset.maps === "processar") await processarCapturadas(btn);
+    else if (btn.dataset.acao) await acaoMensagem(btn);
+    else if ("copiar" in btn.dataset) {
       await navigator.clipboard.writeText($("textarea", btn.closest("[data-resposta]")).value);
       avisar("Sugestão copiada");
     } else if ("lida" in btn.dataset) {
-      await api(`/api/respostas/${btn.closest("[data-resposta]").dataset.resposta}/lida`, { method: "POST" });
+      await post(`/api/respostas/${btn.closest("[data-resposta]").dataset.resposta}/lida`);
       await atualizar();
     } else if (btn.dataset.status) {
-      const id = btn.closest("[data-lead]").dataset.lead;
-      await api(`/api/leads/${id}/status`, { method: "POST", body: JSON.stringify({ status: btn.dataset.status }) });
+      await post(`/api/leads/${btn.closest("[data-lead]").dataset.lead}/status`, { status: btn.dataset.status });
       avisar("Atualizado");
       await atualizar();
     }
@@ -232,8 +569,8 @@ document.addEventListener("click", async (ev) => {
   }
 });
 
-atualizar();
-setInterval(carregarStats, 15000);
+iniciar();
+setInterval(() => !$("#painel").hidden && carregarStats().catch(() => {}), 30000);
 </script>
 </body>
 </html>

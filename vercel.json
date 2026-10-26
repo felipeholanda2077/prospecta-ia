@@ -1,0 +1,36 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "",
+  "outputDirectory": "public",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/descadastrar/(.*)",
+      "destination": "/api"
+    },
+    {
+      "source": "/webhooks/(.*)",
+      "destination": "/api"
+    }
+  ],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 300,
+      "includeFiles": "config/**"
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/ciclo",
+      "schedule": "30 12 * * 1-5"
+    },
+    {
+      "path": "/api/cron/respostas",
+      "schedule": "0 22 * * *"
+    }
+  ]
+}

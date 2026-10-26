@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      DB_PATH: /app/data/prospecta.db
+      DB_PATH: /app/data/pglite
     ports:
       - "3000:3000"
     volumes:
