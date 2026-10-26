@@ -4,22 +4,16 @@ import cron from "node-cron";
 import { config, carregarCampanha } from "./config.js";
 import * as db from "./db.js";
 import * as pipeline from "./pipeline.js";
+import { assinaturaValida, processarWebhookWhatsapp } from "./respostas/whatsapp.js";
 
 const app = express();
-app.use(express.json());
+// Guarda o corpo bruto: a assinatura do webhook do WhatsApp é calculada sobre ele.
+app.use(express.json({ verify: (req, res, buf) => (req.corpoBruto = buf) }));
 app.use(express.urlencoded({ extended: false }));
 
 // ---------- Descadastro (público, sem senha) ----------
 
-function processarDescadastro(lead) {
-  for (const contato of [lead.email, lead.whatsapp, lead.telefone]) db.descadastrar(contato, "link de descadastro");
-  for (const status of ["rascunho", "aprovada"]) {
-    db.getDb()
-      .prepare("UPDATE mensagens SET status = 'rejeitada', erro = 'contato descadastrado' WHERE lead_id = ? AND status = ?")
-      .run(lead.id, status);
-  }
-  db.atualizarLead(lead.id, { status: "descadastrado" });
-}
+const processarDescadastro = (lead) => db.descadastrarLead(lead, "link de descadastro");
 
 const paginaSimples = (titulo, conteudo) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>${titulo}</title>
@@ -46,6 +40,26 @@ app.post("/descadastrar/:token", (req, res) => {
   if (!lead) return res.status(404).send(paginaSimples("Link inválido", "<h2>Link inválido ou expirado.</h2>"));
   processarDescadastro(lead);
   res.send(paginaSimples("Pronto", "<h2>Pronto!</h2><p>Você não receberá mais mensagens nossas.</p>"));
+});
+
+// ---------- Webhook do WhatsApp (público, validado pela assinatura da Meta) ----------
+
+// Verificação feita pela Meta ao cadastrar a URL do webhook.
+app.get("/webhooks/whatsapp", (req, res) => {
+  const ok =
+    req.query["hub.mode"] === "subscribe" &&
+    config.whatsapp.verifyToken &&
+    req.query["hub.verify_token"] === config.whatsapp.verifyToken;
+  ok ? res.send(req.query["hub.challenge"]) : res.sendStatus(403);
+});
+
+app.post("/webhooks/whatsapp", (req, res) => {
+  if (!assinaturaValida(req.corpoBruto, req.get("x-hub-signature-256"), config.whatsapp.appSecret)) {
+    return res.sendStatus(401);
+  }
+  // A Meta espera 200 rápido; a classificação com IA roda depois.
+  res.sendStatus(200);
+  processarWebhookWhatsapp(req.body, carregarCampanha()).catch((e) => console.error("Erro no webhook do WhatsApp:", e));
 });
 
 function escapar(s) {
@@ -103,17 +117,31 @@ app.get("/api/leads", (req, res) => {
 app.post("/api/leads/:id/status", (req, res) => {
   const lead = db.buscarLead(req.params.id);
   const { status } = req.body;
-  if (!lead || !["respondeu", "descartado", "descadastrado"].includes(status))
+  if (!lead || !["respondeu", "sem_interesse", "descartado", "descadastrado"].includes(status))
     return res.status(400).json({ erro: "Status inválido" });
   if (status === "descadastrado") processarDescadastro(lead);
-  else db.atualizarLead(lead.id, { status });
+  else {
+    db.cancelarPendentes(lead.id, `lead marcado como ${status}`);
+    db.atualizarLead(lead.id, { status });
+  }
+  res.json({ ok: true });
+});
+
+app.get("/api/respostas", (req, res) => {
+  res.json(db.listarRespostas({ apenasNaoLidas: req.query.naoLidas === "1" }));
+});
+
+app.post("/api/respostas/:id/lida", (req, res) => {
+  db.marcarRespostaLida(req.params.id);
   res.json({ ok: true });
 });
 
 const ETAPAS = {
+  respostas: (c) => pipeline.verificarRespostas(c),
   descobrir: (c) => pipeline.descobrir(c),
   analisar: () => pipeline.analisar(),
   propor: (c) => pipeline.propor(c),
+  followup: (c) => pipeline.criarFollowups(c),
   enviar: (c) => pipeline.enviar(c),
   ciclo: (c) => pipeline.executarCiclo(c),
 };
@@ -138,4 +166,15 @@ if (config.cicloCron) {
     timezone: config.timezone,
   });
   console.log(`Ciclo automático agendado: "${config.cicloCron}" (${config.timezone})`);
+}
+
+if (config.verificarRespostasCron && config.imap.host) {
+  cron.schedule(config.verificarRespostasCron, () => pipeline.verificarRespostas(carregarCampanha()).catch(console.error), {
+    timezone: config.timezone,
+  });
+  console.log(`Verificação de respostas por e-mail agendada: "${config.verificarRespostasCron}"`);
+}
+
+if (config.modoTeste.email || config.modoTeste.whatsapp) {
+  console.log(`⚠️  MODO TESTE: mensagens vão para ${config.modoTeste.email || "-"} / ${config.modoTeste.whatsapp || "-"}`);
 }

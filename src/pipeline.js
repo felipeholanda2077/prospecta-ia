@@ -4,9 +4,10 @@ import { buscarEmpresas } from "./descoberta/googlePlaces.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
-import { gerarProposta } from "./ia/proposta.js";
+import { gerarFollowup, gerarProposta } from "./ia/proposta.js";
 import { enviarEmail } from "./envio/email.js";
 import { enviarWhatsapp } from "./envio/whatsapp.js";
+import { verificarRespostasEmail } from "./respostas/email.js";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR"), ...args);
@@ -107,6 +108,47 @@ export async function propor(campanha) {
   return { geradas };
 }
 
+/** Lê a caixa de entrada e registra as respostas (as do WhatsApp chegam pelo webhook). */
+export async function verificarRespostas(campanha) {
+  try {
+    return await verificarRespostasEmail(campanha);
+  } catch (e) {
+    log(`⚠️  Falha ao ler respostas por e-mail: ${e.message}`);
+    return { lidas: 0, respostas: 0 };
+  }
+}
+
+/** Etapa 3b: um único lembrete, na mesma conversa, para quem não respondeu após N dias. */
+export async function criarFollowups(campanha) {
+  const fu = campanha.followUp;
+  if (!fu?.ativo) return { criados: 0 };
+
+  const statusInicial = campanha.aprovacaoManual ? "rascunho" : "aprovada";
+  let criados = 0;
+  for (const original of db.candidatosFollowup(fu.diasDepois, campanha.limites.maxPropostasPorCiclo)) {
+    if (db.estaDescadastrado(original.destino)) continue;
+    try {
+      const corpo = await gerarFollowup(original, campanha);
+      db.criarMensagem({
+        lead_id: original.lead_id,
+        canal: "email",
+        destino: original.destino,
+        assunto: /^re:/i.test(original.assunto ?? "") ? original.assunto : `Re: ${original.assunto ?? ""}`,
+        corpo,
+        status: statusInicial,
+        tipo: "followup",
+        responde_a: original.id,
+      });
+      criados++;
+      log(`🔁 Follow-up para ${original.empresa}`);
+    } catch (e) {
+      log(`⚠️  Falha ao gerar follow-up para ${original.empresa}: ${e.message}`);
+    }
+  }
+  log(`🔁 ${criados} follow-ups criados`);
+  return { criados };
+}
+
 export function dentroDoHorario(limites, agora = new Date()) {
   const partes = Object.fromEntries(
     new Intl.DateTimeFormat("en-US", {
@@ -146,18 +188,30 @@ export async function enviar(campanha, { ignorarHorario = false } = {}) {
       db.atualizarMensagem(m.id, { status: "rejeitada", erro: "contato descadastrado" });
       continue;
     }
-    if (db.contatoJaUsado(m.destino, ["enviada"])) {
+    if (m.tipo === "inicial" && db.contatoJaUsado(m.destino, ["enviada"])) {
       db.atualizarMensagem(m.id, { status: "rejeitada", erro: "contato já recebeu outra proposta" });
+      continue;
+    }
+    if (m.tipo === "followup" && m.status_lead !== "contatado") {
+      db.atualizarMensagem(m.id, { status: "rejeitada", erro: `follow-up cancelado: lead está como ${m.status_lead}` });
       continue;
     }
 
     try {
+      let messageId = null;
       if (m.canal === "email") {
-        await enviarEmail({ para: m.destino, assunto: m.assunto, corpo: m.corpo, token: m.token });
+        const original = m.responde_a ? db.buscarMensagem(m.responde_a) : null;
+        messageId = await enviarEmail({
+          para: m.destino,
+          assunto: m.assunto,
+          corpo: m.corpo,
+          token: m.token,
+          respondendoA: original?.message_id ?? null,
+        });
       } else {
         await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo });
       }
-      db.atualizarMensagem(m.id, { status: "enviada", enviada_em: new Date().toISOString(), erro: null });
+      db.atualizarMensagem(m.id, { status: "enviada", enviada_em: new Date().toISOString(), erro: null, message_id: messageId });
       db.atualizarLead(m.lead_id, { status: "contatado" });
       enviadas++;
       log(`📨 ${m.canal} enviado para ${m.empresa} <${m.destino}>`);
@@ -176,7 +230,10 @@ export async function enviar(campanha, { ignorarHorario = false } = {}) {
 
 let cicloEmAndamento = false;
 
-/** Roda o funil completo: descobrir → analisar → propor → enviar. */
+/**
+ * Roda o funil completo. As respostas são lidas primeiro para que ninguém que já
+ * respondeu receba follow-up no mesmo ciclo.
+ */
 export async function executarCiclo(campanha) {
   if (cicloEmAndamento) {
     log("⏳ Já existe um ciclo em andamento");
@@ -185,9 +242,11 @@ export async function executarCiclo(campanha) {
   cicloEmAndamento = true;
   try {
     return {
+      respostas: await verificarRespostas(campanha),
       descoberta: await descobrir(campanha),
       analise: await analisar(),
       propostas: await propor(campanha),
+      followups: await criarFollowups(campanha),
       envio: await enviar(campanha),
     };
   } finally {

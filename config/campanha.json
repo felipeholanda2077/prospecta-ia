@@ -70,6 +70,10 @@
     "horarioComercial": { "inicio": 9, "fim": 18 },
     "somenteDiasUteis": true
   },
+  "followUp": {
+    "ativo": true,
+    "diasDepois": 4
+  },
   "canais": ["email", "whatsapp"],
   "aprovacaoManual": true
 }

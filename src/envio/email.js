@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import nodemailer from "nodemailer";
 import { config } from "../config.js";
 
@@ -27,9 +28,24 @@ export function rodapeDescadastro(token) {
   );
 }
 
-/** Envia um e-mail de prospecção com rodapé e cabeçalhos de descadastro (List-Unsubscribe). */
-export async function enviarEmail({ para, assunto, corpo, token }) {
+function novoMessageId() {
+  const dominio = (config.smtp.remetente.match(/@([^>\s]+)/)?.[1] ?? "prospecta.local").toLowerCase();
+  return `<${crypto.randomUUID()}@${dominio}>`;
+}
+
+/**
+ * Envia um e-mail de prospecção com rodapé e cabeçalhos de descadastro (List-Unsubscribe).
+ * `respondendoA` (Message-ID) faz o follow-up aparecer na mesma conversa do e-mail original.
+ * Retorna o Message-ID gerado, usado depois para reconhecer as respostas.
+ */
+export async function enviarEmail({ para, assunto, corpo, token, respondendoA = null }) {
+  if (config.modoTeste.email) {
+    assunto = `[TESTE → ${para}] ${assunto}`;
+    para = config.modoTeste.email;
+  }
+
   const link = linkDescadastro(token);
+  const messageId = novoMessageId();
   const listUnsubscribe = [
     config.smtp.descadastro ? `<mailto:${config.smtp.descadastro}?subject=descadastrar>` : null,
     `<${link}>`,
@@ -37,15 +53,28 @@ export async function enviarEmail({ para, assunto, corpo, token }) {
     .filter(Boolean)
     .join(", ");
 
-  const info = await getTransporte().sendMail({
+  await getTransporte().sendMail({
     from: config.smtp.remetente,
     to: para,
     subject: assunto,
     text: corpo + rodapeDescadastro(token),
+    messageId,
+    ...(respondendoA ? { inReplyTo: respondendoA, references: [respondendoA] } : {}),
     headers: {
       "List-Unsubscribe": listUnsubscribe,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     },
   });
-  return info.messageId;
+  return messageId;
+}
+
+/** Aviso interno para você (ex.: um lead respondeu com interesse). */
+export async function enviarNotificacao(assunto, texto) {
+  if (!config.notificarEmail) return;
+  await getTransporte().sendMail({
+    from: config.smtp.remetente,
+    to: config.notificarEmail,
+    subject: `[Prospecta IA] ${assunto}`,
+    text: texto,
+  });
 }

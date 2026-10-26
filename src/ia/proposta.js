@@ -1,8 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { config } from "../config.js";
-
-let client;
+import { gerarJson } from "./cliente.js";
 
 const PropostaSchema = z.object({
   servico_principal: z.string(),
@@ -67,32 +64,47 @@ Escreva a proposta.`;
 
 /** Gera assunto, e-mail e mensagem de WhatsApp personalizados para um lead. */
 export async function gerarProposta(lead, oportunidades, campanha) {
-  client ??= new Anthropic();
-  const resposta = await client.beta.messages.create({
-    model: config.claude.model,
-    max_tokens: 16000,
-    // Se a solicitação for recusada pelos filtros do modelo, a API tenta de novo
-    // automaticamente no modelo de reserva recomendado.
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    output_config: {
-      effort: "medium",
-      format: { type: "json_schema", schema: PROPOSTA_JSON_SCHEMA },
-    },
+  return gerarJson({
     system: montarSistema(campanha),
-    messages: [{ role: "user", content: montarPedido(lead, oportunidades) }],
+    pedido: montarPedido(lead, oportunidades),
+    jsonSchema: PROPOSTA_JSON_SCHEMA,
+    zodSchema: PropostaSchema,
   });
+}
 
-  if (resposta.stop_reason === "refusal") {
-    throw new Error(`A IA recusou gerar a proposta (${resposta.stop_details?.category ?? "sem categoria"})`);
-  }
-  if (resposta.stop_reason === "max_tokens") {
-    throw new Error("A resposta da IA foi cortada (max_tokens)");
-  }
+const FollowupSchema = z.object({ corpo_email: z.string() });
 
-  const texto = resposta.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-  return PropostaSchema.parse(JSON.parse(texto));
+const FOLLOWUP_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    corpo_email: { type: "string", description: "corpo do e-mail de follow-up em texto simples" },
+  },
+  required: ["corpo_email"],
+  additionalProperties: false,
+};
+
+/** Gera um lembrete curto para quem não respondeu. `original` é a mensagem enviada, com os dados da empresa. */
+export async function gerarFollowup(original, campanha) {
+  const { empresa } = campanha;
+  const { corpo_email } = await gerarJson({
+    system: `${montarSistema(campanha)}
+
+Agora você vai escrever um FOLLOW-UP: a empresa recebeu o e-mail abaixo há alguns dias e não respondeu.
+Regras do follow-up:
+- 40 a 80 palavras, respondendo na mesma conversa (não repita a proposta inteira).
+- Traga UM elemento novo e útil: um exemplo concreto do benefício, ou uma pergunta sobre como eles fazem hoje.
+- Deixe claro que é o último contato se não houver interesse, sem tom de cobrança.
+- Assine como ${empresa.responsavel}, ${empresa.nome}.`,
+    pedido: `Empresa: ${original.empresa} (${original.nicho ?? "segmento não informado"}, ${original.cidade ?? ""})
+
+E-mail enviado anteriormente:
+Assunto: ${original.assunto}
+${original.corpo}
+
+Escreva o follow-up.`,
+    jsonSchema: FOLLOWUP_JSON_SCHEMA,
+    zodSchema: FollowupSchema,
+    effort: "low",
+  });
+  return corpo_email;
 }

@@ -1,0 +1,13 @@
+services:
+  prospecta:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DB_PATH: /app/data/prospecta.db
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      # Edite a campanha sem precisar reconstruir a imagem.
+      - ./config:/app/config:ro

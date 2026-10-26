@@ -15,6 +15,9 @@ export async function enviarWhatsapp({ para, empresa, corpo }) {
   if (!ativo) throw new Error("WhatsApp desativado (WHATSAPP_ATIVO=false)");
   if (!token || !phoneNumberId) throw new Error("WHATSAPP_TOKEN / WHATSAPP_PHONE_NUMBER_ID não configurados");
 
+  if (config.modoTeste.whatsapp) para = config.modoTeste.whatsapp;
+  else if (config.modoTeste.email) throw new Error("modo teste ativo sem MODO_TESTE_WHATSAPP; WhatsApp não enviado");
+
   // Variáveis de template não aceitam quebras de linha nem tabs.
   const texto = corpo.replace(/\s*\n+\s*/g, " ").slice(0, 900);
 

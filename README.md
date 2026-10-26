@@ -19,6 +19,8 @@ IA que **encontra empresas na internet**, **analisa a presença digital** de cad
 4. **Proposta com IA** — o Claude escreve um e-mail e uma mensagem de WhatsApp curtos, citando o que foi observado, oferecendo um serviço principal com os preços do seu catálogo e terminando com uma pergunta simples.
 5. **Aprovação** — por padrão as propostas ficam como rascunho no painel para você revisar, editar e aprovar. Dá para desligar (`"aprovacaoManual": false`) e deixar 100% automático.
 6. **Envio** — envia somente em horário comercial, com limite diário e intervalo entre mensagens, nunca contata o mesmo e-mail/telefone duas vezes e respeita a lista de descadastro.
+7. **Respostas** — lê a caixa de entrada (IMAP) a cada 10 minutos e recebe as respostas do WhatsApp pelo webhook. A IA classifica cada resposta (*interessado*, *quer informações*, *sem interesse*, *pediu para sair*, *resposta automática*) e escreve uma sugestão de retorno. Quem pede para sair vai direto para a lista de supressão; quando alguém demonstra interesse, você recebe um aviso por e-mail.
+8. **Follow-up** — quem não respondeu em 4 dias (configurável em `"followUp"`) recebe **um único** lembrete curto, na mesma conversa do e-mail original. Quem responde, mesmo que seja "não", nunca recebe follow-up.
 
 ## Instalação
 
@@ -39,6 +41,9 @@ Preencha o `.env`:
 | `ANTHROPIC_API_KEY` | IA que escreve as propostas ([console.anthropic.com](https://console.anthropic.com/)) |
 | `GOOGLE_PLACES_API_KEY` | Busca de empresas — ative a **Places API (New)** no Google Cloud |
 | `SMTP_*`, `EMAIL_REMETENTE` | Conta de e-mail que envia as propostas |
+| `IMAP_*` | Leitura das respostas (normalmente a mesma conta do SMTP) |
+| `NOTIFICAR_EMAIL` | Seu e-mail, para ser avisado quando alguém se interessar |
+| `MODO_TESTE_EMAIL` | Opcional: manda tudo para você em vez das empresas (veja abaixo) |
 | `PAINEL_SENHA` | Senha do painel web |
 | `URL_PUBLICA` | Endereço público do painel (vai no link de descadastro dos e-mails) |
 | `CICLO_CRON` | Opcional: roda o ciclo sozinho, ex. `30 9 * * 1-5` |
@@ -79,7 +84,19 @@ Ou tudo de uma vez:
 npm run ciclo
 ```
 
-`npm run stats` mostra os números do funil e `npm test` roda os testes.
+Também existem `npm run respostas` (lê a caixa de entrada agora) e `npm run followup` (gera os lembretes). `npm run stats` mostra os números do funil e `npm test` roda os testes.
+
+### Modo teste (faça isto antes de ligar de verdade)
+
+Com `MODO_TESTE_EMAIL=seu@email.com` no `.env`, **todas** as mensagens vão para você, com o assunto `[TESTE → empresa@real.com] ...`. Nada chega às empresas. Responda esses e-mails para ver a classificação da IA e o aviso de interesse funcionando. O mesmo vale para `MODO_TESTE_WHATSAPP`.
+
+Use um banco separado durante o teste, porque as empresas testadas ficam marcadas como contatadas:
+
+```bash
+DB_PATH=data/teste.db MODO_TESTE_EMAIL=seu@email.com npm run ciclo
+```
+
+Quando estiver satisfeito com o tom das propostas, apague o `MODO_TESTE_EMAIL` e use o banco normal.
 
 ### Modo automático
 
@@ -95,8 +112,19 @@ Para ativar:
 2. Crie e aprove um template de categoria **Marketing** chamado `proposta_inicial` (ou o nome em `WHATSAPP_TEMPLATE`) com duas variáveis, por exemplo:
    > Olá, {{1}}! {{2}} Se preferir não receber mensagens, responda SAIR.
 3. Coloque `WHATSAPP_ATIVO=true`.
+4. Para receber as respostas: no app da Meta, em WhatsApp → Configuração → Webhook, cadastre a URL `https://SEU_DOMINIO/webhooks/whatsapp`, use o mesmo valor de `WHATSAPP_VERIFY_TOKEN` como token de verificação e assine o campo `messages`. Preencha `WHATSAPP_APP_SECRET` com a "chave secreta do app" (Configurações → Básico); sem ela o webhook recusa tudo, porque é assim que ele sabe que a mensagem veio mesmo da Meta.
 
 Atenção: a política da Meta exige que o contato tenha dado consentimento (opt-in) para receber mensagens de marketing da sua empresa. Para prospecção fria de quem nunca falou com você, use o **e-mail** como primeiro contato e deixe o WhatsApp para quem responder.
+
+## Rodar num servidor (Docker)
+
+Para o modo automático ele precisa ficar ligado o tempo todo, então o ideal é uma VPS. Com Docker instalado no servidor:
+
+```bash
+docker compose up -d --build
+```
+
+O banco fica em `./data` e a campanha em `./config` (pode editar sem reconstruir; reinicie com `docker compose restart`). Coloque o painel atrás de HTTPS (ex.: Caddy ou Nginx) e use esse endereço em `URL_PUBLICA`: o link de descadastro e o webhook do WhatsApp precisam ser acessíveis pela internet.
 
 ## Boas práticas e LGPD
 
@@ -116,9 +144,10 @@ Para entregar bem os e-mails, configure **SPF, DKIM e DMARC** no domínio do rem
 config/campanha.json        empresa, catálogo de serviços, nichos/cidades, limites
 src/descoberta/             busca de empresas (Google Places API)
 src/analise/                auditoria do site, contatos e oportunidades
-src/ia/proposta.js          geração da proposta com Claude
+src/ia/                     Claude: propostas, follow-ups e classificação das respostas
 src/envio/                  e-mail (SMTP) e WhatsApp (Cloud API)
-src/pipeline.js             as 4 etapas do funil
+src/respostas/              leitura da caixa de entrada (IMAP), webhook do WhatsApp e ações
+src/pipeline.js             as etapas do funil
 src/servidor.js             painel, API, descadastro e agendamento
 src/cli.js                  comandos de terminal
 public/index.html           painel web
