@@ -20,7 +20,8 @@ unset SEGREDO
 echo ">>> Publicando para a Vercel usar o segredo novo..."
 vercel deploy --prod --yes --scope "$ESCOPO"
 
-echo ">>> Testando uma rodada de envios agora..."
+echo ">>> Ligando o agendamento e testando uma rodada agora..."
+gh workflow enable envios.yml --repo "$REPO"
 gh workflow run envios.yml --repo "$REPO"
 echo ""
 echo "Pronto! A rodada roda a cada 20 minutos, de segunda a sexta, das 9h às 18h."
