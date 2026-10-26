@@ -1,8 +1,9 @@
+import { config } from "../config.js";
 import * as db from "../db.js";
 import { classificarResposta, limparTextoResposta } from "../ia/resposta.js";
 import { enviarNotificacao } from "../envio/email.js";
 
-const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR"), ...args);
+const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
 /**
  * Registra a resposta de um lead, classifica com a IA e aplica a ação certa:

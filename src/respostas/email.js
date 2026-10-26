@@ -5,7 +5,7 @@ import * as db from "../db.js";
 import { normalizarContato } from "../db.js";
 import { registrarResposta } from "./processar.js";
 
-const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR"), ...args);
+const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 const DIAS_INICIAIS = 14; // na primeira execução, olha só os últimos 14 dias
 
 /** Lista de Message-IDs a que um e-mail recebido responde (In-Reply-To + References). */

@@ -10,7 +10,7 @@ import { enviarWhatsapp } from "./envio/whatsapp.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
-const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR"), ...args);
+const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
 // Na Vercel cada execução tem no máximo 300 s; as etapas param com folga
 // e o que sobrar continua na próxima execução (ou no próximo clique no painel).
