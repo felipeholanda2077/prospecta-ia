@@ -103,7 +103,7 @@ export async function descadastrar(contato, motivo = "pedido do contato") {
 // ---------- Leads ----------
 
 const COLUNAS_LEAD = new Set([
-  "nome", "nicho", "cidade", "endereco", "telefone", "whatsapp", "email", "site", "maps_url",
+  "nome", "nicho", "cidade", "endereco", "telefone", "whatsapp", "whatsapp_status", "email", "site", "maps_url",
   "avaliacao", "total_avaliacoes", "analise", "oportunidades", "status", "observacao",
 ]);
 
@@ -216,7 +216,7 @@ export async function cancelarPendentes(leadId, motivo) {
 }
 
 const SELECT_MENSAGEM = `
-  SELECT m.*, l.nome AS empresa, l.nicho, l.cidade, l.site, l.maps_url, l.token, l.oportunidades,
+  SELECT m.*, l.nome AS empresa, l.nicho, l.cidade, l.site, l.maps_url, l.token, l.oportunidades, l.whatsapp_status,
          l.avaliacao, l.total_avaliacoes, l.status AS status_lead
     FROM mensagens m JOIN leads l ON l.id = m.lead_id`;
 

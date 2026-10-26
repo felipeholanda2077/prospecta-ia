@@ -2,7 +2,7 @@ import { config } from "./config.js";
 import * as db from "./db.js";
 import { buscarEmpresas } from "./descoberta/googlePlaces.js";
 import { analisarSite } from "./analise/site.js";
-import { identificarOportunidades } from "./analise/oportunidades.js";
+import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
 import { gerarSequencia } from "./ia/proposta.js";
 import { enviarEmail } from "./envio/email.js";
@@ -148,39 +148,86 @@ export async function capturarDoMaps(empresas, nicho, cidade) {
 
 // ---------- Análise e sequências ----------
 
+/**
+ * Descobre o WhatsApp da empresa: link wa.me no site, celular ou até o fixo
+ * (muita empresa usa WhatsApp Business no fixo). Com a UAZap conectada, confirma
+ * quais números realmente têm WhatsApp.
+ */
+export async function descobrirWhatsapp(lead, analise) {
+  const doSite = analise.whatsapp ?? null;
+  const telefone = normalizarTelefoneBR(lead.telefone);
+  const candidatos = [doSite, telefone].filter(Boolean);
+  if (!candidatos.length) return { whatsapp: null, whatsapp_status: null };
+
+  if (await uazap.configurada()) {
+    try {
+      const verificados = await uazap.verificarNumeros(candidatos);
+      const achado = verificados.find((v) => v.existe);
+      if (achado) return { whatsapp: achado.numero || achado.consulta, whatsapp_status: "verificado" };
+      if (verificados.length) return { whatsapp: null, whatsapp_status: "sem_whatsapp" };
+    } catch (e) {
+      log(`⚠️  Não foi possível verificar o WhatsApp de ${lead.nome}: ${e.message}`);
+    }
+  }
+  if (doSite) return { whatsapp: doSite, whatsapp_status: "site" };
+  return { whatsapp: telefone, whatsapp_status: ehCelularBR(telefone) ? "celular" : "fixo" };
+}
+
 /** Etapa 2: visita o site de cada empresa nova, encontra contatos e oportunidades. */
 export async function analisar({ ate = prazoPadrao() } = {}) {
   const leads = await db.leadsPorStatus("novo");
   let analisados = 0;
   let descartados = 0;
+  const descartes = [];
 
   for (const lead of leads) {
     if (Date.now() > ate) break;
     const analise = await analisarSite(lead.site);
-    const oportunidades = identificarOportunidades(analise, lead.nicho);
+    let oportunidades = identificarOportunidades(analise, lead.nicho);
+    // Empresa escolhida por você no Maps nunca é descartada por "site bom": muda o ângulo.
+    if (!oportunidades.length && lead.origem === "maps") oportunidades = oportunidadesParaSiteBom(lead.nicho);
     const email = analise.emails?.[0] ?? null;
-    const whatsapp = analise.whatsapp ?? (ehCelularBR(lead.telefone) ? normalizarTelefoneBR(lead.telefone) : null);
+    const { whatsapp, whatsapp_status } = await descobrirWhatsapp(lead, analise);
 
     let status = "analisado";
     let observacao = null;
-    if (!email && !whatsapp) [status, observacao] = ["descartado", "nenhum e-mail ou celular encontrado"];
-    else if (!oportunidades.length) [status, observacao] = ["descartado", "nenhuma oportunidade clara"];
+    if (!email && !whatsapp) {
+      observacao = whatsapp_status === "sem_whatsapp"
+        ? "sem e-mail no site e o telefone não tem WhatsApp"
+        : "sem e-mail no site e sem telefone no Google";
+      status = "descartado";
+    } else if (!oportunidades.length) [status, observacao] = ["descartado", "nenhuma oportunidade clara"];
 
     await db.atualizarLead(lead.id, {
       email,
       whatsapp,
+      whatsapp_status,
       analise: JSON.stringify(analise),
       oportunidades: JSON.stringify(oportunidades),
       status,
       observacao,
     });
-    status === "analisado" ? analisados++ : descartados++;
+    if (status === "analisado") analisados++;
+    else {
+      descartados++;
+      descartes.push({ nome: lead.nome, motivo: observacao });
+    }
     await esperar(500); // educação com os servidores visitados
   }
 
   const restantes = await db.contarLeadsPorStatus("novo");
   log(`🧪 Análise: ${analisados} com oportunidade, ${descartados} descartadas, ${restantes} na fila`);
-  return { analisados, descartados, restantes };
+  return { analisados, descartados, restantes, descartes };
+}
+
+/** Volta a empresa para a análise (ex.: depois de conectar a UAZap ou mudar as regras). */
+export async function reanalisar(leadId) {
+  const lead = await db.buscarLead(leadId);
+  if (!lead) throw new Error("Empresa não encontrada");
+  if (["contatado", "respondeu", "descadastrado"].includes(lead.status)) {
+    throw new Error("Esta empresa já está em contato; não dá para reanalisar");
+  }
+  await db.atualizarLead(lead.id, { status: "novo", observacao: null });
 }
 
 /**
@@ -191,6 +238,7 @@ export async function propor(campanha, { ate = prazoPadrao() } = {}) {
   const leads = await db.leadsPorStatus("analisado", campanha.limites.maxPropostasPorCiclo);
   let geradas = 0;
   let ultimoErro = null;
+  const prontas = [];
 
   for (const lead of leads) {
     if (Date.now() > ate) break;
@@ -203,7 +251,11 @@ export async function propor(campanha, { ate = prazoPadrao() } = {}) {
       if (!(await db.estaDescadastrado(destino)) && !(await db.contatoJaUsado(destino))) destinosLivres.push([canal, destino]);
     }
     if (!destinosLivres.length) {
-      await db.atualizarLead(lead.id, { status: "descartado", observacao: "contato já usado ou descadastrado" });
+      // Já existe sequência para estes contatos (ex.: reanálise só para incluir o WhatsApp).
+      const jaTem = await db.contatoJaUsado(lead.email ?? "") || await db.contatoJaUsado(lead.whatsapp ?? "");
+      await db.atualizarLead(lead.id, jaTem
+        ? { status: "proposta_gerada" }
+        : { status: "descartado", observacao: "contato já usado ou descadastrado" });
       continue;
     }
 
@@ -226,6 +278,7 @@ export async function propor(campanha, { ate = prazoPadrao() } = {}) {
       }
       await db.atualizarLead(lead.id, { status: "proposta_gerada", observacao: s.resumo_interno });
       geradas++;
+      prontas.push({ nome: lead.nome, canais: destinosLivres.map(([c]) => c), whatsappStatus: lead.whatsapp_status });
       log(`✍️  Sequência para ${lead.nome} (${s.servico_principal})`);
     } catch (e) {
       ultimoErro = e.message;
@@ -236,7 +289,7 @@ export async function propor(campanha, { ate = prazoPadrao() } = {}) {
 
   const restantes = await db.contarLeadsPorStatus("analisado");
   log(`✍️  ${geradas} sequências geradas, aguardando aprovação no painel (${restantes} empresas na fila)`);
-  return { geradas, restantes, ...(ultimoErro ? { erro: ultimoErro } : {}) };
+  return { geradas, restantes, prontas, ...(ultimoErro ? { erro: ultimoErro } : {}) };
 }
 
 /** Lê a caixa de entrada e registra as respostas (as do WhatsApp chegam pelo webhook). */

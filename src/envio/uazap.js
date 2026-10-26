@@ -124,6 +124,22 @@ export async function enviarTexto(numero, texto) {
   return dados.messageid ?? dados.id ?? null;
 }
 
+/**
+ * Pergunta à UAZap quais números estão no WhatsApp (funciona também com fixo,
+ * já que muita empresa usa WhatsApp Business no número fixo).
+ * Retorna [{ consulta, existe, numero }], com o número no formato que o WhatsApp usa.
+ */
+export async function verificarNumeros(numeros) {
+  const lista = [...new Set(numeros.map((n) => String(n).replace(/\D/g, "")).filter(Boolean))];
+  if (!lista.length) return [];
+  const dados = await chamar("/chat/check", { method: "POST", corpo: { numbers: lista } });
+  return (Array.isArray(dados) ? dados : []).map((r) => ({
+    consulta: String(r.query ?? ""),
+    existe: Boolean(r.isInWhatsapp),
+    numero: String(r.jid ?? r.query ?? "").split("@")[0].split(":")[0] || null,
+  }));
+}
+
 /** Confere o webhook recebido: segredo na URL e token da instância no corpo. */
 export async function webhookValido(segredo, payload) {
   const c = await obterConfig();

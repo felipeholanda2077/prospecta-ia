@@ -826,21 +826,39 @@ async function capturarSelecionadas(btn) {
   }
 }
 
+const NOMES_CANAL = { email: "E-mail", whatsapp: "WhatsApp" };
+const AVISO_WHATSAPP = { fixo: " (número fixo: confira se tem WhatsApp)", verificado: " (WhatsApp confirmado)" };
+
+/** O que aconteceu com cada empresa: quem ganhou sequência (e por quais canais) e quem foi descartada. */
+function resumoProcessamento(analise, propostas) {
+  const prontas = propostas.prontas ?? [];
+  const descartes = analise.descartes ?? [];
+  const itens = [
+    ...prontas.map((p) => `<li><b>${esc(p.nome)}</b>: ${p.canais.map((c) => NOMES_CANAL[c]).join(" + ")}${
+      p.canais.includes("whatsapp") ? AVISO_WHATSAPP[p.whatsappStatus] ?? "" : ""}</li>`),
+    ...descartes.map((d) => `<li class="muted"><b>${esc(d.nome)}</b>: não dá para contatar (${esc(d.motivo)})</li>`),
+  ];
+  return `
+    <div class="callout">
+      <span class="ic-grande" style="background:${prontas.length ? "var(--ok)" : "var(--warn)"}">${ic(prontas.length ? "checkCircle" : "alert", "lg")}</span>
+      <div style="flex:1;min-width:0">
+        <h3>${prontas.length ? `${prontas.length} ${prontas.length === 1 ? "sequência pronta" : "sequências prontas"} para revisar` : "Nenhuma sequência nova"}</h3>
+        ${itens.length ? `<ul style="margin:8px 0 14px;padding-left:18px;display:grid;gap:4px;font-size:14px">${itens.join("")}</ul>` : ""}
+        ${propostas.erro ? `<div class="alerta perigo" style="margin-bottom:12px">${ic("alert")}<div>${esc(propostas.erro)}</div></div>` : ""}
+        ${prontas.length ? `<a class="btn primario" href="#rascunho">${ic("checkCircle")}Revisar e aprovar</a>` : ""}
+      </div>
+    </div>`;
+}
+
 async function processarCapturadas(btn) {
   btn.disabled = true;
   const texto = $("#processo-texto");
   const mostrar = (titulo, detalhe) =>
     (texto.innerHTML = `<div class="progresso"><i></i></div><p style="margin:4px 0 12px"><b>${titulo}</b> ${esc(detalhe)}</p>`);
   try {
-    await rodarEtapa("analisar", (t) => mostrar("Analisando os sites…", t));
-    await rodarEtapa("propor", (t) => mostrar("A IA está escrevendo as propostas…", t));
-    $("#pos-captura").innerHTML = `
-      <div class="callout">
-        <span class="ic-grande" style="background:var(--ok)">${ic("checkCircle", "lg")}</span>
-        <div style="flex:1"><h3>Propostas prontas para revisar</h3>
-          <p>Leia, ajuste se quiser e aprove as que devem ser enviadas.</p>
-          <a class="btn primario" href="#rascunho">${ic("checkCircle")}Revisar e aprovar</a></div>
-      </div>`;
+    const analise = await rodarEtapa("analisar", (t) => mostrar("Analisando os sites e procurando e-mail e WhatsApp…", t));
+    const propostas = await rodarEtapa("propor", (t) => mostrar("A IA está escrevendo as sequências…", t));
+    $("#pos-captura").innerHTML = resumoProcessamento(analise, propostas);
     carregarStats();
   } catch (e) {
     texto.innerHTML = `<div class="alerta perigo" style="margin-bottom:12px">${ic("alert")}<div>${esc(e.message)}</div></div>`;
@@ -879,6 +897,7 @@ async function rodarEtapa(etapa, progresso = () => {}) {
     const r = await post(`/api/etapas/${etapa}`);
     let progrediu = false;
     for (const [k, v] of Object.entries(r)) {
+      if (Array.isArray(v)) { total[k] = (total[k] ?? []).concat(v); continue; }
       if (typeof v !== "number" || k === "restantes") continue;
       total[k] = (total[k] ?? 0) + v;
       if (v > 0) progrediu = true;
@@ -1042,7 +1061,9 @@ function cardSequencia(ms) {
   const enviar = m.envioManual
     ? `<button class="btn wa principal-acao" data-seq-acao="whatsapp">${ic("message")}Abrir no WhatsApp</button>`
     : `<button class="btn ok principal-acao" data-seq-acao="aprovar">${ic("send")}${ms.length > 1 ? "Aprovar sequência" : "Aprovar e enviar"}</button>`;
-  const selo = ms.length > 1 ? `<span class="pilula">${ic("repeat", "sm")}Sequência de ${ms.length} etapas</span>` : "";
+  const selo = (ms.length > 1 ? `<span class="pilula">${ic("repeat", "sm")}Sequência de ${ms.length} etapas</span>` : "") +
+    (m.canal === "whatsapp" && m.whatsapp_status === "fixo" ? `<span class="pilula atencao">${ic("phone", "sm")}Número fixo: confira se tem WhatsApp</span>` : "") +
+    (m.canal === "whatsapp" && m.whatsapp_status === "verificado" ? `<span class="pilula ok">${ic("check", "sm")}WhatsApp confirmado</span>` : "");
   return `<article class="cartao" data-seq data-lead="${m.lead_id}" data-canal="${m.canal}">
     ${cabecalhoMensagem({ ...m, tipo: "seq" }).replace("<!--etapa-->", selo)}
     ${oportunidades}
@@ -1155,7 +1176,7 @@ const STATUS_LEAD = {
 };
 const FILTROS_LEADS = [
   ["novo,analisado,proposta_gerada,contatado,respondeu", "Em andamento"], ["novo,analisado,proposta_gerada", "Em preparação"],
-  ["contatado", "Contatadas"], ["respondeu", "Responderam"], ["sem_interesse,descartado,descadastrado", "Encerradas"],
+  ["contatado", "Contatadas"], ["respondeu", "Responderam"], ["sem_interesse,descartado,descadastrado", "Descartadas e encerradas"],
 ];
 let filtroLeads = FILTROS_LEADS[0][0];
 
@@ -1170,13 +1191,16 @@ function cardLead(l) {
         <div class="meta" style="margin-top:8px">
           ${l.nicho ? `<span>${ic("building", "sm")}${esc(l.nicho)}${l.cidade ? ` · ${esc(l.cidade)}` : ""}</span>` : ""}
           ${l.email ? `<span>${ic("mail", "sm")}${esc(l.email)}</span>` : ""}
-          ${l.whatsapp ? `<span>${ic("message", "sm")}${esc(l.whatsapp)}</span>` : ""}
+          ${l.whatsapp ? `<span>${ic("message", "sm")}${esc(l.whatsapp)}${{ fixo: " (fixo)", verificado: " ✓", site: " (do site)" }[l.whatsapp_status] ?? ""}</span>` : ""}
           ${l.site ? `<a href="${esc(l.site)}" target="_blank" rel="noopener">${ic("globe", "sm")}Site</a>` : ""}
           ${l.maps_url ? `<a href="${esc(l.maps_url)}" target="_blank" rel="noopener">${ic("external", "sm")}Maps</a>` : ""}
         </div>
         ${l.observacao ? `<p class="muted" style="margin:10px 0 0;font-size:13.5px">${esc(l.observacao)}</p>` : ""}
       </div>
     </div>
+    ${["descartado", "analisado", "proposta_gerada"].includes(l.status) ? `<div class="acoes">
+      <button class="btn sm" data-reanalisar>${ic("refresh", "sm")}Analisar de novo${l.status === "proposta_gerada" ? " (incluir WhatsApp)" : ""}</button>
+    </div>` : ""}
     ${["contatado", "respondeu"].includes(l.status) ? `<div class="acoes">
       ${l.status !== "respondeu" ? `<button class="btn sm" data-status="respondeu">${ic("message", "sm")}Respondeu</button>` : ""}
       <button class="btn sm" data-status="sem_interesse">${ic("x", "sm")}Sem interesse</button>
@@ -1493,6 +1517,17 @@ document.addEventListener("click", async (ev) => {
       avisar("Sugestão copiada", "ok");
     } else if ("lida" in btn.dataset) {
       await post(`/api/respostas/${btn.closest("[data-resposta]").dataset.resposta}/lida`);
+      await atualizar();
+    } else if ("reanalisar" in btn.dataset) {
+      btn.disabled = true;
+      await post(`/api/leads/${btn.closest("[data-lead]").dataset.lead}/reanalisar`);
+      avisar("Analisando de novo e escrevendo as mensagens…");
+      const analise = await rodarEtapa("analisar");
+      const propostas = await rodarEtapa("propor");
+      const prontas = propostas.prontas ?? [];
+      if (prontas.length) avisar(`Pronto: ${prontas.map((p) => `${p.nome} (${p.canais.map((c) => NOMES_CANAL[c]).join(" + ")})`).join(", ")}. Veja em Aprovar mensagens.`, "ok", 9000);
+      else if (analise.descartes?.length) avisar(`${analise.descartes[0].nome}: ${analise.descartes[0].motivo}`, "perigo", 9000);
+      else avisar(propostas.erro ? `Erro: ${propostas.erro}` : "Nenhuma mensagem nova (os contatos desta empresa já têm sequência).", propostas.erro ? "perigo" : "info", 9000);
       await atualizar();
     } else if (btn.dataset.status) {
       await post(`/api/leads/${btn.closest("[data-lead]").dataset.lead}/status`, { status: btn.dataset.status });

@@ -299,6 +299,16 @@ app.post("/api/leads/:id/status", async (req, res) => {
   res.json({ ok: true });
 });
 
+// Volta a empresa para a análise; o painel roda a análise e as propostas em seguida.
+app.post("/api/leads/:id/reanalisar", async (req, res) => {
+  try {
+    await pipeline.reanalisar(req.params.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.get("/api/respostas", async (req, res) => {
   res.json(await db.listarRespostas({ apenasNaoLidas: req.query.naoLidas === "1" }));
 });

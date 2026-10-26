@@ -8,6 +8,16 @@ const NICHOS_GESTAO =
   /distribuidora|atacad|ind[uú]stria|f[aá]brica|transportadora|construtora|escola|curso|imobili[aá]ria|contabilidade|restaurante|oficina|cl[ií]nica/i;
 
 /**
+ * Para empresas que você escolheu no Maps e que já têm um site bom: em vez de
+ * descartar, a abordagem vai por automação de atendimento e sistema sob medida.
+ */
+export function oportunidadesParaSiteBom(nicho = "") {
+  const ops = [{ servico: "automacao", motivo: "a empresa já tem um bom site; dá para automatizar o atendimento e o WhatsApp", peso: 2 }];
+  if (NICHOS_GESTAO.test(nicho)) ops.push({ servico: "sistema", motivo: "segmento que costuma se beneficiar de um sistema de gestão", peso: 1 });
+  return ops;
+}
+
+/**
  * Transforma a auditoria do site em uma lista ordenada de oportunidades de venda.
  * Cada oportunidade aponta para um serviço do catálogo (config/campanha.json)
  * e traz o motivo concreto observado, que a IA usa para personalizar a proposta.

@@ -145,4 +145,30 @@ test("análise e propostas começam pelas empresas sem site", async () => {
   const ordem = (await db.leadsPorStatus("novo")).map((l) => l.place_id).filter((p) => p.startsWith("prio-"));
   assert.deepEqual(ordem.slice(-1), ["prio-com"]);
   assert.deepEqual(ordem.slice(0, 2).sort(), ["prio-insta", "prio-sem"]);
+  // Tira da fila de análise para os próximos testes não acessarem a internet.
+  for (const l of await db.leadsPorStatus("novo")) await db.atualizarLead(l.id, { status: "descartado" });
+});
+
+test("WhatsApp: usa o link do site, depois celular e até o número fixo", async () => {
+  const fixo = await pipeline.descobrirWhatsapp({ nome: "A", telefone: "+55 11 4552-7446" }, {});
+  assert.deepEqual(fixo, { whatsapp: "551145527446", whatsapp_status: "fixo" });
+  const cel = await pipeline.descobrirWhatsapp({ nome: "B", telefone: "(11) 95669-9774" }, {});
+  assert.deepEqual(cel, { whatsapp: "5511956699774", whatsapp_status: "celular" });
+  const site = await pipeline.descobrirWhatsapp({ nome: "C", telefone: "+55 11 4552-7446" }, { whatsapp: "5511988887777" });
+  assert.deepEqual(site, { whatsapp: "5511988887777", whatsapp_status: "site" });
+  assert.deepEqual(await pipeline.descobrirWhatsapp({ nome: "D", telefone: null }, {}), { whatsapp: null, whatsapp_status: null });
+});
+
+test("empresa capturada no Maps sem site e só com telefone fixo não é descartada", async () => {
+  await db.inserirLead(lead("fixo-1", { telefone: "+55 11 4195-4898", origem: "maps" }));
+  await pipeline.analisar();
+  const [l] = (await db.leadsPorStatus("analisado")).filter((x) => x.place_id === "fixo-1");
+  assert.equal(l.whatsapp, "551141954898");
+  assert.equal(l.whatsapp_status, "fixo");
+
+  // Reanalisar volta para a fila de análise; empresa já em contato não pode.
+  await pipeline.reanalisar(l.id);
+  assert.equal((await db.buscarLead(l.id)).status, "novo");
+  await db.atualizarLead(l.id, { status: "contatado" });
+  await assert.rejects(pipeline.reanalisar(l.id), /já está em contato/);
 });
