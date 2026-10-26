@@ -2,311 +2,777 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Prospecta IA</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#5b4cf0">
+<title>FluxDeck · Prospecção com IA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235b4cf0'/%3E%3Cstop offset='1' stop-color='%2306b6d4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M10 10h12M10 16h9M10 22h5' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
+  /* ---------- Tokens ---------- */
   :root {
-    --bg: #f6f7f9; --card: #fff; --text: #1f2328; --muted: #656d76; --border: #d8dee4;
-    --accent: #0b6bcb; --ok: #1a7f37; --danger: #cf222e; --warn: #9a6700; --chip: #eef3f8; --wa: #128c4b;
+    --bg: #f4f5fa; --surface: #ffffff; --surface-2: #f0f1f8; --surface-3: #e8eaf4;
+    --text: #14151f; --muted: #5d6275; --subtle: #8a8fa5; --border: #e3e5ef;
+    --accent: #5b4cf0; --accent-hover: #4a3be0; --accent-soft: #ecebff; --accent-text: #4636d6;
+    --cyan: #06b6d4;
+    --ok: #12a150; --ok-soft: #e2f6ea; --danger: #d92d4a; --danger-soft: #fde8ec;
+    --warn: #b7791f; --warn-soft: #fdf3dc; --wa: #1fa855; --wa-soft: #e7f8ee;
+    --wa-chat: #efe7dd; --wa-bubble: #d9fdd3;
+    --shadow-sm: 0 1px 2px rgba(20, 21, 40, .06);
+    --shadow: 0 1px 2px rgba(20, 21, 40, .05), 0 8px 24px -12px rgba(20, 21, 40, .18);
+    --shadow-lg: 0 24px 60px -24px rgba(20, 21, 40, .35);
+    --radius: 14px; --radius-sm: 10px;
+    --sidebar: 264px;
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #0d1117; --card: #161b22; --text: #e6edf3; --muted: #8d96a0; --border: #30363d;
-            --accent: #4493f8; --ok: #3fb950; --danger: #f85149; --warn: #d29922; --chip: #1f2a37; --wa: #25a35a; }
+    :root:not([data-theme="light"]) {
+      --bg: #0b0c14; --surface: #141625; --surface-2: #1b1e31; --surface-3: #23273e;
+      --text: #eceef8; --muted: #9aa0b8; --subtle: #6f7590; --border: #262940;
+      --accent: #8b7dff; --accent-hover: #9d91ff; --accent-soft: #232046; --accent-text: #b3aaff;
+      --ok: #34c574; --ok-soft: #10291c; --danger: #ff6b81; --danger-soft: #3a1720;
+      --warn: #e0a43a; --warn-soft: #33260e; --wa: #2fc56a; --wa-soft: #10291c;
+      --wa-chat: #0e1a14; --wa-bubble: #144d37;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -12px rgba(0, 0, 0, .6);
+      --shadow-lg: 0 24px 60px -24px rgba(0, 0, 0, .7);
+      color-scheme: dark;
+    }
   }
+  :root[data-theme="dark"] {
+    --bg: #0b0c14; --surface: #141625; --surface-2: #1b1e31; --surface-3: #23273e;
+    --text: #eceef8; --muted: #9aa0b8; --subtle: #6f7590; --border: #262940;
+    --accent: #8b7dff; --accent-hover: #9d91ff; --accent-soft: #232046; --accent-text: #b3aaff;
+    --ok: #34c574; --ok-soft: #10291c; --danger: #ff6b81; --danger-soft: #3a1720;
+    --warn: #e0a43a; --warn-soft: #33260e; --wa: #2fc56a; --wa-soft: #10291c;
+    --wa-chat: #0e1a14; --wa-bubble: #144d37;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -12px rgba(0, 0, 0, .6);
+    --shadow-lg: 0 24px 60px -24px rgba(0, 0, 0, .7);
+    color-scheme: dark;
+  }
+
+  /* ---------- Base ---------- */
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
-  body { margin: 0; font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
-  header { padding: 20px 16px 8px; max-width: 1040px; margin: auto; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
-  header .titulo { flex: 1; min-width: 220px; }
-  h1 { margin: 0; font-size: 22px; }
-  h2 { font-size: 18px; margin: 20px 0 8px; }
-  main { max-width: 1040px; margin: auto; padding: 0 16px 64px; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; font: 15px/1.55 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg);
+         color: var(--text); -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent-text); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h1, h2, h3 { letter-spacing: -.02em; margin: 0; }
+  .ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .ic.sm { width: 15px; height: 15px; }
+  .ic.lg { width: 22px; height: 22px; }
   .muted { color: var(--muted); }
-  .selos { display: flex; flex-wrap: wrap; gap: 6px; }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 12px 0; }
-  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
-  .stat b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
-  .acoes, .abas, .linha { display: flex; flex-wrap: wrap; gap: 8px; }
-  .acoes, .abas { margin: 12px 0; }
-  .linha { margin-top: 12px; align-items: center; }
-  button, .botao { font: inherit; border: 1px solid var(--border); background: var(--card); color: var(--text);
-           border-radius: 8px; padding: 6px 12px; cursor: pointer; text-decoration: none; display: inline-block; }
-  button:hover, .botao:hover { border-color: var(--accent); }
-  button:disabled { opacity: .55; cursor: wait; }
-  button.primario { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
-  button.wa { background: var(--wa); border-color: var(--wa); color: #fff; }
-  button.perigo { color: var(--danger); }
-  .abas button[aria-selected="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin: 12px 0; }
-  .card h3 { margin: 0; font-size: 17px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
-  .chip { background: var(--chip); border-radius: 999px; padding: 2px 10px; font-size: 13px; }
-  .chip.forte { background: var(--ok); color: #fff; }
-  .chip.alerta { background: var(--danger); color: #fff; }
-  .chip.atencao { background: var(--warn); color: #fff; }
-  .card.nova { border-left: 4px solid var(--accent); }
-  input, textarea, select { width: 100%; font: inherit; color: var(--text); background: var(--bg);
-                    border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
-  input[type=checkbox] { width: 18px; height: 18px; flex: none; }
-  textarea { min-height: 180px; resize: vertical; }
-  label { display: block; font-size: 13px; color: var(--muted); margin-top: 10px; }
-  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  @media (max-width: 760px) { .grade { grid-template-columns: 1fr; } }
-  .previa { white-space: pre-wrap; background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; padding: 10px; font-size: 14px; min-height: 180px; }
-  .texto { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 10px; margin-top: 8px; }
-  .erro { color: var(--danger); font-size: 14px; }
-  .form-busca { display: grid; grid-template-columns: 2fr 2fr 1fr auto; gap: 8px; align-items: end; }
-  @media (max-width: 760px) { .form-busca { grid-template-columns: 1fr; } }
-  .empresa { display: flex; gap: 12px; align-items: flex-start; }
-  .empresa .info { flex: 1; min-width: 0; }
-  .aviso { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg);
-           padding: 10px 16px; border-radius: 8px; display: none; max-width: calc(100% - 32px); z-index: 10; }
-  .progresso { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin: 8px 0; }
-  a { color: var(--accent); word-break: break-all; }
-  #badge:not(:empty) { background: var(--accent); color: #fff; border-radius: 999px; padding: 0 7px; font-size: 12px; margin-left: 4px; }
-  .login { max-width: 360px; margin: 14vh auto; padding: 0 16px; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* ---------- Botões e campos ---------- */
+  .btn { font: inherit; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+         min-height: 40px; padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+         background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap;
+         transition: background .15s, border-color .15s, transform .05s, box-shadow .15s; }
+  .btn:hover { border-color: var(--subtle); background: var(--surface-2); text-decoration: none; }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { opacity: .6; cursor: progress; }
+  .btn.primario { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 6px 16px -8px var(--accent); }
+  .btn.primario:hover { background: var(--accent-hover); }
+  .btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .btn.ok:hover { filter: brightness(1.05); }
+  .btn.wa { background: var(--wa); border-color: var(--wa); color: #fff; }
+  .btn.wa:hover { filter: brightness(1.05); }
+  .btn.fantasma { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn.fantasma:hover { background: var(--surface-2); color: var(--text); }
+  .btn.perigo { color: var(--danger); }
+  .btn.perigo:hover { background: var(--danger-soft); border-color: transparent; }
+  .btn.icone { padding: 8px; min-width: 40px; }
+  .btn.sm { min-height: 34px; padding: 6px 12px; font-size: 13px; }
+  .campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .campo label, .rotulo { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  input, textarea, select { width: 100%; font: inherit; color: var(--text); background: var(--surface);
+          border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; min-height: 42px;
+          transition: border-color .15s, box-shadow .15s; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  textarea { min-height: 220px; resize: vertical; line-height: 1.55; }
+  input[type=checkbox] { width: 20px; height: 20px; min-height: 0; accent-color: var(--accent); cursor: pointer; flex: none; }
+  .com-icone { position: relative; }
+  .com-icone .ic { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--subtle); pointer-events: none; }
+  .com-icone input { padding-left: 38px; }
+
+  /* ---------- Pílulas ---------- */
+  .pilula { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 1.2;
+            padding: 5px 10px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+  .pilula.acc { background: var(--accent-soft); color: var(--accent-text); }
+  .pilula.ok { background: var(--ok-soft); color: var(--ok); }
+  .pilula.perigo { background: var(--danger-soft); color: var(--danger); }
+  .pilula.atencao { background: var(--warn-soft); color: var(--warn); }
+  .pilula.wa { background: var(--wa-soft); color: var(--wa); }
+  .pilulas { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  /* ---------- Login ---------- */
+  .login { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; position: relative; overflow: hidden; }
+  .login::before, .login::after { content: ""; position: absolute; width: 520px; height: 520px; border-radius: 50%; filter: blur(80px); opacity: .35; z-index: 0; }
+  .login::before { background: var(--accent); top: -180px; left: -160px; }
+  .login::after { background: var(--cyan); bottom: -220px; right: -160px; opacity: .25; }
+  .login-card { position: relative; z-index: 1; width: 100%; max-width: 400px; background: var(--surface); border: 1px solid var(--border);
+                border-radius: 20px; padding: 32px 28px; box-shadow: var(--shadow-lg); }
+  .login-card h1 { font-size: 24px; margin: 22px 0 4px; }
+  .login-card form { display: grid; gap: 14px; margin-top: 22px; }
+  .login-card .btn { width: 100%; min-height: 46px; }
+  .erro-texto { color: var(--danger); font-size: 14px; margin: 0; }
+  .erro-texto:empty { display: none; }
+
+  /* ---------- Marca ---------- */
+  .marca { display: flex; align-items: center; gap: 12px; }
+  .logo { width: 38px; height: 38px; flex: none; border-radius: 11px; display: grid; place-items: center;
+          background: linear-gradient(135deg, #5b4cf0, #06b6d4); box-shadow: 0 8px 20px -10px #5b4cf0; }
+  .logo svg { width: 22px; height: 22px; }
+  .marca-nome { font-weight: 800; font-size: 17px; letter-spacing: -.02em; line-height: 1.1; }
+  .marca-sub { font-size: 12px; color: var(--muted); }
+
+  /* ---------- Estrutura ---------- */
+  .app { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
+  .sidebar { position: sticky; top: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; gap: 24px;
+             padding: 22px 16px; background: var(--surface); border-right: 1px solid var(--border); overflow-y: auto; z-index: 30; }
+  .nav-grupo { display: grid; gap: 2px; }
+  .nav-titulo { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--subtle); padding: 0 10px 6px; }
+  .nav-item { display: flex; align-items: center; gap: 11px; padding: 9px 10px; border-radius: 10px; color: var(--muted);
+              font-weight: 600; font-size: 14px; text-decoration: none !important; transition: background .15s, color .15s; }
+  .nav-item:hover { background: var(--surface-2); color: var(--text); }
+  .nav-item[aria-current="page"] { background: var(--accent-soft); color: var(--accent-text); }
+  .nav-item .contador { margin-left: auto; min-width: 22px; padding: 2px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 700;
+                        text-align: center; background: var(--accent); color: #fff; }
+  .nav-item .contador.perigo { background: var(--danger); }
+  .contador:empty { display: none; }
+  .sidebar-rodape { margin-top: auto; display: grid; gap: 10px; }
+  .status-lista { display: grid; gap: 6px; }
+  .status-lista .pilula { justify-content: flex-start; }
+
+  .principal { min-width: 0; display: flex; flex-direction: column; }
+  .topo { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px; padding: 20px 32px 14px;
+          background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+          border-bottom: 1px solid transparent; transition: border-color .2s; }
+  .topo.rolou { border-bottom-color: var(--border); }
+  .topo-textos { flex: 1; min-width: 0; }
+  .topo h1 { font-size: 24px; }
+  .topo p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+  .topo .marca { display: none; }
+  .conteudo { padding: 8px 32px 56px; width: 100%; max-width: 1240px; }
+  .titulo-mobile { display: none; }
+  .titulo-mobile p { margin: 2px 0 0; color: var(--muted); font-size: 14px; }
+
+  /* ---------- Indicadores ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 8px 0 24px; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px;
+         display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-sm); min-width: 0; }
+  .kpi-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex: none; background: var(--accent-soft); color: var(--accent-text); }
+  .kpi-ic.ok { background: var(--ok-soft); color: var(--ok); }
+  .kpi-ic.atencao { background: var(--warn-soft); color: var(--warn); }
+  .kpi-ic.perigo { background: var(--danger-soft); color: var(--danger); }
+  .kpi b { display: block; font-size: 22px; line-height: 1.1; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .kpi span { font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+
+  /* ---------- Cartões ---------- */
+  .cartao { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .lista > .cartao + .cartao { margin-top: 16px; }
+  .cartao-corpo { padding: 20px; }
+  .cartao-cab { display: flex; align-items: flex-start; gap: 14px; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+  .cartao-cab .titulos { flex: 1; min-width: 0; }
+  .cartao-cab h3 { font-size: 16.5px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 4px; font-size: 13px; color: var(--muted); }
+  .meta span, .meta a { display: inline-flex; align-items: center; gap: 5px; min-width: 0; overflow-wrap: anywhere; }
+  .avatar { width: 42px; height: 42px; border-radius: 12px; flex: none; display: grid; place-items: center; font-weight: 800; font-size: 16px;
+            color: #fff; background: linear-gradient(135deg, #5b4cf0, #06b6d4); }
+  .acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border);
+           background: var(--surface-2); border-radius: 0 0 var(--radius) var(--radius); }
+  .acoes .espaco { flex: 1; }
+  .oportunidades { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 20px 0; }
+  .alerta { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-sm); font-size: 14px; }
+  .alerta .ic { margin-top: 1px; }
+  .alerta.perigo { background: var(--danger-soft); color: var(--danger); }
+  .alerta.info { background: var(--accent-soft); color: var(--accent-text); }
+
+  /* ---------- Editor + prévia ---------- */
+  .editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding: 18px 20px 20px; }
+  .editor .campos { display: grid; gap: 14px; align-content: start; }
+  .previa-email { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
+  .pe-cab { padding: 12px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); font-size: 13px; display: grid; gap: 3px; overflow-wrap: anywhere; }
+  .pe-cab .r { color: var(--subtle); display: inline-block; width: 44px; }
+  .pe-assunto { font-weight: 700; font-size: 15px; margin-top: 4px; }
+  .pe-corpo { padding: 14px; white-space: pre-wrap; font-size: 14px; overflow-wrap: anywhere; max-height: 420px; overflow-y: auto; }
+  .pe-rodape { display: block; margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--border); color: var(--subtle); font-size: 12px; }
+  .previa-wa { border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+  .wa-topo { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #075e54; color: #fff; font-weight: 600; font-size: 14px; }
+  .wa-topo .mini { width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,.2); display: grid; place-items: center; font-size: 13px; }
+  .wa-chat { background-color: var(--wa-chat); padding: 18px 14px; min-height: 220px; display: flex; flex-direction: column; align-items: flex-end;
+             background-image: radial-gradient(rgba(0,0,0,.04) 1px, transparent 1px); background-size: 14px 14px; }
+  .wa-bolha { max-width: 92%; background: var(--wa-bubble); color: var(--text); padding: 8px 10px 6px; border-radius: 10px 2px 10px 10px;
+              box-shadow: 0 1px 1px rgba(0,0,0,.12); white-space: pre-wrap; font-size: 14px; overflow-wrap: anywhere; }
+  .wa-rodape { display: block; margin-top: 8px; font-size: 12.5px; opacity: .75; }
+  .wa-hora { display: block; text-align: right; font-size: 11px; opacity: .6; margin-top: 2px; }
+
+  /* ---------- Google Maps ---------- */
+  .busca { display: grid; grid-template-columns: 1.4fr 1.4fr .8fr auto; gap: 12px; align-items: end; }
+  .resultados-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 26px 0 14px; }
+  .resultados-cab h2 { font-size: 17px; }
+  .resultados-cab .espaco { flex: 1; }
+  .grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
+  .empresa { display: flex; flex-direction: column; gap: 10px; padding: 16px; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+  .empresa:hover { border-color: var(--subtle); }
+  .empresa.selecionada { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow); }
+  .empresa.capturada { cursor: default; opacity: .7; }
+  .empresa .topo-empresa { display: flex; gap: 12px; align-items: flex-start; }
+  .empresa h3 { font-size: 15.5px; line-height: 1.3; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .empresa .endereco { font-size: 13px; color: var(--muted); display: flex; gap: 6px; }
+  .empresa .endereco .ic { margin-top: 2px; }
+  .empresa .links { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; margin-top: auto; }
+  .empresa .links a { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .barra-selecao { position: fixed; z-index: 25; left: calc(50% + var(--sidebar) / 2); transform: translateX(-50%); bottom: 24px;
+                   display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 18px; border-radius: 16px;
+                   background: var(--text); color: var(--bg); box-shadow: var(--shadow-lg); width: max-content; max-width: calc(100% - 32px); }
+  .barra-selecao b { font-size: 14px; }
+  .barra-selecao .btn.fantasma { color: inherit; opacity: .8; }
+  .barra-selecao .btn.fantasma:hover { background: transparent; opacity: 1; }
+  .callout { display: flex; gap: 14px; align-items: flex-start; padding: 18px 20px; margin-top: 18px; border-radius: var(--radius);
+             background: linear-gradient(135deg, var(--accent-soft), color-mix(in srgb, var(--cyan) 12%, var(--surface)));
+             border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); }
+  .callout .ic-grande { width: 42px; height: 42px; border-radius: 12px; background: var(--accent); color: #fff; display: grid; place-items: center; flex: none; }
+  .callout h3 { font-size: 16px; }
+  .callout p { margin: 4px 0 12px; color: var(--muted); font-size: 14px; }
+  .progresso { height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin: 10px 0 6px; }
+  .progresso i { display: block; height: 100%; width: 40%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), var(--cyan));
+                 animation: indo 1.2s ease-in-out infinite; }
+  @keyframes indo { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+
+  /* ---------- Listas, filtros, vazio ---------- */
+  .filtros { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 16px; scrollbar-width: none; }
+  .filtros::-webkit-scrollbar { display: none; }
+  .filtro { font: inherit; font-size: 13.5px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border);
+            background: var(--surface); color: var(--muted); cursor: pointer; white-space: nowrap; }
+  .filtro[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .vazio { text-align: center; padding: 56px 20px; }
+  .vazio .ic-grande { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto 14px; display: grid; place-items: center;
+                      background: var(--accent-soft); color: var(--accent-text); }
+  .vazio h3 { font-size: 17px; }
+  .vazio p { color: var(--muted); max-width: 420px; margin: 6px auto 18px; }
+  .esqueleto { height: 140px; border-radius: var(--radius); margin-bottom: 16px;
+               background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%); background-size: 200% 100%;
+               animation: brilho 1.3s infinite; border: 1px solid var(--border); }
+  @keyframes brilho { to { background-position: -200% 0; } }
+  .texto-bloco { white-space: pre-wrap; background: var(--surface-2); border-radius: var(--radius-sm); padding: 12px 14px; font-size: 14px; overflow-wrap: anywhere; }
+  details.ver-msg summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--accent-text); padding: 4px 0; list-style: none;
+                            display: inline-flex; align-items: center; gap: 6px; }
+  details.ver-msg summary::-webkit-details-marker { display: none; }
+  details.ver-msg[open] summary { margin-bottom: 10px; }
+
+  /* ---------- Automação ---------- */
+  .etapas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .etapa { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .etapa .cab { display: flex; align-items: center; gap: 12px; }
+  .etapa h3 { font-size: 15.5px; }
+  .etapa p { margin: 0; color: var(--muted); font-size: 13.5px; flex: 1; }
+  .etapa .resultado { font-size: 13px; color: var(--muted); }
+  .etapa .resultado:empty { display: none; }
+  .etapa .resultado.erro { color: var(--danger); }
+
+  /* ---------- Avisos (toasts) ---------- */
+  .toasts { position: fixed; z-index: 60; right: 24px; bottom: 24px; display: grid; gap: 10px; width: min(380px, calc(100% - 32px)); }
+  .toast { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: var(--text); color: var(--bg);
+           box-shadow: var(--shadow-lg); font-size: 14px; animation: entra .2s ease-out; }
+  .toast .ic { margin-top: 1px; }
+  .toast.ok .ic { color: #4ade80; }
+  .toast.perigo .ic { color: #fb7185; }
+  @keyframes entra { from { opacity: 0; transform: translateY(8px); } }
+
+  /* ---------- Navegação inferior (celular) ---------- */
+  .nav-inferior, .veu { display: none; }
+
+  /* ---------- Responsivo ---------- */
+  @media (max-width: 1100px) {
+    .editor { grid-template-columns: 1fr; }
+    .busca { grid-template-columns: 1fr 1fr; }
+    .busca .btn { grid-column: span 2; }
+  }
+  @media (max-width: 960px) {
+    .app { grid-template-columns: minmax(0, 1fr); }
+    .sidebar { position: fixed; inset: 0 auto 0 0; width: min(300px, 86vw); transform: translateX(-105%); transition: transform .25s ease;
+               box-shadow: var(--shadow-lg); }
+    .app.menu-aberto .sidebar { transform: none; }
+    .veu { display: block; position: fixed; inset: 0; z-index: 29; background: rgba(10, 11, 20, .45); opacity: 0; pointer-events: none; transition: opacity .25s; }
+    .app.menu-aberto .veu { opacity: 1; pointer-events: auto; }
+    .topo { padding: 12px 16px; padding-top: max(12px, env(safe-area-inset-top)); }
+    .topo .marca { display: flex; flex: 1; }
+    .topo .marca .marca-sub { display: none; }
+    .topo .logo { width: 34px; height: 34px; }
+    .topo-textos { display: none; }
+    .titulo-mobile { display: block; padding: 6px 0 2px; }
+    .titulo-mobile h1 { font-size: 21px; }
+    .conteudo { padding: 4px 16px calc(96px + env(safe-area-inset-bottom)); }
+    .nav-inferior { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; z-index: 28; left: 0; right: 0; bottom: 0;
+                    padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--surface) 92%, transparent);
+                    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-top: 1px solid var(--border); }
+    .nav-inferior a, .nav-inferior button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px;
+                    font: inherit; font-size: 11px; font-weight: 600; color: var(--muted); background: none; border: 0; text-decoration: none !important; cursor: pointer; }
+    .nav-inferior [aria-current="page"] { color: var(--accent-text); }
+    .nav-inferior .ic { width: 22px; height: 22px; }
+    .nav-inferior .contador { position: absolute; top: 0; left: calc(50% + 6px); min-width: 18px; padding: 1px 5px; border-radius: 999px;
+                    font-size: 10.5px; line-height: 1.5; background: var(--danger); color: #fff; }
+    .barra-selecao { left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); }
+    .toasts { left: 16px; right: 16px; width: auto; bottom: calc(84px + env(safe-area-inset-bottom)); }
+  }
+  @media (max-width: 640px) {
+    .kpis { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; margin: 6px -16px 18px; padding: 2px 16px 6px; scrollbar-width: none; }
+    .kpis::-webkit-scrollbar { display: none; }
+    .kpi { flex: 0 0 160px; scroll-snap-align: start; }
+    .busca { grid-template-columns: 1fr; }
+    .busca .btn { grid-column: auto; }
+    .cartao-cab, .editor, .acoes { padding-left: 16px; padding-right: 16px; }
+    .cartao-corpo { padding: 16px; }
+    .oportunidades { padding: 12px 16px 0; }
+    .acoes .btn { flex: 1 1 auto; }
+    .acoes .espaco { display: none; }
+    .acoes .principal-acao { flex-basis: 100%; order: -1; min-height: 46px; }
+    .grade, .etapas { grid-template-columns: 1fr !important; }
+    .avatar { width: 38px; height: 38px; border-radius: 11px; font-size: 15px; }
+    textarea { min-height: 200px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
 
+<!-- ===================== Login ===================== -->
 <section class="login" id="tela-login" hidden>
-  <h1>Prospecta IA</h1>
-  <p class="muted">Entre para acessar o painel.</p>
-  <form id="form-login">
-    <label for="usuario">Usuário</label>
-    <input id="usuario" name="usuario" autocomplete="username" value="admin" required>
-    <label for="senha">Senha</label>
-    <input id="senha" name="senha" type="password" autocomplete="current-password" required>
-    <div class="linha"><button class="primario" type="submit">Entrar</button></div>
-    <p class="erro" id="erro-login"></p>
-  </form>
+  <div class="login-card">
+    <div class="marca">
+      <span class="logo" data-logo></span>
+      <div><div class="marca-nome" data-empresa>FluxDeck</div><div class="marca-sub">Prospecção com IA</div></div>
+    </div>
+    <h1>Bem-vindo de volta</h1>
+    <p class="muted" style="margin:0">Entre para encontrar clientes e aprovar as propostas da IA.</p>
+    <form id="form-login">
+      <div class="campo"><label for="usuario">Usuário</label><input id="usuario" name="usuario" autocomplete="username" value="admin" required></div>
+      <div class="campo"><label for="senha">Senha</label><input id="senha" name="senha" type="password" autocomplete="current-password" required></div>
+      <p class="erro-texto" id="erro-login" role="alert"></p>
+      <button class="btn primario" type="submit">Entrar</button>
+    </form>
+  </div>
 </section>
 
-<div id="painel" hidden>
-<header>
-  <div class="titulo">
-    <h1>Prospecta IA</h1>
-    <div class="muted" id="empresa"></div>
-  </div>
-  <div class="selos" id="selos"></div>
-  <button id="sair">Sair</button>
-</header>
-<main>
-  <section class="stats" id="stats"></section>
-
-  <nav class="abas" role="tablist">
-    <button role="tab" data-aba="maps">📍 Buscar no Google Maps</button>
-    <button role="tab" data-aba="rascunho" aria-selected="true">✅ Aprovar mensagens <span id="badge-aprovar"></span></button>
-    <button role="tab" data-aba="aprovada">Na fila</button>
-    <button role="tab" data-aba="enviada">Enviadas</button>
-    <button role="tab" data-aba="erro">Com erro</button>
-    <button role="tab" data-aba="respostas">Respostas <span id="badge"></span></button>
-    <button role="tab" data-aba="leads">Empresas</button>
-    <button role="tab" data-aba="automacao">⚙️ Automação</button>
-  </nav>
-
-  <!-- Busca no Google Maps -->
-  <section data-painel="maps" hidden>
-    <form class="form-busca" id="form-maps">
-      <div><label for="nicho">Segmento</label><input id="nicho" list="nichos" placeholder="ex.: pet shop, clínica odontológica" required></div>
-      <div><label for="cidade">Cidade</label><input id="cidade" list="cidades" placeholder="ex.: Fortaleza - CE" required></div>
-      <div><label for="quantidade">Quantidade</label>
-        <select id="quantidade"><option>20</option><option>40</option><option>60</option></select></div>
-      <button class="primario" type="submit">Buscar</button>
-    </form>
-    <datalist id="nichos"></datalist><datalist id="cidades"></datalist>
-    <div id="resultado-maps"></div>
-  </section>
-
-  <!-- Automação -->
-  <section data-painel="automacao" hidden>
-    <p class="muted">Rode cada etapa manualmente. Na Vercel, o ciclo completo também roda sozinho de segunda a sexta às 9h30.
-      As mensagens novas nunca saem sem a sua aprovação.</p>
-    <div class="acoes">
-      <button data-etapa="respostas">Ler respostas do e-mail</button>
-      <button data-etapa="descobrir">Buscar pela campanha</button>
-      <button data-etapa="analisar">Analisar sites</button>
-      <button data-etapa="propor">Gerar propostas com IA</button>
-      <button data-etapa="followup">Gerar follow-ups</button>
-      <button data-etapa="enviar">Enviar fila aprovada</button>
+<!-- ===================== App ===================== -->
+<div class="app" id="painel" hidden>
+  <aside class="sidebar" id="sidebar" aria-label="Menu principal">
+    <div class="marca">
+      <span class="logo" data-logo></span>
+      <div><div class="marca-nome" data-empresa>FluxDeck</div><div class="marca-sub">Prospecção com IA</div></div>
     </div>
-    <div id="log-etapas"></div>
-  </section>
+    <nav id="nav" style="display:grid;gap:20px"></nav>
+    <div class="sidebar-rodape">
+      <div class="status-lista" id="status-lista"></div>
+      <div style="display:flex;gap:6px">
+        <button class="btn fantasma sm" id="tema" style="flex:1" aria-label="Alternar tema"></button>
+        <button class="btn fantasma sm" id="sair" style="flex:1"></button>
+      </div>
+    </div>
+  </aside>
+  <div class="veu" id="veu"></div>
 
-  <section id="lista"></section>
-</main>
+  <div class="principal">
+    <header class="topo" id="topo">
+      <div class="marca"><span class="logo" data-logo></span><div><div class="marca-nome" data-empresa>FluxDeck</div><div class="marca-sub">Prospecção com IA</div></div></div>
+      <div class="topo-textos"><h1 id="titulo"></h1><p id="subtitulo"></p></div>
+    </header>
+
+    <main class="conteudo">
+      <div class="titulo-mobile"><h1 id="titulo-m"></h1><p id="subtitulo-m"></p></div>
+      <section class="kpis" id="kpis" aria-label="Indicadores"></section>
+
+      <!-- Google Maps -->
+      <section id="view-maps" hidden>
+        <form class="cartao cartao-corpo busca" id="form-maps">
+          <div class="campo"><label for="nicho">Segmento</label>
+            <div class="com-icone"><span data-ic="search"></span><input id="nicho" list="nichos" placeholder="Ex.: pet shop, clínica odontológica" required></div></div>
+          <div class="campo"><label for="cidade">Cidade</label>
+            <div class="com-icone"><span data-ic="pin"></span><input id="cidade" list="cidades" placeholder="Ex.: Fortaleza - CE" required></div></div>
+          <div class="campo"><label for="quantidade">Quantidade</label>
+            <select id="quantidade"><option value="20">20 empresas</option><option value="40">40 empresas</option><option value="60">60 empresas</option></select></div>
+          <button class="btn primario" type="submit"><span data-ic="search"></span>Buscar no Google Maps</button>
+        </form>
+        <datalist id="nichos"></datalist><datalist id="cidades"></datalist>
+        <div id="pos-captura"></div>
+        <div id="resultado-maps"></div>
+        <div class="barra-selecao" id="barra-selecao" hidden>
+          <b id="qtd-selecionadas"></b>
+          <button class="btn fantasma sm" data-maps="limpar">Limpar</button>
+          <button class="btn primario" data-maps="capturar"><span data-ic="check"></span>Capturar</button>
+        </div>
+      </section>
+
+      <!-- Automação -->
+      <section id="view-automacao" hidden>
+        <div class="alerta info" style="margin-bottom:16px"><span data-ic="spark"></span>
+          <div>O ciclo completo também roda sozinho de segunda a sexta às 9h30. As mensagens novas nunca saem sem a sua aprovação.</div></div>
+        <div class="etapas" id="etapas"></div>
+      </section>
+
+      <!-- Listas dinâmicas -->
+      <section id="view-lista" class="lista"></section>
+    </main>
+  </div>
+
+  <nav class="nav-inferior" id="nav-inferior" aria-label="Navegação rápida"></nav>
 </div>
-<div class="aviso" id="aviso"></div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script>
+// ===================== Utilidades =====================
 const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const dataHora = (d) => (d ? new Date(d).toLocaleString("pt-BR") : "");
-let abaAtual = "rascunho";
+const dataHora = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "");
+const inicial = (nome) => esc((String(nome ?? "?").trim()[0] ?? "?").toUpperCase());
+
+const ICONES = {
+  pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  checkCircle: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/>',
+  message: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+  building: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>',
+  zap: '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  auto: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18Z" fill="currentColor" stroke="none"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  external: '<path d="M15 3h6v6M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/>',
+  phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>',
+  star: '<path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
+  spark: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+  inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
+  grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
+  refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+  trend: '<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',
+  ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+  heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
+  repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
+};
+const ic = (nome, cls = "") => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONES[nome] ?? ""}</svg>`;
+const LOGO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6.5h12M6 12h8.5M6 17.5h5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>';
+
 let sessao = null;
+let stats = null;
+let viewAtual = "rascunho";
 let resultadosMaps = [];
 let buscaMaps = {};
+const selecionadas = new Set();
 
 async function api(caminho, opcoes = {}) {
   const resp = await fetch(caminho, { headers: { "Content-Type": "application/json" }, credentials: "same-origin", ...opcoes });
   const dados = await resp.json().catch(() => ({}));
-  if (resp.status === 401 && dados.login) { mostrarLogin(); throw new Error("Sessão expirada"); }
-  if (!resp.ok) throw new Error(dados.erro || resp.statusText);
+  if (resp.status === 401 && dados.login) { mostrarLogin(); throw new Error("Sessão expirada. Entre novamente."); }
+  if (!resp.ok) throw new Error(dados.erro || `Erro ${resp.status}`);
   return dados;
 }
 const post = (caminho, corpo) => api(caminho, { method: "POST", body: JSON.stringify(corpo ?? {}) });
 
-function avisar(texto, ms = 4000) {
-  const el = $("#aviso");
-  el.textContent = texto;
-  el.style.display = "block";
-  clearTimeout(avisar.t);
-  avisar.t = setTimeout(() => (el.style.display = "none"), ms);
+function avisar(texto, tipo = "info", ms = 4500) {
+  const el = document.createElement("div");
+  el.className = `toast ${tipo}`;
+  el.innerHTML = `${ic(tipo === "ok" ? "checkCircle" : tipo === "perigo" ? "alert" : "spark")}<div>${esc(texto)}</div>`;
+  $("#toasts").append(el);
+  setTimeout(() => el.remove(), ms);
 }
 
-// ---------- Login ----------
+// ===================== Tema =====================
+const TEMAS = ["auto", "light", "dark"];
+const NOME_TEMA = { auto: "Automático", light: "Claro", dark: "Escuro" };
+function lerTema() { try { return localStorage.getItem("tema") || "auto"; } catch { return "auto"; } }
+function aplicarTema(t) {
+  if (t === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", t);
+  $("#tema").innerHTML = `${ic(t === "dark" ? "moon" : t === "light" ? "sun" : "auto")}${NOME_TEMA[t]}`;
+  try { localStorage.setItem("tema", t); } catch {}
+}
 
+// ===================== Navegação =====================
+const VIEWS = {
+  maps:      { grupo: "Prospecção", nome: "Buscar no Maps", curto: "Buscar", icone: "pin", titulo: "Buscar no Google Maps",
+               sub: "Encontre empresas por segmento e cidade e escolha quem prospectar." },
+  rascunho:  { grupo: "Prospecção", nome: "Aprovar mensagens", curto: "Aprovar", icone: "checkCircle", titulo: "Aprovar mensagens",
+               sub: "Revise o que a IA escreveu. Nada é enviado sem a sua aprovação.", contador: () => stats?.mensagens.rascunho },
+  aprovada:  { grupo: "Prospecção", nome: "Fila de envio", icone: "clock", titulo: "Fila de envio",
+               sub: "Aprovadas aguardando o horário comercial ou o limite do dia.", contador: () => stats?.mensagens.aprovada },
+  enviada:   { grupo: "Prospecção", nome: "Enviadas", icone: "send", titulo: "Mensagens enviadas", sub: "Tudo o que já saiu, por e-mail e WhatsApp." },
+  erro:      { grupo: "Prospecção", nome: "Com erro", icone: "alert", titulo: "Mensagens com erro",
+               sub: "Corrija e tente de novo, ou descarte.", contador: () => stats?.mensagens.erro, perigo: true },
+  respostas: { grupo: "Relacionamento", nome: "Respostas", curto: "Respostas", icone: "message", titulo: "Respostas",
+               sub: "Respostas classificadas pela IA, com sugestão de retorno.", contador: () => stats?.respostasNaoLidas },
+  leads:     { grupo: "Relacionamento", nome: "Empresas", curto: "Empresas", icone: "building", titulo: "Empresas",
+               sub: "Todas as empresas capturadas e em que etapa do funil estão." },
+  automacao: { grupo: "Sistema", nome: "Automação", icone: "zap", titulo: "Automação",
+               sub: "Rode as etapas do funil manualmente quando quiser." },
+};
+const NAV_INFERIOR = ["maps", "rascunho", "respostas", "leads"];
+
+function desenharNav() {
+  const grupos = {};
+  for (const [id, v] of Object.entries(VIEWS)) (grupos[v.grupo] ??= []).push([id, v]);
+  $("#nav").innerHTML = Object.entries(grupos).map(([g, itens]) => `
+    <div class="nav-grupo"><div class="nav-titulo">${g}</div>
+      ${itens.map(([id, v]) => `<a class="nav-item" href="#${id}" data-view="${id}">${ic(v.icone)}<span>${v.nome}</span>
+        <span class="contador ${v.perigo ? "perigo" : ""}" data-contador="${id}"></span></a>`).join("")}
+    </div>`).join("");
+  $("#nav-inferior").innerHTML = NAV_INFERIOR.map((id) => `
+    <a href="#${id}" data-view="${id}">${ic(VIEWS[id].icone)}<span>${VIEWS[id].curto}</span>
+      <span class="contador" data-contador="${id}"></span></a>`).join("") +
+    `<button type="button" data-menu>${ic("grid")}<span>Mais</span></button>`;
+}
+
+function marcarNav() {
+  $$("[data-view]").forEach((a) => (a.dataset.view === viewAtual ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current")));
+  const v = VIEWS[viewAtual];
+  $("#titulo").textContent = $("#titulo-m").textContent = v.titulo;
+  $("#subtitulo").textContent = $("#subtitulo-m").textContent = v.sub;
+  document.title = `${v.titulo} · ${sessao?.empresa ?? "FluxDeck"}`;
+}
+
+function abrirMenu(abrir) { $("#painel").classList.toggle("menu-aberto", abrir); }
+
+function irParaHash() {
+  const id = location.hash.slice(1);
+  viewAtual = VIEWS[id] ? id : "rascunho";
+  abrirMenu(false);
+  marcarNav();
+  $("#view-maps").hidden = viewAtual !== "maps";
+  $("#view-automacao").hidden = viewAtual !== "automacao";
+  $("#view-lista").hidden = ["maps", "automacao"].includes(viewAtual);
+  if (!$("#view-lista").hidden) carregarLista();
+  window.scrollTo({ top: 0 });
+}
+
+// ===================== Login =====================
 function mostrarLogin() {
   $("#painel").hidden = true;
   $("#tela-login").hidden = false;
-  $("#senha").focus();
+  setTimeout(() => $("#senha").focus(), 50);
 }
 
 $("#form-login").addEventListener("submit", async (ev) => {
   ev.preventDefault();
+  const btn = ev.submitter;
   $("#erro-login").textContent = "";
+  btn.disabled = true;
   try {
     await post("/api/login", { usuario: $("#usuario").value, senha: $("#senha").value });
     $("#senha").value = "";
     await iniciar();
   } catch (e) {
     $("#erro-login").textContent = e.message;
-  }
-});
-
-$("#sair").addEventListener("click", async () => {
-  await post("/api/logout");
-  mostrarLogin();
-});
-
-async function iniciar() {
-  try {
-    sessao = await api("/api/sessao");
-  } catch { return; }
-  $("#tela-login").hidden = true;
-  $("#painel").hidden = false;
-  $("#empresa").textContent = sessao.empresa;
-  $("#selos").innerHTML = [
-    sessao.modoTeste ? `<span class="chip atencao">MODO TESTE: envios vão para você</span>` : "",
-    `<span class="chip">WhatsApp: ${sessao.whatsappAutomatico ? "automático (API oficial)" : "manual pelo seu WhatsApp"}</span>`,
-    `<span class="chip">${sessao.dentroDoHorario ? "Dentro do horário de envio" : "Fora do horário: aprovadas ficam na fila"}</span>`,
-  ].join("");
-  $("#nichos").innerHTML = sessao.nichosSugeridos.map((n) => `<option value="${esc(n)}">`).join("");
-  $("#cidades").innerHTML = sessao.cidadesSugeridas.map((c) => `<option value="${esc(c)}">`).join("");
-  await atualizar();
-}
-
-// ---------- Indicadores ----------
-
-async function carregarStats() {
-  const s = await api("/api/stats");
-  const capturadas = Object.values(s.leads).reduce((a, b) => a + b, 0);
-  const itens = [
-    ["Empresas capturadas", capturadas],
-    ["Aguardando aprovação", s.mensagens.rascunho ?? 0],
-    ["Na fila de envio", s.mensagens.aprovada ?? 0],
-    ["Enviadas hoje", s.enviadasHoje],
-    ["Total enviadas", s.mensagens.enviada ?? 0],
-    ["Interessados", (s.respostas.interessado ?? 0) + (s.respostas.quer_informacoes ?? 0)],
-    ["Descadastros", s.descadastros],
-  ];
-  $("#stats").innerHTML = itens.map(([t, n]) => `<div class="stat"><b>${n}</b><span class="muted">${t}</span></div>`).join("");
-  $("#badge").textContent = s.respostasNaoLidas || "";
-  $("#badge-aprovar").textContent = s.mensagens.rascunho ? `(${s.mensagens.rascunho})` : "";
-}
-
-// ---------- Google Maps ----------
-
-$("#form-maps").addEventListener("submit", async (ev) => {
-  ev.preventDefault();
-  const btn = ev.submitter;
-  buscaMaps = { nicho: $("#nicho").value.trim(), cidade: $("#cidade").value.trim() };
-  btn.disabled = true;
-  $("#resultado-maps").innerHTML = `<div class="progresso">Buscando "${esc(buscaMaps.nicho)}" em ${esc(buscaMaps.cidade)} no Google Maps…</div>`;
-  try {
-    resultadosMaps = await post("/api/maps/buscar", { ...buscaMaps, quantidade: $("#quantidade").value });
-    desenharMaps();
-  } catch (e) {
-    $("#resultado-maps").innerHTML = `<p class="erro">${esc(e.message)}</p>`;
   } finally {
     btn.disabled = false;
   }
 });
 
+async function iniciar() {
+  try { sessao = await api("/api/sessao"); } catch { return; }
+  $("#tela-login").hidden = true;
+  $("#painel").hidden = false;
+  $$("[data-empresa]").forEach((el) => (el.textContent = sessao.empresa));
+  $("#status-lista").innerHTML = [
+    sessao.modoTeste ? `<span class="pilula atencao">${ic("alert", "sm")}Modo teste: os envios vão para você</span>` : "",
+    `<span class="pilula wa">${ic("message", "sm")}WhatsApp ${sessao.whatsappAutomatico ? "automático (API oficial)" : "manual, pelo seu número"}</span>`,
+    sessao.dentroDoHorario
+      ? `<span class="pilula ok">${ic("clock", "sm")}Dentro do horário de envio</span>`
+      : `<span class="pilula">${ic("clock", "sm")}Fora do horário: aprovadas vão para a fila</span>`,
+  ].join("");
+  $("#nichos").innerHTML = sessao.nichosSugeridos.map((n) => `<option value="${esc(n)}">`).join("");
+  $("#cidades").innerHTML = sessao.cidadesSugeridas.map((c) => `<option value="${esc(c)}">`).join("");
+  irParaHash();
+  carregarStats();
+}
+
+// ===================== Indicadores =====================
+async function carregarStats() {
+  stats = await api("/api/stats");
+  const capturadas = Object.values(stats.leads).reduce((a, b) => a + b, 0);
+  const interessados = (stats.respostas.interessado ?? 0) + (stats.respostas.quer_informacoes ?? 0);
+  const itens = [
+    ["building", "", capturadas, "Empresas capturadas"],
+    ["checkCircle", "atencao", stats.mensagens.rascunho ?? 0, "Aguardando aprovação"],
+    ["send", "", stats.enviadasHoje, "Enviadas hoje"],
+    ["trend", "", stats.mensagens.enviada ?? 0, "Total enviadas"],
+    ["heart", "ok", interessados, "Interessados"],
+    ["ban", "perigo", stats.descadastros, "Descadastros"],
+  ];
+  $("#kpis").innerHTML = itens.map(([i, cor, n, t]) =>
+    `<div class="kpi"><span class="kpi-ic ${cor}">${ic(i)}</span><div><b>${n}</b><span>${t}</span></div></div>`).join("");
+  for (const [id, v] of Object.entries(VIEWS)) {
+    const n = v.contador?.() || "";
+    $$(`[data-contador="${id}"]`).forEach((el) => (el.textContent = n));
+  }
+}
+
+// ===================== Google Maps =====================
+$("#form-maps").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = ev.submitter;
+  buscaMaps = { nicho: $("#nicho").value.trim(), cidade: $("#cidade").value.trim() };
+  btn.disabled = true;
+  selecionadas.clear();
+  atualizarSelecao();
+  $("#pos-captura").innerHTML = "";
+  $("#resultado-maps").innerHTML = `<div class="resultados-cab"><h2>Buscando "${esc(buscaMaps.nicho)}" em ${esc(buscaMaps.cidade)}…</h2></div>
+    <div class="grade">${'<div class="esqueleto"></div>'.repeat(6)}</div>`;
+  try {
+    resultadosMaps = await post("/api/maps/buscar", { ...buscaMaps, quantidade: $("#quantidade").value });
+    desenharMaps();
+  } catch (e) {
+    $("#resultado-maps").innerHTML = `<div class="alerta perigo" style="margin-top:18px">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function cartaoEmpresaMaps(e, i) {
+  const sel = selecionadas.has(i);
+  return `<article class="cartao empresa ${e.jaCapturado ? "capturada" : ""} ${sel ? "selecionada" : ""}" data-indice="${i}">
+    <div class="topo-empresa">
+      <span class="avatar">${inicial(e.nome)}</span>
+      <h3>${esc(e.nome)}</h3>
+      ${e.jaCapturado ? `<span class="pilula">${ic("check", "sm")}Capturada</span>`
+        : `<input type="checkbox" ${sel ? "checked" : ""} aria-label="Selecionar ${esc(e.nome)}" data-check="${i}">`}
+    </div>
+    ${e.endereco ? `<div class="endereco">${ic("pin", "sm")}<span>${esc(e.endereco)}</span></div>` : ""}
+    <div class="pilulas">
+      ${e.telefone ? `<span class="pilula ${e.celular ? "wa" : ""}">${ic(e.celular ? "message" : "phone", "sm")}${esc(e.telefone)}</span>` : `<span class="pilula">Sem telefone</span>`}
+      ${e.site ? `<span class="pilula acc">${ic("globe", "sm")}Tem site</span>` : `<span class="pilula atencao">${ic("globe", "sm")}Sem site</span>`}
+      ${e.avaliacao ? `<span class="pilula">${ic("star", "sm")}${String(e.avaliacao).replace(".", ",")} · ${e.total_avaliacoes ?? 0}</span>` : ""}
+    </div>
+    <div class="links">
+      ${e.site ? `<a href="${esc(e.site)}" target="_blank" rel="noopener">${ic("globe", "sm")}${esc(e.site.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a>` : ""}
+      ${e.maps_url ? `<a href="${esc(e.maps_url)}" target="_blank" rel="noopener">${ic("external", "sm")}Ver no Maps</a>` : ""}
+    </div>
+  </article>`;
+}
+
 function desenharMaps() {
   if (!resultadosMaps.length) {
-    $("#resultado-maps").innerHTML = `<p class="muted">Nenhuma empresa encontrada.</p>`;
+    $("#resultado-maps").innerHTML = `<div style="margin-top:18px">${vazio("search", "Nenhuma empresa encontrada", "Tente outro segmento ou uma cidade vizinha.")}</div>`;
     return;
   }
   const novas = resultadosMaps.filter((e) => !e.jaCapturado).length;
   $("#resultado-maps").innerHTML = `
-    <div class="linha">
-      <b>${resultadosMaps.length} empresas encontradas</b><span class="muted">(${novas} novas)</span>
-      <button data-maps="todos">Selecionar todas as novas</button>
-      <button data-maps="capturar" class="primario">Capturar selecionadas</button>
+    <div class="resultados-cab">
+      <h2>${resultadosMaps.length} empresas encontradas</h2>
+      <span class="pilula acc">${novas} ${novas === 1 ? "nova" : "novas"}</span>
+      <span class="espaco"></span>
+      ${novas ? `<button class="btn sm" data-maps="todas">${ic("check", "sm")}Selecionar todas as novas</button>` : ""}
     </div>
-    ${resultadosMaps.map((e, i) => `
-      <article class="card empresa">
-        <input type="checkbox" data-indice="${i}" ${e.jaCapturado ? "disabled" : ""} aria-label="Selecionar ${esc(e.nome)}">
-        <div class="info">
-          <h3>${esc(e.nome)} ${e.jaCapturado ? `<span class="chip">já capturada</span>` : ""}</h3>
-          <div class="muted">${esc(e.endereco)}</div>
-          <div class="chips">
-            ${e.telefone ? `<span class="chip ${e.celular ? "forte" : ""}">${esc(e.telefone)}${e.celular ? " · WhatsApp provável" : " · fixo"}</span>` : `<span class="chip">sem telefone</span>`}
-            ${e.site ? `<span class="chip">tem site</span>` : `<span class="chip atencao">sem site</span>`}
-            ${e.avaliacao ? `<span class="chip">★ ${e.avaliacao} (${e.total_avaliacoes ?? 0})</span>` : ""}
-          </div>
-          <div class="linha" style="margin-top:4px">
-            ${e.site ? `<a href="${esc(e.site)}" target="_blank" rel="noopener">${esc(e.site)}</a>` : ""}
-            ${e.maps_url ? `<a href="${esc(e.maps_url)}" target="_blank" rel="noopener">Ver no Google Maps</a>` : ""}
-          </div>
-        </div>
-      </article>`).join("")}`;
+    <div class="grade">${resultadosMaps.map(cartaoEmpresaMaps).join("")}</div>`;
 }
 
-async function capturarSelecionadas() {
-  const escolhidas = [...document.querySelectorAll("[data-indice]:checked")].map((c) => resultadosMaps[c.dataset.indice]);
+function atualizarSelecao() {
+  const n = selecionadas.size;
+  $("#barra-selecao").hidden = n === 0;
+  $("#qtd-selecionadas").textContent = `${n} ${n === 1 ? "selecionada" : "selecionadas"}`;
+}
+
+function alternarEmpresa(i, marcar) {
+  const e = resultadosMaps[i];
+  if (!e || e.jaCapturado) return;
+  marcar ??= !selecionadas.has(i);
+  marcar ? selecionadas.add(i) : selecionadas.delete(i);
+  $(`[data-indice="${i}"]`)?.classList.toggle("selecionada", marcar);
+  const caixa = $(`[data-check="${i}"]`);
+  if (caixa) caixa.checked = marcar;
+  atualizarSelecao();
+}
+
+async function capturarSelecionadas(btn) {
+  const escolhidas = [...selecionadas].map((i) => resultadosMaps[i]);
   if (!escolhidas.length) return avisar("Selecione ao menos uma empresa");
-  const r = await post("/api/maps/capturar", { empresas: escolhidas, ...buscaMaps });
-  for (const e of escolhidas) e.jaCapturado = true;
-  desenharMaps();
-  $("#resultado-maps").insertAdjacentHTML("afterbegin", `
-    <div class="progresso" id="pos-captura">
-      <b>${r.novas} empresas capturadas.</b> Agora a IA analisa o site de cada uma, encontra e-mail/WhatsApp e escreve as propostas.
-      Nada é enviado antes de você aprovar.
-      <div class="linha"><button class="primario" data-maps="processar">Analisar e gerar propostas agora</button></div>
-    </div>`);
-  carregarStats();
+  btn.disabled = true;
+  try {
+    const r = await post("/api/maps/capturar", { empresas: escolhidas, ...buscaMaps });
+    for (const e of escolhidas) e.jaCapturado = true;
+    selecionadas.clear();
+    atualizarSelecao();
+    desenharMaps();
+    $("#pos-captura").innerHTML = `
+      <div class="callout">
+        <span class="ic-grande">${ic("spark", "lg")}</span>
+        <div style="flex:1;min-width:0">
+          <h3>${r.novas} ${r.novas === 1 ? "empresa capturada" : "empresas capturadas"}</h3>
+          <p>Agora a IA analisa o site de cada uma, encontra e-mail e WhatsApp e escreve as propostas. Nada é enviado antes de você aprovar.</p>
+          <div id="processo-texto"></div>
+          <button class="btn primario" data-maps="processar">${ic("spark")}Analisar e gerar propostas</button>
+        </div>
+      </div>`;
+    $("#pos-captura").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    carregarStats();
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function processarCapturadas(btn) {
   btn.disabled = true;
-  const caixa = $("#pos-captura");
+  const texto = $("#processo-texto");
+  const mostrar = (titulo, detalhe) =>
+    (texto.innerHTML = `<div class="progresso"><i></i></div><p style="margin:4px 0 12px"><b>${titulo}</b> ${esc(detalhe)}</p>`);
   try {
-    await rodarEtapa("analisar", (t) => (caixa.innerHTML = `<b>Analisando sites…</b> ${t}`));
-    await rodarEtapa("propor", (t) => (caixa.innerHTML = `<b>A IA está escrevendo as propostas…</b> ${t}`));
-    caixa.innerHTML = `<b>Pronto!</b> As propostas estão na aba "Aprovar mensagens". <div class="linha"><button class="primario" data-ir="rascunho">Revisar e aprovar</button></div>`;
+    await rodarEtapa("analisar", (t) => mostrar("Analisando os sites…", t));
+    await rodarEtapa("propor", (t) => mostrar("A IA está escrevendo as propostas…", t));
+    $("#pos-captura").innerHTML = `
+      <div class="callout">
+        <span class="ic-grande" style="background:var(--ok)">${ic("checkCircle", "lg")}</span>
+        <div style="flex:1"><h3>Propostas prontas para revisar</h3>
+          <p>Leia, ajuste se quiser e aprove as que devem ser enviadas.</p>
+          <a class="btn primario" href="#rascunho">${ic("checkCircle")}Revisar e aprovar</a></div>
+      </div>`;
     carregarStats();
   } catch (e) {
-    caixa.innerHTML = `<span class="erro">${esc(e.message)}</span>`;
+    texto.innerHTML = `<div class="alerta perigo" style="margin-bottom:12px">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+    btn.disabled = false;
   }
 }
 
-// ---------- Etapas (repetem enquanto houver fila) ----------
+// ===================== Etapas =====================
+const ETAPAS = [
+  ["respostas", "inbox", "Ler respostas", "Busca respostas novas no seu e-mail e classifica com a IA."],
+  ["descobrir", "pin", "Buscar pela campanha", "Captura empresas dos segmentos e cidades da campanha."],
+  ["analisar", "globe", "Analisar sites", "Encontra e-mail, WhatsApp e oportunidades de cada empresa."],
+  ["propor", "spark", "Gerar propostas", "A IA escreve as mensagens. Elas ficam esperando sua aprovação."],
+  ["followup", "repeat", "Gerar follow-ups", "Um lembrete para quem não respondeu depois de alguns dias."],
+  ["enviar", "send", "Enviar fila aprovada", "Envia o que você já aprovou, respeitando horário e limite."],
+];
+const NOMES_CAMPOS = { lidas: "e-mails lidos", respostas: "respostas", novas: "novas", analisados: "analisadas", descartados: "descartadas",
+                       geradas: "geradas", criados: "criados", enviadas: "enviadas" };
+
+function desenharEtapas() {
+  $("#etapas").innerHTML = ETAPAS.map(([id, i, t, d]) => `
+    <article class="cartao etapa">
+      <div class="cab"><span class="kpi-ic">${ic(i)}</span><h3>${t}</h3></div>
+      <p>${d}</p>
+      <div class="resultado" data-resultado="${id}"></div>
+      <button class="btn" data-etapa="${id}">${ic("refresh", "sm")}Rodar agora</button>
+    </article>`).join("");
+}
+
+function resumo(r) {
+  return Object.entries(r).filter(([k, v]) => typeof v === "number" && NOMES_CAMPOS[k]).map(([k, v]) => `${v} ${NOMES_CAMPOS[k]}`).join(" · ");
+}
 
 async function rodarEtapa(etapa, progresso = () => {}) {
-  let total = {};
+  const total = {};
   for (let rodada = 1; rodada <= 30; rodada++) {
     const r = await post(`/api/etapas/${etapa}`);
     let progrediu = false;
@@ -315,7 +781,7 @@ async function rodarEtapa(etapa, progresso = () => {}) {
       total[k] = (total[k] ?? 0) + v;
       if (v > 0) progrediu = true;
     }
-    progresso(`${Object.entries(total).map(([k, v]) => `${k}: ${v}`).join(" · ")}${r.restantes ? ` · faltam ${r.restantes}` : ""}`);
+    progresso(`${resumo(total)}${r.restantes ? ` · faltam ${r.restantes}` : ""}`);
     if (r.erro && !progrediu) throw new Error(r.erro);
     // Só repete se ainda há fila e esta rodada avançou (evita repetir um erro em loop).
     if (!r.restantes || !progrediu) return { ...r, ...total };
@@ -323,174 +789,212 @@ async function rodarEtapa(etapa, progresso = () => {}) {
   return total;
 }
 
-const NOMES_ETAPAS = { respostas: "Leitura de respostas", descobrir: "Busca pela campanha", analisar: "Análise dos sites",
-                       propor: "Propostas com IA", followup: "Follow-ups", enviar: "Envio da fila" };
-
 async function executarEtapa(btn) {
   const etapa = btn.dataset.etapa;
-  const linha = document.createElement("div");
-  linha.className = "progresso";
-  linha.textContent = `${NOMES_ETAPAS[etapa]}: rodando…`;
-  $("#log-etapas").prepend(linha);
+  const saida = $(`[data-resultado="${etapa}"]`);
+  saida.className = "resultado";
+  saida.innerHTML = `<div class="progresso"><i></i></div>`;
   btn.disabled = true;
   try {
-    const r = await rodarEtapa(etapa, (t) => (linha.textContent = `${NOMES_ETAPAS[etapa]}: ${t}`));
-    linha.textContent = `${NOMES_ETAPAS[etapa]} concluída: ${Object.entries(r).map(([k, v]) => `${k}: ${v}`).join(" · ") || "nada a fazer"}`;
+    const r = await rodarEtapa(etapa, (t) => (saida.innerHTML = `<div class="progresso"><i></i></div>${esc(t)}`));
+    saida.textContent = resumo(r) || r.motivo || "Nada a fazer agora.";
   } catch (e) {
-    linha.innerHTML = `<span class="erro">${NOMES_ETAPAS[etapa]}: ${esc(e.message)}</span>`;
+    saida.className = "resultado erro";
+    saida.textContent = e.message;
   } finally {
     btn.disabled = false;
     carregarStats();
   }
 }
 
-// ---------- Mensagens ----------
-
+// ===================== Mensagens =====================
 const CANAL = { email: "E-mail", whatsapp: "WhatsApp" };
+
+function vazio(icone, titulo, texto, acao = "") {
+  return `<div class="cartao vazio"><div class="ic-grande">${ic(icone, "lg")}</div><h3>${titulo}</h3><p>${texto}</p>${acao}</div>`;
+}
+
+function cabecalhoMensagem(m) {
+  return `<div class="cartao-cab">
+    <span class="avatar">${inicial(m.empresa)}</span>
+    <div class="titulos">
+      <h3>${esc(m.empresa)}
+        <span class="pilula ${m.canal === "whatsapp" ? "wa" : "acc"}">${ic(m.canal === "whatsapp" ? "message" : "mail", "sm")}${CANAL[m.canal]}</span>
+        ${m.tipo === "followup" ? `<span class="pilula">${ic("repeat", "sm")}Follow-up</span>` : ""}
+      </h3>
+      <div class="meta">
+        <span>${ic(m.canal === "whatsapp" ? "phone" : "mail", "sm")}${esc(m.destino)}</span>
+        ${m.nicho ? `<span>${ic("building", "sm")}${esc(m.nicho)}${m.cidade ? ` · ${esc(m.cidade)}` : ""}</span>` : ""}
+        ${m.site ? `<a href="${esc(m.site)}" target="_blank" rel="noopener">${ic("globe", "sm")}Site</a>` : ""}
+        ${m.maps_url ? `<a href="${esc(m.maps_url)}" target="_blank" rel="noopener">${ic("pin", "sm")}Google Maps</a>` : ""}
+      </div>
+    </div>
+  </div>`;
+}
+
+function previaHtml(m) {
+  const rodape = esc(String(m.rodape ?? "").replace(/^\s+/, ""));
+  if (m.canal === "whatsapp") {
+    return `<div class="previa-wa">
+      <div class="wa-topo"><span class="mini">${inicial(m.empresa)}</span>${esc(m.empresa)}</div>
+      <div class="wa-chat"><div class="wa-bolha"><span data-previa-corpo>${esc(m.corpo)}</span><span class="wa-rodape">${rodape}</span><span class="wa-hora">agora ✓✓</span></div></div>
+    </div>`;
+  }
+  return `<div class="previa-email">
+    <div class="pe-cab">
+      <div><span class="r">De</span>${esc(sessao?.empresa ?? "")}</div>
+      <div><span class="r">Para</span>${esc(m.destino)}</div>
+      <div class="pe-assunto" data-previa-assunto>${esc(m.assunto)}</div>
+    </div>
+    <div class="pe-corpo"><span data-previa-corpo>${esc(m.corpo)}</span><span class="pe-rodape">${rodape}</span></div>
+  </div>`;
+}
 
 function cardMensagem(m) {
   const editavel = ["rascunho", "aprovada", "erro"].includes(m.status);
-  const contexto = `
-    <div class="muted">${esc(m.nicho)} · ${esc(m.cidade)} · ${CANAL[m.canal]}: <b>${esc(m.destino)}</b></div>
-    <div class="linha" style="margin-top:4px">
-      ${m.site ? `<a href="${esc(m.site)}" target="_blank" rel="noopener">${esc(m.site)}</a>` : `<span class="muted">Sem site</span>`}
-      ${m.maps_url ? `<a href="${esc(m.maps_url)}" target="_blank" rel="noopener">Google Maps</a>` : ""}
-    </div>
-    <div class="chips">${m.oportunidades.map((o) => `<span class="chip" title="${esc(o.motivo)}">${esc(o.servico)}: ${esc(o.motivo)}</span>`).join("")}</div>
-    ${m.erro ? `<div class="erro">${esc(m.erro)}</div>` : ""}`;
+  const oportunidades = m.oportunidades.length
+    ? `<div class="oportunidades">${m.oportunidades.map((o) => `<span class="pilula acc">${ic("spark", "sm")}${esc(o.motivo)}</span>`).join("")}</div>`
+    : "";
+  const erro = m.erro ? `<div style="padding:14px 20px 0"><div class="alerta perigo">${ic("alert")}<div>${esc(m.erro)}</div></div></div>` : "";
 
   if (!editavel) {
-    return `<article class="card"><h3>${esc(m.empresa)} <span class="chip">${CANAL[m.canal]}</span></h3>${contexto}
-      ${m.assunto ? `<div><b>${esc(m.assunto)}</b></div>` : ""}<div class="texto">${esc(m.previa)}</div>
-      <div class="muted" style="margin-top:8px">${m.status === "enviada" ? `Enviada em ${dataHora(m.enviada_em)}` : esc(m.status)}</div></article>`;
+    return `<article class="cartao">${cabecalhoMensagem(m)}${erro}
+      <div class="cartao-corpo">
+        <details class="ver-msg"><summary>${ic("mail", "sm")}Ver mensagem enviada</summary>${previaHtml(m)}</details>
+        <div class="meta" style="margin-top:8px"><span>${ic("checkCircle", "sm")}${m.status === "enviada" ? `Enviada em ${dataHora(m.enviada_em)}` : esc(m.status)}</span></div>
+      </div></article>`;
   }
 
-  const botaoEnviar = m.envioManual
-    ? `<button class="wa" data-acao="whatsapp">Abrir no WhatsApp para enviar</button>`
-    : `<button class="ok" data-acao="aprovar">${m.status === "aprovada" ? "Tentar enviar agora" : "Aprovar e enviar"}</button>`;
+  const enviar = m.envioManual
+    ? `<button class="btn wa principal-acao" data-acao="whatsapp">${ic("message")}Abrir no WhatsApp</button>`
+    : `<button class="btn ok principal-acao" data-acao="aprovar">${ic("send")}${m.status === "aprovada" ? "Tentar enviar agora" : "Aprovar e enviar"}</button>`;
 
-  return `<article class="card" data-id="${m.id}" data-canal="${m.canal}" data-link="${esc(m.linkWhatsapp ?? "")}">
-    <h3>${esc(m.empresa)} <span class="chip">${CANAL[m.canal]}</span>${m.tipo === "followup" ? `<span class="chip">Follow-up</span>` : ""}</h3>
-    ${contexto}
-    <div class="grade">
-      <div>
-        ${m.canal === "email" ? `<label for="assunto-${m.id}">Assunto</label><input id="assunto-${m.id}" name="assunto" value="${esc(m.assunto)}">` : ""}
-        <label for="corpo-${m.id}">Mensagem (edite se quiser)</label><textarea id="corpo-${m.id}" name="corpo">${esc(m.corpo)}</textarea>
+  return `<article class="cartao" data-id="${m.id}" data-link="${esc(m.linkWhatsapp ?? "")}">
+    ${cabecalhoMensagem(m)}${oportunidades}${erro}
+    <div class="editor">
+      <div class="campos">
+        ${m.canal === "email" ? `<div class="campo"><label for="assunto-${m.id}">Assunto</label><input id="assunto-${m.id}" name="assunto" value="${esc(m.assunto)}"></div>` : ""}
+        <div class="campo"><label for="corpo-${m.id}">Mensagem escrita pela IA (edite se quiser)</label><textarea id="corpo-${m.id}" name="corpo">${esc(m.corpo)}</textarea></div>
       </div>
-      <div>
-        <label>Como a empresa vai receber</label>
-        <div class="previa" data-previa data-rodape="${esc(m.rodape)}">${esc(m.previa)}</div>
-      </div>
+      <div class="campo"><span class="rotulo">Como ${esc(m.empresa)} vai receber</span>${previaHtml(m)}</div>
     </div>
-    <div class="linha" data-botoes>
-      ${botaoEnviar}
-      <button data-acao="salvar">Salvar edição</button>
-      <button class="perigo" data-acao="rejeitar">Não enviar</button>
+    <div class="acoes" data-botoes>
+      ${enviar}
+      <button class="btn" data-acao="salvar">${ic("save")}Salvar</button>
+      <span class="espaco"></span>
+      <button class="btn perigo" data-acao="rejeitar">${ic("x")}Não enviar</button>
     </div>
   </article>`;
 }
 
-function cardResposta(r) {
-  const ROTULOS = {
-    interessado: ["Interessado", "forte"], quer_informacoes: ["Quer informações", "forte"],
-    sem_interesse: ["Sem interesse", ""], descadastro: ["Pediu para sair", "alerta"],
-    automatica: ["Resposta automática", ""], outro: ["Outro", ""],
-  };
-  const [rotulo, classe] = ROTULOS[r.classificacao] ?? ["Sem classificação", ""];
-  return `<article class="card ${r.lida ? "" : "nova"}" data-resposta="${r.id}">
-    <h3>${esc(r.empresa)} <span class="chip ${classe}">${rotulo}</span></h3>
-    <div class="muted">${esc(r.nicho)} · ${esc(r.cidade)} · ${CANAL[r.canal]}: ${esc(r.de)} · ${dataHora(r.recebida_em)}</div>
-    <div style="margin-top:6px">${esc(r.resumo)}</div>
-    <div class="texto">${esc(r.texto)}</div>
-    ${r.sugestao ? `<label>Sugestão de resposta da IA (revise antes de enviar)</label><textarea>${esc(r.sugestao)}</textarea>` : ""}
-    <div class="linha">
-      ${r.sugestao ? `<button data-copiar>Copiar sugestão</button>` : ""}
-      ${r.lida ? "" : `<button data-lida>Marcar como lida</button>`}
-    </div>
-  </article>`;
-}
-
-const STATUS_LEAD = {
-  novo: "Aguardando análise", analisado: "Aguardando proposta", proposta_gerada: "Proposta para aprovar",
-  contatado: "Contatado", respondeu: "Respondeu", sem_interesse: "Sem interesse", descartado: "Descartado", descadastrado: "Descadastrado",
+// ===================== Respostas e empresas =====================
+const ROTULOS_RESPOSTA = {
+  interessado: ["Interessado", "ok", "heart"], quer_informacoes: ["Quer informações", "ok", "message"],
+  sem_interesse: ["Sem interesse", "", "x"], descadastro: ["Pediu para sair", "perigo", "ban"],
+  automatica: ["Resposta automática", "", "clock"], outro: ["Outro", "", "message"],
 };
 
-function cardLead(l) {
-  return `<article class="card" data-lead="${l.id}">
-    <h3>${esc(l.nome)} <span class="chip">${STATUS_LEAD[l.status] ?? esc(l.status)}</span>${l.origem === "maps" ? `<span class="chip">via Google Maps</span>` : ""}</h3>
-    <div class="muted">${esc(l.nicho)} · ${esc(l.cidade)}${l.email ? ` · ${esc(l.email)}` : ""}${l.whatsapp ? ` · WhatsApp ${esc(l.whatsapp)}` : ""}</div>
-    <div class="linha" style="margin-top:4px">
-      ${l.site ? `<a href="${esc(l.site)}" target="_blank" rel="noopener">${esc(l.site)}</a>` : ""}
-      ${l.maps_url ? `<a href="${esc(l.maps_url)}" target="_blank" rel="noopener">Google Maps</a>` : ""}
+function cardResposta(r) {
+  const [rotulo, cor, icone] = ROTULOS_RESPOSTA[r.classificacao] ?? ["Sem classificação", "", "message"];
+  return `<article class="cartao" data-resposta="${r.id}" ${r.lida ? "" : 'style="border-left:4px solid var(--accent)"'}>
+    <div class="cartao-cab">
+      <span class="avatar">${inicial(r.empresa)}</span>
+      <div class="titulos">
+        <h3>${esc(r.empresa)} <span class="pilula ${cor}">${ic(icone, "sm")}${rotulo}</span>${r.lida ? "" : `<span class="pilula acc">Nova</span>`}</h3>
+        <div class="meta"><span>${ic(r.canal === "whatsapp" ? "message" : "mail", "sm")}${esc(r.de)}</span><span>${ic("clock", "sm")}${dataHora(r.recebida_em)}</span></div>
+      </div>
     </div>
-    ${l.observacao ? `<div style="margin-top:6px">${esc(l.observacao)}</div>` : ""}
-    ${["contatado", "respondeu"].includes(l.status) ? `<div class="linha">
-      ${l.status !== "respondeu" ? `<button data-status="respondeu">Marcar que respondeu</button>` : ""}
-      <button data-status="sem_interesse">Sem interesse</button>
-      <button class="perigo" data-status="descadastrado">Pediu para não receber</button>
+    <div class="cartao-corpo" style="display:grid;gap:12px">
+      ${r.resumo ? `<div class="alerta info">${ic("spark")}<div>${esc(r.resumo)}</div></div>` : ""}
+      <div class="texto-bloco">${esc(r.texto)}</div>
+      ${r.sugestao ? `<div class="campo"><label for="sug-${r.id}">Sugestão de resposta da IA (revise antes de enviar)</label><textarea id="sug-${r.id}" style="min-height:140px">${esc(r.sugestao)}</textarea></div>` : ""}
+    </div>
+    ${r.sugestao || !r.lida ? `<div class="acoes">
+      ${r.sugestao ? `<button class="btn primario" data-copiar>${ic("copy")}Copiar sugestão</button>` : ""}
+      ${r.lida ? "" : `<button class="btn" data-lida>${ic("check")}Marcar como lida</button>`}
     </div>` : ""}
   </article>`;
 }
 
+const STATUS_LEAD = {
+  novo: ["Aguardando análise", ""], analisado: ["Aguardando proposta", "acc"], proposta_gerada: ["Proposta para aprovar", "atencao"],
+  contatado: ["Contatada", "acc"], respondeu: ["Respondeu", "ok"], sem_interesse: ["Sem interesse", ""],
+  descartado: ["Descartada", ""], descadastrado: ["Descadastrada", "perigo"],
+};
+const FILTROS_LEADS = [
+  ["novo,analisado,proposta_gerada,contatado,respondeu", "Em andamento"], ["novo,analisado,proposta_gerada", "Em preparação"],
+  ["contatado", "Contatadas"], ["respondeu", "Responderam"], ["sem_interesse,descartado,descadastrado", "Encerradas"],
+];
+let filtroLeads = FILTROS_LEADS[0][0];
+
+function cardLead(l) {
+  const [rotulo, cor] = STATUS_LEAD[l.status] ?? [l.status, ""];
+  return `<article class="cartao" data-lead="${l.id}">
+    <div class="cartao-cab" style="border-bottom:0">
+      <span class="avatar">${inicial(l.nome)}</span>
+      <div class="titulos">
+        <h3>${esc(l.nome)}</h3>
+        <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}</div>
+        <div class="meta" style="margin-top:8px">
+          ${l.nicho ? `<span>${ic("building", "sm")}${esc(l.nicho)}${l.cidade ? ` · ${esc(l.cidade)}` : ""}</span>` : ""}
+          ${l.email ? `<span>${ic("mail", "sm")}${esc(l.email)}</span>` : ""}
+          ${l.whatsapp ? `<span>${ic("message", "sm")}${esc(l.whatsapp)}</span>` : ""}
+          ${l.site ? `<a href="${esc(l.site)}" target="_blank" rel="noopener">${ic("globe", "sm")}Site</a>` : ""}
+          ${l.maps_url ? `<a href="${esc(l.maps_url)}" target="_blank" rel="noopener">${ic("external", "sm")}Maps</a>` : ""}
+        </div>
+        ${l.observacao ? `<p class="muted" style="margin:10px 0 0;font-size:13.5px">${esc(l.observacao)}</p>` : ""}
+      </div>
+    </div>
+    ${["contatado", "respondeu"].includes(l.status) ? `<div class="acoes">
+      ${l.status !== "respondeu" ? `<button class="btn sm" data-status="respondeu">${ic("message", "sm")}Respondeu</button>` : ""}
+      <button class="btn sm" data-status="sem_interesse">${ic("x", "sm")}Sem interesse</button>
+      <button class="btn sm perigo" data-status="descadastrado">${ic("ban", "sm")}Não quer receber</button>
+    </div>` : ""}
+  </article>`;
+}
+
+// ===================== Listas =====================
+const VAZIOS = {
+  rascunho: ["checkCircle", "Tudo revisado por aqui", "Capture empresas no Google Maps e a IA escreve as propostas para você aprovar.",
+             `<a class="btn primario" href="#maps">${ic("pin")}Buscar no Google Maps</a>`],
+  aprovada: ["clock", "A fila está vazia", "Mensagens aprovadas fora do horário comercial aparecem aqui até serem enviadas."],
+  enviada: ["send", "Nenhuma mensagem enviada ainda", "Assim que você aprovar as primeiras propostas, elas aparecem aqui."],
+  erro: ["checkCircle", "Nenhum erro", "Se algum envio falhar, ele aparece aqui para você tentar de novo."],
+  respostas: ["inbox", "Nenhuma resposta ainda", "Quando as empresas responderem, a IA classifica cada resposta e sugere um retorno."],
+  leads: ["building", "Nenhuma empresa nesta lista", "Capture empresas pelo Google Maps para começar.",
+          `<a class="btn primario" href="#maps">${ic("pin")}Buscar no Google Maps</a>`],
+};
+
 async function carregarLista() {
-  const lista = $("#lista");
-  document.querySelectorAll("[data-painel]").forEach((p) => (p.hidden = p.dataset.painel !== abaAtual));
-  if (abaAtual === "maps" || abaAtual === "automacao") return (lista.innerHTML = "");
+  const alvo = $("#view-lista");
+  const view = viewAtual;
+  alvo.innerHTML = '<div class="esqueleto"></div><div class="esqueleto"></div>';
   try {
-    if (abaAtual === "respostas") {
-      const respostas = await api("/api/respostas");
-      lista.innerHTML = respostas.length ? respostas.map(cardResposta).join("") : `<p class="muted">Nenhuma resposta ainda.</p>`;
-    } else if (abaAtual === "leads") {
-      const filtro = lista.dataset.filtro || "novo,analisado,proposta_gerada,contatado,respondeu";
-      const leads = await api(`/api/leads?status=${filtro}`);
-      lista.dataset.filtro = filtro;
-      lista.innerHTML = `
-        <label for="filtro-leads">Mostrar</label>
-        <select id="filtro-leads" style="max-width:340px">
-          ${[["novo,analisado,proposta_gerada,contatado,respondeu", "Em andamento"], ["novo,analisado", "Aguardando análise/proposta"],
-             ["contatado", "Contatadas"], ["respondeu", "Responderam"], ["sem_interesse,descartado,descadastrado", "Encerradas"]]
-            .map(([v, t]) => `<option value="${v}" ${v === filtro ? "selected" : ""}>${t}</option>`).join("")}
-        </select>
-        ${leads.length ? leads.map(cardLead).join("") : `<p class="muted">Nenhuma empresa nesta lista.</p>`}`;
+    let html;
+    if (view === "respostas") {
+      const lista = await api("/api/respostas");
+      html = lista.length ? lista.map(cardResposta).join("") : vazio(...VAZIOS.respostas);
+    } else if (view === "leads") {
+      const lista = await api(`/api/leads?status=${filtroLeads}`);
+      html = `<div class="filtros" role="group" aria-label="Filtrar empresas">
+          ${FILTROS_LEADS.map(([v, t]) => `<button class="filtro" data-filtro="${v}" aria-pressed="${v === filtroLeads}">${t}</button>`).join("")}
+        </div>
+        ${lista.length ? `<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(330px,1fr))">${lista.map(cardLead).join("")}</div>` : vazio(...VAZIOS.leads)}`;
     } else {
-      const msgs = await api(`/api/mensagens?status=${abaAtual}`);
-      const vazio = abaAtual === "rascunho"
-        ? `<p class="muted">Nenhuma mensagem esperando aprovação. Capture empresas na aba "Buscar no Google Maps".</p>`
-        : `<p class="muted">Nada por aqui ainda.</p>`;
-      const intro = abaAtual === "rascunho" && msgs.length
-        ? `<p class="muted">Revise cada mensagem escrita pela IA. Ela só é enviada quando você clica em <b>Aprovar e enviar</b>.</p>` : "";
-      lista.innerHTML = msgs.length ? intro + msgs.map(cardMensagem).join("") : vazio;
+      const lista = await api(`/api/mensagens?status=${view}`);
+      html = lista.length ? lista.map(cardMensagem).join("") : vazio(...VAZIOS[view]);
     }
+    if (view === viewAtual) alvo.innerHTML = html;
   } catch (e) {
-    lista.innerHTML = `<p class="erro">${esc(e.message)}</p>`;
+    alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
 }
 
 async function atualizar() {
-  await Promise.all([carregarStats(), carregarLista()]);
+  await Promise.all([carregarStats(), $("#view-lista").hidden ? null : carregarLista()]);
 }
 
-function irPara(aba) {
-  abaAtual = aba;
-  document.querySelectorAll("[data-aba]").forEach((b) => b.setAttribute("aria-selected", b.dataset.aba === aba));
-  carregarLista();
-}
-
-// Prévia atualiza enquanto você edita.
-document.addEventListener("input", (ev) => {
-  const card = ev.target.closest("[data-id]");
-  if (!card || ev.target.name !== "corpo") return;
-  const previa = $("[data-previa]", card);
-  previa.textContent = ev.target.value + previa.dataset.rodape;
-});
-
-document.addEventListener("change", (ev) => {
-  if (ev.target.id === "filtro-leads") {
-    $("#lista").dataset.filtro = ev.target.value;
-    carregarLista();
-  }
-});
-
+// ===================== Ações =====================
 async function salvar(card) {
   const assunto = $("input[name=assunto]", card)?.value;
   const corpo = $("textarea[name=corpo]", card).value;
@@ -510,9 +1014,9 @@ async function acaoMensagem(btn) {
     const texto = $("textarea[name=corpo]", card).value + sessao.rodapeWhatsapp;
     if (janela) janela.location = `${base}?text=${encodeURIComponent(texto)}`;
     $("[data-botoes]", card).innerHTML = `
-      <span>Enviou a mensagem no WhatsApp?</span>
-      <button class="ok" data-acao="confirmar-whatsapp">Sim, enviei</button>
-      <button data-acao="cancelar-whatsapp">Não enviei</button>`;
+      <span style="font-weight:600">Você enviou a mensagem no WhatsApp?</span><span class="espaco"></span>
+      <button class="btn ok" data-acao="confirmar-whatsapp">${ic("check")}Sim, enviei</button>
+      <button class="btn" data-acao="cancelar-whatsapp">Ainda não</button>`;
     return;
   }
   if (acao === "cancelar-whatsapp") return carregarLista();
@@ -521,55 +1025,92 @@ async function acaoMensagem(btn) {
   try {
     if (acao === "confirmar-whatsapp") {
       await post(`/api/mensagens/${id}/enviada-manual`);
-      avisar("Registrada como enviada");
+      avisar("Registrada como enviada", "ok");
     } else if (acao === "salvar") {
       await salvar(card);
-      avisar("Edição salva");
+      avisar("Edição salva", "ok");
       btn.disabled = false;
       return;
     } else if (acao === "rejeitar") {
       await post(`/api/mensagens/${id}/rejeitar`);
-      avisar("Mensagem descartada: não será enviada");
+      avisar("Mensagem descartada: ela não será enviada");
     } else if (acao === "aprovar") {
       await salvar(card);
       const r = await post(`/api/mensagens/${id}/aprovar`);
-      avisar(r.enviada ? "✅ Aprovada e enviada" : r.naFila ? `Aprovada e na fila: ${r.motivo}` : `Não foi enviada: ${r.motivo}`, 7000);
+      if (r.enviada) avisar("Aprovada e enviada", "ok");
+      else if (r.naFila) avisar(`Aprovada e na fila: ${r.motivo}`, "info", 7000);
+      else avisar(`Não foi enviada: ${r.motivo}`, "perigo", 8000);
     }
-    await atualizar();
+    card.style.transition = "opacity .2s";
+    card.style.opacity = "0";
+    setTimeout(atualizar, 180);
   } catch (e) {
-    avisar(`Erro: ${e.message}`);
+    avisar(e.message, "perigo");
     btn.disabled = false;
   }
 }
 
+// Prévia acompanha a edição.
+document.addEventListener("input", (ev) => {
+  const card = ev.target.closest("[data-id]");
+  if (!card) return;
+  if (ev.target.name === "corpo") $("[data-previa-corpo]", card).textContent = ev.target.value;
+  if (ev.target.name === "assunto") $("[data-previa-assunto]", card).textContent = ev.target.value;
+});
+
+document.addEventListener("change", (ev) => {
+  if (ev.target.dataset.check !== undefined) alternarEmpresa(Number(ev.target.dataset.check), ev.target.checked);
+});
+
 document.addEventListener("click", async (ev) => {
+  // Clicar no cartão do Maps (fora de links e da caixa) seleciona a empresa.
+  const cartaoMaps = ev.target.closest(".empresa[data-indice]");
+  if (cartaoMaps && !ev.target.closest("a, input, button")) return alternarEmpresa(Number(cartaoMaps.dataset.indice));
+
   const btn = ev.target.closest("button");
   if (!btn || btn.closest("form")) return; // botões de formulário têm seus próprios handlers
   try {
-    if (btn.dataset.aba) irPara(btn.dataset.aba);
-    else if (btn.dataset.ir) irPara(btn.dataset.ir);
+    if ("menu" in btn.dataset) abrirMenu(true);
     else if (btn.dataset.etapa) await executarEtapa(btn);
-    else if (btn.dataset.maps === "todos") document.querySelectorAll("[data-indice]:not(:disabled)").forEach((c) => (c.checked = true));
-    else if (btn.dataset.maps === "capturar") await capturarSelecionadas();
+    else if (btn.dataset.maps === "todas") resultadosMaps.forEach((e, i) => !e.jaCapturado && alternarEmpresa(i, true));
+    else if (btn.dataset.maps === "limpar") [...selecionadas].forEach((i) => alternarEmpresa(i, false));
+    else if (btn.dataset.maps === "capturar") await capturarSelecionadas(btn);
     else if (btn.dataset.maps === "processar") await processarCapturadas(btn);
     else if (btn.dataset.acao) await acaoMensagem(btn);
+    else if (btn.dataset.filtro) { filtroLeads = btn.dataset.filtro; await carregarLista(); }
     else if ("copiar" in btn.dataset) {
       await navigator.clipboard.writeText($("textarea", btn.closest("[data-resposta]")).value);
-      avisar("Sugestão copiada");
+      avisar("Sugestão copiada", "ok");
     } else if ("lida" in btn.dataset) {
       await post(`/api/respostas/${btn.closest("[data-resposta]").dataset.resposta}/lida`);
       await atualizar();
     } else if (btn.dataset.status) {
       await post(`/api/leads/${btn.closest("[data-lead]").dataset.lead}/status`, { status: btn.dataset.status });
-      avisar("Atualizado");
+      avisar("Empresa atualizada", "ok");
       await atualizar();
     }
   } catch (e) {
-    avisar(`Erro: ${e.message}`);
+    avisar(e.message, "perigo");
   }
 });
 
-iniciar();
+// ===================== Início =====================
+$$("[data-logo]").forEach((el) => (el.innerHTML = LOGO));
+$$("[data-ic]").forEach((el) => (el.outerHTML = ic(el.dataset.ic)));
+$("#sair").innerHTML = `${ic("logout")}Sair`;
+desenharNav();
+desenharEtapas();
+aplicarTema(lerTema());
+
+$("#tema").addEventListener("click", () => aplicarTema(TEMAS[(TEMAS.indexOf(lerTema()) + 1) % TEMAS.length]));
+$("#sair").addEventListener("click", async () => { await post("/api/logout").catch(() => {}); mostrarLogin(); });
+$("#veu").addEventListener("click", () => abrirMenu(false));
+document.addEventListener("keydown", (ev) => ev.key === "Escape" && abrirMenu(false));
+window.addEventListener("hashchange", irParaHash);
+window.addEventListener("scroll", () => $("#topo").classList.toggle("rolou", window.scrollY > 4), { passive: true });
+
+fetch("/api/marca").then((r) => r.json()).then((m) => m.empresa && $$("[data-empresa]").forEach((el) => (el.textContent = m.empresa))).catch(() => {});
+iniciar().then(() => { if ($("#painel").hidden) mostrarLogin(); });
 setInterval(() => !$("#painel").hidden && carregarStats().catch(() => {}), 30000);
 </script>
 </body>

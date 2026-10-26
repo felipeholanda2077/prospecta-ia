@@ -18,11 +18,26 @@ const escapar = (s) =>
 
 // ---------- Descadastro (público) ----------
 
-const paginaSimples = (titulo, conteudo) => `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>${titulo}</title>
-<style>body{font-family:system-ui,sans-serif;max-width:480px;margin:15vh auto;padding:0 16px;color:#1f2328;background:#fff}
-button{font:inherit;padding:10px 18px;border:0;border-radius:8px;background:#1f2328;color:#fff;cursor:pointer}</style>
-</head><body>${conteudo}</body></html>`;
+// Página pública (descadastro), com a marca da empresa da campanha.
+const paginaSimples = (titulo, conteudo) => {
+  const marca = escapar(carregarCampanha().empresa.nome);
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>${titulo} · ${marca}</title>
+<style>
+  :root{--bg:#f5f6fb;--card:#fff;--text:#14151f;--muted:#5d6275;--accent:#5b4cf0;--border:#e3e5ef}
+  @media (prefers-color-scheme:dark){:root{--bg:#0b0c14;--card:#141625;--text:#eceef8;--muted:#9aa0b8;--accent:#8b7dff;--border:#262940}}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px 16px;background:var(--bg);color:var(--text);
+       font:16px/1.55 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{width:100%;max-width:440px;background:var(--card);border:1px solid var(--border);border-radius:18px;padding:32px 28px;
+       box-shadow:0 20px 50px -24px rgba(20,21,40,.35)}
+  .marca{font-weight:700;letter-spacing:-.01em;color:var(--accent);margin-bottom:18px}
+  h2{margin:0 0 8px;font-size:22px;letter-spacing:-.02em}
+  p{color:var(--muted);margin:0 0 20px}
+  button{font:inherit;font-weight:600;width:100%;padding:12px 18px;border:0;border-radius:12px;background:var(--accent);color:#fff;cursor:pointer}
+</style>
+</head><body><main><div class="marca">${marca}</div>${conteudo}</main></body></html>`;
+};
 
 const LINK_INVALIDO = paginaSimples("Link inválido", "<h2>Link inválido ou expirado.</h2>");
 
@@ -132,6 +147,9 @@ app.post("/api/login", async (req, res) => {
   });
   res.json({ ok: true });
 });
+
+// Só o nome da empresa, para a tela de login (sem dados sensíveis).
+app.get("/api/marca", (req, res) => res.json({ empresa: carregarCampanha().empresa.nome }));
 
 app.post("/api/logout", (req, res) => {
   res.clearCookie(COOKIE, { path: "/" });
