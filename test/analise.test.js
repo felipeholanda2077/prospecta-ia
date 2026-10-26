@@ -1,0 +1,70 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { analisarHtml, extrairEmails, extrairWhatsapp } from "../src/analise/site.js";
+import { identificarOportunidades } from "../src/analise/oportunidades.js";
+import { ehCelularBR, normalizarTelefoneBR } from "../src/analise/telefone.js";
+
+const SITE_ANTIGO = `<html><head><title>Ótica Visão</title></head>
+<body><p>Bem-vindo</p><a href="mailto:contato@oticavisao.com.br">fale</a>
+<img src="logo@2x.png"> suporte@wix.com <footer>© 2017 Ótica Visão</footer></body></html>`;
+
+const SITE_MODERNO = `<html><head><title>Clínica Sorriso</title>
+<meta name="viewport" content="width=device-width"><meta name="description" content="Dentistas em Fortaleza">
+</head><body>${"Tratamentos odontológicos completos. ".repeat(40)}
+<a href="https://wa.me/5585988887777">WhatsApp</a> Agende online sua consulta. © 2026</body></html>`;
+
+test("analisarHtml detecta site antigo e sem versão mobile", () => {
+  const a = analisarHtml(SITE_ANTIGO, "http://oticavisao.com.br");
+  assert.equal(a.https, false);
+  assert.equal(a.responsivo, false);
+  assert.equal(a.anoCopyright, 2017);
+  assert.equal(a.temLoja, false);
+  assert.equal(a.poucoConteudo, true);
+});
+
+test("analisarHtml detecta site moderno com agendamento e WhatsApp", () => {
+  const a = analisarHtml(SITE_MODERNO, "https://clinicasorriso.com.br");
+  assert.equal(a.https, true);
+  assert.equal(a.responsivo, true);
+  assert.equal(a.temDescricao, true);
+  assert.equal(a.temAgendamento, true);
+  assert.equal(a.temChat, true);
+});
+
+test("extrairEmails ignora imagens e prioriza o domínio do site", () => {
+  const emails = extrairEmails(SITE_ANTIGO + " vendas@gmail.com", "http://www.oticavisao.com.br");
+  assert.equal(emails[0], "contato@oticavisao.com.br");
+  assert.ok(!emails.some((e) => e.endsWith(".png")));
+});
+
+test("extrairWhatsapp lê links wa.me", () => {
+  assert.equal(extrairWhatsapp(SITE_MODERNO), "5585988887777");
+  assert.equal(extrairWhatsapp("<p>sem whats</p>"), null);
+});
+
+test("telefones brasileiros", () => {
+  assert.equal(normalizarTelefoneBR("(85) 98888-7777"), "5585988887777");
+  assert.equal(normalizarTelefoneBR("+55 85 3333-4444"), "558533334444");
+  assert.equal(ehCelularBR("(85) 98888-7777"), true);
+  assert.equal(ehCelularBR("(85) 3333-4444"), false);
+  assert.equal(normalizarTelefoneBR("123"), null);
+});
+
+test("empresa sem site de varejo recebe site e e-commerce", () => {
+  const ops = identificarOportunidades({ temSite: false }, "loja de roupas");
+  assert.deepEqual(ops.map((o) => o.servico), ["site", "ecommerce"]);
+});
+
+test("site antigo de ótica recebe modernização e loja virtual", () => {
+  const analise = { temSite: true, ...analisarHtml(SITE_ANTIGO, "http://oticavisao.com.br") };
+  const servicos = identificarOportunidades(analise, "ótica").map((o) => o.servico);
+  assert.ok(servicos.includes("redesign"));
+  assert.ok(servicos.includes("ecommerce"));
+});
+
+test("site completo de clínica não recebe redesign nem agendamento", () => {
+  const analise = { temSite: true, tempoRespostaMs: 800, ...analisarHtml(SITE_MODERNO, "https://clinicasorriso.com.br") };
+  const servicos = identificarOportunidades(analise, "clínica odontológica").map((o) => o.servico);
+  assert.ok(!servicos.includes("redesign"));
+  assert.ok(!servicos.includes("agendamento"));
+});

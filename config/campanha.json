@@ -1,0 +1,75 @@
+{
+  "empresa": {
+    "nome": "Sua Empresa de Tecnologia",
+    "responsavel": "Seu Nome",
+    "cargo": "Fundador",
+    "site": "https://seudominio.com.br",
+    "telefone": "(85) 99999-9999",
+    "email": "contato@seudominio.com.br",
+    "portfolio": "https://seudominio.com.br/portfolio",
+    "diferenciais": [
+      "Projetos entregues com prazo fechado em contrato",
+      "Suporte e manutenção mensal após a entrega",
+      "Equipe local, atendimento por WhatsApp"
+    ]
+  },
+  "servicos": [
+    {
+      "id": "site",
+      "nome": "Site institucional profissional",
+      "descricao": "Site rápido, responsivo e otimizado para o Google, com WhatsApp integrado.",
+      "aPartirDe": "R$ 1.900",
+      "prazo": "15 dias"
+    },
+    {
+      "id": "redesign",
+      "nome": "Modernização de site",
+      "descricao": "Novo layout, versão para celular, HTTPS e melhoria de velocidade e SEO.",
+      "aPartirDe": "R$ 1.500",
+      "prazo": "15 dias"
+    },
+    {
+      "id": "ecommerce",
+      "nome": "Loja virtual (e-commerce)",
+      "descricao": "Loja com catálogo, carrinho, Pix/cartão, cálculo de frete e painel de pedidos.",
+      "aPartirDe": "R$ 4.900",
+      "prazo": "30 dias"
+    },
+    {
+      "id": "agendamento",
+      "nome": "Sistema de agendamento online",
+      "descricao": "Agenda online com confirmação e lembrete automático por WhatsApp.",
+      "aPartirDe": "R$ 2.900",
+      "prazo": "20 dias"
+    },
+    {
+      "id": "sistema",
+      "nome": "Sistema de gestão sob medida",
+      "descricao": "Controle de clientes, estoque, financeiro e relatórios em um só lugar.",
+      "aPartirDe": "R$ 7.900",
+      "prazo": "45 dias"
+    },
+    {
+      "id": "automacao",
+      "nome": "Automação de atendimento e CRM",
+      "descricao": "Chatbot de atendimento, funil de vendas e integração com WhatsApp e e-mail.",
+      "aPartirDe": "R$ 2.500",
+      "prazo": "20 dias"
+    }
+  ],
+  "buscas": [
+    { "nicho": "clínica odontológica", "cidades": ["Fortaleza - CE"] },
+    { "nicho": "loja de roupas", "cidades": ["Fortaleza - CE"] },
+    { "nicho": "pet shop", "cidades": ["Fortaleza - CE"] }
+  ],
+  "limites": {
+    "maxEmpresasPorBusca": 20,
+    "maxPropostasPorCiclo": 20,
+    "envioDiarioMax": 30,
+    "intervaloEntreEnviosSegundos": 90,
+    "horarioComercial": { "inicio": 9, "fim": 18 },
+    "somenteDiasUteis": true
+  },
+  "canais": ["email", "whatsapp"],
+  "aprovacaoManual": true
+}
