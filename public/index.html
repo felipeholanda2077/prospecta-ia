@@ -551,13 +551,71 @@ let resultadosMaps = [];
 let buscaMaps = {};
 const selecionadas = new Set();
 
-async function api(caminho, opcoes = {}) {
-  const resp = await fetch(caminho, { headers: { "Content-Type": "application/json" }, credentials: "same-origin", ...opcoes });
-  const dados = await resp.json().catch(() => ({}));
-  if (resp.status === 401 && dados.login) { mostrarLogin(); throw new Error("Sessão expirada. Entre novamente."); }
-  if (!resp.ok) throw new Error(dados.erro || `Erro ${resp.status}`);
-  return dados;
+// Leituras, login, busca no Maps e etapas do funil podem ser repetidas sem risco
+// (as etapas continuam de onde pararam). Aprovar, enviar e salvar não: repetir
+// poderia enviar duas vezes, então essas ficam para você tentar de novo.
+const podeRepetir = (metodo, caminho) =>
+  metodo === "GET" || caminho.startsWith("/api/etapas/") || ["/api/maps/buscar", "/api/login"].includes(caminho);
+const TEMPO_MAXIMO_MS = 320_000; // um pouco acima do limite de 5 minutos da Vercel
+const esperarMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Falhas de conexão ficam guardadas e vão para o log do servidor na próxima
+// chamada que der certo, para dar para descobrir o que aconteceu.
+function registrarFalha(caminho, metodo, mensagem) {
+  try {
+    const fila = JSON.parse(localStorage.getItem("falhas") || "[]").slice(-9);
+    fila.push({ caminho, metodo, mensagem, quando: new Date().toISOString(), online: navigator.onLine });
+    localStorage.setItem("falhas", JSON.stringify(fila));
+  } catch {}
 }
+
+function enviarFalhasPendentes() {
+  let fila = [];
+  try { fila = JSON.parse(localStorage.getItem("falhas") || "[]"); localStorage.removeItem("falhas"); } catch { return; }
+  if (!fila.length) return;
+  fetch("/api/diagnostico", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+    body: JSON.stringify({ falhas: fila }) }).catch(() => {});
+}
+
+function mensagemDeConexao(erro) {
+  if (erro.name === "TimeoutError" || erro.name === "AbortError")
+    return "O servidor demorou demais para responder. Tente de novo em instantes; o que já foi feito continua salvo.";
+  if (!navigator.onLine) return "Você está sem internet. Conecte-se e tente de novo.";
+  return "A conexão com o servidor caiu antes da resposta. Tente de novo; o que já foi feito continua salvo.";
+}
+
+async function api(caminho, opcoes = {}) {
+  const metodo = (opcoes.method || "GET").toUpperCase();
+  const tentativas = podeRepetir(metodo, caminho) ? 3 : 1;
+  for (let tentativa = 1; ; tentativa++) {
+    let resp;
+    try {
+      resp = await fetch(caminho, {
+        headers: { "Content-Type": "application/json" }, credentials: "same-origin",
+        signal: AbortSignal.timeout(TEMPO_MAXIMO_MS), ...opcoes,
+      });
+    } catch (e) {
+      // "Failed to fetch": a resposta não chegou (rede caiu, Wi-Fi trocou, servidor reiniciando).
+      if (tentativa < tentativas) { await esperarMs(1000 * tentativa); continue; }
+      registrarFalha(caminho, metodo, `${e.name}: ${e.message}`);
+      throw new Error(mensagemDeConexao(e));
+    }
+    const dados = await resp.json().catch(() => ({}));
+    if (resp.status === 401 && dados.login) { mostrarLogin(); throw new Error("Sessão expirada. Entre novamente."); }
+    if ([502, 503, 504].includes(resp.status) && tentativa < tentativas) { await esperarMs(1500 * tentativa); continue; }
+    if (!resp.ok) {
+      if (resp.status >= 500) registrarFalha(caminho, metodo, `HTTP ${resp.status}: ${dados.erro ?? ""}`);
+      throw new Error(dados.erro || (resp.status === 504
+        ? "A etapa passou do limite de 5 minutos. Clique de novo: ela continua de onde parou."
+        : `Erro ${resp.status} no servidor`));
+    }
+    enviarFalhasPendentes();
+    return dados;
+  }
+}
+
+window.addEventListener("offline", () => avisar("Você ficou sem internet. As ações voltam a funcionar quando a conexão voltar.", "perigo", 7000));
+window.addEventListener("online", () => avisar("Conexão de volta.", "ok"));
 const post = (caminho, corpo) => api(caminho, { method: "POST", body: JSON.stringify(corpo ?? {}) });
 
 function avisar(texto, tipo = "info", ms = 4500) {

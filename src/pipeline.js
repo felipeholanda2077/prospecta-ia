@@ -16,6 +16,9 @@ const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { ti
 // Na Vercel cada execução tem no máximo 300 s; as etapas param com folga
 // e o que sobrar continua na próxima execução (ou no próximo clique no painel).
 const TEMPO_POR_EXECUCAO_MS = 240_000;
+// Folga antes do prazo para não começar uma tarefa demorada (IA, visita a site) que passaria do limite.
+const FOLGA_MS = 60_000;
+const semTempo = (ate) => Date.now() + FOLGA_MS > ate;
 
 // Dias úteis de espera antes das etapas 2 e 3 da sequência.
 const CADENCIA_PADRAO = [2, 3];
@@ -181,7 +184,7 @@ export async function analisar({ ate = prazoPadrao() } = {}) {
   const descartes = [];
 
   for (const lead of leads) {
-    if (Date.now() > ate) break;
+    if (semTempo(ate)) break;
     const analise = await analisarSite(lead.site);
     let oportunidades = identificarOportunidades(analise, lead.nicho);
     // Empresa escolhida por você no Maps nunca é descartada por "site bom": muda o ângulo.
@@ -241,7 +244,7 @@ export async function propor(campanha, { ate = prazoPadrao() } = {}) {
   const prontas = [];
 
   for (const lead of leads) {
-    if (Date.now() > ate) break;
+    if (semTempo(ate)) break;
     const canais = [];
     if (campanha.canais.includes("email") && lead.email) canais.push(["email", lead.email]);
     if (campanha.canais.includes("whatsapp") && lead.whatsapp) canais.push(["whatsapp", lead.whatsapp]);

@@ -200,6 +200,16 @@ app.get("/api/sessao", async (req, res) => {
 
 app.get("/api/stats", async (req, res) => res.json(await db.estatisticas()));
 
+// Falhas de conexão vistas pelo navegador (o painel envia na próxima chamada que funciona).
+app.post("/api/diagnostico", (req, res) => {
+  const falhas = Array.isArray(req.body?.falhas) ? req.body.falhas.slice(0, 10) : [];
+  for (const f of falhas) {
+    const campo = (v) => String(v ?? "").slice(0, 200);
+    console.warn(`⚠️  Falha no navegador: ${campo(f.metodo)} ${campo(f.caminho)} · ${campo(f.mensagem)} · ${campo(f.quando)} · online=${f.online}`);
+  }
+  res.json({ ok: true });
+});
+
 // Busca no Google Maps pelo painel: mostra o resultado sem salvar.
 app.post("/api/maps/buscar", async (req, res) => {
   const { nicho, cidade, quantidade } = req.body ?? {};
