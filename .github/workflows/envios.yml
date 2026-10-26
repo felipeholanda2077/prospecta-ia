@@ -18,4 +18,5 @@ jobs:
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           URL: ${{ vars.PROSPECTA_URL || 'https://prospecta-ia-three.vercel.app' }}
-        run: curl -fsS --max-time 300 -H "Authorization: Bearer $CRON_SECRET" "$URL/api/cron/envios"
+        run: |
+          curl -fsS --max-time 300 -H "Authorization: Bearer $CRON_SECRET" "$URL/api/cron/envios"
