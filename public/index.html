@@ -407,6 +407,10 @@
 
   /* ---------- Avisos (toasts) ---------- */
   .toasts { position: fixed; z-index: 60; right: 24px; bottom: 24px; display: grid; gap: 10px; width: min(380px, calc(100% - 32px)); }
+  .versao-nova { position: fixed; z-index: 61; left: 50%; top: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+                 padding: 10px 12px 10px 16px; border-radius: 12px; background: var(--surface); border: 1px solid var(--accent);
+                 box-shadow: var(--shadow-lg); font-size: 14px; font-weight: 600; max-width: calc(100% - 32px); }
+  .versao-nova[hidden] { display: none; }
   .toast { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; background: var(--text); color: var(--bg);
            box-shadow: var(--shadow-lg); font-size: 14px; animation: entra .2s ease-out; }
   .toast .ic { margin-top: 1px; }
@@ -689,6 +693,10 @@
 </div>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
+<div class="versao-nova" id="versao-nova" role="status" hidden>
+  <span>Saiu uma versão nova do painel.</span>
+  <button class="btn primario sm" type="button" id="atualizar-versao">Atualizar agora</button>
+</div>
 
 <script>
 // ===================== Utilidades =====================
@@ -2474,6 +2482,20 @@ window.addEventListener("scroll", () => $("#topo").classList.toggle("rolou", win
 fetch("/api/marca").then((r) => r.json()).then((m) => m.empresa && $$("[data-empresa]").forEach((el) => (el.textContent = m.empresa))).catch(() => {});
 iniciar().then(() => { if ($("#painel").hidden) mostrarLogin(); });
 setInterval(() => !$("#painel").hidden && carregarStats().catch(() => {}), 30000);
+
+// Avisa quando sai uma versão nova do painel (a aba aberta continuaria com a antiga).
+let versaoAberta = null;
+async function conferirVersao() {
+  try {
+    const { versao } = await fetch("/api/versao", { cache: "no-store" }).then((r) => r.json());
+    versaoAberta ??= versao;
+    if (versao !== versaoAberta) $("#versao-nova").hidden = false;
+  } catch {}
+}
+conferirVersao();
+setInterval(conferirVersao, 60000);
+document.addEventListener("visibilitychange", () => !document.hidden && conferirVersao());
+$("#atualizar-versao").addEventListener("click", () => location.reload());
 </script>
 </body>
 </html>

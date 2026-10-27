@@ -226,6 +226,10 @@ app.post("/api/login", async (req, res) => {
 // Só o nome da empresa, para a tela de login (sem dados sensíveis).
 app.get("/api/marca", async (req, res) => res.json({ empresa: (await carregarCampanhaCompleta()).empresa.nome }));
 
+// Versão publicada: o painel compara com a que abriu e avisa quando sai uma nova.
+const VERSAO = process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || String(Date.now());
+app.get("/api/versao", (req, res) => res.set("Cache-Control", "no-store").json({ versao: VERSAO }));
+
 app.post("/api/logout", (req, res) => {
   res.clearCookie(COOKIE, { path: "/" });
   res.json({ ok: true });

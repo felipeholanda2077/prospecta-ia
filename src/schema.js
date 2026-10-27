@@ -84,6 +84,8 @@ ALTER TABLE respostas ADD COLUMN IF NOT EXISTS precisa_humano text;
 -- Avaliação da IA a cada resposta: chance de fechar (quente | morna | fria) e o próximo passo.
 ALTER TABLE respostas ADD COLUMN IF NOT EXISTS temperatura text;
 ALTER TABLE respostas ADD COLUMN IF NOT EXISTS proximo_passo text;
+-- Respostas automáticas antigas não ficam como "não lidas" (a página de Respostas não as mostra).
+UPDATE respostas SET lida = true WHERE classificacao = 'automatica' AND NOT lida;
 ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS agendada_para timestamptz;
 -- Message-ID do e-mail do lead que esta mensagem responde (para cair na mesma conversa).
 ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS em_resposta_a text;

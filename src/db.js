@@ -542,7 +542,10 @@ export async function estatisticas() {
     enviadasHoje: await enviadasHoje(),
     descadastros: (await um("SELECT count(*)::int AS n FROM descadastros")).n,
     respostas: await contagem("SELECT classificacao AS chave, count(*)::int AS n FROM respostas GROUP BY classificacao"),
-    respostasNaoLidas: (await um("SELECT count(*)::int AS n FROM respostas WHERE NOT lida")).n,
+    // Conversas (empresas) com mensagem nova; respostas automáticas ("obrigado pelo contato") não contam.
+    respostasNaoLidas: (await um(
+      "SELECT count(DISTINCT lead_id)::int AS n FROM respostas WHERE NOT lida AND classificacao IS DISTINCT FROM 'automatica'"
+    )).n,
     sequenciasPendentes: (await um("SELECT count(DISTINCT (lead_id, canal))::int AS n FROM mensagens WHERE status = 'rascunho'")).n,
     filaEmpresas: (await um("SELECT count(DISTINCT lead_id)::int AS n FROM mensagens WHERE status = 'aprovada'")).n,
     enviadasHojePorCanal: { email: await enviadasHoje("email"), whatsapp: await enviadasHoje("whatsapp") },

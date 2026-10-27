@@ -128,7 +128,9 @@ export async function registrarResposta({
       break;
     }
     case "automatica":
-      break; // resposta automática não conta como resposta; a sequência continua valendo
+      // Não conta como resposta: a sequência continua valendo e ela já entra como lida.
+      await db.atualizarResposta(id, { lida: true });
+      break;
     default:
       await db.cancelarPendentes(lead.id, "lead respondeu");
       if (lead.status !== "agendado") await db.atualizarLead(lead.id, { status: "respondeu" });

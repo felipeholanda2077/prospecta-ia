@@ -314,3 +314,26 @@ test("prioridade: conversa esperando resposta > chance alta > potencial de venda
   assert.ok(esperando.pontos > quente.pontos && quente.pontos > nova.pontos);
   assert.equal(nova.rotulo, "Potencial alto");
 });
+
+test("ordem de envio: respostas, etapas seguintes e, entre as novas, as de mais potencial primeiro", () => {
+  const nova = (id, extra) => ({ id, etapa: 1, tipo: "inicial", ...extra });
+  const fila = [
+    nova(1, { site: "https://clinica.com.br", total_avaliacoes: 3 }),
+    nova(2, { site: null, total_avaliacoes: 800, avaliacao: 4.9, whatsapp_status: "verificado" }),
+    { id: 3, etapa: 2, tipo: "sequencia" },
+    { id: 4, etapa: 0, tipo: "resposta" },
+    nova(5, { site: null, total_avaliacoes: 60 }),
+  ];
+  assert.deepEqual(pipeline.ordenarFilaDeEnvio(fila).map((m) => m.id), [4, 3, 2, 5, 1]);
+});
+
+test("contador de Respostas: conversas com mensagem nova, sem as respostas automáticas", async () => {
+  await db.inserirLead(lead("contador-1"));
+  await db.inserirLead(lead("contador-2"));
+  const ls = (await db.leadsPorStatus("novo")).filter((x) => x.place_id.startsWith("contador-"));
+  const antes = (await db.estatisticas()).respostasNaoLidas;
+  await db.criarResposta({ lead_id: ls[0].id, canal: "whatsapp", origem_id: "c-1", de: "1", texto: "Oi", classificacao: "outro" });
+  await db.criarResposta({ lead_id: ls[0].id, canal: "whatsapp", origem_id: "c-2", de: "1", texto: "Tudo bem?", classificacao: "outro" });
+  await db.criarResposta({ lead_id: ls[1].id, canal: "whatsapp", origem_id: "c-3", de: "2", texto: "Obrigado pelo contato!", classificacao: "automatica" });
+  assert.equal((await db.estatisticas()).respostasNaoLidas, antes + 1); // 1 conversa, mesmo com 2 mensagens
+});

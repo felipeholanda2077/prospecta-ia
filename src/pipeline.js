@@ -609,9 +609,16 @@ export async function responderConversa(respostaId, texto, campanha) {
 }
 
 /**
- * Etapa 4: envia a fila (etapas aprovadas e já no dia agendado), com intervalo entre elas.
- * Nada sai fora do horário comercial de segunda a sexta.
+ * Ordem de envio: respostas da conversa (quem respondeu não pode esperar), depois as etapas
+ * 2 e 3 já agendadas, e por último as empresas novas, das com mais potencial de venda para as
+ * com menos. A cota do dia de empresas novas vai, assim, para as melhores.
  */
+export function ordenarFilaDeEnvio(fila) {
+  const grupo = (m) => (m.tipo === "resposta" ? 0 : m.etapa > 1 ? 1 : 2);
+  const potencial = (m) => (grupo(m) === 2 ? potencialDaEmpresa(m).pontos : 0);
+  return [...fila].sort((a, b) => grupo(a) - grupo(b) || potencial(b) - potencial(a));
+}
+
 /** Rodadas de 10 minutos que ainda restam no horário comercial de hoje. */
 export function rodadasRestantesHoje(limites, agora = new Date(), folgaMin = 0) {
   return Math.max(1, Math.floor((minutosAteOFim(limites, agora) - folgaMin) / 10));
@@ -643,9 +650,7 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
     vagas[canal] = distribuir ? Math.min(restante, Math.max(LOTE_POR_RODADA, Math.ceil(restante / rodadas))) : restante;
   }
   const vagasDaRodada = { ...vagas };
-  // Empresas novas com mais potencial de venda saem primeiro (a cota do dia vai para elas).
-  const potencial = (m) => (m.etapa <= 1 && m.tipo !== "resposta" ? potencialDaEmpresa(m).pontos : 0);
-  const todas = (await db.filaDeEnvio(400)).sort((a, b) => potencial(b) - potencial(a));
+  const todas = ordenarFilaDeEnvio(await db.filaDeEnvio(400));
   const fila = todas
     .filter((m) => m.canal === "email" || !manual)
     .filter((m) => m.tipo === "resposta" || m.etapa > 1 || vagas[m.canal]-- > 0);
@@ -656,10 +661,6 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
     return { enviadas: 0, naFila, vagas: vagasDaRodada };
   }
 
-  // Respostas de conversa primeiro (quem respondeu não pode esperar), depois as etapas 2 e 3
-  // já agendadas para hoje, e por último as empresas novas.
-  const ordem = (m) => (m.tipo === "resposta" ? 0 : m.etapa > 1 ? 1 : 2);
-  fila.sort((a, b) => ordem(a) - ordem(b));
   const intervalo = limites.intervaloEntreEnviosSegundos * 1000;
   let enviadas = 0;
   const porCanal = { email: 0, whatsapp: 0 };
