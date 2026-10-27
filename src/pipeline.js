@@ -569,7 +569,8 @@ export async function responderConversa(respostaId, texto, campanha) {
   const r = await db.buscarResposta(respostaId);
   if (!r) throw new Error("Resposta não encontrada");
   if (!String(texto ?? "").trim()) throw new Error("Escreva a mensagem antes de enviar");
-  const destino = r.canal === "email" ? r.email || r.de : r.whatsapp || r.de;
+  // Para quem escreveu (pode ser um contato indicado, não o e-mail/número original da empresa).
+  const destino = r.de || (r.canal === "email" ? r.email : r.whatsapp);
   const id = await db.criarMensagem({
     lead_id: r.lead_id,
     canal: r.canal,
