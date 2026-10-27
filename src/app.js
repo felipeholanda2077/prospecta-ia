@@ -7,6 +7,7 @@ import { waitUntil } from "@vercel/functions";
 import { carregarCampanhaCompleta, CAMPOS_EMPRESA, lerAutomacao, AUTOMACAO_PADRAO } from "./campanha.js";
 import * as calendly from "./agenda/calendly.js";
 import { tokenDoGithubValido } from "./agendamento/github.js";
+import { garantirAgendamentoNoBanco, chaveDoBancoValida, statusDoBanco } from "./agendamento/banco.js";
 import { enviarNotificacao, statusEmail, testarEmail } from "./envio/email.js";
 import { assinaturaValida, processarWebhookWhatsapp, processarWebhookUazap, processarWebhookEvolution } from "./respostas/whatsapp.js";
 import { rodapeDescadastro } from "./envio/email.js";
@@ -149,6 +150,8 @@ async function chaveDoCronValida(recebido) {
   if (!recebido) return false;
   // O agendamento do GitHub manda um token assinado pelo próprio GitHub (sem segredo para copiar).
   if (await tokenDoGithubValido(recebido)) return true;
+  // O agendador do banco (pg_cron do Supabase) usa a chave que o próprio sistema gerou.
+  if (await chaveDoBancoValida(recebido)) return true;
   if (config.cronSecret && iguais(recebido, config.cronSecret)) return true;
   const salvo = (await db.lerConfig("cron"))?.resumo;
   return Boolean(salvo) && iguais(resumoChave(recebido), salvo);
@@ -160,6 +163,8 @@ app.get("/api/cron/:tarefa", async (req, res) => {
   const recebido = String(req.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!(await chaveDoCronValida(recebido))) return res.sendStatus(401);
   await db.gravarEstado("ultima_rodada", new Date().toISOString());
+  // Se o agendador do banco ainda não estiver ligado, liga (na primeira rodada que chegar).
+  await garantirAgendamentoNoBanco().catch((e) => console.error("⚠️  Agendador do banco:", e.message));
   res.json((await tarefa(await carregarCampanhaCompleta())) ?? {});
 });
 
@@ -237,6 +242,7 @@ app.get("/api/sessao", async (req, res) => {
     perfilIncompleto: !campanha.empresa.responsavel || !campanha.empresa.telefone,
     horario: campanha.limites.horarioComercial,
     cadencia: campanha.cadencia?.horasEntreEtapas ?? [2, 2],
+    calendly: campanha.automacao.calendly || "",
     rodapeWhatsapp: RODAPE_WHATSAPP,
     modoTeste: Boolean(config.modoTeste.email || config.modoTeste.whatsapp),
     dentroDoHorario: pipeline.dentroDoHorario(campanha.limites),
@@ -466,7 +472,21 @@ app.post("/api/agendamento/chave", async (req, res) => {
 
 app.get("/api/agendamento/status", async (req, res) => {
   const c = await db.lerConfig("cron");
-  res.json({ chaveGerada: Boolean(c?.resumo), criada: c?.criada ?? null, ultimaRodada: await db.lerEstado("ultima_rodada") });
+  res.json({
+    chaveGerada: Boolean(c?.resumo),
+    criada: c?.criada ?? null,
+    ultimaRodada: await db.lerEstado("ultima_rodada"),
+    banco: await statusDoBanco(),
+  });
+});
+
+// Liga (ou refaz) o agendador do banco pelo painel.
+app.post("/api/agendamento/banco", async (req, res) => {
+  try {
+    res.json({ ...(await garantirAgendamentoNoBanco({ forcar: true })), banco: await statusDoBanco() });
+  } catch (e) {
+    res.status(400).json({ erro: `Não foi possível ligar o agendador do banco: ${e.message}` });
+  }
 });
 
 app.get("/api/calendly/status", async (req, res) => res.json(await calendly.status()));

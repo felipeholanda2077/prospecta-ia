@@ -9,7 +9,7 @@ import { enviarEmail, explicarErroEmail } from "./envio/email.js";
 import { enviarWhatsapp, enviarTextoWhatsappOficial, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
-import { verificarAgendamentos } from "./agenda/calendly.js";
+import { verificarAgendamentos, aplicarLinkAgendamento } from "./agenda/calendly.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -483,6 +483,16 @@ export async function enviarMensagem(m, campanha) {
     }
   }
 
+  // Outra execução (os dois agendadores, ou um clique no painel) pode já estar enviando esta mensagem.
+  if (!(await db.reservarParaEnvio(m.id))) return { enviada: false, motivo: "já está sendo enviada" };
+
+  // O marcador da última etapa vira o link de agendamento desta empresa (e fica salvo no histórico).
+  const corpoFinal = aplicarLinkAgendamento(m.corpo, campanha.automacao?.calendly, { token: m.token, email: m.destino }, m.canal);
+  if (corpoFinal !== m.corpo) {
+    await db.atualizarMensagem(m.id, { corpo: corpoFinal });
+    m = { ...m, corpo: corpoFinal };
+  }
+
   try {
     let messageId = null;
     const rodape = m.tipo === "resposta" ? "" : RODAPE_WHATSAPP;
@@ -648,9 +658,23 @@ const RESERVA_DE_EMPRESAS = 15;
  * com a fila cheia.
  */
 export async function rodadaAutomatica(campanha) {
+  // Só uma rodada por vez, mesmo com o agendador do banco e o do GitHub disparando juntos.
+  if (!(await db.travar("rodada_em_andamento", TEMPO_POR_EXECUCAO_MS + 60_000))) {
+    return { pulada: "outra rodada já está em andamento" };
+  }
+  try {
+    return await rodada(campanha);
+  } finally {
+    await db.destravar("rodada_em_andamento");
+  }
+}
+
+async function rodada(campanha) {
   const ate = prazoPadrao();
+  await db.liberarEnviosTravados();
   await conferirWebhookWhatsapp();
   const resultado = { respostas: await verificarRespostas(campanha) };
+  resultado.reescritas = await reescreverSequenciasComPreco(campanha, { ate });
   // Antes dos envios, para quem acabou de marcar a reunião não receber a próxima etapa.
   resultado.agendamentos = await verificarAgendamentos().catch((e) => {
     log(`⚠️  Falha ao conferir o Calendly: ${e.message}`);
@@ -664,6 +688,32 @@ export async function rodadaAutomatica(campanha) {
   if (!semTempo(ate)) resultado.analise = await analisar({ ate, limite: 10 });
   if (!semTempo(ate)) resultado.propostas = await propor(campanha, { ate, limite: 6 });
   return resultado;
+}
+
+/**
+ * Reescreve, com a regra atual (sem preço, convite para o bate-papo), as etapas ainda
+ * não enviadas de sequências antigas que citam valores. As etapas já enviadas ficam como estão.
+ */
+export async function reescreverSequenciasComPreco(campanha, { ate = prazoPadrao(), limite = 3 } = {}) {
+  let reescritas = 0;
+  for (const leadId of await db.leadsComPrecoPendente(limite)) {
+    if (semTempo(ate)) break;
+    const lead = await db.buscarLead(leadId);
+    try {
+      const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades || "[]"), campanha);
+      for (const m of await db.etapasPendentes(leadId)) {
+        const corpo = (m.canal === "email" ? s.email : s.whatsapp)[m.etapa - 1];
+        if (!corpo) continue;
+        const assunto = m.canal === "email" ? (m.etapa === 1 ? s.assunto_email : m.assunto) : null;
+        await db.atualizarMensagem(m.id, { corpo, assunto });
+      }
+      reescritas++;
+      log(`✍️  Sequência de ${lead.nome} reescrita sem preço, com convite para o bate-papo`);
+    } catch (e) {
+      log(`⚠️  Não foi possível reescrever a sequência de ${lead.nome}: ${e.message}`);
+    }
+  }
+  return { reescritas };
 }
 
 const CONFERIR_WEBHOOK_MS = 60 * 60 * 1000;

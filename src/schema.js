@@ -84,6 +84,8 @@ ALTER TABLE respostas ADD COLUMN IF NOT EXISTS precisa_humano text;
 ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS agendada_para timestamptz;
 -- Message-ID do e-mail do lead que esta mensagem responde (para cair na mesma conversa).
 ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS em_resposta_a text;
+-- Quando a mensagem foi reservada para envio (status 'enviando'), para nenhuma sair duas vezes.
+ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS reservada_em timestamptz;
 -- tipo: inicial (etapa 1) | sequencia (etapas 2 e 3) | followup (versão antiga) | resposta (enviada na conversa)
 
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);

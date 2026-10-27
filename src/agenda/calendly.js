@@ -11,6 +11,21 @@ const TOLERANCIA_ASSINATURA_MS = 5 * 60 * 1000;
 const JANELA_CONSULTA_MS = 24 * 60 * 60 * 1000;
 const MAX_PAGINAS = 3;
 
+// Marcador que a IA escreve na última etapa; vira o link de agendamento de cada empresa no envio.
+export const MARCADOR_LINK = "{{link_agendamento}}";
+
+/**
+ * Troca o marcador pelo link de agendamento da empresa. Sem link configurado, a linha
+ * do marcador sai e o convite continua fazendo sentido sozinho.
+ */
+export function aplicarLinkAgendamento(texto, base, lead, canal) {
+  const t = String(texto ?? "");
+  if (!t.includes(MARCADOR_LINK)) return t;
+  const link = linkAgendamento(base, lead, canal);
+  if (link) return t.split(MARCADOR_LINK).join(link);
+  return t.split("\n").map((l) => l.split(MARCADOR_LINK).join("").trimEnd()).filter((l, i, ls) => l || ls[i - 1]).join("\n").trim();
+}
+
 /**
  * Link de agendamento próprio de cada empresa: o utm_content identifica quem marcou
  * quando o Calendly avisa do agendamento.

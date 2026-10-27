@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { gerarJson } from "./cliente.js";
+import { MARCADOR_LINK } from "../agenda/calendly.js";
 
 const Etapas = z.object({ etapa1: z.string(), etapa2: z.string(), etapa3: z.string() });
 
@@ -57,7 +58,7 @@ Fale sempre como ${empresa.responsavel}: nunca se apresente como assistente, rob
 Assinatura dos e-mails: ${assinatura}
 ${empresa.site ? `Site: ${empresa.site}\n` : ""}${empresa.portfolio ? `Portfólio: ${empresa.portfolio}\n` : ""}Diferenciais: ${empresa.diferenciais.join("; ")}
 
-Catálogo (use apenas estes serviços e valores, e só quando a etapa permitir):
+Catálogo (use apenas estes serviços; valores e prazos são só para você saber, não para citar na prospecção):
 ${servicos.map((s) => `- [${s.id}] ${s.nome}: ${s.descricao} A partir de ${s.aPartirDe}, prazo ${s.prazo}.`).join("\n")}
 
 Nunca invente nomes, telefones, sites, clientes, números ou resultados que não estejam aqui.`;
@@ -86,12 +87,15 @@ Etapa 2 — se não houver resposta (cerca de 2 horas depois):
 - WhatsApp: até ~350 caracteres. E-mail: 60 a 100 palavras.
 
 Etapa 3 — último toque (cerca de 2 horas depois da etapa 2):
-- Ofereça algo útil e sem compromisso: enviar 2 ou 3 exemplos parecidos com o negócio deles.
-- Pode citar uma única vez o serviço principal com "a partir de" e o prazo do catálogo.
+- Convide para um bate-papo rápido de 15 minutos, sem compromisso, para mostrar exemplos parecidos com o negócio deles
+  e entender o que precisam.
+- Coloque o marcador ${MARCADOR_LINK} SOZINHO na última linha: ele vira o link para a pessoa escolher o horário.
+  Escreva o convite de modo que faça sentido mesmo se essa linha for removida.
 - Deixe claro, com gentileza, que é a última mensagem e que tudo bem se não for o momento.
-- WhatsApp: até ~400 caracteres. E-mail: 70 a 110 palavras.
+- WhatsApp: até ~350 caracteres além do link. E-mail: 60 a 100 palavras além do link.
 
 Regras gerais:
+- PROIBIDO em todas as etapas: preço, "a partir de", valores em R$ e prazo de entrega. Isso fica para o bate-papo.
 - Português do Brasil, tom cordial, simples e humano, como alguém da região escrevendo pessoalmente. Frases curtas.
 - Não repita a mesma informação entre as etapas; cada uma acrescenta algo novo.
 - Nada de urgência falsa, promessas de resultado, caixa alta, excesso de emojis (no máximo 1 por mensagem no WhatsApp) ou jargão técnico.

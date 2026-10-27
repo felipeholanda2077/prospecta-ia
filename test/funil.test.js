@@ -224,3 +224,38 @@ test("as 3 etapas saem no mesmo dia, encaixadas até o fim do expediente", () =>
   assert.equal(pipeline.daTempoDeSequenciaHoje(LIMITES, new Date("2026-10-27T19:15:00Z")), true); // 16h15
   assert.equal(pipeline.daTempoDeSequenciaHoje(LIMITES, new Date("2026-10-27T19:20:00Z")), false); // 16h20
 });
+
+test("trava de rodada: só uma execução por vez, e ela expira sozinha", async () => {
+  assert.equal(await db.travar("teste_trava", 60_000), true);
+  assert.equal(await db.travar("teste_trava", 60_000), false); // o outro agendador chegou junto
+  await db.destravar("teste_trava");
+  assert.equal(await db.travar("teste_trava", -1), true); // já expirada
+  assert.equal(await db.travar("teste_trava", 60_000), true);
+});
+
+test("uma mensagem só pode ser reservada para envio uma vez", async () => {
+  await db.inserirLead(lead("reserva-1"));
+  const [l] = (await db.leadsPorStatus("novo")).filter((x) => x.place_id === "reserva-1");
+  const id = await db.criarMensagem({ lead_id: l.id, canal: "whatsapp", destino: "5585900002222", corpo: "oi", status: "aprovada" });
+  assert.equal(await db.reservarParaEnvio(id), true);
+  assert.equal(await db.reservarParaEnvio(id), false);
+  assert.equal((await db.buscarMensagem(id)).status, "enviando");
+});
+
+test("etapas pendentes com preço são encontradas para reescrever; as enviadas não", async () => {
+  await db.inserirLead(lead("preco-1"));
+  const [l] = (await db.leadsPorStatus("novo")).filter((x) => x.place_id === "preco-1");
+  await db.criarMensagem({ lead_id: l.id, canal: "whatsapp", destino: "5585900003333", corpo: "Começa a partir de R$ 1.900", etapa: 3, tipo: "sequencia", status: "aprovada" });
+  assert.ok((await db.leadsComPrecoPendente()).includes(l.id));
+  await db.atualizarMensagem((await db.etapasPendentes(l.id))[0].id, { status: "enviada" });
+  assert.ok(!(await db.leadsComPrecoPendente()).includes(l.id));
+});
+
+test("o marcador da última etapa vira o link de agendamento da empresa (ou some sem link)", async () => {
+  const { aplicarLinkAgendamento } = await import("../src/agenda/calendly.js");
+  const texto = "Topa um bate-papo de 15 minutos? Escolha o melhor horário:\n{{link_agendamento}}";
+  const comLink = aplicarLinkAgendamento(texto, "https://calendly.com/felipe/15min", { token: "tok1" }, "whatsapp");
+  assert.match(comLink, /^Topa um bate-papo.*\nhttps:\/\/calendly\.com\/felipe\/15min\?.*utm_content=tok1/s);
+  assert.equal(aplicarLinkAgendamento(texto, "", { token: "tok1" }, "whatsapp"), "Topa um bate-papo de 15 minutos? Escolha o melhor horário:");
+  assert.equal(aplicarLinkAgendamento("sem marcador", "https://calendly.com/x", { token: "t" }, "email"), "sem marcador");
+});

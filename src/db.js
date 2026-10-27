@@ -54,6 +54,46 @@ export async function iniciar() {
   await conexao();
 }
 
+/** SQL direto, para o que não é das tabelas do sistema (ex.: o agendador do banco). */
+export async function consultar(texto, params = []) {
+  return q(texto, params);
+}
+
+/**
+ * Trava entre execuções (ex.: o agendador do banco e o do GitHub ao mesmo tempo):
+ * retorna true só para quem pegou a trava; ela expira sozinha depois de `duracaoMs`.
+ */
+export async function travar(chave, duracaoMs) {
+  const agora = Date.now();
+  const r = await um(
+    `INSERT INTO estado (chave, valor) VALUES ($1, $2)
+     ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor
+       WHERE estado.valor !~ '^[0-9]+$' OR estado.valor::bigint < $3::bigint
+     RETURNING chave`,
+    [chave, String(agora + duracaoMs), String(agora)]
+  );
+  return Boolean(r);
+}
+
+export async function destravar(chave) {
+  await gravarEstado(chave, "0");
+}
+
+/** Reserva a mensagem para envio; só uma execução consegue (as outras recebem false). */
+export async function reservarParaEnvio(id) {
+  return Boolean(
+    await um("UPDATE mensagens SET status = 'enviando', reservada_em = now() WHERE id = $1 AND status = 'aprovada' RETURNING id", [id])
+  );
+}
+
+/** Envio interrompido no meio (ex.: a execução caiu): marca como erro para você conferir. */
+export async function liberarEnviosTravados() {
+  await q(
+    `UPDATE mensagens SET status = 'erro', erro = 'envio interrompido: confira no WhatsApp ou e-mail se saiu antes de reenviar'
+      WHERE status = 'enviando' AND reservada_em < now() - interval '10 minutes'`
+  );
+}
+
 // ---------- Estado interno ----------
 
 export async function lerEstado(chave) {
@@ -242,6 +282,27 @@ export async function filaDeEnvio(limite = 100) {
       ORDER BY m.etapa, COALESCE(m.agendada_para, m.criado_em), m.id
       LIMIT $1`,
     [limite]
+  );
+}
+
+/** Empresas com etapas ainda não enviadas que citam preço (escritas antes da regra do bate-papo). */
+export async function leadsComPrecoPendente(limite = 10) {
+  return (
+    await q(
+      `SELECT DISTINCT lead_id FROM mensagens
+        WHERE status IN ('rascunho', 'aprovada') AND tipo IN ('inicial', 'sequencia') AND corpo ~ 'R\\$ ?[0-9]'
+        LIMIT $1`,
+      [limite]
+    )
+  ).map((r) => r.lead_id);
+}
+
+/** Etapas de uma empresa que ainda podem ser reescritas (não enviadas). */
+export async function etapasPendentes(leadId) {
+  return q(
+    `SELECT * FROM mensagens WHERE lead_id = $1 AND status IN ('rascunho', 'aprovada') AND tipo IN ('inicial', 'sequencia')
+      ORDER BY canal, etapa`,
+    [leadId]
   );
 }
 
