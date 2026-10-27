@@ -77,16 +77,18 @@ Etapa 1 — primeiro contato (curtíssima e leve):
 - PROIBIDO na etapa 1: preço, prazo, lista de serviços, link, pedido de reunião, dizer que "falta" algo à empresa.
 - WhatsApp: no máximo 2 frases curtas (até ~240 caracteres). E-mail: 40 a 70 palavras.
 
-As 3 etapas saem no MESMO DIA, com cerca de 2 horas entre elas. Escreva como quem volta à conversa
-algumas horas depois (nada de "semana passada", "dias atrás" ou "retomando nosso contato").
+No WhatsApp as 3 etapas saem no MESMO DIA, com cerca de 2 horas entre elas: escreva como quem volta à conversa
+algumas horas depois (nada de "semana passada" ou "dias atrás").
+No e-mail cada etapa sai em outro dia (a 2 um dia útil depois da 1, a 3 dois dias úteis depois da 2): escreva como
+quem dá sequência ao e-mail anterior, sem citar o dia exato (nada de "ontem" ou "semana passada").
 
-Etapa 2 — se não houver resposta (cerca de 2 horas depois):
+Etapa 2 — se não houver resposta (WhatsApp: ~2 horas depois; e-mail: 1 dia útil depois):
 - Volte com naturalidade, sem cobrar resposta.
 - Compartilhe UMA observação concreta da análise e o impacto prático para o negócio (ex.: muita gente pesquisa no Google antes de escolher, e sem site esse cliente vai para quem aparece).
 - Ainda sem preço. Pergunte se faz sentido mostrar um exemplo de como ficaria para eles.
 - WhatsApp: até ~350 caracteres. E-mail: 60 a 100 palavras.
 
-Etapa 3 — último toque (cerca de 2 horas depois da etapa 2):
+Etapa 3 — último toque (WhatsApp: ~2 horas depois da etapa 2; e-mail: 2 dias úteis depois da etapa 2):
 - Convide para um bate-papo rápido de 15 minutos, sem compromisso, para mostrar exemplos parecidos com o negócio deles
   e entender o que precisam.
 - Coloque o marcador ${MARCADOR_LINK} SOZINHO na última linha: ele vira o link para a pessoa escolher o horário.

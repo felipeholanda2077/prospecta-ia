@@ -272,3 +272,43 @@ test("nas enviadas, a próxima etapa pendente de cada sequência aparece com o h
   assert.equal(p.etapa, 2);
   assert.equal(new Date(p.agendada_para).toISOString(), quando);
 });
+
+test("e-mail: cada etapa sai em outro dia (1 dia útil, depois 2), no mesmo horário", () => {
+  const c = { limites: LIMITES, cadencia: { horasEntreEtapas: [2, 2], diasEntreEmails: [1, 2] } };
+  const terca10h = new Date("2026-10-27T13:00:00Z");
+  assert.equal(pipeline.horarioDaProximaEtapa(1, c, terca10h, "email").toISOString(), "2026-10-28T13:00:00.000Z"); // quarta
+  assert.equal(pipeline.horarioDaProximaEtapa(2, c, new Date("2026-10-28T13:00:00Z"), "email").toISOString(), "2026-10-30T13:00:00.000Z"); // sexta
+  const sexta = new Date("2026-10-30T13:00:00Z");
+  assert.equal(pipeline.horarioDaProximaEtapa(1, c, sexta, "email").toISOString(), "2026-11-02T13:00:00.000Z"); // segunda
+  // WhatsApp continua no mesmo dia.
+  assert.ok(pipeline.horarioDaProximaEtapa(1, c, terca10h, "whatsapp") < new Date("2026-10-27T15:01:00Z"));
+});
+
+test("etapas de e-mail que ficaram para o mesmo dia são reagendadas para outro dia", async () => {
+  await db.inserirLead(lead("email-dia-1"));
+  const [l] = (await db.leadsPorStatus("novo")).filter((x) => x.place_id === "email-dia-1");
+  const enviadaEm = new Date(Date.now() - 3600_000);
+  await db.criarMensagem({ lead_id: l.id, canal: "email", destino: "x@dia.com", corpo: "1", etapa: 1, status: "enviada", enviada_em: enviadaEm.toISOString() });
+  const id2 = await db.criarMensagem({ lead_id: l.id, canal: "email", destino: "x@dia.com", corpo: "2", etapa: 2, tipo: "sequencia", status: "aprovada" });
+  await db.atualizarMensagem(id2, { agendada_para: new Date(Date.now() + 3600_000).toISOString() }); // regra antiga: daqui a 1 h
+  const c = { limites: LIMITES, cadencia: { diasEntreEmails: [1, 2] } };
+  assert.ok((await pipeline.reagendarEmailsDoMesmoDia(c)) >= 1);
+  const m = await db.buscarMensagem(id2);
+  assert.equal(new Date(m.agendada_para).toISOString(), pipeline.somarDiasUteis(enviadaEm, 1).toISOString());
+  assert.equal(await pipeline.reagendarEmailsDoMesmoDia(c), 0); // já certo: não mexe de novo
+});
+
+test("prioridade: conversa esperando resposta > chance alta > potencial de venda", async () => {
+  const { potencialDaEmpresa, prioridadeNaFila } = await import("../src/analise/prioridade.js");
+  const grande = { site: null, total_avaliacoes: 900, avaliacao: 4.8, whatsapp_status: "verificado" };
+  const pequena = { site: "https://clinica.com.br", total_avaliacoes: 4, avaliacao: 3.9, whatsapp_status: "fixo" };
+  assert.equal(potencialDaEmpresa(grande).nivel, "alta");
+  assert.equal(potencialDaEmpresa(pequena).nivel, "baixa");
+  assert.ok(potencialDaEmpresa({ site: "https://instagram.com/x" }).motivos.includes("sem site próprio"));
+
+  const esperando = prioridadeNaFila(pequena, { temResposta: true });
+  const quente = prioridadeNaFila(pequena, { andamento: { chance: "quente", rotulo: "Alta", proximoPasso: "mandar o link" } });
+  const nova = prioridadeNaFila(grande);
+  assert.ok(esperando.pontos > quente.pontos && quente.pontos > nova.pontos);
+  assert.equal(nova.rotulo, "Potencial alto");
+});

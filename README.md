@@ -20,8 +20,8 @@ IA que **encontra empresas no Google Maps**, **analisa a presença digital** de 
 3. **Oportunidades** — transforma a análise em serviços do seu catálogo, com o motivo concreto (ex.: *"loja de roupas sem loja virtual"*, *"site sem versão para celular e com rodapé de 2017"*).
 4. **Sequência gradual com IA** — em vez de uma proposta direta, o Claude escreve 3 mensagens curtas por canal, que revelam a informação aos poucos:
    1. **Primeiro contato:** cumprimenta, cita algo positivo da empresa e faz uma pergunta leve. Sem preço, sem lista de serviços.
-   2. **Se não responder (cerca de 2 horas depois, no mesmo dia):** traz uma observação concreta e o impacto para o negócio. Ainda sem preço.
-   3. **Último toque (cerca de 2 horas depois da etapa 2):** oferece exemplos sem compromisso e cita o "a partir de" uma única vez.
+   2. **Se não responder (WhatsApp: cerca de 2 horas depois, no mesmo dia; e-mail: 1 dia útil depois):** traz uma observação concreta e o impacto para o negócio. Ainda sem preço.
+   3. **Último toque (WhatsApp: cerca de 2 horas depois da etapa 2; e-mail: 2 dias úteis depois):** convida para um bate-papo de 15 minutos com o link de agendamento, sem preço.
 
    Quando a empresa responde, a sequência para na hora.
 5. **Aprovação (obrigatória)** — cada sequência aparece na aba **Aprovar mensagens**, com as 3 etapas editáveis e a prévia exata do que a empresa vai receber. Você clica em **Aprovar sequência** ou **Não enviar**. Nada sai sem esse clique.

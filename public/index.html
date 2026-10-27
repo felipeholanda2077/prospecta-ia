@@ -834,7 +834,7 @@ const VIEWS = {
   rascunho:  { grupo: "Prospecção", nome: "Aprovar mensagens", curto: "Aprovar", icone: "checkCircle", titulo: "Aprovar mensagens",
                sub: "Revise a sequência que a IA escreveu. Nada é enviado sem a sua aprovação.", contador: () => stats?.sequenciasPendentes },
   aprovada:  { grupo: "Prospecção", nome: "Fila de envio", icone: "clock", titulo: "Fila de envio",
-               sub: "Uma empresa por cartão, com tudo o que vai sair para ela e quando (sempre em horário comercial, de segunda a sexta).",
+               sub: "Uma empresa por cartão, das mais importantes para as menos: conversas com mais chance de fechar primeiro, depois as empresas novas com mais potencial.",
                contador: () => stats?.filaEmpresas ?? stats?.mensagens.aprovada },
   enviada:   { grupo: "Prospecção", nome: "Enviadas", icone: "send", titulo: "Mensagens enviadas", sub: "Tudo o que já saiu, por e-mail e WhatsApp." },
   erro:      { grupo: "Prospecção", nome: "Com erro", icone: "alert", titulo: "Mensagens com erro",
@@ -1312,7 +1312,7 @@ function cardMensagem(m) {
 }
 
 // ===================== Fila de envio por empresa =====================
-/** Agrupa as mensagens da fila por empresa, na ordem em que vão sair. */
+/** Agrupa as mensagens da fila por empresa: as mais importantes primeiro, e cada uma na ordem de envio. */
 function agruparPorEmpresa(lista) {
   const grupos = new Map();
   for (const m of lista) {
@@ -1322,7 +1322,17 @@ function agruparPorEmpresa(lista) {
   const ordem = (m) => (m.agendada_para ? new Date(m.agendada_para).getTime() : m.etapa > 1 ? Infinity : 0);
   return [...grupos.values()]
     .map((ms) => ms.sort((a, b) => ordem(a) - ordem(b) || a.etapa - b.etapa))
-    .sort((a, b) => ordem(a[0]) - ordem(b[0]));
+    .sort((a, b) => (b[0].prioridade?.pontos ?? 0) - (a[0].prioridade?.pontos ?? 0) || ordem(a[0]) - ordem(b[0]));
+}
+
+const COR_PRIORIDADE = { alta: "ok", media: "atencao", baixa: "" };
+
+function pilulaPrioridade(p) {
+  if (!p) return "";
+  const n = { alta: 3, media: 2, baixa: 1 }[p.nivel] ?? 1;
+  const motivos = p.motivos?.filter(Boolean).join(" · ");
+  return `<span class="pilula ${COR_PRIORIDADE[p.nivel]}" title="${esc(motivos ?? "")}">${medidor({ nivel: n })}${esc(p.rotulo)}</span>
+    ${motivos ? `<span class="muted" style="font-size:12.5px">${esc(motivos)}</span>` : ""}`;
 }
 
 function nomeDaEtapa(m) {
@@ -1380,6 +1390,9 @@ function cardFilaEmpresa(ms) {
       </div>
     </div>
     <div class="fila-resumo">
+      ${pilulaPrioridade(m.prioridade)}
+    </div>
+    <div class="fila-resumo">
       <span class="pilula">${ms.length} ${ms.length === 1 ? "mensagem" : "mensagens"} na fila</span>
       ${canais.map((c) => `<span class="pilula ${c === "whatsapp" ? "wa" : "acc"}">${ic(c === "whatsapp" ? "message" : "mail", "sm")}${CANAL[c]}</span>`).join("")}
       <span class="pilula">${ic("clock", "sm")}Próxima: ${esc(nomeDaEtapa(m).toLowerCase())} · ${esc(quandoSai(m).replace(" (em horário comercial)", "").replace(/^Agendada para /, ""))}</span>
@@ -1404,7 +1417,9 @@ function agruparSequencias(lista) {
 
 function blocoEtapa(m, total) {
   const quando = m.etapa === 1 ? "sai ao aprovar, em horário comercial"
-    : `cerca de ${sessao.cadencia[m.etapa - 2] ?? 2} h depois da etapa ${m.etapa - 1}, no mesmo dia, se não houver resposta`;
+    : m.canal === "email"
+      ? `${(sessao.diasEntreEmails ?? [1, 2])[m.etapa - 2] ?? 2} ${((sessao.diasEntreEmails ?? [1, 2])[m.etapa - 2] ?? 2) === 1 ? "dia útil" : "dias úteis"} depois da etapa ${m.etapa - 1}, se não houver resposta`
+      : `cerca de ${sessao.cadencia[m.etapa - 2] ?? 2} h depois da etapa ${m.etapa - 1}, no mesmo dia, se não houver resposta`;
   return `<div class="etapa-seq" data-id="${m.id}" data-link="${esc(m.linkWhatsapp ?? "")}">
     <div class="etapa-cab"><span class="num">${m.etapa}</span><b>${NOMES_ETAPA[m.etapa] ?? `Etapa ${m.etapa}`}</b>
       <span class="muted">${total > 1 ? quando : "mensagem única"}</span></div>

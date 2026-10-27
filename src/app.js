@@ -7,6 +7,7 @@ import { waitUntil } from "@vercel/functions";
 import { carregarCampanhaCompleta, CAMPOS_EMPRESA, lerAutomacao, AUTOMACAO_PADRAO } from "./campanha.js";
 import { contatarIndicados, normalizarNumeroIndicado } from "./respostas/indicacao.js";
 import { avaliarConversa, indicadoresDasConversas } from "./respostas/andamento.js";
+import { prioridadeNaFila } from "./analise/prioridade.js";
 import * as calendly from "./agenda/calendly.js";
 import { tokenDoGithubValido } from "./agendamento/github.js";
 import { garantirAgendamentoNoBanco, chaveDoBancoValida, statusDoBanco } from "./agendamento/banco.js";
@@ -248,6 +249,7 @@ app.get("/api/sessao", async (req, res) => {
     perfilIncompleto: !campanha.empresa.responsavel || !campanha.empresa.telefone,
     horario: campanha.limites.horarioComercial,
     cadencia: campanha.cadencia?.horasEntreEtapas ?? [2, 2],
+    diasEntreEmails: campanha.cadencia?.diasEntreEmails ?? [1, 2],
     calendly: campanha.automacao.calendly || "",
     rodapeWhatsapp: RODAPE_WHATSAPP,
     modoTeste: Boolean(config.modoTeste.email || config.modoTeste.whatsapp),
@@ -307,7 +309,24 @@ app.get("/api/mensagens", async (req, res) => {
   // Nas enviadas, mostra qual etapa vem depois e quando (se a empresa não responder).
   const proximas = status === "enviada" ? await db.proximasEtapas([...new Set(mensagens.map((m) => m.lead_id))]) : [];
   const proximaDe = (m) => proximas.find((p) => p.lead_id === m.lead_id && p.canal === m.canal && p.etapa > m.etapa) ?? null;
-  res.json(mensagens.map((m) => ({ ...prepararMensagem(m, modo), proxima: status === "enviada" ? proximaDe(m) : undefined })));
+  // Na fila, a prioridade de cada empresa: conversas pela chance de fechar, as novas pelo potencial.
+  let prioridadeDe = () => undefined;
+  if (status === "aprovada") {
+    const andamentos = new Map((await conversasAvaliadas()).map((c) => [c.id, c.andamento]));
+    const porLead = new Map();
+    for (const m of mensagens) porLead.set(m.lead_id, [...(porLead.get(m.lead_id) ?? []), m]);
+    const calculada = new Map([...porLead].map(([id, ms]) => [id, prioridadeNaFila(ms[0], {
+      andamento: andamentos.get(id) ?? null,
+      temResposta: ms.some((x) => x.tipo === "resposta"),
+      canais: [...new Set(ms.map((x) => x.canal))],
+    })]));
+    prioridadeDe = (m) => calculada.get(m.lead_id);
+  }
+  res.json(mensagens.map((m) => ({
+    ...prepararMensagem(m, modo),
+    proxima: status === "enviada" ? proximaDe(m) : undefined,
+    prioridade: prioridadeDe(m),
+  })));
 });
 
 app.put("/api/mensagens/:id", async (req, res) => {
@@ -417,11 +436,14 @@ app.post("/api/leads/:id/indicado", async (req, res) => {
 
 // ---------- Conversas (página de Respostas em formato de chat) ----------
 
-/** Conversas com a avaliação de andamento; quem precisa de você primeiro, depois as mais recentes. */
+/** Conversas com a avaliação de andamento, das mais importantes para as menos. */
 async function conversasAvaliadas() {
   const lista = (await db.conversas()).map((c) => ({ ...c, andamento: avaliarConversa(c) }));
   const quando = (c) => new Date(c.ultima?.quando ?? 0).getTime();
-  return lista.sort((a, b) => Number(b.andamento.precisaDeVoce) - Number(a.andamento.precisaDeVoce) || quando(b) - quando(a));
+  // Quem precisa de você primeiro; depois quem tem mais chance de fechar; depois as mais recentes.
+  const chance = (c) => ({ agendada: 4, quente: 3, morna: 2, fria: 1, encerrada: 0 })[c.andamento.chance] ?? 0;
+  return lista.sort((a, b) => Number(b.andamento.precisaDeVoce) - Number(a.andamento.precisaDeVoce)
+    || chance(b) - chance(a) || quando(b) - quando(a));
 }
 
 app.get("/api/conversas", async (req, res) => {

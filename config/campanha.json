@@ -92,6 +92,10 @@
     "horasEntreEtapas": [
       2,
       2
+    ],
+    "diasEntreEmails": [
+      1,
+      2
     ]
   },
   "canais": [

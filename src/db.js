@@ -318,6 +318,17 @@ export async function proximasEtapas(leadIds) {
   );
 }
 
+/** Etapas de e-mail agendadas para menos de um dia depois da anterior (regra antiga, de tudo no mesmo dia). */
+export async function emailsAgendadosNoMesmoDia() {
+  return q(
+    `SELECT m.id, m.etapa, a.enviada_em AS anterior_enviada_em
+       FROM mensagens m
+       JOIN mensagens a ON a.lead_id = m.lead_id AND a.canal = 'email' AND a.etapa = m.etapa - 1 AND a.status = 'enviada'
+      WHERE m.canal = 'email' AND m.status = 'aprovada' AND m.tipo = 'sequencia' AND m.etapa > 1
+        AND m.agendada_para IS NOT NULL AND m.agendada_para < a.enviada_em + interval '20 hours'`
+  );
+}
+
 /** Agenda a próxima etapa da sequência (se existir e estiver aprovada). */
 export async function agendarProximaEtapa(m, quando) {
   await q(

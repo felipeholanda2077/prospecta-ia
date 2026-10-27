@@ -10,6 +10,7 @@ import { enviarWhatsapp, enviarTextoWhatsappOficial, RODAPE_WHATSAPP } from "./e
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { verificarAgendamentos, aplicarLinkAgendamento } from "./agenda/calendly.js";
+import { semSiteProprio, potencialDaEmpresa } from "./analise/prioridade.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -25,6 +26,8 @@ const semTempo = (ate) => Date.now() + FOLGA_MS > ate;
 // As 3 etapas saem no mesmo dia: a 2 cerca de 2 h depois da 1, e a 3 cerca de 2 h depois da 2.
 // No fim do expediente o intervalo encolhe para caber no dia, mas nunca fica abaixo do mínimo.
 const HORAS_ENTRE_ETAPAS = [2, 2];
+// No e-mail, cada etapa sai em outro dia: a 2 um dia útil depois da 1, e a 3 dois dias úteis depois da 2.
+const DIAS_ENTRE_EMAILS = [1, 2];
 const INTERVALO_MINIMO_MIN = 45;
 const MARGEM_FIM_MIN = 15;
 // Sequência nova só começa se ainda der tempo de as 3 etapas saírem hoje.
@@ -128,11 +131,16 @@ export function inicioDoProximoDiaUtil(limites, agora = new Date()) {
 }
 
 /**
- * Quando sai a próxima etapa depois de enviar `etapaEnviada`: no mesmo dia, encaixada
- * até o fim do expediente. Se não couber, vai para o começo do próximo dia útil.
+ * Quando sai a próxima etapa depois de enviar `etapaEnviada`. No WhatsApp, no mesmo dia,
+ * encaixada até o fim do expediente (se não couber, no começo do próximo dia útil).
+ * No e-mail, 1 a 2 dias úteis depois, no mesmo horário, para não lotar a caixa da empresa.
  */
-export function horarioDaProximaEtapa(etapaEnviada, campanha, agora = new Date()) {
+export function horarioDaProximaEtapa(etapaEnviada, campanha, agora = new Date(), canal = "whatsapp") {
   const { limites } = campanha;
+  if (canal === "email") {
+    const dias = campanha.cadencia?.diasEntreEmails ?? DIAS_ENTRE_EMAILS;
+    return somarDiasUteis(agora, dias[etapaEnviada - 1] ?? 2);
+  }
   const horas = campanha.cadencia?.horasEntreEtapas ?? HORAS_ENTRE_ETAPAS;
   const ideal = (horas[etapaEnviada - 1] ?? 2) * 60 * (0.85 + Math.random() * 0.15);
   const faltam = 3 - etapaEnviada;
@@ -140,6 +148,18 @@ export function horarioDaProximaEtapa(etapaEnviada, campanha, agora = new Date()
   const intervalo = Math.min(ideal, cabe);
   if (dentroDoHorario(limites, agora) && intervalo >= INTERVALO_MINIMO_MIN) return new Date(agora.getTime() + intervalo * 60_000);
   return inicioDoProximoDiaUtil(limites, agora);
+}
+
+/** Etapas de e-mail que ficaram para o mesmo dia (regra antiga) passam para 1 a 2 dias úteis depois da anterior. */
+export async function reagendarEmailsDoMesmoDia(campanha) {
+  const dias = campanha.cadencia?.diasEntreEmails ?? DIAS_ENTRE_EMAILS;
+  const lista = await db.emailsAgendadosNoMesmoDia();
+  for (const m of lista) {
+    const quando = somarDiasUteis(new Date(m.anterior_enviada_em), dias[m.etapa - 2] ?? 2);
+    await db.atualizarMensagem(m.id, { agendada_para: quando.toISOString() });
+  }
+  if (lista.length) log(`📅 ${lista.length} etapas de e-mail reagendadas para outro dia`);
+  return lista.length;
 }
 
 /** Ainda dá tempo de começar uma sequência e as 3 etapas saírem hoje? */
@@ -210,12 +230,6 @@ export async function descobrirProxima(campanha, { tentativas = 3 } = {}) {
   return { novas, buscas: feitas };
 }
 
-/** Busca no Google Maps pelo painel, sem salvar: mostra o resultado para você escolher quem capturar. */
-// Perfil no Google só com rede social ou link agregador conta como "sem site próprio".
-const SO_REDE_SOCIAL = /instagram\.com|facebook\.com|linktr\.ee|wa\.me|ifood\.com/i;
-
-export const semSiteProprio = (site) => !site || SO_REDE_SOCIAL.test(site);
-
 /**
  * Ordem de prioridade dos resultados: empresas sem site primeiro (são o melhor lead
  * para vender um site), depois as com celular (dá para chamar no WhatsApp) e as mais
@@ -231,6 +245,7 @@ export function ordenarPorPrioridade(empresas) {
   );
 }
 
+/** Busca no Google Maps pelo painel, sem salvar: mostra o resultado para você escolher quem capturar. */
 export async function buscarNoMaps(nicho, cidade, quantidade = 20) {
   const empresas = await buscarEmpresas(`${nicho} em ${cidade}`, Math.min(Number(quantidade) || 20, 60));
   const capturados = await db.placeIdsCapturados(empresas.map((e) => e.place_id));
@@ -460,7 +475,7 @@ async function registrarEnvio(m, campanha, messageId = null) {
   await db.atualizarMensagem(m.id, { status: "enviada", enviada_em: new Date().toISOString(), erro: null, message_id: messageId });
   if (m.tipo === "resposta") return;
   await db.atualizarLead(m.lead_id, { status: "contatado" });
-  if (m.etapa < 3) await db.agendarProximaEtapa(m, horarioDaProximaEtapa(m.etapa, campanha).toISOString());
+  if (m.etapa < 3) await db.agendarProximaEtapa(m, horarioDaProximaEtapa(m.etapa, campanha, new Date(), m.canal).toISOString());
 }
 
 /**
@@ -612,19 +627,22 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   }
 
   const manual = (await modoWhatsapp()) === "manual";
-  // A meta do dia é de empresas novas (etapa 1), espalhada até a hora em que ainda dá para
-  // as 3 etapas saírem hoje. Etapas 2 e 3 e respostas da conversa não entram na conta.
-  const iniciaSequencias = daTempoDeSequenciaHoje(limites);
+  // A meta do dia é de empresas novas (etapa 1). No WhatsApp ela é espalhada até a hora em
+  // que ainda dá para as 3 etapas saírem hoje; no e-mail, até o fim do expediente (as etapas
+  // seguintes saem em outros dias). Etapas 2 e 3 e respostas da conversa não entram na conta.
   const vagas = {};
   for (const canal of ["email", "whatsapp"]) {
+    const iniciaSequencias = canal === "email" || daTempoDeSequenciaHoje(limites);
     const restante = iniciaSequencias
       ? (await limiteDoDia(campanha, canal)) - (await db.enviadasHoje(canal, { primeiroContato: true }))
       : 0;
-    const rodadas = rodadasRestantesHoje(limites, new Date(), TEMPO_PARA_SEQUENCIA_MIN);
+    const rodadas = rodadasRestantesHoje(limites, new Date(), canal === "email" ? 0 : TEMPO_PARA_SEQUENCIA_MIN);
     vagas[canal] = distribuir ? Math.min(restante, Math.max(LOTE_POR_RODADA, Math.ceil(restante / rodadas))) : restante;
   }
   const vagasDaRodada = { ...vagas };
-  const todas = await db.filaDeEnvio(400);
+  // Empresas novas com mais potencial de venda saem primeiro (a cota do dia vai para elas).
+  const potencial = (m) => (m.etapa <= 1 && m.tipo !== "resposta" ? potencialDaEmpresa(m).pontos : 0);
+  const todas = (await db.filaDeEnvio(400)).sort((a, b) => potencial(b) - potencial(a));
   const fila = todas
     .filter((m) => m.canal === "email" || !manual)
     .filter((m) => m.tipo === "resposta" || m.etapa > 1 || vagas[m.canal]-- > 0);
@@ -685,6 +703,7 @@ export async function rodadaAutomatica(campanha) {
 async function rodada(campanha) {
   const ate = prazoPadrao();
   await db.liberarEnviosTravados();
+  await reagendarEmailsDoMesmoDia(campanha);
   await conferirWebhookWhatsapp();
   const resultado = { respostas: await verificarRespostas(campanha) };
   resultado.reescritas = await reescreverSequenciasComPreco(campanha, { ate });
