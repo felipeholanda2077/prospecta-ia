@@ -361,7 +361,10 @@ export async function verificarRespostas(campanha) {
     return await verificarRespostasEmail(campanha);
   } catch (e) {
     const motivo = explicarErroEmail(e, "IMAP");
-    log(`⚠️  Falha ao ler respostas por e-mail: ${motivo}${e.responseText ? ` (servidor: ${e.responseText})` : ""}`);
+    // Diagnóstico só no log do servidor (privado): quem está logando e o tamanho da senha, nunca a senha.
+    const { host, user, pass } = config.imap;
+    log(`⚠️  Falha ao ler respostas por e-mail: ${motivo}${e.responseText ? ` (servidor: ${e.responseText})` : ""}` +
+        ` [host=${host} usuario=${user} senha=${pass.length} caracteres${/\s/.test(pass) ? ", com espaços" : ""}]`);
     return { lidas: 0, respostas: 0, erro: motivo };
   }
 }
