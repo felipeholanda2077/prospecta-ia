@@ -6,8 +6,10 @@ import * as db from "../db.js";
 // envia texto e recebe as respostas por webhook. Referência: https://docs.uazapi.com
 
 const CHAVE = "uazap";
+const STATUS_VALIDO_MS = 60_000;
 let cache = null;
 let cacheAte = 0;
+let conectado = { valor: false, ate: 0 };
 
 /** Server URL + token da instância. Variáveis de ambiente têm prioridade sobre o que foi salvo no painel. */
 export async function obterConfig() {
@@ -41,6 +43,7 @@ export async function salvarConfig({ url, token }) {
   await chamarCom(novo, "/instance/status");
   await db.gravarConfig(CHAVE, novo);
   cacheAte = 0;
+  conectado.ate = 0;
   return novo;
 }
 
@@ -85,7 +88,15 @@ export function resumirStatus(dados) {
 }
 
 export async function status() {
-  return resumirStatus(await chamar("/instance/status"));
+  const st = resumirStatus(await chamar("/instance/status"));
+  conectado = { valor: st.conectado, ate: Date.now() + STATUS_VALIDO_MS };
+  return st;
+}
+
+/** Status de conexão guardado por 1 minuto, para escolher por onde o WhatsApp sai sem consultar a cada envio. */
+export async function conectadoAgora() {
+  if (Date.now() < conectado.ate) return conectado.valor;
+  return status().then((s) => s.conectado, () => false);
 }
 
 /** Inicia o pareamento: sem telefone devolve QR code; com telefone, código de pareamento. */
@@ -96,6 +107,7 @@ export async function conectar(telefone) {
 
 export async function desconectar() {
   await chamar("/instance/disconnect", { method: "POST", corpo: {} });
+  conectado.ate = 0;
 }
 
 /** Aponta o webhook da instância para este sistema (só mensagens recebidas de contatos). */

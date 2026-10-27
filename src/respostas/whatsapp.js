@@ -4,6 +4,7 @@ import * as db from "../db.js";
 import { variantesWhatsappBR } from "../analise/telefone.js";
 import { registrarResposta } from "./processar.js";
 import { extrairMensagemUazap } from "../envio/uazap.js";
+import { extrairMensagemEvolution } from "../envio/evolution.js";
 
 /** Confere o cabeçalho X-Hub-Signature-256 enviado pela Meta. */
 export function assinaturaValida(corpoBruto, cabecalho, segredo) {
@@ -59,8 +60,16 @@ export async function processarWebhookWhatsapp(payload, campanha) {
 }
 
 /** Respostas que chegam pelo webhook da UAZap. */
-export async function processarWebhookUazap(payload, campanha) {
-  const m = extrairMensagemUazap(payload);
+export function processarWebhookUazap(payload, campanha) {
+  return registrarMensagemWhatsappWeb(extrairMensagemUazap(payload), campanha);
+}
+
+/** Respostas que chegam pelo webhook da Evolution API. */
+export function processarWebhookEvolution(payload, campanha) {
+  return registrarMensagemWhatsappWeb(extrairMensagemEvolution(payload), campanha);
+}
+
+async function registrarMensagemWhatsappWeb(m, campanha) {
   if (!m) return 0;
   const original = await mensagemOriginalWhatsapp(m.de);
   if (!original) return 0; // conversa que não veio de uma prospecção nossa

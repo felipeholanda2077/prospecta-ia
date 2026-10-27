@@ -8,6 +8,7 @@ import { gerarSequencia } from "./ia/proposta.js";
 import { enviarEmail, explicarErroEmail } from "./envio/email.js";
 import { enviarWhatsapp, enviarTextoWhatsappOficial, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
+import * as evolution from "./envio/evolution.js";
 import { verificarAgendamentos } from "./agenda/calendly.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 
@@ -29,12 +30,27 @@ export function prazoPadrao() {
   return config.naVercel ? Date.now() + TEMPO_POR_EXECUCAO_MS : Infinity;
 }
 
+const INTEGRACOES_WHATSAPP = { uazap, evolution };
+
 /**
- * Como o WhatsApp sai: pela UAZap (número conectado no painel), pela API oficial da Meta,
- * ou manual (você envia pelo seu WhatsApp a partir do painel).
+ * Integração de WhatsApp Web em uso. Com a UAZap e a Evolution configuradas, vale a que
+ * estiver conectada; se as duas estiverem (ou nenhuma), a UAZap.
+ */
+async function integracaoWhatsapp() {
+  const [temUazap, temEvolution] = await Promise.all([uazap.configurada(), evolution.configurada()]);
+  if (temUazap && temEvolution) {
+    return !(await uazap.conectadoAgora()) && (await evolution.conectadoAgora()) ? "evolution" : "uazap";
+  }
+  return temUazap ? "uazap" : temEvolution ? "evolution" : null;
+}
+
+/**
+ * Como o WhatsApp sai: pela UAZap ou pela Evolution API (número conectado no painel),
+ * pela API oficial da Meta, ou manual (você envia pelo seu WhatsApp a partir do painel).
  */
 export async function modoWhatsapp() {
-  if (await uazap.configurada()) return "uazap";
+  const integracao = await integracaoWhatsapp();
+  if (integracao) return integracao;
   if (config.whatsapp.ativo) return "oficial";
   return "manual";
 }
@@ -211,8 +227,8 @@ export async function capturarDoMaps(empresas, nicho, cidade) {
 
 /**
  * Descobre o WhatsApp da empresa: link wa.me no site, celular ou até o fixo
- * (muita empresa usa WhatsApp Business no fixo). Com a UAZap conectada, confirma
- * quais números realmente têm WhatsApp.
+ * (muita empresa usa WhatsApp Business no fixo). Com a UAZap ou a Evolution conectada,
+ * confirma quais números realmente têm WhatsApp.
  */
 export async function descobrirWhatsapp(lead, analise) {
   const doSite = analise.whatsapp ?? null;
@@ -220,9 +236,10 @@ export async function descobrirWhatsapp(lead, analise) {
   const candidatos = [doSite, telefone].filter(Boolean);
   if (!candidatos.length) return { whatsapp: null, whatsapp_status: null };
 
-  if (await uazap.configurada()) {
+  const integracao = await integracaoWhatsapp();
+  if (integracao) {
     try {
-      const verificados = await uazap.verificarNumeros(candidatos);
+      const verificados = await INTEGRACOES_WHATSAPP[integracao].verificarNumeros(candidatos);
       const achado = verificados.find((v) => v.existe);
       if (achado) return { whatsapp: achado.numero || achado.consulta, whatsapp_status: "verificado" };
       if (verificados.length) return { whatsapp: null, whatsapp_status: "sem_whatsapp" };
@@ -281,7 +298,7 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
   return { analisados, descartados, restantes, descartes };
 }
 
-/** Volta a empresa para a análise (ex.: depois de conectar a UAZap ou mudar as regras). */
+/** Volta a empresa para a análise (ex.: depois de conectar o WhatsApp ou mudar as regras). */
 export async function reanalisar(leadId) {
   const lead = await db.buscarLead(leadId);
   if (!lead) throw new Error("Empresa não encontrada");
@@ -436,9 +453,9 @@ export async function enviarMensagem(m, campanha) {
         token: m.token,
         respondendoA: await threadDoEmail(m),
       });
-    } else if (modo === "uazap") {
+    } else if (INTEGRACOES_WHATSAPP[modo]) {
       if (config.modoTeste.email && !config.modoTeste.whatsapp) throw new Error("modo teste ativo sem MODO_TESTE_WHATSAPP; WhatsApp não enviado");
-      messageId = await uazap.enviarTexto(config.modoTeste.whatsapp || m.destino, m.corpo + rodape);
+      messageId = await INTEGRACOES_WHATSAPP[modo].enviarTexto(config.modoTeste.whatsapp || m.destino, m.corpo + rodape);
     } else if (m.tipo === "resposta") {
       messageId = await enviarTextoWhatsappOficial({ para: m.destino, corpo: m.corpo });
     } else {

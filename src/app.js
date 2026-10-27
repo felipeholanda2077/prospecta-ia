@@ -8,10 +8,11 @@ import { carregarCampanhaCompleta, CAMPOS_EMPRESA, lerAutomacao, AUTOMACAO_PADRA
 import * as calendly from "./agenda/calendly.js";
 import { tokenDoGithubValido } from "./agendamento/github.js";
 import { enviarNotificacao, statusEmail, testarEmail } from "./envio/email.js";
-import { assinaturaValida, processarWebhookWhatsapp, processarWebhookUazap } from "./respostas/whatsapp.js";
+import { assinaturaValida, processarWebhookWhatsapp, processarWebhookUazap, processarWebhookEvolution } from "./respostas/whatsapp.js";
 import { rodapeDescadastro } from "./envio/email.js";
 import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
+import * as evolution from "./envio/evolution.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -101,6 +102,17 @@ app.post("/webhooks/uazap/:segredo", async (req, res) => {
     carregarCampanhaCompleta()
       .then((campanha) => processarWebhookUazap(req.body, campanha))
       .catch((e) => console.error("Erro no webhook da UAZap:", e))
+  );
+});
+
+// Webhook da Evolution API: o segredo na URL e o nome da instância no corpo provam a origem.
+app.post("/webhooks/evolution/:segredo", async (req, res) => {
+  if (!(await evolution.webhookValido(req.params.segredo, req.body))) return res.sendStatus(401);
+  res.sendStatus(200);
+  waitUntil(
+    carregarCampanhaCompleta()
+      .then((campanha) => processarWebhookEvolution(req.body, campanha))
+      .catch((e) => console.error("Erro no webhook da Evolution:", e))
   );
 });
 
@@ -382,12 +394,19 @@ app.get("/api/leads/:id/conversa", async (req, res) => {
 app.get("/api/config", async (req, res) => {
   const campanha = await carregarCampanhaCompleta();
   const u = await uazap.obterConfig();
+  const ev = await evolution.obterConfig();
   res.json({
     empresa: Object.fromEntries(CAMPOS_EMPRESA.map((c) => [c, campanha.empresa[c] ?? ""])),
     uazap: {
       url: u.url,
       tokenDefinido: Boolean(u.token),
       webhook: u.segredoWebhook ? `${config.painel.urlPublica}/webhooks/uazap/•••` : null,
+    },
+    evolution: {
+      url: ev.url,
+      instancia: ev.instancia,
+      apikeyDefinida: Boolean(ev.apikey),
+      webhook: ev.segredoWebhook ? `${config.painel.urlPublica}/webhooks/evolution/•••` : null,
     },
   });
 });
@@ -497,6 +516,42 @@ app.post("/api/uazap/conectar", async (req, res) => {
 app.post("/api/uazap/desconectar", async (req, res) => {
   try {
     await uazap.desconectar();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Evolution API: alternativa à UAZap, com as mesmas ações no painel.
+app.post("/api/evolution/config", async (req, res) => {
+  try {
+    await evolution.salvarConfig({ url: req.body?.url, apikey: req.body?.apikey, instancia: req.body?.instancia });
+    const webhook = await evolution.configurarWebhook();
+    res.json({ ok: true, webhook: webhook.replace(/[^/]+$/, "•••"), status: await evolution.status() });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.get("/api/evolution/status", async (req, res) => {
+  try {
+    res.json(await evolution.status());
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.post("/api/evolution/conectar", async (req, res) => {
+  try {
+    res.json(await evolution.conectar(req.body?.telefone));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.post("/api/evolution/desconectar", async (req, res) => {
+  try {
+    await evolution.desconectar();
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ erro: e.message });
