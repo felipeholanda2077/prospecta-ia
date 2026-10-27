@@ -330,3 +330,42 @@ test("sem interesse: encerra a empresa, agradece uma vez e não manda mais nada"
   assert.equal((await db.buscarLead(lead.id)).status, "sem_interesse");
   assert.equal((await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id).length, 1);
 });
+
+test("conversas: uma por empresa, com avaliação da IA, última mensagem e funil", async () => {
+  const { avaliarConversa, indicadoresDasConversas } = await import("../src/respostas/andamento.js");
+  const lead = await novoLead("Conversa", "conversa@clinica.com");
+  await enviada(lead, 0);
+  await db.criarResposta({ lead_id: lead.id, canal: "email", origem_id: "<conv-1@x>", de: lead.email, texto: "Quanto custa?",
+                           classificacao: "quer_informacoes", resumo: "Perguntou o preço", temperatura: "quente", proximo_passo: "mandar o link do Calendly" });
+  const c = (await db.conversas()).find((x) => x.id === lead.id);
+  assert.equal(c.respostas, 1);
+  assert.equal(c.mostrou_interesse, true);
+  assert.equal(c.avaliacao.temperatura, "quente");
+  assert.equal(c.ultima.autor, "lead");
+  const a = avaliarConversa(c);
+  assert.deepEqual([a.chance, a.rotulo, a.aguardando, a.proximoPasso], ["quente", "Alta", "nos", "mandar o link do Calendly"]);
+
+  const funil = await db.funilDeConversas();
+  assert.ok(funil.contatadas >= 1 && funil.responderam >= 1 && funil.interessadas >= 1);
+  const ind = indicadoresDasConversas([{ ...c, andamento: a }], funil);
+  assert.equal(ind.quentes, 1);
+  assert.equal(ind.ativas, 1);
+});
+
+test("andamento: status, tempo sem resposta e pedido de ajuda mudam a chance e o próximo passo", async () => {
+  const { avaliarConversa } = await import("../src/respostas/andamento.js");
+  const agora = new Date("2026-10-27T15:00:00Z");
+  const base = { status: "respondeu", respostas: 2, mostrou_interesse: true, avaliacao: { temperatura: "quente", proximo_passo: "x" },
+                 recente: { precisa_humano: null }, ultima: { autor: "nos" }, ultima_resposta: "2026-10-26T15:00:00Z", proxima: null };
+  assert.equal(avaliarConversa({ ...base, status: "agendado" }, agora).chance, "agendada");
+  assert.equal(avaliarConversa({ ...base, status: "sem_interesse" }, agora).chance, "encerrada");
+  // 5 dias sem a empresa responder: quente vira morna.
+  const esfriou = avaliarConversa({ ...base, ultima_resposta: "2026-10-22T15:00:00Z" }, agora);
+  assert.deepEqual([esfriou.chance, esfriou.esfriou], ["morna", true]);
+  // A IA pediu ajuda e a empresa está esperando: precisa de você.
+  const ajuda = avaliarConversa({ ...base, recente: { precisa_humano: "pediu ligação" }, ultima: { autor: "lead" } }, agora);
+  assert.equal(ajuda.precisaDeVoce, true);
+  assert.match(ajuda.proximoPasso, /pediu ligação/);
+  // Sem avaliação da IA (respostas antigas): estima pelo que a empresa disse.
+  assert.equal(avaliarConversa({ ...base, avaliacao: null, mostrou_interesse: false, respostas: 1 }, agora).chance, "fria");
+});

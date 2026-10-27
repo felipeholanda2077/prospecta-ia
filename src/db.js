@@ -330,10 +330,10 @@ export async function agendarProximaEtapa(m, quando) {
 /** Conversa completa com um lead (o que enviamos e o que ele respondeu), em ordem. */
 export async function historicoConversa(leadId) {
   return q(
-    `SELECT 'nos' AS autor, canal, assunto, corpo AS texto, enviada_em AS quando, etapa
+    `SELECT 'nos' AS autor, canal, assunto, corpo AS texto, enviada_em AS quando, etapa, destino AS contato, tipo
        FROM mensagens WHERE lead_id = $1 AND status = 'enviada'
      UNION ALL
-     SELECT 'lead' AS autor, canal, assunto, texto, recebida_em AS quando, NULL AS etapa
+     SELECT 'lead' AS autor, canal, assunto, texto, recebida_em AS quando, NULL AS etapa, de AS contato, classificacao AS tipo
        FROM respostas WHERE lead_id = $1 AND classificacao IS DISTINCT FROM 'automatica'
      ORDER BY quando`,
     [leadId]
@@ -408,10 +408,10 @@ export async function buscarLeadPorEmail(email) {
 /** Registra uma resposta. Retorna o id, ou null se ela já tinha sido registrada. */
 export async function criarResposta(r) {
   const linha = await um(
-    `INSERT INTO respostas (lead_id, canal, origem_id, de, assunto, texto, classificacao, resumo, sugestao)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO respostas (lead_id, canal, origem_id, de, assunto, texto, classificacao, resumo, sugestao, temperatura, proximo_passo)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
      ON CONFLICT (origem_id) DO NOTHING RETURNING id`,
-    [r.lead_id, r.canal, r.origem_id, r.de, r.assunto, r.texto, r.classificacao, r.resumo, r.sugestao]
+    [r.lead_id, r.canal, r.origem_id, r.de, r.assunto, r.texto, r.classificacao, r.resumo, r.sugestao, r.temperatura ?? null, r.proximo_passo ?? null]
   );
   return linha?.id ?? null;
 }
@@ -436,6 +436,86 @@ export async function listarRespostas({ apenasNaoLidas = false, limite = 200 } =
 
 export async function marcarRespostaLida(id) {
   await q("UPDATE respostas SET lida = true WHERE id = $1", [id]);
+}
+
+// ---------- Conversas (página de Respostas) ----------
+
+/**
+ * Uma linha por empresa que respondeu: quantas respostas, não lidas, se precisa de você,
+ * a avaliação mais recente da IA, a última mensagem da conversa e a próxima que vai sair.
+ */
+export async function conversas() {
+  const linhas = await q(
+    `SELECT l.id, l.nome, l.status, l.nicho, l.cidade, l.whatsapp, l.email,
+            count(r.id)::int AS respostas,
+            count(r.id) FILTER (WHERE NOT r.lida)::int AS nao_lidas,
+            count(r.id) FILTER (WHERE r.precisa_humano IS NOT NULL AND NOT r.lida)::int AS precisa_de_voce,
+            coalesce(bool_or(r.classificacao IN ('interessado', 'quer_informacoes')), false) AS mostrou_interesse,
+            max(r.recebida_em) AS ultima_resposta
+       FROM leads l JOIN respostas r ON r.lead_id = l.id
+      WHERE r.classificacao IS DISTINCT FROM 'automatica'
+      GROUP BY l.id`
+  );
+  if (!linhas.length) return [];
+  const ids = linhas.map((l) => l.id);
+  const porLead = async (sql) => Object.fromEntries((await q(sql, ids)).map((r) => [r.lead_id, r]));
+  const lista = marcadores(ids.length);
+  const [avaliacao, recente, ultima, proxima] = await Promise.all([
+    // Avaliação mais recente da IA (respostas antigas, de antes da avaliação, não têm temperatura).
+    porLead(`SELECT DISTINCT ON (lead_id) lead_id, temperatura, proximo_passo
+               FROM respostas WHERE lead_id IN (${lista}) AND temperatura IS NOT NULL
+              ORDER BY lead_id, recebida_em DESC`),
+    porLead(`SELECT DISTINCT ON (lead_id) lead_id, id, classificacao, precisa_humano, resumo
+               FROM respostas WHERE lead_id IN (${lista}) AND classificacao IS DISTINCT FROM 'automatica'
+              ORDER BY lead_id, recebida_em DESC`),
+    porLead(`SELECT DISTINCT ON (lead_id) lead_id, autor, texto, quando, canal FROM (
+               SELECT lead_id, 'nos' AS autor, corpo AS texto, enviada_em AS quando, canal FROM mensagens WHERE status = 'enviada'
+               UNION ALL
+               SELECT lead_id, 'lead', texto, recebida_em, canal FROM respostas WHERE classificacao IS DISTINCT FROM 'automatica'
+             ) x WHERE lead_id IN (${lista}) ORDER BY lead_id, quando DESC`),
+    porLead(`SELECT DISTINCT ON (lead_id) lead_id, canal, agendada_para, tipo, etapa FROM mensagens
+              WHERE lead_id IN (${lista}) AND status = 'aprovada' ORDER BY lead_id, agendada_para NULLS LAST, id`),
+  ]);
+  return linhas.map((l) => ({
+    ...l,
+    avaliacao: avaliacao[l.id] ?? null,
+    recente: recente[l.id] ?? null,
+    ultima: ultima[l.id] ?? null,
+    proxima: proxima[l.id] ?? null,
+  }));
+}
+
+/** Números do funil: empresas contatadas, que responderam, mostraram interesse e agendaram. */
+export async function funilDeConversas() {
+  return um(
+    `SELECT
+       (SELECT count(DISTINCT lead_id) FROM mensagens WHERE status = 'enviada' AND tipo <> 'resposta')::int AS contatadas,
+       (SELECT count(DISTINCT lead_id) FROM respostas WHERE classificacao IS DISTINCT FROM 'automatica')::int AS responderam,
+       (SELECT count(DISTINCT lead_id) FROM respostas WHERE classificacao IN ('interessado', 'quer_informacoes'))::int AS interessadas,
+       (SELECT count(*) FROM leads WHERE status = 'agendado')::int AS agendadas`
+  );
+}
+
+/** Mensagens que ainda vão sair nesta conversa (respostas da IA e etapas agendadas). */
+export async function agendadasDaConversa(leadId) {
+  return q(
+    `SELECT id, canal, corpo AS texto, agendada_para, tipo, etapa, destino AS contato FROM mensagens
+      WHERE lead_id = $1 AND status = 'aprovada' ORDER BY agendada_para NULLS LAST, id`,
+    [leadId]
+  );
+}
+
+/** Abriu a conversa no painel: tudo dela conta como lido. */
+export async function marcarConversaLida(leadId) {
+  await q("UPDATE respostas SET lida = true WHERE lead_id = $1 AND NOT lida", [leadId]);
+}
+
+/** Resposta mais recente da empresa (para o painel responder e mostrar a sugestão da IA). */
+export async function ultimaRespostaDaConversa(leadId) {
+  return um(
+    `SELECT * FROM respostas WHERE lead_id = $1 AND classificacao IS DISTINCT FROM 'automatica' ORDER BY recebida_em DESC LIMIT 1`,
+    [leadId]
+  );
 }
 
 // ---------- Painel ----------

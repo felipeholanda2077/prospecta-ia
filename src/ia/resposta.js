@@ -3,6 +3,7 @@ import { gerarJson } from "./cliente.js";
 import { contextoEmpresa, identidade } from "./proposta.js";
 
 export const CLASSIFICACOES = ["interessado", "quer_informacoes", "sem_interesse", "descadastro", "automatica", "outro"];
+export const TEMPERATURAS = ["quente", "morna", "fria"];
 
 const ClassificacaoSchema = z.object({
   classificacao: z.enum(CLASSIFICACOES),
@@ -11,6 +12,8 @@ const ClassificacaoSchema = z.object({
   precisa_humano: z.boolean(),
   motivo_humano: z.string(),
   indicou_contato: z.boolean(),
+  temperatura: z.enum(TEMPERATURAS),
+  proximo_passo: z.string(),
 });
 
 const CLASSIFICACAO_JSON_SCHEMA = {
@@ -30,6 +33,13 @@ const CLASSIFICACAO_JSON_SCHEMA = {
       description: "true quando a conversa deve passar para o vendedor: pediu ligação ou para falar com uma pessoa, negociação de preço/condições, reclamação, assunto fora do que você sabe responder",
     },
     motivo_humano: { type: "string", description: "por que precisa do vendedor, em poucas palavras; vazio se não precisa" },
+    temperatura: {
+      type: "string",
+      enum: TEMPERATURAS,
+      description: "chance de fechar, olhando a conversa INTEIRA: quente = interesse claro, pediu valores/horário ou vai marcar; " +
+        "morna = conversando, respondendo perguntas, sem compromisso ainda; fria = respostas secas, evasivas, desviou ou recusou",
+    },
+    proximo_passo: { type: "string", description: "o próximo passo para fechar, em até 10 palavras (ex.: \"esperar ela marcar no Calendly\")" },
     indicou_contato: {
       type: "boolean",
       description: "true só quando a pessoa indicou OUTRA pessoa ou setor para tratar do assunto e passou o e-mail ou telefone dela " +
@@ -40,7 +50,7 @@ const CLASSIFICACAO_JSON_SCHEMA = {
       description: "próxima mensagem da conversa; em sem_interesse, um agradecimento curto; vazio se for descadastro ou automatica",
     },
   },
-  required: ["classificacao", "resumo", "sugestao_resposta", "precisa_humano", "motivo_humano", "indicou_contato"],
+  required: ["classificacao", "resumo", "sugestao_resposta", "precisa_humano", "motivo_humano", "indicou_contato", "temperatura", "proximo_passo"],
   additionalProperties: false,
 };
 

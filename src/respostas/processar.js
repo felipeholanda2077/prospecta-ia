@@ -99,6 +99,8 @@ export async function registrarResposta({
     classificacao: c.classificacao,
     resumo: c.resumo,
     sugestao: c.sugestao_resposta || null,
+    temperatura: c.temperatura ?? null,
+    proximo_passo: c.proximo_passo || null,
   });
   if (!id) return null;
 

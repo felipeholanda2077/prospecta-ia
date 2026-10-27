@@ -290,6 +290,71 @@
   .balao.lead { justify-self: start; background: var(--surface-2); border-bottom-left-radius: 4px; }
   .balao small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
 
+  /* ---------- Respostas: indicadores e chat ---------- */
+  .ind-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .ind { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 2px; }
+  .ind b { font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .ind span { color: var(--muted); font-size: 13px; }
+  .ind.ok b { color: var(--ok); } .ind.atencao b { color: var(--warn); } .ind.perigo b { color: var(--danger); } .ind.acc b { color: var(--accent-text); }
+  .funil { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px;
+           display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .funil-etapa { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+  .funil-etapa b { color: var(--text); font-size: 18px; font-variant-numeric: tabular-nums; }
+  .funil-barra { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+  .funil-barra i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .chat-app { display: grid; grid-template-columns: minmax(280px, 340px) 1fr; height: min(74vh, 780px); min-height: 480px;
+              border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+  .chat-lista { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+  .chat-lista .filtros { padding: 10px 12px; margin: 0; border-bottom: 1px solid var(--border); }
+  .chat-itens { overflow-y: auto; flex: 1; }
+  .chat-item { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 11px 14px;
+               border: 0; border-bottom: 1px solid var(--border); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+  .chat-item:hover { background: var(--surface-2); }
+  .chat-item[aria-current="true"] { background: var(--accent-soft); }
+  .chat-item .avatar { width: 40px; height: 40px; border-radius: 50%; font-size: 15px; }
+  .chat-item .meio { min-width: 0; display: grid; gap: 3px; }
+  .chat-item .nome { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-item .previa { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-item .lado { display: grid; justify-items: end; gap: 5px; font-size: 11.5px; color: var(--muted); }
+  .badge-nl { background: var(--wa); color: #fff; border-radius: 999px; min-width: 20px; height: 20px; padding: 0 6px;
+              display: grid; place-items: center; font-size: 11.5px; font-weight: 700; }
+  .chat-painel { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .chat-topo { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  .chat-topo .titulos { min-width: 0; flex: 1; }
+  .chat-topo h3 { margin: 0; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-andamento { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border);
+                    font-size: 13px; color: var(--muted); background: var(--surface-2); }
+  .chat-andamento b { color: var(--text); }
+  .chat-msgs { flex: 1; overflow-y: auto; background: var(--wa-chat); padding: 16px clamp(10px, 3vw, 28px); display: flex; flex-direction: column; gap: 6px; }
+  .bolha { max-width: min(80%, 560px); padding: 7px 10px 5px; border-radius: 10px; font-size: 14px; line-height: 1.42; white-space: pre-wrap;
+           overflow-wrap: anywhere; box-shadow: var(--shadow-sm); color: var(--text); }
+  .bolha.nos { align-self: flex-end; background: var(--wa-bubble); border-top-right-radius: 2px; }
+  .bolha.lead { align-self: flex-start; background: var(--surface); border-top-left-radius: 2px; }
+  .bolha.agendada { align-self: flex-end; background: transparent; border: 1.5px dashed var(--wa); box-shadow: none; }
+  .bolha .assunto-b { font-weight: 650; font-size: 12.5px; margin-bottom: 3px; }
+  .bolha .rodape-b { display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: flex-end; align-items: center; font-size: 11px; color: var(--muted); margin-top: 3px; white-space: normal; }
+  .bolha .rodape-b .icon { width: 12px; height: 12px; }
+  .bolha button.link { font: inherit; font-size: 11px; color: var(--danger); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+  .dia { align-self: center; background: var(--surface); color: var(--muted); font-size: 12px; padding: 4px 10px; border-radius: 8px; margin: 8px 0; box-shadow: var(--shadow-sm); }
+  .chat-escrever { border-top: 1px solid var(--border); padding: 10px 12px; display: grid; gap: 8px; }
+  .chat-escrever textarea { min-height: 64px; max-height: 200px; resize: vertical; }
+  .chat-escrever .espaco { flex: 1; }
+  .chat-escrever .linha { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
+  .chat-vazio { flex: 1; display: grid; place-items: center; text-align: center; padding: 30px; color: var(--muted); background: var(--wa-chat); }
+  .medidor { display: inline-flex; gap: 2px; margin-right: 4px; }
+  .medidor i { width: 10px; height: 6px; border-radius: 2px; background: currentColor; opacity: .22; }
+  .medidor i.on { opacity: 1; }
+  .so-celular { display: none; }
+  @media (max-width: 900px) {
+    .chat-app { grid-template-columns: 1fr; height: auto; min-height: 0; }
+    .chat-app .chat-painel { display: none; height: 78vh; }
+    .chat-app.com-conversa .chat-lista { display: none; }
+    .chat-app.com-conversa .chat-painel { display: flex; }
+    .chat-itens { max-height: none; }
+    .funil { grid-template-columns: repeat(2, 1fr); }
+    .so-celular { display: inline-flex; }
+  }
+
   /* ---------- Interruptor ---------- */
   .chave { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
   .chave input { appearance: none; -webkit-appearance: none; flex: none; width: 44px; height: 26px; min-height: 0; padding: 0; border-radius: 999px;
@@ -639,6 +704,7 @@ const ICONES = {
   refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
   trend: '<path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/>',
   ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+  arrowLeft: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
   heart: '<path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>',
   settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
   chevron: '<path d="m9 18 6-6-6-6"/>',
@@ -753,7 +819,7 @@ const VIEWS = {
   erro:      { grupo: "Prospecção", nome: "Com erro", icone: "alert", titulo: "Mensagens com erro",
                sub: "Corrija e tente de novo, ou descarte.", contador: () => stats?.mensagens.erro, perigo: true },
   respostas: { grupo: "Relacionamento", nome: "Respostas", curto: "Respostas", icone: "message", titulo: "Respostas",
-               sub: "Respostas classificadas pela IA, com sugestão de retorno.", contador: () => stats?.respostasNaoLidas },
+               sub: "Cada conversa como no WhatsApp, com a chance de fechar e o próximo passo.", contador: () => stats?.respostasNaoLidas },
   leads:     { grupo: "Relacionamento", nome: "Empresas", curto: "Empresas", icone: "building", titulo: "Empresas",
                sub: "Todas as empresas capturadas e em que etapa do funil estão." },
   automacao: { grupo: "Sistema", nome: "Automação", icone: "zap", titulo: "Automação",
@@ -1371,6 +1437,231 @@ function cardResposta(r) {
   </article>`;
 }
 
+// ===================== Respostas em formato de chat =====================
+let conversaAberta = null;
+let filtroConversa = "todas";
+let dadosConversas = null;
+const FILTROS_CONVERSA = [
+  ["todas", "Todas"], ["precisa", "Precisam de você"], ["quente", "Chance alta"], ["morna", "Média"], ["fria", "Baixa"],
+  ["agendada", "Agendadas"], ["encerrada", "Encerradas"],
+];
+const COR_CHANCE = { agendada: "acc", quente: "ok", morna: "atencao", fria: "perigo", encerrada: "" };
+
+function medidor(a) {
+  const n = Math.min(a.nivel, 3);
+  return `<span class="medidor" aria-hidden="true">${[1, 2, 3].map((i) => `<i class="${n >= i ? "on" : ""}"></i>`).join("")}</span>`;
+}
+
+function pilulaChance(a) {
+  if (!a) return "";
+  const texto = ["agendada", "encerrada"].includes(a.chance) ? a.rotulo : `Chance ${a.rotulo.toLowerCase()}`;
+  return `<span class="pilula ${COR_CHANCE[a.chance]}" title="Chance de fechar">${a.chance === "agendada" ? ic("calendar", "sm") : medidor(a)}${texto}</span>`;
+}
+
+function htmlIndicadores(ind) {
+  const f = ind.funil;
+  const barra = (n) => `<span class="funil-barra"><i style="width:${f.contatadas ? Math.max(2, Math.round((n / f.contatadas) * 100)) : 0}%"></i></span>`;
+  return `<div class="ind-grade">
+      <div class="ind acc"><b>${ind.ativas}</b><span>Conversas em andamento</span></div>
+      <div class="ind ok"><b>${ind.quentes}</b><span>Chance alta de fechar</span></div>
+      <div class="ind atencao"><b>${ind.mornas}</b><span>Chance média</span></div>
+      <div class="ind"><b>${ind.frias}</b><span>Chance baixa</span></div>
+      <div class="ind ${ind.precisamDeVoce ? "perigo" : ""}"><b>${ind.precisamDeVoce}</b><span>Precisam de você</span></div>
+      <div class="ind ok"><b>${ind.agendadas}</b><span>Reuniões agendadas</span></div>
+    </div>
+    <div class="funil" aria-label="Funil das conversas">
+      <div class="funil-etapa"><span>Contatadas</span><b>${f.contatadas}</b>${barra(f.contatadas)}</div>
+      <div class="funil-etapa"><span>Responderam · ${ind.taxaResposta}%</span><b>${f.responderam}</b>${barra(f.responderam)}</div>
+      <div class="funil-etapa"><span>Mostraram interesse · ${ind.taxaInteresse}%</span><b>${f.interessadas}</b>${barra(f.interessadas)}</div>
+      <div class="funil-etapa"><span>Agendaram · ${ind.taxaAgendamento}%</span><b>${f.agendadas}</b>${barra(f.agendadas)}</div>
+    </div>`;
+}
+
+function horaCurta(quando) {
+  if (!quando) return "";
+  const d = new Date(quando);
+  const hoje = new Date();
+  if (d.toDateString() === hoje.toDateString()) return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const ontem = new Date(hoje.getTime() - 864e5);
+  if (d.toDateString() === ontem.toDateString()) return "Ontem";
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
+function itemConversa(c) {
+  const u = c.ultima;
+  const previa = u ? `${u.autor === "nos" ? "Você: " : ""}${u.texto.replace(/\s+/g, " ")}` : "";
+  return `<button class="chat-item" data-conversa-id="${c.id}" aria-current="${c.id === conversaAberta}">
+    <span class="avatar">${inicial(c.nome)}</span>
+    <span class="meio"><span class="nome">${esc(c.nome)}</span>
+      <span class="previa">${u ? ic(u.canal === "email" ? "mail" : "message", "sm") : ""} ${esc(previa)}</span>
+      <span>${pilulaChance(c.andamento)}${c.andamento.precisaDeVoce ? ` <span class="pilula perigo">${ic("alert", "sm")}Você</span>` : ""}</span></span>
+    <span class="lado"><span>${horaCurta(u?.quando)}</span>${c.nao_lidas ? `<span class="badge-nl">${c.nao_lidas}</span>` : ""}</span>
+  </button>`;
+}
+
+function conversasFiltradas() {
+  const lista = dadosConversas?.conversas ?? [];
+  if (filtroConversa === "todas") return lista;
+  if (filtroConversa === "precisa") return lista.filter((c) => c.andamento.precisaDeVoce);
+  return lista.filter((c) => c.andamento.chance === filtroConversa);
+}
+
+function desenharListaConversas() {
+  const lista = conversasFiltradas();
+  $("#chat-filtros").innerHTML = FILTROS_CONVERSA.map(([v, t]) =>
+    `<button class="filtro" data-filtro-conversa="${v}" aria-pressed="${v === filtroConversa}">${t}</button>`).join("");
+  $("#chat-itens").innerHTML = lista.length ? lista.map(itemConversa).join("")
+    : `<p class="muted" style="padding:20px;text-align:center">Nenhuma conversa neste filtro.</p>`;
+}
+
+/** Monta a página (indicadores + lista + chat). Com `manterChat`, só atualiza o que mudou. */
+async function carregarRespostas(alvo, { manterChat = false } = {}) {
+  dadosConversas = await api("/api/conversas");
+  if (viewAtual !== "respostas") return;
+  const { indicadores, conversas } = dadosConversas;
+  if (!conversas.length) {
+    alvo.innerHTML = htmlIndicadores(indicadores) + vazio(...VAZIOS.respostas);
+    return;
+  }
+  if (manterChat && $("#chat-app")) {
+    $("#chat-indicadores").innerHTML = htmlIndicadores(indicadores);
+    desenharListaConversas();
+    if (conversaAberta) await abrirConversa(conversaAberta, { atualizar: true });
+    return;
+  }
+  alvo.innerHTML = `<div id="chat-indicadores">${htmlIndicadores(indicadores)}</div>
+    <div class="chat-app" id="chat-app">
+      <aside class="chat-lista" aria-label="Conversas"><div class="filtros" id="chat-filtros"></div><div class="chat-itens" id="chat-itens"></div></aside>
+      <section class="chat-painel" id="chat-painel"><div class="chat-vazio">${ic("message")}<p>Escolha uma conversa para ver tudo o que foi falado.</p></div></section>
+    </div>`;
+  desenharListaConversas();
+  if (!conversas.some((c) => c.id === conversaAberta)) conversaAberta = null;
+  // No computador já abre a conversa mais importante; no celular a lista vem primeiro.
+  if (!conversaAberta && window.innerWidth > 900) conversaAberta = conversasFiltradas()[0]?.id ?? null;
+  if (conversaAberta) await abrirConversa(conversaAberta, { celular: false });
+}
+
+function bolhasDaConversa(d) {
+  const contatoPrincipal = [d.lead.whatsapp, d.lead.email].filter(Boolean);
+  let diaAnterior = "";
+  const partes = [];
+  for (const m of d.mensagens) {
+    const dia = new Date(m.quando).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+    if (dia !== diaAnterior) partes.push(`<div class="dia">${new Date(m.quando).toDateString() === new Date().toDateString() ? "Hoje" : dia}</div>`);
+    diaAnterior = dia;
+    const outroContato = m.contato && !contatoPrincipal.some((c) => String(c).toLowerCase() === String(m.contato).toLowerCase());
+    const detalhes = [
+      ic(m.canal === "email" ? "mail" : "message", "sm"),
+      m.autor === "nos" ? (m.etapa >= 1 ? `etapa ${m.etapa}` : "resposta") : (ROTULOS_RESPOSTA[m.tipo]?.[0] ?? ""),
+      outroContato ? `${m.autor === "nos" ? "para" : "de"} ${esc(m.contato)}` : "",
+      new Date(m.quando).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) + (m.autor === "nos" ? " ✓✓" : ""),
+    ].filter(Boolean).join(" · ");
+    partes.push(`<div class="bolha ${m.autor}">${m.assunto && m.canal === "email" ? `<div class="assunto-b">${esc(m.assunto)}</div>` : ""}${esc(m.texto)}<div class="rodape-b">${detalhes}</div></div>`);
+  }
+  for (const a of d.agendadas) {
+    const quando = a.agendada_para ? `sai ${dataHora(a.agendada_para)}` : "aguardando a etapa anterior";
+    partes.push(`<div class="bolha agendada">${esc(a.texto)}<div class="rodape-b">${ic("clock", "sm")}${a.tipo === "resposta" ? "resposta da IA" : `etapa ${a.etapa}`} · ${quando}
+      · <button class="link" data-cancelar-agendada="${a.id}">não enviar</button></div></div>`);
+  }
+  return partes.join("");
+}
+
+/** Abre (ou atualiza) uma conversa no painel da direita. */
+async function abrirConversa(id, { atualizar = false } = {}) {
+  conversaAberta = Number(id);
+  const painel = $("#chat-painel");
+  if (!painel) return;
+  $$(".chat-item").forEach((el) => el.setAttribute("aria-current", String(Number(el.dataset.conversaId) === conversaAberta)));
+  $("#chat-app").classList.add("com-conversa");
+  if (!atualizar) painel.innerHTML = `<div class="chat-vazio"><div class="esqueleto" style="width:60%"></div></div>`;
+  const d = await api(`/api/conversas/${conversaAberta}`);
+  if (conversaAberta !== Number(id)) return;
+  const a = d.andamento;
+  const msgs = bolhasDaConversa(d);
+
+  if (atualizar && $("#chat-msgs")) {
+    const caixa = $("#chat-msgs");
+    const noFim = caixa.scrollHeight - caixa.scrollTop - caixa.clientHeight < 40;
+    caixa.innerHTML = msgs;
+    if (noFim) caixa.scrollTop = caixa.scrollHeight;
+    if (a) $("#chat-andamento").innerHTML = htmlAndamento(d);
+    return;
+  }
+
+  const r = d.resposta;
+  const canal = r?.canal === "email" ? "e-mail" : "WhatsApp";
+  const encerrada = a?.chance === "encerrada";
+  painel.innerHTML = `
+    <div class="chat-topo">
+      <button class="btn fantasma sm so-celular" data-voltar-lista aria-label="Voltar para as conversas">${ic("arrowLeft", "sm")}</button>
+      <span class="avatar">${inicial(d.lead.nome)}</span>
+      <div class="titulos"><h3>${esc(d.lead.nome)}</h3>
+        <div class="meta">${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}
+          ${d.lead.nicho ? `<span>${ic("building", "sm")}${esc(d.lead.nicho)}</span>` : ""}</div></div>
+      ${a ? pilulaChance(a) : ""}
+    </div>
+    <div class="chat-andamento" id="chat-andamento">${a ? htmlAndamento(d) : ""}</div>
+    <div class="chat-msgs" id="chat-msgs">${msgs}</div>
+    ${r && !encerrada ? `<div class="chat-escrever" data-resposta="${r.id}" data-canal="${r.canal}">
+      <textarea id="chat-texto" aria-label="Mensagem para ${esc(d.lead.nome)}" placeholder="Escreva como Felipe, pelo ${canal}…">${esc(r.sugestao ?? "")}</textarea>
+      <div class="linha">${r.sugestao ? `${ic("spark", "sm")}Sugestão da IA (revise antes de enviar) ·` : ""} Responde pelo ${canal}${r.de ? ` para ${esc(r.de)}` : ""}
+        <span class="espaco"></span><button class="btn primario sm" data-enviar-conversa>${ic("send", "sm")}Enviar</button></div>
+    </div>` : encerrada ? `<div class="chat-escrever"><div class="linha">${ic("check", "sm")}Conversa encerrada: a empresa não tem interesse no momento e não recebe mais mensagens.</div></div>` : ""}`;
+  const caixa = $("#chat-msgs");
+  caixa.scrollTop = caixa.scrollHeight;
+  // Abriu a conversa: tudo dela conta como lido.
+  const item = dadosConversas?.conversas.find((c) => c.id === conversaAberta);
+  if (item?.nao_lidas) {
+    item.nao_lidas = 0;
+    desenharListaConversas();
+    post(`/api/conversas/${conversaAberta}/lida`).then(() => carregarStats()).catch(() => {});
+  }
+}
+
+function htmlAndamento(d) {
+  const a = d.andamento;
+  return [
+    `<span>Chance de fechar: <b>${a.rotulo}</b>${a.esfriou ? ` (esfriou: ${a.diasSemResposta} dias sem resposta)` : ""}</span>`,
+    `<span>Próximo passo: <b>${esc(a.proximoPasso)}</b></span>`,
+    `<span>${a.aguardando === "empresa" ? "Aguardando a empresa" : "A empresa está esperando você"}</span>`,
+    d.resposta?.resumo ? `<span>Última resposta: ${esc(d.resposta.resumo)}</span>` : "",
+  ].filter(Boolean).join("");
+}
+
+async function enviarNaConversa(btn) {
+  const caixa = btn.closest("[data-resposta]");
+  const texto = $("#chat-texto").value;
+  const janela = caixa.dataset.canal === "whatsapp" && sessao.modoWhatsapp === "manual" ? window.open("about:blank", "_blank") : null;
+  btn.disabled = true;
+  try {
+    const r = await post(`/api/respostas/${caixa.dataset.resposta}/enviar`, { texto });
+    if (r.manual) {
+      if (janela) janela.location = r.linkWhatsapp;
+      $(".linha", caixa).innerHTML = `<span style="font-weight:600">Você enviou a resposta no WhatsApp?</span><span class="espaco"></span>
+        <button class="btn ok sm" data-confirmar-resposta="${r.id}">${ic("check", "sm")}Sim, enviei</button>`;
+      return;
+    }
+    janela?.close();
+    if (r.enviada) avisar("Mensagem enviada", "ok");
+    else if (r.naFila) avisar(`Mensagem na fila: ${r.motivo}`, "info", 7000);
+    else avisar(`Não foi enviada: ${r.motivo}`, "perigo", 8000);
+    $("#chat-texto").value = "";
+    await carregarRespostas($("#view-lista"), { manterChat: true });
+  } catch (e) {
+    janela?.close();
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Atualiza a página de Respostas sozinha, sem apagar o que você está escrevendo.
+setInterval(() => {
+  if (viewAtual === "respostas" && !document.hidden && !$("#painel").hidden && $("#chat-app")) {
+    carregarRespostas($("#view-lista"), { manterChat: true }).catch(() => {});
+  }
+}, 30000);
+
 const STATUS_LEAD = {
   novo: ["Aguardando análise", ""], analisado: ["Aguardando proposta", "acc"], proposta_gerada: ["Proposta para aprovar", "atencao"],
   contatado: ["Contatada", "acc"], respondeu: ["Respondeu", "ok"], agendado: ["Reunião agendada", "ok"], sem_interesse: ["Sem interesse", ""],
@@ -1453,8 +1744,8 @@ async function carregarLista() {
   try {
     let html;
     if (view === "respostas") {
-      const lista = await api("/api/respostas");
-      html = lista.length ? lista.map(cardResposta).join("") : vazio(...VAZIOS.respostas);
+      await carregarRespostas(alvo);
+      return;
     } else if (view === "leads") {
       const lista = await api(`/api/leads?status=${filtroLeads}`);
       html = `<div class="filtros" role="group" aria-label="Filtrar empresas">
@@ -1977,6 +2268,16 @@ document.addEventListener("click", async (ev) => {
       avisar("Chave copiada. Agora cole no segredo CRON_SECRET do GitHub.", "ok", 6000);
     }
     else if ("responder" in btn.dataset) await responder(btn);
+    else if (btn.dataset.conversaId) await abrirConversa(btn.dataset.conversaId);
+    else if (btn.dataset.filtroConversa) { filtroConversa = btn.dataset.filtroConversa; desenharListaConversas(); }
+    else if ("voltarLista" in btn.dataset) $("#chat-app").classList.remove("com-conversa");
+    else if ("enviarConversa" in btn.dataset) await enviarNaConversa(btn);
+    else if (btn.dataset.cancelarAgendada) {
+      if (!confirm("Não enviar esta mensagem?")) return;
+      await post(`/api/mensagens/${btn.dataset.cancelarAgendada}/rejeitar`);
+      avisar("Mensagem cancelada", "ok");
+      await carregarRespostas($("#view-lista"), { manterChat: true });
+    }
     else if (btn.dataset.confirmarResposta) {
       await post(`/api/mensagens/${btn.dataset.confirmarResposta}/enviada-manual`);
       avisar("Resposta registrada", "ok");

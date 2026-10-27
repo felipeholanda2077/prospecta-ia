@@ -6,6 +6,7 @@ import * as pipeline from "./pipeline.js";
 import { waitUntil } from "@vercel/functions";
 import { carregarCampanhaCompleta, CAMPOS_EMPRESA, lerAutomacao, AUTOMACAO_PADRAO } from "./campanha.js";
 import { contatarIndicados, normalizarNumeroIndicado } from "./respostas/indicacao.js";
+import { avaliarConversa, indicadoresDasConversas } from "./respostas/andamento.js";
 import * as calendly from "./agenda/calendly.js";
 import { tokenDoGithubValido } from "./agendamento/github.js";
 import { garantirAgendamentoNoBanco, chaveDoBancoValida, statusDoBanco } from "./agendamento/banco.js";
@@ -406,6 +407,45 @@ app.post("/api/leads/:id/indicado", async (req, res) => {
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
+});
+
+// ---------- Conversas (página de Respostas em formato de chat) ----------
+
+/** Conversas com a avaliação de andamento; quem precisa de você primeiro, depois as mais recentes. */
+async function conversasAvaliadas() {
+  const lista = (await db.conversas()).map((c) => ({ ...c, andamento: avaliarConversa(c) }));
+  const quando = (c) => new Date(c.ultima?.quando ?? 0).getTime();
+  return lista.sort((a, b) => Number(b.andamento.precisaDeVoce) - Number(a.andamento.precisaDeVoce) || quando(b) - quando(a));
+}
+
+app.get("/api/conversas", async (req, res) => {
+  const conversas = await conversasAvaliadas();
+  res.json({ indicadores: indicadoresDasConversas(conversas, await db.funilDeConversas()), conversas });
+});
+
+app.get("/api/conversas/:leadId", async (req, res) => {
+  const lead = await db.buscarLead(req.params.leadId);
+  if (!lead) return res.status(404).json({ erro: "Empresa não encontrada" });
+  const conversa = (await conversasAvaliadas()).find((c) => c.id === lead.id) ?? null;
+  const resposta = await db.ultimaRespostaDaConversa(lead.id);
+  const { token, analise, ...dados } = lead;
+  res.json({
+    lead: { ...dados, oportunidades: JSON.parse(dados.oportunidades || "[]") },
+    andamento: conversa?.andamento ?? null,
+    mensagens: await db.historicoConversa(lead.id),
+    agendadas: await db.agendadasDaConversa(lead.id),
+    // A sugestão da IA vai para a caixa de resposta quando ninguém respondeu ainda a última mensagem.
+    resposta: resposta && {
+      id: resposta.id, canal: resposta.canal, de: resposta.de, precisa_humano: resposta.precisa_humano,
+      sugestao: conversa?.andamento?.aguardando === "nos" && !resposta.mensagem_id ? resposta.sugestao : null,
+      resumo: resposta.resumo,
+    },
+  });
+});
+
+app.post("/api/conversas/:leadId/lida", async (req, res) => {
+  await db.marcarConversaLida(req.params.leadId);
+  res.json({ ok: true });
 });
 
 app.get("/api/respostas", async (req, res) => {
