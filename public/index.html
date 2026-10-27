@@ -1385,7 +1385,7 @@ function cardFilaEmpresa(ms) {
       <span class="pilula">${ic("clock", "sm")}Próxima: ${esc(nomeDaEtapa(m).toLowerCase())} · ${esc(quandoSai(m).replace(" (em horário comercial)", "").replace(/^Agendada para /, ""))}</span>
     </div>
     ${oportunidades}
-    ${ms.map((x, i) => etapaDaFila(x, i === 0)).join("")}
+    ${ms.map((x) => etapaDaFila(x, false)).join("")}
     <div class="acoes"><span class="muted" style="font-size:13px">Cada etapa só sai se a empresa não responder antes.</span><span class="espaco"></span>
       <button class="btn perigo sm" data-cancelar-fila="${m.lead_id}">${ic("x", "sm")}Não enviar nada para esta empresa</button></div>
   </article>`;
