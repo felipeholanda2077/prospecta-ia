@@ -69,20 +69,27 @@ export async function chaveDoBancoValida(recebido) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+/** Última execução de um job do agendador do banco. */
+const ultimaExecucao = async (nome) => (await db
+  .consultar(
+    `SELECT status, return_message, end_time FROM cron.job_run_details
+      WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = $1) ORDER BY start_time DESC LIMIT 1`,
+    [nome]
+  )
+  .catch(() => []))[0] ?? null;
+
 /** Situação do agendador do banco para o painel: ligado e as últimas chamadas que ele fez. */
 export async function statusDoBanco() {
   if (!config.databaseUrl) return { ativo: false, motivo: "só funciona com o banco do Supabase" };
   try {
     const job = await db.consultar("SELECT active FROM cron.job WHERE jobname = $1", [NOME_JOB]);
     if (!job.length) return { ativo: false, motivo: "ainda não ligado" };
-    const ultima = await db
-      .consultar(
-        `SELECT status, return_message, end_time FROM cron.job_run_details
-          WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = $1) ORDER BY start_time DESC LIMIT 1`,
-        [NOME_JOB]
-      )
-      .catch(() => []);
-    return { ativo: Boolean(job[0].active), ultimaExecucao: ultima[0] ?? null };
+    const jobs = [];
+    for (const j of JOBS) {
+      const [linha] = await db.consultar("SELECT active FROM cron.job WHERE jobname = $1", [j.nome]);
+      jobs.push({ nome: j.nome, agenda: j.agenda, ativo: Boolean(linha?.active), ultimaExecucao: await ultimaExecucao(j.nome) });
+    }
+    return { ativo: Boolean(job[0].active), ultimaExecucao: await ultimaExecucao(NOME_JOB), jobs };
   } catch (e) {
     return { ativo: false, motivo: e.message };
   }
