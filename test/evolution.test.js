@@ -90,3 +90,17 @@ test("com a UAZap desconectada e a Evolution conectada, o WhatsApp sai pela Evol
     srv.restaurar();
   }
 });
+
+test("Evolution: a URL do /manager vira a da API, e página que não é a API é recusada", async () => {
+  assert.equal(evolution.normalizarUrl("https://evo.exemplo.com/manager/"), "https://evo.exemplo.com");
+  assert.equal(evolution.normalizarUrl("https://evo.exemplo.com/manager/instance/123"), "https://evo.exemplo.com");
+  assert.equal(evolution.normalizarUrl(" https://evo.exemplo.com/ "), "https://evo.exemplo.com");
+
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response("<!doctype html><title>Manager</title>", { status: 200, headers: { "Content-Type": "text/html" } });
+  try {
+    await assert.rejects(evolution.salvarConfig({ url: "https://evo.exemplo.com", apikey: "K", instancia: "x" }), /sem \/manager/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});

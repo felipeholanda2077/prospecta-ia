@@ -12,12 +12,20 @@ let cache = null;
 let cacheAte = 0;
 let conectado = { valor: false, ate: 0 };
 
+/**
+ * Endereço da API a partir do que foi colado: o painel da Evolution fica em /manager,
+ * mas a API responde na raiz do servidor.
+ */
+export function normalizarUrl(url) {
+  return String(url ?? "").trim().replace(/\/manager(\/.*)?$/i, "").replace(/\/+$/, "");
+}
+
 /** Server URL, API key e nome da instância. Variáveis de ambiente têm prioridade sobre o painel. */
 export async function obterConfig() {
   if (Date.now() < cacheAte) return cache;
   const salvo = (await db.lerConfig(CHAVE)) ?? {};
   cache = {
-    url: (process.env.EVOLUTION_URL || salvo.url || "").replace(/\/+$/, ""),
+    url: normalizarUrl(process.env.EVOLUTION_URL || salvo.url),
     apikey: process.env.EVOLUTION_APIKEY || salvo.apikey || "",
     instancia: process.env.EVOLUTION_INSTANCIA || salvo.instancia || "",
     segredoWebhook: salvo.segredoWebhook || "",
@@ -38,7 +46,7 @@ export async function configurada() {
 export async function salvarConfig({ url, apikey, instancia }) {
   const atual = (await db.lerConfig(CHAVE)) ?? {};
   const novo = {
-    url: String(url ?? atual.url ?? "").trim().replace(/\/+$/, ""),
+    url: normalizarUrl(url ?? atual.url),
     apikey: String(apikey || atual.apikey || "").trim(),
     instancia: String(instancia ?? atual.instancia ?? "").trim(),
     segredoWebhook: atual.segredoWebhook || crypto.randomBytes(18).toString("hex"),
@@ -49,7 +57,8 @@ export async function salvarConfig({ url, apikey, instancia }) {
 
   // Só salva depois de confirmar que a URL, a chave e a instância funcionam.
   try {
-    await chamarCom(novo, `/instance/connectionState/${encodeURIComponent(novo.instancia)}`);
+    const estado = await chamarCom(novo, `/instance/connectionState/${encodeURIComponent(novo.instancia)}`);
+    if (!estado?.instance) throw new Error("Esse endereço não respondeu como a Evolution API. Use a Server URL do servidor, sem /manager no final.");
   } catch (e) {
     if (e.status !== 404) throw e;
     await chamarCom(novo, "/instance/create", {
@@ -75,15 +84,18 @@ async function chamarCom({ url, apikey }, caminho, { method = "GET", corpo } = {
   } catch {
     throw new Error(`Não foi possível acessar a Evolution API em ${url}. Confira a Server URL.`);
   }
-  const dados = await resp.json().catch(() => ({}));
+  const dados = await resp.json().catch(() => null);
   if (resp.status === 401 || resp.status === 403) throw new Error("A Evolution API recusou a API key. Confira a chave.");
+  if (resp.ok && dados === null && /html/i.test(resp.headers.get("content-type") ?? "")) {
+    throw new Error("Esse endereço não respondeu como a Evolution API (veio uma página, não a API). Use a Server URL do servidor, sem /manager no final.");
+  }
   if (!resp.ok) {
-    const detalhe = dados.response?.message ?? dados.message ?? dados.error ?? "erro desconhecido";
+    const detalhe = dados?.response?.message ?? dados?.message ?? dados?.error ?? "erro desconhecido";
     const erro = new Error(`Evolution API respondeu ${resp.status}: ${Array.isArray(detalhe) ? detalhe.join("; ") : detalhe}`);
     erro.status = resp.status;
     throw erro;
   }
-  return dados;
+  return dados ?? {};
 }
 
 async function chamar(caminho, opcoes) {
