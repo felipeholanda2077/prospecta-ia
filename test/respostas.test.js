@@ -369,3 +369,25 @@ test("andamento: status, tempo sem resposta e pedido de ajuda mudam a chance e o
   // Sem avaliação da IA (respostas antigas): estima pelo que a empresa disse.
   assert.equal(avaliarConversa({ ...base, avaliacao: null, mostrou_interesse: false, respostas: 1 }, agora).chance, "fria");
 });
+
+test("funil: quantas empresas contatadas não responderam (a resposta automática não conta)", async () => {
+  const { indicadoresDasConversas } = await import("../src/respostas/andamento.js");
+  const antes = await db.funilDeConversas();
+  const naSequencia = await novoLead("Sem resposta 1", "sem1@clinica.com");
+  await enviada(naSequencia, 0);
+  await db.criarMensagem({ lead_id: naSequencia.id, canal: "email", destino: naSequencia.email, corpo: "etapa 2", status: "aprovada", tipo: "sequencia", etapa: 2 });
+  const encerrada = await novoLead("Sem resposta 2", "sem2@clinica.com");
+  await enviada(encerrada, 3);
+  await db.criarResposta({ lead_id: encerrada.id, canal: "whatsapp", origem_id: "auto-1", de: "1", texto: "Obrigado pelo contato!", classificacao: "automatica" });
+  const respondeu = await novoLead("Respondeu de verdade", "resp@clinica.com");
+  await enviada(respondeu, 0);
+  await db.criarResposta({ lead_id: respondeu.id, canal: "email", origem_id: "<resp-1@x>", de: respondeu.email, texto: "Agora não", classificacao: "sem_interesse" });
+
+  const depois = await db.funilDeConversas();
+  assert.equal(depois.contatadas - antes.contatadas, 3);
+  assert.equal(depois.nao_responderam - antes.nao_responderam, 2);
+  assert.equal(depois.nao_responderam_na_sequencia - antes.nao_responderam_na_sequencia, 1);
+  const ind = indicadoresDasConversas([], depois);
+  assert.equal(ind.naoResponderam, depois.nao_responderam);
+  assert.equal(ind.naoResponderamNaSequencia + ind.naoResponderamSequenciaEncerrada, ind.naoResponderam);
+});

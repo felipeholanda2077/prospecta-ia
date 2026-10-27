@@ -313,7 +313,9 @@
   .ind span { color: var(--muted); font-size: 13px; }
   .ind.ok b { color: var(--ok); } .ind.atencao b { color: var(--warn); } .ind.perigo b { color: var(--danger); } .ind.acc b { color: var(--accent-text); }
   .funil { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px;
-           display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+           display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .funil-etapa small { font-size: 12px; color: var(--subtle); line-height: 1.35; }
+  .funil-etapa.sem-resposta .funil-barra i { background: var(--warn); }
   .funil-etapa { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
   .funil-etapa b { color: var(--text); font-size: 18px; font-variant-numeric: tabular-nums; }
   .funil-barra { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
@@ -373,6 +375,7 @@
     .chat-itens { max-height: none; }
     .so-celular { display: inline-flex; }
   }
+  @media (max-width: 1000px) { .funil { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 700px) { .funil { grid-template-columns: repeat(2, 1fr); } }
 
   /* ---------- Interruptor ---------- */
@@ -1659,6 +1662,8 @@ function htmlIndicadores(ind) {
     <div class="funil" aria-label="Funil das conversas">
       <div class="funil-etapa"><span>Contatadas</span><b>${f.contatadas}</b>${barra(f.contatadas)}</div>
       <div class="funil-etapa"><span>Responderam · ${ind.taxaResposta}%</span><b>${f.responderam}</b>${barra(f.responderam)}</div>
+      <div class="funil-etapa sem-resposta"><span>Não responderam · ${ind.taxaSemResposta}%</span><b>${ind.naoResponderam}</b>${barra(ind.naoResponderam)}
+        <small>${ind.naoResponderamNaSequencia} ainda recebendo as etapas · ${ind.naoResponderamSequenciaEncerrada} já receberam todas</small></div>
       <div class="funil-etapa"><span>Mostraram interesse · ${ind.taxaInteresse}%</span><b>${f.interessadas}</b>${barra(f.interessadas)}</div>
       <div class="funil-etapa"><span>Agendaram · ${ind.taxaAgendamento}%</span><b>${f.agendadas}</b>${barra(f.agendadas)}</div>
     </div>`;

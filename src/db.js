@@ -542,9 +542,19 @@ export async function conversas() {
 
 /** Números do funil: empresas contatadas, que responderam, mostraram interesse e agendaram. */
 export async function funilDeConversas() {
+  // Não responderam: empresas contatadas sem nenhuma resposta de verdade (a automática do
+  // WhatsApp Business não conta). "Na sequência" = ainda têm etapas para receber.
   return um(
-    `SELECT
+    `WITH sem_resposta AS (
+       SELECT DISTINCT m.lead_id FROM mensagens m
+        WHERE m.status = 'enviada' AND m.tipo <> 'resposta'
+          AND NOT EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = m.lead_id AND r.classificacao IS DISTINCT FROM 'automatica')
+     )
+     SELECT
        (SELECT count(DISTINCT lead_id) FROM mensagens WHERE status = 'enviada' AND tipo <> 'resposta')::int AS contatadas,
+       (SELECT count(*) FROM sem_resposta)::int AS nao_responderam,
+       (SELECT count(*) FROM sem_resposta s WHERE EXISTS (
+          SELECT 1 FROM mensagens p WHERE p.lead_id = s.lead_id AND p.status = 'aprovada' AND p.tipo <> 'resposta'))::int AS nao_responderam_na_sequencia,
        (SELECT count(DISTINCT lead_id) FROM respostas WHERE classificacao IS DISTINCT FROM 'automatica')::int AS responderam,
        (SELECT count(DISTINCT lead_id) FROM respostas WHERE classificacao IN ('interessado', 'quer_informacoes'))::int AS interessadas,
        (SELECT count(*) FROM leads WHERE status = 'agendado')::int AS agendadas`

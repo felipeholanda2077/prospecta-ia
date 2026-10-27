@@ -60,6 +60,11 @@ export function indicadoresDasConversas(lista, funil) {
     precisamDeVoce: conta((c) => c.andamento.precisaDeVoce),
     agendadas: funil.agendadas,
     funil,
+    naoResponderam: funil.nao_responderam ?? 0,
+    // Ainda vão receber etapas / já receberam todas e não responderam.
+    naoResponderamNaSequencia: funil.nao_responderam_na_sequencia ?? 0,
+    naoResponderamSequenciaEncerrada: (funil.nao_responderam ?? 0) - (funil.nao_responderam_na_sequencia ?? 0),
+    taxaSemResposta: pct(funil.nao_responderam ?? 0, funil.contatadas),
     taxaResposta: pct(funil.responderam, funil.contatadas),
     taxaInteresse: pct(funil.interessadas, funil.responderam),
     taxaAgendamento: pct(funil.agendadas, funil.interessadas),
