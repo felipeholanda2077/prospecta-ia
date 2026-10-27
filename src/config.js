@@ -61,7 +61,8 @@ export const config = {
   dbPath: env.DB_PATH || "data/pglite",
   // Na Vercel cada execução tem limite de tempo; as etapas param antes e continuam na próxima.
   naVercel: Boolean(env.VERCEL),
-  cronSecret: env.CRON_SECRET || "",
+  // Sem espaços nem quebra de linha: colar o valor costuma trazer um "enter" no fim.
+  cronSecret: (env.CRON_SECRET || "").trim(),
 };
 
 const CAMPANHA_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "config", "campanha.json");

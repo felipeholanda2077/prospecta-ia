@@ -139,7 +139,8 @@ const TAREFAS_CRON = {
 app.get("/api/cron/:tarefa", async (req, res) => {
   const tarefa = TAREFAS_CRON[req.params.tarefa];
   if (!tarefa) return res.sendStatus(404);
-  if (!config.cronSecret || req.get("authorization") !== `Bearer ${config.cronSecret}`) return res.sendStatus(401);
+  const recebido = String(req.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  if (!config.cronSecret || !iguais(recebido, config.cronSecret)) return res.sendStatus(401);
   res.json((await tarefa(await carregarCampanhaCompleta())) ?? {});
 });
 
