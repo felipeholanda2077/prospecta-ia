@@ -553,7 +553,11 @@
               <div class="campo"><label for="auto-meta-wa">WhatsApp por dia</label><input id="auto-meta-wa" name="metaWhatsapp" type="number" min="0" max="300"></div>
             </div>
             <label class="chave"><input type="checkbox" name="aquecimentoWhatsapp"><div><b>Aquecer o número de WhatsApp</b>
-              <span>Começa com 20 mensagens por dia e sobe 10 a cada dia útil até a meta. Reduz bastante o risco de bloqueio do número.</span></div></label>
+              <span>Começa com poucas empresas novas por dia e sobe a cada dia útil até a meta. Reduz bastante o risco de bloqueio do número.</span></div></label>
+            <div class="config-grade">
+              <div class="campo"><label for="auto-aq-inicial">Aquecimento: começar com (empresas novas por dia)</label><input id="auto-aq-inicial" name="aquecimentoInicial" type="number" min="5" max="300"></div>
+              <div class="campo"><label for="auto-aq-passo">Aquecimento: aumentar por dia útil</label><input id="auto-aq-passo" name="aquecimentoPasso" type="number" min="0" max="100"></div>
+            </div>
             <div class="config-grade">
               <div class="campo"><label for="auto-calendly">Link do Calendly</label><input id="auto-calendly" name="calendly" placeholder="https://calendly.com/fluxdeck/15min"></div>
               <div class="campo"><label for="auto-max-ia">Respostas da IA por conversa (depois passa para você)</label><input id="auto-max-ia" name="maxRespostasIA" type="number" min="1" max="20"></div>
@@ -2230,6 +2234,8 @@ async function carregarAutomacao() {
     f.ativo.checked = a.ativo;
     f.respostaAutomatica.checked = a.respostaAutomatica;
     f.aquecimentoWhatsapp.checked = a.aquecimentoWhatsapp;
+    f.aquecimentoInicial.value = a.aquecimentoInicial;
+    f.aquecimentoPasso.value = a.aquecimentoPasso;
     f.metaEmail.value = a.metaDiaria.email;
     f.metaWhatsapp.value = a.metaDiaria.whatsapp;
     f.maxRespostasIA.value = a.maxRespostasIA;
@@ -2241,7 +2247,7 @@ async function carregarAutomacao() {
       <div class="medidor"><i style="width:${h.limite ? Math.min(100, (h.enviadas / h.limite) * 100) : 0}%"></i></div></div>`;
     $("#auto-hoje").innerHTML = `<div class="config-grade">${barra("E-mail", a.hoje.email)}${barra("WhatsApp", a.hoje.whatsapp)}</div>
       ${a.aquecimentoWhatsapp && a.hoje.whatsapp.limite < a.metaDiaria.whatsapp
-        ? `<p class="muted" style="margin:8px 0 0;font-size:13px">WhatsApp em aquecimento: hoje até ${a.hoje.whatsapp.limite}, subindo até ${a.metaDiaria.whatsapp} por dia.</p>` : ""}
+        ? `<p class="muted" style="margin:8px 0 0;font-size:13px">WhatsApp em aquecimento: hoje até ${a.hoje.whatsapp.limite} empresas novas, subindo ${a.aquecimentoPasso} por dia útil até ${a.metaDiaria.whatsapp}.</p>` : ""}
       ${a.respostaAutomatica && !a.calendly ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>Coloque o link do Calendly para a IA conseguir levar as pessoas ao agendamento.</div></div>` : ""}
       ${a.ativo && sessao.modoWhatsapp === "manual" ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>O WhatsApp está no modo manual: as mensagens automáticas de WhatsApp vão ficar na Fila de envio esperando você. Conecte a UAZap ou a Evolution API em <a href="#configuracoes">Configurações</a> para elas saírem sozinhas.</div></div>` : ""}`;
   } catch (e) {
@@ -2258,6 +2264,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
     await api("/api/config/automacao", { method: "PUT", body: JSON.stringify({
       ativo: f.ativo.checked, respostaAutomatica: f.respostaAutomatica.checked, aquecimentoWhatsapp: f.aquecimentoWhatsapp.checked,
       metaEmail: f.metaEmail.value, metaWhatsapp: f.metaWhatsapp.value, maxRespostasIA: f.maxRespostasIA.value,
+      aquecimentoInicial: f.aquecimentoInicial.value, aquecimentoPasso: f.aquecimentoPasso.value,
       calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value,
     }) });
     await iniciar();

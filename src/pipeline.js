@@ -95,9 +95,10 @@ export function diasUteisEntre(inicio, fim = new Date()) {
   }
 }
 
-// Aquecimento do número de WhatsApp: começa com 20 por dia e sobe 10 a cada dia útil.
-const AQUECIMENTO_INICIAL = 20;
-const AQUECIMENTO_PASSO = 10;
+// Aquecimento do número de WhatsApp: começa com 50 empresas novas por dia e sobe 15 a cada
+// dia útil até a meta (os dois valores dá para mudar em Automação).
+const AQUECIMENTO_INICIAL = 50;
+const AQUECIMENTO_PASSO = 15;
 
 /** Quantas mensagens de prospecção podem sair hoje por este canal. */
 export async function limiteDoDia(campanha, canal) {
@@ -106,7 +107,9 @@ export async function limiteDoDia(campanha, canal) {
   if (canal !== "whatsapp" || !auto?.aquecimentoWhatsapp) return meta;
   const inicio = await db.lerEstado("aquecimento_whatsapp_inicio");
   const dias = inicio ? diasUteisEntre(inicio) : 0;
-  return Math.min(meta, AQUECIMENTO_INICIAL + AQUECIMENTO_PASSO * dias);
+  const inicial = Number(auto.aquecimentoInicial) || AQUECIMENTO_INICIAL;
+  const passo = Number(auto.aquecimentoPasso) || AQUECIMENTO_PASSO;
+  return Math.min(meta, inicial + passo * dias);
 }
 
 /** Minutos que faltam para o fim do horário comercial de hoje (negativo depois dele). */

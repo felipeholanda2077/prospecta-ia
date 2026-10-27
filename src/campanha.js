@@ -11,7 +11,9 @@ export const AUTOMACAO_PADRAO = {
   ativo: false, // busca, aprova e envia sozinho
   respostaAutomatica: false, // a IA responde as conversas sozinha
   metaDiaria: { email: 100, whatsapp: 100 },
-  aquecimentoWhatsapp: true, // começa com 20/dia e sobe 10 por dia útil
+  aquecimentoWhatsapp: true, // começa com `aquecimentoInicial`/dia e sobe `aquecimentoPasso` por dia útil
+  aquecimentoInicial: 50,
+  aquecimentoPasso: 15,
   maxRespostasIA: 6, // depois disso a conversa passa para você
   calendly: "",
   buscas: null, // null = usa as do campanha.json

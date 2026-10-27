@@ -554,6 +554,8 @@ app.put("/api/config/automacao", async (req, res) => {
     respostaAutomatica: Boolean(b.respostaAutomatica),
     metaDiaria: { email: inteiro(b.metaEmail, 0, 500, 100), whatsapp: inteiro(b.metaWhatsapp, 0, 300, 100) },
     aquecimentoWhatsapp: b.aquecimentoWhatsapp !== false,
+    aquecimentoInicial: inteiro(b.aquecimentoInicial, 5, 300, AUTOMACAO_PADRAO.aquecimentoInicial),
+    aquecimentoPasso: inteiro(b.aquecimentoPasso, 0, 100, AUTOMACAO_PADRAO.aquecimentoPasso),
     maxRespostasIA: inteiro(b.maxRespostasIA, 1, 20, AUTOMACAO_PADRAO.maxRespostasIA),
     calendly: calendlyLink,
     buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,

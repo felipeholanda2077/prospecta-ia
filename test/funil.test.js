@@ -176,12 +176,14 @@ test("empresa capturada no Maps sem site e só com telefone fixo não é descart
 test("meta diária por canal com aquecimento do WhatsApp", async () => {
   const camp = { ...campanha, automacao: { metaDiaria: { email: 100, whatsapp: 100 }, aquecimentoWhatsapp: true } };
   assert.equal(await pipeline.limiteDoDia(camp, "email"), 100);
-  assert.equal(await pipeline.limiteDoDia(camp, "whatsapp"), 20); // ainda não começou: 20 no primeiro dia
+  assert.equal(await pipeline.limiteDoDia(camp, "whatsapp"), 50); // ainda não começou: 50 no primeiro dia
   await db.gravarEstado("aquecimento_whatsapp_inicio", pipeline.somarDiasUteis(new Date(), -0).toISOString());
   const tresDiasUteisAtras = new Date(Date.now() - 5 * 86400000); // pelo menos 3 dias úteis
   await db.gravarEstado("aquecimento_whatsapp_inicio", tresDiasUteisAtras.toISOString());
   const dias = pipeline.diasUteisEntre(tresDiasUteisAtras);
-  assert.equal(await pipeline.limiteDoDia(camp, "whatsapp"), Math.min(100, 20 + 10 * dias));
+  assert.equal(await pipeline.limiteDoDia(camp, "whatsapp"), Math.min(100, 50 + 15 * dias));
+  assert.equal(await pipeline.limiteDoDia({ ...camp, automacao: { ...camp.automacao, aquecimentoInicial: 30, aquecimentoPasso: 5 } }, "whatsapp"),
+               Math.min(100, 30 + 5 * dias));
   assert.equal(await pipeline.limiteDoDia({ ...camp, automacao: { ...camp.automacao, aquecimentoWhatsapp: false } }, "whatsapp"), 100);
 });
 
