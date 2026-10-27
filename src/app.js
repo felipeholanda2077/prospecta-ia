@@ -136,11 +136,26 @@ const TAREFAS_CRON = {
   envios: (c) => pipeline.rodadaAutomatica(c),
 };
 
+const resumoChave = (v) => crypto.createHash("sha256").update(`prospecta-cron:${v}`).digest("hex");
+
+/**
+ * Aceita a chave do agendamento de dois jeitos: a CRON_SECRET da Vercel (usada pelo
+ * agendamento diário da própria Vercel) ou a chave gerada no painel, que fica só no
+ * banco (como resumo) e é a que vai no segredo do GitHub.
+ */
+async function chaveDoCronValida(recebido) {
+  if (!recebido) return false;
+  if (config.cronSecret && iguais(recebido, config.cronSecret)) return true;
+  const salvo = (await db.lerConfig("cron"))?.resumo;
+  return Boolean(salvo) && iguais(resumoChave(recebido), salvo);
+}
+
 app.get("/api/cron/:tarefa", async (req, res) => {
   const tarefa = TAREFAS_CRON[req.params.tarefa];
   if (!tarefa) return res.sendStatus(404);
   const recebido = String(req.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
-  if (!config.cronSecret || !iguais(recebido, config.cronSecret)) return res.sendStatus(401);
+  if (!(await chaveDoCronValida(recebido))) return res.sendStatus(401);
+  await db.gravarEstado("ultima_rodada", new Date().toISOString());
   res.json((await tarefa(await carregarCampanhaCompleta())) ?? {});
 });
 
@@ -430,6 +445,18 @@ app.get("/api/email/status", (req, res) => res.json(statusEmail()));
 
 // Envia um e-mail de teste e confere a leitura da caixa de entrada.
 app.post("/api/email/teste", async (req, res) => res.json(await testarEmail(req.body?.para)));
+
+// Gera a chave do agendamento (mostrada uma única vez) para colar no segredo CRON_SECRET do GitHub.
+app.post("/api/agendamento/chave", async (req, res) => {
+  const chave = crypto.randomBytes(32).toString("hex");
+  await db.gravarConfig("cron", { resumo: resumoChave(chave), criada: new Date().toISOString() });
+  res.json({ chave });
+});
+
+app.get("/api/agendamento/status", async (req, res) => {
+  const c = await db.lerConfig("cron");
+  res.json({ chaveGerada: Boolean(c?.resumo), criada: c?.criada ?? null, ultimaRodada: await db.lerEstado("ultima_rodada") });
+});
 
 app.get("/api/calendly/status", async (req, res) => res.json(await calendly.status()));
 

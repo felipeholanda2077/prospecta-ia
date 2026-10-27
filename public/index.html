@@ -503,6 +503,17 @@
           <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar perfil</button></div>
         </form>
 
+        <div class="cartao" id="cartao-cron" style="margin-top:16px">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="clock"></span><div class="titulos"><h3>Agendamento automático <span id="cron-status"></span></h3>
+            <div class="meta" style="display:block">O GitHub chama o sistema a cada 10 minutos. Ele precisa desta chave, guardada no segredo <b>CRON_SECRET</b> do repositório.</div></div></div>
+          <div class="cartao-corpo" style="display:grid;gap:12px">
+            <div id="cron-info" class="meta" style="display:block"></div>
+            <div id="cron-chave"></div>
+          </div>
+          <div class="acoes"><button class="btn primario" data-cron="gerar"><span data-ic="refresh"></span>Gerar chave do agendamento</button>
+            <a class="btn" href="https://github.com/felipeholanda2077/prospecta-ia/settings/secrets/actions" target="_blank" rel="noopener"><span data-ic="external"></span>Abrir segredos do GitHub</a></div>
+        </div>
+
         <form class="cartao" id="form-email" style="margin-top:16px">
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="mail"></span><div class="titulos"><h3>E-mail <span id="email-status"></span></h3>
             <div class="meta">Envio (SMTP) e leitura das respostas (IMAP). Os dados ficam nas variáveis de ambiente da Vercel (SMTP_HOST, SMTP_USER, SMTP_PASS, EMAIL_REMETENTE, IMAP_HOST).</div></div></div>
@@ -1501,8 +1512,45 @@ $("#form-email").addEventListener("submit", async (ev) => {
   }
 });
 
+async function carregarCron() {
+  try {
+    const c = await api("/api/agendamento/status");
+    $("#cron-status").innerHTML = c.ultimaRodada && Date.now() - new Date(c.ultimaRodada) < 30 * 60000
+      ? `<span class="pilula ok">Funcionando</span>` : c.chaveGerada ? `<span class="pilula atencao">Aguardando o GitHub</span>` : `<span class="pilula">Sem chave</span>`;
+    $("#cron-info").innerHTML = `${c.chaveGerada ? `Chave gerada em ${dataHora(c.criada)}.` : "Nenhuma chave gerada ainda."}
+      ${c.ultimaRodada ? ` Última rodada recebida: <b>${dataHora(c.ultimaRodada)}</b>.` : " Nenhuma rodada recebida ainda."}`;
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+}
+
+async function gerarChaveCron(btn) {
+  if (!confirm("Gerar uma chave nova? A chave anterior para de funcionar e você precisa colar a nova no GitHub.")) return;
+  btn.disabled = true;
+  try {
+    const { chave } = await post("/api/agendamento/chave");
+    $("#cron-chave").innerHTML = `
+      <div class="alerta info" style="display:grid;gap:10px">
+        <div><b>Copie a chave agora</b> (ela só aparece esta vez) e cole no GitHub:</div>
+        <ol style="margin:0;padding-left:18px;display:grid;gap:4px">
+          <li>Clique em <b>Copiar chave</b>.</li>
+          <li>Abra os <a href="https://github.com/felipeholanda2077/prospecta-ia/settings/secrets/actions" target="_blank" rel="noopener">segredos do GitHub</a>, clique no lápis ao lado de <b>CRON_SECRET</b> (ou em <b>New repository secret</b> com esse nome).</li>
+          <li>Cole e clique em <b>Update secret</b> (ou <b>Add secret</b>).</li>
+        </ol>
+        <input readonly value="${esc(chave)}" id="cron-chave-valor" style="font-family:ui-monospace,monospace;font-size:13px">
+        <div><button class="btn primario" data-cron="copiar">${ic("copy")}Copiar chave</button></div>
+      </div>`;
+    carregarCron();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function carregarConfiguracoes() {
   carregarEmail();
+  carregarCron();
   api("/api/calendly/status").then((c) => {
     $("#calendly-status").innerHTML = c.conectado ? `<span class="pilula ok">Conectado${c.conta ? ` · ${esc(c.conta)}` : ""}</span>` : `<span class="pilula">Não conectado</span>`;
     $("#calendly-token").required = !c.conectado;
@@ -1744,6 +1792,11 @@ document.addEventListener("click", async (ev) => {
     else if (btn.dataset.seqAcao) await acaoSequencia(btn);
     else if (btn.dataset.acao) await acaoMensagem(btn);
     else if (btn.dataset.uazap) await acaoUazap(btn);
+    else if (btn.dataset.cron === "gerar") await gerarChaveCron(btn);
+    else if (btn.dataset.cron === "copiar") {
+      await navigator.clipboard.writeText($("#cron-chave-valor").value);
+      avisar("Chave copiada. Agora cole no segredo CRON_SECRET do GitHub.", "ok", 6000);
+    }
     else if ("responder" in btn.dataset) await responder(btn);
     else if (btn.dataset.confirmarResposta) {
       await post(`/api/mensagens/${btn.dataset.confirmarResposta}/enviada-manual`);
