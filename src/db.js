@@ -534,6 +534,14 @@ export async function estatisticas() {
     respostasNaoLidas: (await um("SELECT count(*)::int AS n FROM respostas WHERE NOT lida")).n,
     sequenciasPendentes: (await um("SELECT count(DISTINCT (lead_id, canal))::int AS n FROM mensagens WHERE status = 'rascunho'")).n,
     enviadasHojePorCanal: { email: await enviadasHoje("email"), whatsapp: await enviadasHoje("whatsapp") },
-    precisamDeVoce: (await um("SELECT count(*)::int AS n FROM respostas WHERE precisa_humano IS NOT NULL AND NOT lida")).n,
+    // Mesma regra da página de Respostas: a última resposta pediu você e ninguém respondeu depois dela.
+    precisamDeVoce: (await um(
+      `SELECT count(*)::int AS n FROM (
+         SELECT DISTINCT ON (lead_id) lead_id, precisa_humano, recebida_em FROM respostas
+          WHERE classificacao IS DISTINCT FROM 'automatica' ORDER BY lead_id, recebida_em DESC) u
+       JOIN leads l ON l.id = u.lead_id
+      WHERE u.precisa_humano IS NOT NULL AND l.status NOT IN ('sem_interesse', 'descadastrado', 'descartado')
+        AND NOT EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = u.lead_id AND m.status = 'enviada' AND m.enviada_em > u.recebida_em)`
+    )).n,
   };
 }

@@ -345,15 +345,18 @@
   .medidor i { width: 10px; height: 6px; border-radius: 2px; background: currentColor; opacity: .22; }
   .medidor i.on { opacity: 1; }
   .so-celular { display: none; }
-  @media (max-width: 900px) {
+  .chat-topo .meta { flex-wrap: nowrap; overflow: hidden; white-space: nowrap; }
+  .chat-topo .meta span { overflow: hidden; text-overflow: ellipsis; }
+  /* Lista e chat lado a lado só quando há espaço (o menu lateral ocupa parte da tela). */
+  @media (max-width: 1240px) {
     .chat-app { grid-template-columns: 1fr; height: auto; min-height: 0; }
     .chat-app .chat-painel { display: none; height: 78vh; }
     .chat-app.com-conversa .chat-lista { display: none; }
     .chat-app.com-conversa .chat-painel { display: flex; }
     .chat-itens { max-height: none; }
-    .funil { grid-template-columns: repeat(2, 1fr); }
     .so-celular { display: inline-flex; }
   }
+  @media (max-width: 700px) { .funil { grid-template-columns: repeat(2, 1fr); } }
 
   /* ---------- Interruptor ---------- */
   .chave { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
@@ -1537,8 +1540,8 @@ async function carregarRespostas(alvo, { manterChat = false } = {}) {
   desenharListaConversas();
   if (!conversas.some((c) => c.id === conversaAberta)) conversaAberta = null;
   // No computador já abre a conversa mais importante; no celular a lista vem primeiro.
-  if (!conversaAberta && window.innerWidth > 900) conversaAberta = conversasFiltradas()[0]?.id ?? null;
-  if (conversaAberta) await abrirConversa(conversaAberta, { celular: false });
+  if (!conversaAberta && window.matchMedia("(min-width: 1241px)").matches) conversaAberta = conversasFiltradas()[0]?.id ?? null;
+  if (conversaAberta) await abrirConversa(conversaAberta);
 }
 
 function bolhasDaConversa(d) {
@@ -1596,8 +1599,7 @@ async function abrirConversa(id, { atualizar = false } = {}) {
       <button class="btn fantasma sm so-celular" data-voltar-lista aria-label="Voltar para as conversas">${ic("arrowLeft", "sm")}</button>
       <span class="avatar">${inicial(d.lead.nome)}</span>
       <div class="titulos"><h3>${esc(d.lead.nome)}</h3>
-        <div class="meta">${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}
-          ${d.lead.nicho ? `<span>${ic("building", "sm")}${esc(d.lead.nicho)}</span>` : ""}</div></div>
+        <div class="meta">${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}</div></div>
       ${a ? pilulaChance(a) : ""}
     </div>
     <div class="chat-andamento" id="chat-andamento">${a ? htmlAndamento(d) : ""}</div>
