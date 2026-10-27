@@ -13,7 +13,9 @@ const senhaDeEmail = (senha, host) => (/gmail|googlemail|google\.com/i.test(host
 
 export const config = {
   claude: {
-    model: env.CLAUDE_MODEL || "claude-opus-5-5",
+    // Haiku 5.5: o modelo mais barato do Claude (cerca de 40x menos que o Opus), suficiente
+    // para escrever as mensagens e classificar as respostas. Troque em CLAUDE_MODEL se quiser.
+    model: env.CLAUDE_MODEL || "claude-haiku-5-5",
   },
   googlePlacesApiKey: env.GOOGLE_PLACES_API_KEY || "",
   smtp: {

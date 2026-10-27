@@ -34,6 +34,10 @@ const MARGEM_FIM_MIN = 15;
 const TEMPO_PARA_SEQUENCIA_MIN = 2 * INTERVALO_MINIMO_MIN + MARGEM_FIM_MIN;
 // Empresas novas por rodada, no mínimo: terminou uma, já vai para a próxima (com intervalo entre elas).
 const LOTE_POR_RODADA = 5;
+// Entre uma empresa nova e a próxima, de 5 a 12 minutos (sorteado a cada vez), para o número
+// e o e-mail não parecerem disparo em massa. Ajustável em Automação.
+const INTERVALO_EMPRESAS_MIN = [5, 12];
+const VEZ_DA_EMPRESA_NOVA = "vez_da_empresa_nova";
 
 /** Momento-limite para uma etapa terminar. */
 export function prazoPadrao() {
@@ -619,6 +623,19 @@ export function ordenarFilaDeEnvio(fila) {
   return [...fila].sort((a, b) => grupo(a) - grupo(b) || potencial(b) - potencial(a));
 }
 
+/** Espera até a próxima empresa nova, em ms: sorteada entre o mínimo e o máximo da Automação. */
+export function intervaloEntreEmpresasMs(auto = {}, sorteio = Math.random()) {
+  const min = Math.max(0, Number(auto?.intervaloEmpresasMin ?? INTERVALO_EMPRESAS_MIN[0]));
+  const max = Math.max(min, Number(auto?.intervaloEmpresasMax ?? INTERVALO_EMPRESAS_MIN[1]));
+  return Math.round((min + sorteio * (max - min)) * 60_000);
+}
+
+/** Quando a próxima empresa nova pode receber o primeiro contato (null = já pode). */
+export async function proximaEmpresaNovaEm() {
+  const ate = Number(await db.lerEstado(VEZ_DA_EMPRESA_NOVA));
+  return ate > Date.now() ? new Date(ate).toISOString() : null;
+}
+
 /** Rodadas de 10 minutos que ainda restam no horário comercial de hoje. */
 export function rodadasRestantesHoje(limites, agora = new Date(), folgaMin = 0) {
   return Math.max(1, Math.floor((minutosAteOFim(limites, agora) - folgaMin) / 10));
@@ -628,11 +645,13 @@ export function rodadasRestantesHoje(limites, agora = new Date(), folgaMin = 0) 
  * Etapa 4: envia a fila (etapas aprovadas e já no dia agendado), com intervalo variável.
  * Nada sai fora do horário comercial de segunda a sexta. Com `distribuir`, a cota de
  * hoje é espalhada pelas rodadas que faltam, para não sair tudo de uma vez.
+ * Empresas novas saem uma por vez, com 5 a 12 minutos entre elas (o agendador do banco
+ * chama `somenteNovas` a cada minuto para respeitar esse intervalo).
  */
-export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false } = {}) {
+export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false, somenteNovas = false } = {}) {
   const { limites } = campanha;
   if (!dentroDoHorario(limites)) {
-    log("📭 Fora do horário comercial; nada enviado");
+    if (!somenteNovas) log("📭 Fora do horário comercial; nada enviado");
     return { enviadas: 0, motivo: "fora do horário comercial" };
   }
 
@@ -651,24 +670,41 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   }
   const vagasDaRodada = { ...vagas };
   const todas = ordenarFilaDeEnvio(await db.filaDeEnvio(400));
-  const fila = todas
-    .filter((m) => m.canal === "email" || !manual)
-    .filter((m) => m.tipo === "resposta" || m.etapa > 1 || vagas[m.canal]-- > 0);
+  const daConversa = (m) => m.tipo === "resposta" || m.etapa > 1;
+  const enviaveis = todas.filter((m) => m.canal === "email" || !manual);
+  // Da empresa nova da vez (a de mais potencial com vaga hoje) saem juntos o e-mail e o WhatsApp.
+  const novas = enviaveis.filter((m) => !daConversa(m) && vagas[m.canal] > 0);
+  const empresaDaVez = novas[0]?.lead_id;
+  const fila = [
+    ...(somenteNovas ? [] : enviaveis.filter(daConversa)),
+    ...novas.filter((m) => m.lead_id === empresaDaVez),
+  ];
   const naFila = { email: 0, whatsapp: 0 };
   for (const m of todas) naFila[m.canal]++;
   if (!fila.length) {
-    log("📭 Nada para enviar agora");
+    if (!somenteNovas) log("📭 Nada para enviar agora");
     return { enviadas: 0, naFila, vagas: vagasDaRodada };
   }
 
   const intervalo = limites.intervaloEntreEnviosSegundos * 1000;
   let enviadas = 0;
+  let enviouEmpresaNova = false;
+  let proximaEmpresaNova = null;
   const porCanal = { email: 0, whatsapp: 0 };
   for (const [i, m] of fila.entries()) {
+    const novaDaVez = !daConversa(m);
+    // A vez da empresa nova é reservada no banco: com dois agendadores rodando juntos, só um
+    // deles envia, e a próxima só sai depois do intervalo sorteado.
+    if (novaDaVez && !enviouEmpresaNova && proximaEmpresaNova === null) {
+      const espera = intervaloEntreEmpresasMs(campanha.automacao);
+      if (!(await db.travar(VEZ_DA_EMPRESA_NOVA, espera))) break;
+      proximaEmpresaNova = new Date(Date.now() + espera).toISOString();
+    }
     const r = await enviarMensagem(m, campanha);
     if (r.enviada) {
       enviadas++;
       porCanal[m.canal]++;
+      if (novaDaVez) enviouEmpresaNova = true;
     }
     if (i === fila.length - 1) break;
     // Intervalo variável entre envios, para não parecer disparo em massa (nem cair no spam).
@@ -677,8 +713,14 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
     await esperar(espera);
   }
 
+  // Nada da empresa da vez saiu (bloqueada, limite, erro): a próxima não precisa esperar.
+  if (proximaEmpresaNova && !enviouEmpresaNova) {
+    await db.destravar(VEZ_DA_EMPRESA_NOVA);
+    proximaEmpresaNova = null;
+  }
+  if (enviouEmpresaNova) log(`⏱️  Próxima empresa nova a partir de ${new Date(proximaEmpresaNova).toLocaleTimeString("pt-BR", { timeZone: config.timezone })}`);
   log(`📨 ${enviadas} mensagens enviadas (e-mail: ${porCanal.email}, WhatsApp: ${porCanal.whatsapp})`);
-  return { enviadas, porCanal, naFila, vagas: vagasDaRodada };
+  return { enviadas, porCanal, naFila, vagas: vagasDaRodada, proximaEmpresaNova };
 }
 
 // ---------- Rotinas ----------

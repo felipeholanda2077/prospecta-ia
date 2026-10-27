@@ -549,7 +549,7 @@
             <div class="meta">Busca empresas, envia as sequências, responde com IA e leva para o agendamento no Calendly.</div></div></div>
           <div class="cartao-corpo" style="display:grid;gap:18px">
             <label class="chave"><input type="checkbox" name="ativo"><div><b>Modo automático</b>
-              <span>A cada 10 minutos: busca empresas no Google Maps, analisa, a IA escreve a sequência e ela já sai aprovada. Envios só de segunda a sexta, das 9h às 18h.</span></div></label>
+              <span>A cada 10 minutos: busca empresas no Google Maps, analisa, a IA escreve a sequência e ela já sai aprovada. Uma empresa nova por vez, com intervalo entre elas. Envios só de segunda a sexta, das 9h às 18h.</span></div></label>
             <label class="chave"><input type="checkbox" name="respostaAutomatica"><div><b>IA responde as conversas sozinha</b>
               <span>Responde em alguns minutos, em tom humano, uma informação por vez, até a pessoa marcar no Calendly. Passa para você se pedirem ligação, negociarem ou reclamarem.</span></div></label>
             <div class="config-grade">
@@ -561,6 +561,10 @@
             <div class="config-grade">
               <div class="campo"><label for="auto-aq-inicial">Aquecimento: começar com (empresas novas por dia)</label><input id="auto-aq-inicial" name="aquecimentoInicial" type="number" min="5" max="300"></div>
               <div class="campo"><label for="auto-aq-passo">Aquecimento: aumentar por dia útil</label><input id="auto-aq-passo" name="aquecimentoPasso" type="number" min="0" max="100"></div>
+            </div>
+            <div class="config-grade">
+              <div class="campo"><label for="auto-int-min">Intervalo entre empresas novas: de (minutos)</label><input id="auto-int-min" name="intervaloEmpresasMin" type="number" min="1" max="60"></div>
+              <div class="campo"><label for="auto-int-max">até (minutos)</label><input id="auto-int-max" name="intervaloEmpresasMax" type="number" min="1" max="120"></div>
             </div>
             <div class="config-grade">
               <div class="campo"><label for="auto-calendly">Link do Calendly</label><input id="auto-calendly" name="calendly" placeholder="https://calendly.com/fluxdeck/15min"></div>
@@ -1232,6 +1236,10 @@ function comLink(texto) {
 function quandoSai(m) {
   if (m.etapa > 1 && !m.agendada_para) return "Aguardando a etapa anterior ser enviada";
   if (m.agendada_para && new Date(m.agendada_para) > new Date()) return `Agendada para ${dataHora(m.agendada_para)} (em horário comercial)`;
+  if (m.etapa <= 1 && m.tipo !== "resposta") {
+    const [min, max] = sessao?.intervaloEmpresas ?? [5, 12];
+    return `Empresas novas saem uma por vez, das com mais potencial primeiro, com ${min} a ${max} min entre elas (em horário comercial)`;
+  }
   return "Sai na próxima rodada de envios em horário comercial";
 }
 
@@ -2244,6 +2252,8 @@ async function carregarAutomacao() {
     f.aquecimentoWhatsapp.checked = a.aquecimentoWhatsapp;
     f.aquecimentoInicial.value = a.aquecimentoInicial;
     f.aquecimentoPasso.value = a.aquecimentoPasso;
+    f.intervaloEmpresasMin.value = a.intervaloEmpresasMin;
+    f.intervaloEmpresasMax.value = a.intervaloEmpresasMax;
     f.metaEmail.value = a.metaDiaria.email;
     f.metaWhatsapp.value = a.metaDiaria.whatsapp;
     f.maxRespostasIA.value = a.maxRespostasIA;
@@ -2256,6 +2266,7 @@ async function carregarAutomacao() {
     $("#auto-hoje").innerHTML = `<div class="config-grade">${barra("E-mail", a.hoje.email)}${barra("WhatsApp", a.hoje.whatsapp)}</div>
       ${a.aquecimentoWhatsapp && a.hoje.whatsapp.limite < a.metaDiaria.whatsapp
         ? `<p class="muted" style="margin:8px 0 0;font-size:13px">WhatsApp em aquecimento: hoje até ${a.hoje.whatsapp.limite} empresas novas, subindo ${a.aquecimentoPasso} por dia útil até ${a.metaDiaria.whatsapp}.</p>` : ""}
+      <p class="muted" style="margin:8px 0 0;font-size:13px">Empresas novas saem uma por vez, das com mais potencial primeiro, com ${a.intervaloEmpresasMin} a ${a.intervaloEmpresasMax} minutos entre uma e outra.${a.proximaEmpresaNova ? ` Próxima a partir de <b>${new Date(a.proximaEmpresaNova).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</b>.` : ""}</p>
       ${a.respostaAutomatica && !a.calendly ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>Coloque o link do Calendly para a IA conseguir levar as pessoas ao agendamento.</div></div>` : ""}
       ${a.ativo && sessao.modoWhatsapp === "manual" ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>O WhatsApp está no modo manual: as mensagens automáticas de WhatsApp vão ficar na Fila de envio esperando você. Conecte a UAZap ou a Evolution API em <a href="#configuracoes">Configurações</a> para elas saírem sozinhas.</div></div>` : ""}`;
   } catch (e) {
@@ -2273,6 +2284,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
       ativo: f.ativo.checked, respostaAutomatica: f.respostaAutomatica.checked, aquecimentoWhatsapp: f.aquecimentoWhatsapp.checked,
       metaEmail: f.metaEmail.value, metaWhatsapp: f.metaWhatsapp.value, maxRespostasIA: f.maxRespostasIA.value,
       aquecimentoInicial: f.aquecimentoInicial.value, aquecimentoPasso: f.aquecimentoPasso.value,
+      intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,
       calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value,
     }) });
     await iniciar();

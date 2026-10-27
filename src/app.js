@@ -140,6 +140,9 @@ const TAREFAS_CRON = {
   respostas: (c) => pipeline.verificarRespostas(c),
   // Chamado a cada 10 minutos (GitHub Actions); só envia em horário comercial.
   envios: (c) => pipeline.rodadaAutomatica(c),
+  // Chamado a cada minuto pelo agendador do banco: só a próxima empresa nova, quando acabar
+  // o intervalo de 5 a 12 minutos desde a anterior.
+  novas: (c) => pipeline.enviar(c, { somenteNovas: true, distribuir: Boolean(c.automacao?.ativo) }),
 };
 
 const resumoChave = (v) => crypto.createHash("sha256").update(`prospecta-cron:${v}`).digest("hex");
@@ -165,7 +168,7 @@ app.get("/api/cron/:tarefa", async (req, res) => {
   if (!tarefa) return res.sendStatus(404);
   const recebido = String(req.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!(await chaveDoCronValida(recebido))) return res.sendStatus(401);
-  await db.gravarEstado("ultima_rodada", new Date().toISOString());
+  if (req.params.tarefa !== "novas") await db.gravarEstado("ultima_rodada", new Date().toISOString());
   // Se o agendador do banco ainda não estiver ligado, liga (na primeira rodada que chegar).
   const agendador = await garantirAgendamentoNoBanco().catch((e) => {
     console.error("⚠️  Agendador do banco:", e.message);
@@ -254,6 +257,7 @@ app.get("/api/sessao", async (req, res) => {
     horario: campanha.limites.horarioComercial,
     cadencia: campanha.cadencia?.horasEntreEtapas ?? [2, 2],
     diasEntreEmails: campanha.cadencia?.diasEntreEmails ?? [1, 2],
+    intervaloEmpresas: [campanha.automacao.intervaloEmpresasMin, campanha.automacao.intervaloEmpresasMax],
     calendly: campanha.automacao.calendly || "",
     rodapeWhatsapp: RODAPE_WHATSAPP,
     modoTeste: Boolean(config.modoTeste.email || config.modoTeste.whatsapp),
@@ -537,6 +541,7 @@ app.get("/api/config/automacao", async (req, res) => {
       whatsapp: { enviadas: await db.enviadasHoje("whatsapp", { primeiroContato: true }), limite: await pipeline.limiteDoDia(campanha, "whatsapp") },
     },
     calendlyConectado: (await calendly.status()).conectado,
+    proximaEmpresaNova: await pipeline.proximaEmpresaNovaEm(),
   });
 });
 
@@ -553,6 +558,7 @@ app.put("/api/config/automacao", async (req, res) => {
   if (b.ativo && (!nichos.length || !cidades.length)) {
     return res.status(400).json({ erro: "Para ligar o modo automático, informe ao menos um segmento e uma cidade" });
   }
+  const intervaloMin = inteiro(b.intervaloEmpresasMin, 1, 60, AUTOMACAO_PADRAO.intervaloEmpresasMin);
   const novo = {
     ativo: Boolean(b.ativo),
     respostaAutomatica: Boolean(b.respostaAutomatica),
@@ -560,6 +566,8 @@ app.put("/api/config/automacao", async (req, res) => {
     aquecimentoWhatsapp: b.aquecimentoWhatsapp !== false,
     aquecimentoInicial: inteiro(b.aquecimentoInicial, 5, 300, AUTOMACAO_PADRAO.aquecimentoInicial),
     aquecimentoPasso: inteiro(b.aquecimentoPasso, 0, 100, AUTOMACAO_PADRAO.aquecimentoPasso),
+    intervaloEmpresasMin: intervaloMin,
+    intervaloEmpresasMax: Math.max(intervaloMin, inteiro(b.intervaloEmpresasMax, 1, 120, AUTOMACAO_PADRAO.intervaloEmpresasMax)),
     maxRespostasIA: inteiro(b.maxRespostasIA, 1, 20, AUTOMACAO_PADRAO.maxRespostasIA),
     calendly: calendlyLink,
     buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,

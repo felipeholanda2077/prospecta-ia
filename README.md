@@ -45,7 +45,7 @@ Preencha o `.env`:
 | Variável | Para quê |
 |---|---|
 | `DATABASE_URL` | Postgres do Supabase (obrigatório na Vercel; opcional no seu computador) |
-| `ANTHROPIC_API_KEY` | IA que escreve as propostas ([console.anthropic.com](https://console.anthropic.com/)) |
+| `ANTHROPIC_API_KEY` | IA que escreve as propostas e responde as conversas ([console.anthropic.com](https://console.anthropic.com/)). Usa o Claude Haiku 5.5, o modelo mais barato; para trocar, defina `CLAUDE_MODEL` |
 | `GOOGLE_PLACES_API_KEY` | Busca de empresas — ative a **Places API (New)** no Google Cloud |
 | `SMTP_*`, `EMAIL_REMETENTE` | Conta de e-mail que envia as propostas |
 | `IMAP_*` | Leitura das respostas (normalmente a mesma conta do SMTP) |

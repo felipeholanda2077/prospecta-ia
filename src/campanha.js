@@ -14,6 +14,8 @@ export const AUTOMACAO_PADRAO = {
   aquecimentoWhatsapp: true, // começa com `aquecimentoInicial`/dia e sobe `aquecimentoPasso` por dia útil
   aquecimentoInicial: 50,
   aquecimentoPasso: 15,
+  intervaloEmpresasMin: 5, // minutos entre uma empresa nova e a próxima (sorteado entre o mínimo e o máximo)
+  intervaloEmpresasMax: 12,
   maxRespostasIA: 6, // depois disso a conversa passa para você
   calendly: "",
   buscas: null, // null = usa as do campanha.json

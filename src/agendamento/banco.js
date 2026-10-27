@@ -3,20 +3,25 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 
 // Agendador dentro do próprio banco (Supabase): o pg_cron dispara a cada 10 minutos e o
-// pg_net chama a rodada do sistema. É mais pontual que o agendamento do GitHub, que pode
+// pg_net chama a rodada do sistema (e, a cada minuto, o envio da próxima empresa nova). É mais pontual que o agendamento do GitHub, que pode
 // atrasar ou pular execuções; o do GitHub continua como reserva (uma trava evita rodadas
 // em dobro). A chave fica só no banco: aqui guardamos o resumo dela.
 const NOME_JOB = "prospecta-ia-rodada";
-// Minuto 3, 13, 23... das 9h às 20h UTC (6h às 17h53 em Brasília), segunda a sexta.
-const AGENDA = "3-59/10 9-20 * * 1-5";
 const TEMPO_LIMITE_MS = 290_000;
+const JOBS = [
+  // A rodada completa: minuto 3, 13, 23... das 9h às 20h UTC (6h às 17h53 em Brasília), segunda a sexta.
+  { nome: NOME_JOB, agenda: "3-59/10 9-20 * * 1-5", tarefa: "envios" },
+  // A cada minuto do horário comercial (9h às 17h59 em Brasília): a próxima empresa nova sai
+  // assim que termina o intervalo de 5 a 12 minutos desde a anterior.
+  { nome: "prospecta-ia-empresas-novas", agenda: "* 12-20 * * 1-5", tarefa: "novas" },
+];
 
 export const resumoDaChave = (chave) => crypto.createHash("sha256").update(`prospecta-banco:${chave}`).digest("hex");
 
 let configurado = false;
 
-/** Endereço que o banco chama em cada rodada. */
-const destino = () => `${config.painel.urlPublica}/api/cron/envios`;
+/** Endereço que o banco chama em cada execução. */
+const destino = (tarefa) => `${config.painel.urlPublica}/api/cron/${tarefa}`;
 
 /**
  * Liga (ou confere) o agendador do banco. Só funciona com o Postgres do Supabase
@@ -28,10 +33,10 @@ export async function garantirAgendamentoNoBanco({ forcar = false } = {}) {
   if (configurado && !forcar) return { ativo: true };
 
   if (!forcar) {
-    const existe = await db
-      .consultar("SELECT 1 FROM cron.job WHERE jobname = $1 AND schedule = $2 AND command LIKE $3", [NOME_JOB, AGENDA, `%${destino()}%`])
-      .catch(() => []);
-    if (existe.length) {
+    const existentes = await Promise.all(JOBS.map((j) => db
+      .consultar("SELECT 1 FROM cron.job WHERE jobname = $1 AND schedule = $2 AND command LIKE $3", [j.nome, j.agenda, `%${destino(j.tarefa)}%`])
+      .catch(() => [])));
+    if (existentes.every((e) => e.length)) {
       configurado = true;
       return { ativo: true };
     }
@@ -39,16 +44,19 @@ export async function garantirAgendamentoNoBanco({ forcar = false } = {}) {
 
   await db.consultar("CREATE EXTENSION IF NOT EXISTS pg_cron");
   await db.consultar("CREATE EXTENSION IF NOT EXISTS pg_net");
+  // Uma chave nova para todos os jobs (cron.schedule com o mesmo nome atualiza o job).
   const chave = crypto.randomBytes(32).toString("hex");
-  await db.consultar(
-    `SELECT cron.schedule($1, $2, format(
-       'SELECT net.http_get(url := %L, headers := jsonb_build_object(%L, %L), timeout_milliseconds := %s)',
-       $3::text, 'Authorization', 'Bearer ' || $4::text, $5::int))`,
-    [NOME_JOB, AGENDA, destino(), chave, TEMPO_LIMITE_MS]
-  );
+  for (const j of JOBS) {
+    await db.consultar(
+      `SELECT cron.schedule($1, $2, format(
+         'SELECT net.http_get(url := %L, headers := jsonb_build_object(%L, %L), timeout_milliseconds := %s)',
+         $3::text, 'Authorization', 'Bearer ' || $4::text, $5::int))`,
+      [j.nome, j.agenda, destino(j.tarefa), chave, TEMPO_LIMITE_MS]
+    );
+  }
   await db.gravarConfig("cron_banco", { resumo: resumoDaChave(chave), criado: new Date().toISOString() });
   configurado = true;
-  console.log("⏰ Agendador do banco (pg_cron) ligado: rodada a cada 10 minutos em horário comercial");
+  console.log("⏰ Agendador do banco (pg_cron) ligado: rodada a cada 10 minutos e empresas novas a cada minuto, em horário comercial");
   return { ativo: true, ligadoAgora: true };
 }
 

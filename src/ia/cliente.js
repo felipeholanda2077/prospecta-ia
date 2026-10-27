@@ -3,6 +3,10 @@ import { config } from "../config.js";
 
 let client;
 
+// O modelo de reserva automático (quando o pedido é recusado pelos filtros) existe no Opus e
+// no Sonnet; no Haiku o parâmetro não é aceito.
+const temReserva = (modelo) => !/haiku/i.test(modelo);
+
 /**
  * Chama o Claude pedindo uma resposta em JSON no formato de `jsonSchema`
  * e valida o resultado com o schema Zod `zodSchema`.
@@ -16,13 +20,13 @@ export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort 
   } catch (e) {
     throw new Error(`Chave da IA não configurada (ANTHROPIC_API_KEY): ${e.message}`);
   }
+  const modelo = config.claude.model;
   const resposta = await client.beta.messages.create({
-    model: config.claude.model,
+    model: modelo,
     max_tokens: 16000,
     // Se a solicitação for recusada pelos filtros do modelo, a API tenta de novo
     // automaticamente no modelo de reserva recomendado.
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
+    ...(temReserva(modelo) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" } : {}),
     output_config: {
       effort,
       format: { type: "json_schema", schema: jsonSchema },

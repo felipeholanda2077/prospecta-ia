@@ -337,3 +337,15 @@ test("contador de Respostas: conversas com mensagem nova, sem as respostas autom
   await db.criarResposta({ lead_id: ls[1].id, canal: "whatsapp", origem_id: "c-3", de: "2", texto: "Obrigado pelo contato!", classificacao: "automatica" });
   assert.equal((await db.estatisticas()).respostasNaoLidas, antes + 1); // 1 conversa, mesmo com 2 mensagens
 });
+
+test("empresas novas: intervalo sorteado de 5 a 12 minutos entre uma e a próxima", async () => {
+  assert.equal(pipeline.intervaloEntreEmpresasMs({}, 0), 5 * 60_000);
+  assert.equal(pipeline.intervaloEntreEmpresasMs({}, 1), 12 * 60_000);
+  assert.equal(pipeline.intervaloEntreEmpresasMs({ intervaloEmpresasMin: 8, intervaloEmpresasMax: 3 }, 1), 8 * 60_000); // máximo nunca abaixo do mínimo
+  assert.equal(await pipeline.proximaEmpresaNovaEm(), null);
+  assert.equal(await db.travar("vez_da_empresa_nova", pipeline.intervaloEntreEmpresasMs({}, 0.5)), true);
+  assert.equal(await db.travar("vez_da_empresa_nova", 60_000), false); // a próxima espera o intervalo
+  const proxima = new Date(await pipeline.proximaEmpresaNovaEm());
+  assert.ok(proxima - Date.now() > 8 * 60_000 && proxima - Date.now() <= 8.5 * 60_000);
+  await db.destravar("vez_da_empresa_nova");
+});
