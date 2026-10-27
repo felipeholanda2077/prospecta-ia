@@ -272,6 +272,22 @@
   /* ---------- Sequência gradual ---------- */
   .seq-linha { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 14px 20px 0; font-size: 13px; color: var(--muted); }
   .seq-linha span { display: inline-flex; align-items: center; gap: 6px; }
+  /* Fila de envio: um cartão por empresa, com cada etapa numa linha que abre. */
+  .fila-resumo { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 20px 14px; }
+  details.etapa-fila { border-top: 1px solid var(--border); }
+  details.etapa-fila > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px;
+                                 align-items: center; padding: 12px 20px; }
+  details.etapa-fila > summary::-webkit-details-marker { display: none; }
+  details.etapa-fila > summary:hover { background: var(--surface-2); }
+  details.etapa-fila[open] > summary { background: var(--surface-2); }
+  .etapa-fila .quando { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .etapa-fila .trecho { grid-column: 2 / 4; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  details.etapa-fila[open] .trecho { display: none; }
+  .etapa-fila .titulo-etapa { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-weight: 600; font-size: 14px; }
+  @media (max-width: 640px) {
+    details.etapa-fila > summary { grid-template-columns: auto 1fr; }
+    .etapa-fila .quando { grid-column: 2; }
+  }
   .etapa-seq { border-top: 1px solid var(--border); }
   .etapa-seq:first-of-type { border-top: 0; }
   .etapa-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 16px 20px 0; }
@@ -818,7 +834,8 @@ const VIEWS = {
   rascunho:  { grupo: "Prospecção", nome: "Aprovar mensagens", curto: "Aprovar", icone: "checkCircle", titulo: "Aprovar mensagens",
                sub: "Revise a sequência que a IA escreveu. Nada é enviado sem a sua aprovação.", contador: () => stats?.sequenciasPendentes },
   aprovada:  { grupo: "Prospecção", nome: "Fila de envio", icone: "clock", titulo: "Fila de envio",
-               sub: "Etapas aprovadas e quando cada uma sai (sempre em horário comercial, de segunda a sexta).", contador: () => stats?.mensagens.aprovada },
+               sub: "Uma empresa por cartão, com tudo o que vai sair para ela e quando (sempre em horário comercial, de segunda a sexta).",
+               contador: () => stats?.filaEmpresas ?? stats?.mensagens.aprovada },
   enviada:   { grupo: "Prospecção", nome: "Enviadas", icone: "send", titulo: "Mensagens enviadas", sub: "Tudo o que já saiu, por e-mail e WhatsApp." },
   erro:      { grupo: "Prospecção", nome: "Com erro", icone: "alert", titulo: "Mensagens com erro",
                sub: "Corrija e tente de novo, ou descarte.", contador: () => stats?.mensagens.erro, perigo: true },
@@ -1294,6 +1311,86 @@ function cardMensagem(m) {
   </article>`;
 }
 
+// ===================== Fila de envio por empresa =====================
+/** Agrupa as mensagens da fila por empresa, na ordem em que vão sair. */
+function agruparPorEmpresa(lista) {
+  const grupos = new Map();
+  for (const m of lista) {
+    if (!grupos.has(m.lead_id)) grupos.set(m.lead_id, []);
+    grupos.get(m.lead_id).push(m);
+  }
+  const ordem = (m) => (m.agendada_para ? new Date(m.agendada_para).getTime() : m.etapa > 1 ? Infinity : 0);
+  return [...grupos.values()]
+    .map((ms) => ms.sort((a, b) => ordem(a) - ordem(b) || a.etapa - b.etapa))
+    .sort((a, b) => ordem(a[0]) - ordem(b[0]));
+}
+
+function nomeDaEtapa(m) {
+  if (m.tipo === "resposta") return "Resposta da conversa";
+  return `Etapa ${m.etapa} de 3`;
+}
+
+/** Linha de uma etapa dentro do cartão da empresa; abre o editor com a prévia e as ações. */
+function etapaDaFila(m, aberta) {
+  const enviar = m.envioManual
+    ? `<button class="btn wa principal-acao" data-acao="whatsapp">${ic("message")}Abrir no WhatsApp</button>`
+    : `<button class="btn ok principal-acao" data-acao="aprovar">${ic("send")}Tentar enviar agora</button>`;
+  return `<details class="etapa-fila" data-id="${m.id}" data-link="${esc(m.linkWhatsapp ?? "")}" ${aberta ? "open" : ""}>
+    <summary>
+      <span class="pilula ${m.canal === "whatsapp" ? "wa" : "acc"}">${ic(m.canal === "whatsapp" ? "message" : "mail", "sm")}${CANAL[m.canal]}</span>
+      <span class="titulo-etapa">${nomeDaEtapa(m)}${m.canal === "email" ? `<span class="muted" style="font-weight:400">· ${esc(m.destino)}</span>` : ""}</span>
+      <span class="quando">${ic("clock", "sm")} ${esc(quandoSai(m).replace(" (em horário comercial)", ""))}</span>
+      <span class="trecho">${esc(comLink(m.corpo).replace(/\s+/g, " "))}</span>
+    </summary>
+    ${m.erro ? `<div style="padding:0 20px"><div class="alerta perigo">${ic("alert")}<div>${esc(m.erro)}</div></div></div>` : ""}
+    <div class="editor">
+      <div class="campos">
+        ${m.canal === "email" ? `<div class="campo"><label for="assunto-${m.id}">Assunto</label><input id="assunto-${m.id}" name="assunto" value="${esc(m.assunto)}"></div>` : ""}
+        <div class="campo"><label for="corpo-${m.id}">Mensagem escrita pela IA (edite se quiser)</label><textarea id="corpo-${m.id}" name="corpo">${esc(m.corpo)}</textarea></div>
+      </div>
+      <div class="campo"><span class="rotulo">Como ${esc(m.empresa)} vai receber</span>${previaHtml(m)}</div>
+    </div>
+    <div class="acoes" data-botoes>
+      ${enviar}
+      <button class="btn" data-acao="salvar">${ic("save")}Salvar</button>
+      <span class="espaco"></span>
+      <button class="btn perigo" data-acao="rejeitar">${ic("x")}Não enviar esta</button>
+    </div>
+  </details>`;
+}
+
+/** Um cartão por empresa na fila: contatos, o que vai sair e quando, e cada etapa dentro. */
+function cardFilaEmpresa(ms) {
+  const m = ms[0];
+  const canais = [...new Set(ms.map((x) => x.canal))];
+  const contatos = [...new Set(ms.map((x) => `${x.canal}|${x.destino}`))].map((c) => c.split("|"));
+  const oportunidades = m.oportunidades.length
+    ? `<div class="oportunidades">${m.oportunidades.map((o) => `<span class="pilula acc">${ic("spark", "sm")}${esc(o.motivo)}</span>`).join("")}</div>` : "";
+  return `<article class="cartao" data-lead="${m.lead_id}">
+    <div class="cartao-cab">
+      <span class="avatar">${inicial(m.empresa)}</span>
+      <div class="titulos">
+        <h3>${esc(m.empresa)}</h3>
+        <div class="meta">
+          ${contatos.map(([canal, destino]) => `<span>${ic(canal === "whatsapp" ? "phone" : "mail", "sm")}${esc(destino)}</span>`).join("")}
+          ${m.nicho ? `<span>${ic("building", "sm")}${esc(m.nicho)}${m.cidade ? ` · ${esc(m.cidade)}` : ""}</span>` : ""}
+          ${m.site ? `<a href="${esc(m.site)}" target="_blank" rel="noopener">${ic("globe", "sm")}Site</a>` : ""}
+          ${m.maps_url ? `<a href="${esc(m.maps_url)}" target="_blank" rel="noopener">${ic("pin", "sm")}Google Maps</a>` : ""}
+        </div>
+      </div>
+    </div>
+    <div class="fila-resumo">
+      <span class="pilula">${ms.length} ${ms.length === 1 ? "mensagem" : "mensagens"} na fila</span>
+      ${canais.map((c) => `<span class="pilula ${c === "whatsapp" ? "wa" : "acc"}">${ic(c === "whatsapp" ? "message" : "mail", "sm")}${CANAL[c]}</span>`).join("")}
+      <span class="pilula">${ic("clock", "sm")}Próxima: ${esc(nomeDaEtapa(m).toLowerCase())} · ${esc(quandoSai(m).replace(" (em horário comercial)", "").replace(/^Agendada para /, ""))}</span>
+    </div>
+    ${oportunidades}
+    ${ms.map((x, i) => etapaDaFila(x, i === 0)).join("")}
+    <div class="acoes"><span class="muted" style="font-size:13px">Cada etapa só sai se a empresa não responder antes.</span><span class="espaco"></span>
+      <button class="btn perigo sm" data-cancelar-fila="${m.lead_id}">${ic("x", "sm")}Não enviar nada para esta empresa</button></div>
+  </article>`;
+}
+
 // ===================== Sequência gradual (aprovação) =====================
 function agruparSequencias(lista) {
   const grupos = new Map();
@@ -1680,9 +1777,9 @@ let filtroLeads = FILTROS_LEADS[0][0];
 const CANAIS = [["todos", "Todos", "grid"], ["email", "E-mail", "mail"], ["whatsapp", "WhatsApp", "message"]];
 let filtroCanal = (() => { try { return localStorage.getItem("filtroCanal") || "todos"; } catch { return "todos"; } })();
 
-/** Abas Todos / E-mail / WhatsApp com a quantidade de cada uma. `itens` são mensagens ou sequências. */
+/** Abas Todos / E-mail / WhatsApp com a quantidade de cada uma. `itens` são mensagens, sequências ou empresas. */
 function abasDeCanal(itens, canalDe) {
-  const conta = (c) => (c === "todos" ? itens.length : itens.filter((x) => canalDe(x) === c).length);
+  const conta = (c) => (c === "todos" ? itens.length : itens.filter((x) => [canalDe(x)].flat().includes(c)).length);
   return `<div class="filtros" role="tablist" aria-label="Filtrar por canal">
     ${CANAIS.map(([v, t, icone]) => `<button class="filtro" role="tab" data-filtro-canal="${v}" aria-pressed="${v === filtroCanal}" aria-selected="${v === filtroCanal}">${ic(icone, "sm")}${t} <span class="muted">${conta(v)}</span></button>`).join("")}
   </div>`;
@@ -1767,6 +1864,13 @@ async function carregarLista() {
         const visiveis = sequencias.filter((ms) => doCanal(ms[0].canal));
         html = lista.length
           ? abasDeCanal(sequencias, (ms) => ms[0].canal) + (visiveis.length ? avisoPerfil + visiveis.map(cardSequencia).join("") : semNada(lista.length))
+          : vazio(...VAZIOS[view]);
+      } else if (view === "aprovada") {
+        // Fila: um cartão por empresa; o filtro de canal mostra só as etapas daquele canal.
+        const empresas = agruparPorEmpresa(lista);
+        const visiveis = agruparPorEmpresa(lista.filter((m) => doCanal(m.canal)));
+        html = lista.length
+          ? abasDeCanal(empresas, (ms) => ms.map((m) => m.canal)) + (visiveis.length ? visiveis.map(cardFilaEmpresa).join("") : semNada(lista.length))
           : vazio(...VAZIOS[view]);
       } else {
         const visiveis = lista.filter((m) => doCanal(m.canal));
@@ -2275,6 +2379,12 @@ document.addEventListener("click", async (ev) => {
     else if (btn.dataset.filtroConversa) { filtroConversa = btn.dataset.filtroConversa; desenharListaConversas(); }
     else if ("voltarLista" in btn.dataset) $("#chat-app").classList.remove("com-conversa");
     else if ("enviarConversa" in btn.dataset) await enviarNaConversa(btn);
+    else if (btn.dataset.cancelarFila) {
+      if (!confirm("Não enviar nenhuma das mensagens da fila para esta empresa?")) return;
+      await post(`/api/leads/${btn.dataset.cancelarFila}/cancelar-fila`);
+      avisar("Nada mais sai para esta empresa", "ok");
+      await atualizar();
+    }
     else if (btn.dataset.cancelarAgendada) {
       if (!confirm("Não enviar esta mensagem?")) return;
       await post(`/api/mensagens/${btn.dataset.cancelarAgendada}/rejeitar`);

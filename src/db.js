@@ -533,6 +533,7 @@ export async function estatisticas() {
     respostas: await contagem("SELECT classificacao AS chave, count(*)::int AS n FROM respostas GROUP BY classificacao"),
     respostasNaoLidas: (await um("SELECT count(*)::int AS n FROM respostas WHERE NOT lida")).n,
     sequenciasPendentes: (await um("SELECT count(DISTINCT (lead_id, canal))::int AS n FROM mensagens WHERE status = 'rascunho'")).n,
+    filaEmpresas: (await um("SELECT count(DISTINCT lead_id)::int AS n FROM mensagens WHERE status = 'aprovada'")).n,
     enviadasHojePorCanal: { email: await enviadasHoje("email"), whatsapp: await enviadasHoje("whatsapp") },
     // Mesma regra da página de Respostas: a última resposta pediu você e ninguém respondeu depois dela.
     precisamDeVoce: (await um(

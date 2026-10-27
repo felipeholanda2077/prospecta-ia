@@ -382,6 +382,12 @@ app.post("/api/leads/:id/reanalisar", async (req, res) => {
   }
 });
 
+// "Não enviar nada para esta empresa" na fila: cancela tudo o que estava para sair.
+app.post("/api/leads/:id/cancelar-fila", async (req, res) => {
+  await db.cancelarPendentes(req.params.id, "cancelado por você na fila de envio");
+  res.json({ ok: true });
+});
+
 // Contato indicado informado por você (ex.: passaram o número por ligação ou o cartão chegou antes):
 // a IA escreve para ele citando a indicação, e a conversa segue sozinha.
 app.post("/api/leads/:id/indicado", async (req, res) => {
