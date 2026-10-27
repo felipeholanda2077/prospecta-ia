@@ -439,6 +439,8 @@ export async function verificarRespostas(campanha) {
 async function bloqueioDeEnvio(m) {
   if (await db.estaDescadastrado(m.destino)) return "contato descadastrado";
   if (m.tipo === "resposta") return null;
+  // Disse que não tem interesse: nenhuma etapa sai mais (só o agradecimento, que é uma resposta).
+  if (["sem_interesse", "descadastrado"].includes(m.status_lead)) return `empresa encerrada: ${m.status_lead.replace("_", " ")}`;
   if (m.etapa <= 1 && (await db.contatoJaUsado(m.destino, ["enviada"]))) return "contato já recebeu outra proposta";
   if (m.etapa > 1 && m.status_lead !== "contatado") return `sequência encerrada: lead está como ${m.status_lead}`;
   return null;

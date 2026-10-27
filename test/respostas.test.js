@@ -307,3 +307,26 @@ test("indicação por texto: acha o e-mail do comercial e a IA escreve um e-mail
   const m = await db.buscarMensagem(feitos[0].mensagemId);
   assert.deepEqual([m.canal, m.destino, m.assunto, m.tipo], ["email", "neuroclin@neuroclinosasco.com.br", "Indicação da Yasmin, da Neuroclin", "resposta"]);
 });
+
+test("sem interesse: encerra a empresa, agradece uma vez e não manda mais nada", async () => {
+  const lead = await novoLead("SemInteresse", "nao@spf.com");
+  await enviada(lead, 0);
+  const etapa3 = await db.criarMensagem({ lead_id: lead.id, canal: "email", destino: lead.email, corpo: "etapa 3", etapa: 3, tipo: "sequencia", status: "aprovada" });
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6, calendly: "" } };
+  const naoQuer = async () => ({ classificacao: "sem_interesse", resumo: "Não tem interesse.", sugestao_resposta: "Imagina, obrigado pelo retorno!",
+                                 precisa_humano: false, motivo_humano: "", indicou_contato: false });
+  await registrarResposta({ lead, canal: "email", origem_id: "<nao-1@x>", de: lead.email, assunto: "Proposta",
+                            texto: "No momento não estamos interessados, agradeço!", campanha: camp, classificar: naoQuer });
+
+  const depois = await db.buscarLead(lead.id);
+  assert.equal(depois.status, "sem_interesse");
+  assert.equal((await db.buscarMensagem(etapa3)).status, "rejeitada");
+  const respostas = (await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id);
+  assert.deepEqual(respostas.map((m) => [m.tipo, m.corpo]), [["resposta", "Imagina, obrigado pelo retorno!"]]);
+
+  // Escreveu de novo ("obrigado!"): fica registrado, sem resposta e sem reabrir.
+  const outro = async () => ({ classificacao: "outro", resumo: "Agradeceu.", sugestao_resposta: "De nada!", precisa_humano: false, motivo_humano: "", indicou_contato: false });
+  await registrarResposta({ lead: depois, canal: "email", origem_id: "<nao-2@x>", de: lead.email, texto: "Obrigado!", campanha: camp, classificar: outro });
+  assert.equal((await db.buscarLead(lead.id)).status, "sem_interesse");
+  assert.equal((await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id).length, 1);
+});

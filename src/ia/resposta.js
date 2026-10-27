@@ -37,7 +37,7 @@ const CLASSIFICACAO_JSON_SCHEMA = {
     },
     sugestao_resposta: {
       type: "string",
-      description: "próxima mensagem da conversa para o vendedor revisar; vazio se for descadastro, sem_interesse ou automatica",
+      description: "próxima mensagem da conversa; em sem_interesse, um agradecimento curto; vazio se for descadastro ou automatica",
     },
   },
   required: ["classificacao", "resumo", "sugestao_resposta", "precisa_humano", "motivo_humano", "indicou_contato"],
@@ -114,7 +114,9 @@ Como conduzir (tom humano, como ${quem} escrevendo do próprio celular, em prime
 - Marque precisa_humano quando: pedirem ligação, negociarem preço ou condições, reclamarem, ou o assunto sair do que
   está aqui. Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar.
 - Tamanho: ${limite}. Português do Brasil, frases curtas, no máximo 1 emoji.
-- Se for descadastro, sem interesse ou resposta automática, deixe a sugestão vazia.`,
+- Sem interesse: a sugestão é um agradecimento curto e cordial (1 ou 2 frases), sem pergunta, sem oferta, sem link,
+  deixando a porta aberta (ex.: "Imagina, obrigado pelo retorno! Fico à disposição se precisarem no futuro.").
+- Se for descadastro ou resposta automática, deixe a sugestão vazia.`,
     pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""}) · canal: ${canal}
 
 Histórico da conversa (mais antigo primeiro):
