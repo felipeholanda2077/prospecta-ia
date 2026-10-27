@@ -325,6 +325,7 @@
   .chat-andamento { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border);
                     font-size: 13px; color: var(--muted); background: var(--surface-2); }
   .chat-andamento b { color: var(--text); }
+  .chat-andamento .resumo-ultima { flex-basis: 100%; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .chat-msgs { flex: 1; overflow-y: auto; background: var(--wa-chat); padding: 16px clamp(10px, 3vw, 28px); display: flex; flex-direction: column; gap: 6px; }
   .bolha { max-width: min(80%, 560px); padding: 7px 10px 5px; border-radius: 10px; font-size: 14px; line-height: 1.42; white-space: pre-wrap;
            overflow-wrap: anywhere; box-shadow: var(--shadow-sm); color: var(--text); }
@@ -1626,7 +1627,7 @@ function htmlAndamento(d) {
     `<span>Chance de fechar: <b>${a.rotulo}</b>${a.esfriou ? ` (esfriou: ${a.diasSemResposta} dias sem resposta)` : ""}</span>`,
     `<span>Próximo passo: <b>${esc(a.proximoPasso)}</b></span>`,
     `<span>${a.aguardando === "empresa" ? "Aguardando a empresa" : "A empresa está esperando você"}</span>`,
-    d.resposta?.resumo ? `<span>Última resposta: ${esc(d.resposta.resumo)}</span>` : "",
+    d.resposta?.resumo ? `<span class="resumo-ultima" title="${esc(d.resposta.resumo)}">Última resposta: ${esc(d.resposta.resumo)}</span>` : "",
   ].filter(Boolean).join("");
 }
 
