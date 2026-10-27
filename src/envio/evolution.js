@@ -164,6 +164,21 @@ export async function configurarWebhook() {
   return destino;
 }
 
+/**
+ * Confere se o webhook da instância aponta para este sistema e, se não, configura de
+ * novo (ex.: a primeira tentativa falhou ou alguém mudou no Manager). Retorna true se corrigiu.
+ */
+export async function garantirWebhook() {
+  const { segredoWebhook } = await obterConfig();
+  if (!segredoWebhook) return false;
+  const destino = `${config.painel.urlPublica}/webhooks/evolution/${segredoWebhook}`;
+  const atual = await chamar("/webhook/find/:instancia").catch(() => null);
+  const eventos = (atual?.events ?? []).map((e) => String(e).toUpperCase());
+  if (atual?.enabled && atual.url === destino && eventos.includes("MESSAGES_UPSERT")) return false;
+  await configurarWebhook();
+  return true;
+}
+
 /** Envia um texto. `delay` mostra "digitando..." antes, como uma pessoa. */
 export async function enviarTexto(numero, texto) {
   const dados = await chamar("/message/sendText/:instancia", {

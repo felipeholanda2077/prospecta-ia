@@ -104,3 +104,21 @@ test("Evolution: a URL do /manager vira a da API, e página que não é a API é
     globalThis.fetch = original;
   }
 });
+
+test("Evolution: garantirWebhook só configura de novo quando o webhook não aponta para cá", async () => {
+  await db.gravarConfig("evolution", { url: "https://evo.exemplo.com", apikey: "K", instancia: "fluxdeck", segredoWebhook: "seg" });
+  let atual = null;
+  const srv = servidorFalso({
+    "GET /webhook/find/fluxdeck": () => resposta(200, atual),
+    "POST /webhook/set/fluxdeck": () => resposta(201, {}),
+  });
+  try {
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(await evolution.garantirWebhook(), true); // nenhum webhook: configura
+    const destino = srv.chamadas.find((c) => c.chave === "POST /webhook/set/fluxdeck").corpo.webhook.url;
+    atual = { enabled: true, url: destino, events: ["MESSAGES_UPSERT"] };
+    assert.equal(await evolution.garantirWebhook(), false); // já certo: não mexe
+  } finally {
+    srv.restaurar();
+  }
+});

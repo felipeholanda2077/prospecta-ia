@@ -828,6 +828,15 @@ async function iniciar() {
   $("#tela-login").hidden = true;
   $("#painel").hidden = false;
   $$("[data-empresa]").forEach((el) => (el.textContent = sessao.empresa));
+  desenharStatusLista();
+  $("#nichos").innerHTML = sessao.nichosSugeridos.map((n) => `<option value="${esc(n)}">`).join("");
+  $("#cidades").innerHTML = sessao.cidadesSugeridas.map((c) => `<option value="${esc(c)}">`).join("");
+  irParaHash();
+  carregarStats();
+}
+
+/** Selos do menu lateral (funil, por onde o WhatsApp sai, horário). */
+function desenharStatusLista() {
   $("#status-lista").innerHTML = [
     sessao.modoTeste ? `<span class="pilula atencao">${ic("alert", "sm")}Modo teste: os envios vão para você</span>` : "",
     sessao.automacao?.ativo ? `<span class="pilula ok">${ic("zap", "sm")}Funil automático ligado</span>` : `<span class="pilula">${ic("zap", "sm")}Funil automático desligado</span>`,
@@ -836,10 +845,14 @@ async function iniciar() {
       ? `<span class="pilula ok">${ic("clock", "sm")}Dentro do horário de envio</span>`
       : `<span class="pilula">${ic("clock", "sm")}Fora do horário: envios retomam às ${sessao.horario.inicio}h</span>`,
   ].join("");
-  $("#nichos").innerHTML = sessao.nichosSugeridos.map((n) => `<option value="${esc(n)}">`).join("");
-  $("#cidades").innerHTML = sessao.cidadesSugeridas.map((c) => `<option value="${esc(c)}">`).join("");
-  irParaHash();
-  carregarStats();
+}
+
+/** Relê a sessão depois de mudar a conexão do WhatsApp, para o menu mostrar por onde ele sai. */
+async function atualizarSessao() {
+  try {
+    sessao = await api("/api/sessao");
+    desenharStatusLista();
+  } catch {}
 }
 
 // ===================== Indicadores =====================
@@ -1478,6 +1491,7 @@ function mostrarStatusWa(p, st) {
   $(`#${p}-status`).innerHTML = `<span class="pilula ${cor}">${esc(rotulo)}${st.numero ? ` · ${esc(st.numero)}` : ""}</span>`;
   const alvo = $(`#${p}-conexao`);
   if (st.conectado) {
+    if (pollingWa[p]) atualizarSessao();
     pararPollingWa(p);
     alvo.innerHTML = `<div class="alerta info">${ic("checkCircle")}<div>WhatsApp conectado${st.perfil ? ` como <b>${esc(st.perfil)}</b>` : ""}. As etapas aprovadas e as respostas passam a sair por este número.</div></div>`;
   } else if (st.qrcode) {
@@ -1618,7 +1632,7 @@ $("#form-empresa").addEventListener("submit", async (ev) => {
   btn.disabled = true;
   try {
     await api("/api/config/empresa", { method: "PUT", body: JSON.stringify(Object.fromEntries(new FormData(ev.target))) });
-    sessao = await api("/api/sessao");
+    await atualizarSessao();
     $$("[data-empresa]").forEach((el) => (el.textContent = sessao.empresa));
     avisar("Perfil salvo. As próximas mensagens da IA já usam estes dados.", "ok");
   } catch (e) {
@@ -1638,7 +1652,7 @@ $("#form-uazap").addEventListener("submit", async (ev) => {
     $("#uazap-token").required = false;
     $("#uazap-webhook").textContent = `Webhook: ${r.webhook}`;
     mostrarStatusWa("uazap", r.status);
-    sessao = await api("/api/sessao");
+    await atualizarSessao();
     avisar("UAZap configurada e webhook apontado para o sistema", "ok");
   } catch (e) {
     avisar(e.message, "perigo");
@@ -1659,7 +1673,7 @@ $("#form-evolution").addEventListener("submit", async (ev) => {
     $("#evolution-apikey").required = false;
     $("#evolution-webhook").textContent = `Webhook: ${r.webhook}`;
     mostrarStatusWa("evolution", r.status);
-    sessao = await api("/api/sessao");
+    await atualizarSessao();
     avisar("Evolution API configurada e webhook apontado para o sistema", "ok");
   } catch (e) {
     avisar(e.message, "perigo");
@@ -1687,6 +1701,7 @@ async function acaoWa(p, btn) {
     } else if (acao === "desconectar" && confirm("Desconectar o WhatsApp deste sistema?")) {
       await post(`/api/${p}/desconectar`);
       mostrarStatusWa(p, await api(`/api/${p}/status`));
+      await atualizarSessao();
     }
   } catch (e) {
     avisar(e.message, "perigo");

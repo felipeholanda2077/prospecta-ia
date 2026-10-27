@@ -606,6 +606,7 @@ const RESERVA_DE_EMPRESAS = 15;
  */
 export async function rodadaAutomatica(campanha) {
   const ate = prazoPadrao();
+  await conferirWebhookWhatsapp();
   const resultado = { respostas: await verificarRespostas(campanha) };
   // Antes dos envios, para quem acabou de marcar a reunião não receber a próxima etapa.
   resultado.agendamentos = await verificarAgendamentos().catch((e) => {
@@ -620,6 +621,21 @@ export async function rodadaAutomatica(campanha) {
   if (!semTempo(ate)) resultado.analise = await analisar({ ate, limite: 10 });
   if (!semTempo(ate)) resultado.propostas = await propor(campanha, { ate, limite: 6 });
   return resultado;
+}
+
+const CONFERIR_WEBHOOK_MS = 60 * 60 * 1000;
+
+/** Uma vez por hora, garante que as respostas da Evolution chegam aqui (o webhook pode ter falhado ao salvar). */
+async function conferirWebhookWhatsapp() {
+  if ((await integracaoWhatsapp()) !== "evolution") return;
+  const ultima = Number((await db.lerEstado("webhook_evolution_conferido")) ?? 0);
+  if (Date.now() - ultima < CONFERIR_WEBHOOK_MS) return;
+  try {
+    if (await evolution.garantirWebhook()) log("🔧 Webhook da Evolution apontado de novo para o sistema");
+    await db.gravarEstado("webhook_evolution_conferido", Date.now());
+  } catch (e) {
+    log(`⚠️  Não foi possível conferir o webhook da Evolution: ${e.message}`);
+  }
 }
 
 /** Compatibilidade: o agendamento antigo chamava "envios". */
