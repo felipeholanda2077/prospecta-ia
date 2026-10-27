@@ -1416,12 +1416,12 @@ function cardLead(l) {
       <button class="btn sm" data-reanalisar>${ic("refresh", "sm")}Analisar de novo${l.status === "proposta_gerada" ? " (incluir WhatsApp)" : ""}</button>
     </div>` : ""}
     ${["contatado", "respondeu", "agendado"].includes(l.status) ? `<form class="cartao-corpo config-grade indicado-form" data-indicado hidden style="border-top:1px solid var(--border)">
-      <div class="campo"><label for="ind-nome-${l.id}">Nome do contato indicado</label><input id="ind-nome-${l.id}" name="nome" placeholder="Helena (administrativo)" autocomplete="off"></div>
-      <div class="campo"><label for="ind-tel-${l.id}">WhatsApp com DDD</label><input id="ind-tel-${l.id}" name="telefone" inputmode="tel" placeholder="11 96548-1483" required autocomplete="off"></div>
+      <div class="campo"><label for="ind-nome-${l.id}">Nome do contato indicado</label><input id="ind-nome-${l.id}" name="nome" placeholder="Celso (comercial)" autocomplete="off"></div>
+      <div class="campo"><label for="ind-tel-${l.id}">WhatsApp com DDD ou e-mail</label><input id="ind-tel-${l.id}" name="contato" placeholder="11 96548-1483 ou comercial@empresa.com.br" required autocomplete="off"></div>
       <div class="campo" style="grid-column:1/-1"><label for="ind-quem-${l.id}">Quem indicou (opcional)</label><input id="ind-quem-${l.id}" name="quemIndicou" placeholder="Tatiane, da recepção" autocomplete="off"></div>
       <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
         <button class="btn primario sm" type="submit">${ic("send", "sm")}A IA escreve para ele</button>
-        <span class="muted" style="font-size:13px">A mensagem cita a indicação e sai em cerca de 1 minuto, em horário comercial.</span>
+        <span class="muted" style="font-size:13px">A mensagem (WhatsApp ou e-mail) cita a indicação e sai em cerca de 1 minuto, em horário comercial.</span>
       </div>
     </form>` : ""}
     ${["contatado", "respondeu"].includes(l.status) ? `<div class="acoes">

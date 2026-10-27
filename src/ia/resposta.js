@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { gerarJson } from "./cliente.js";
-import { contextoEmpresa } from "./proposta.js";
+import { contextoEmpresa, identidade } from "./proposta.js";
 
 export const CLASSIFICACOES = ["interessado", "quer_informacoes", "sem_interesse", "descadastro", "automatica", "outro"];
 
@@ -10,6 +10,7 @@ const ClassificacaoSchema = z.object({
   sugestao_resposta: z.string(),
   precisa_humano: z.boolean(),
   motivo_humano: z.string(),
+  indicou_contato: z.boolean(),
 });
 
 const CLASSIFICACAO_JSON_SCHEMA = {
@@ -29,12 +30,17 @@ const CLASSIFICACAO_JSON_SCHEMA = {
       description: "true quando a conversa deve passar para o vendedor: pediu ligação ou para falar com uma pessoa, negociação de preço/condições, reclamação, assunto fora do que você sabe responder",
     },
     motivo_humano: { type: "string", description: "por que precisa do vendedor, em poucas palavras; vazio se não precisa" },
+    indicou_contato: {
+      type: "boolean",
+      description: "true só quando a pessoa indicou OUTRA pessoa ou setor para tratar do assunto e passou o e-mail ou telefone dela " +
+        "(ex.: \"fale com o comercial: x@empresa.com\"). false para assinaturas de e-mail e contatos da própria pessoa",
+    },
     sugestao_resposta: {
       type: "string",
       description: "próxima mensagem da conversa para o vendedor revisar; vazio se for descadastro, sem_interesse ou automatica",
     },
   },
-  required: ["classificacao", "resumo", "sugestao_resposta", "precisa_humano", "motivo_humano"],
+  required: ["classificacao", "resumo", "sugestao_resposta", "precisa_humano", "motivo_humano", "indicou_contato"],
   additionalProperties: false,
 };
 
@@ -102,8 +108,9 @@ Como conduzir (tom humano, como ${quem} escrevendo do próprio celular, em prime
 - Se a pessoa perguntar diretamente se está falando com um robô, uma IA ou uma mensagem automática, não responda essa
   pergunta: marque precisa_humano (motivo: "perguntou se é robô") e deixe a sugestão vazia, para o próprio ${quem} responder.
 - Se a mensagem veio de um áudio (o texto começa com "[áudio]"), responda ao que a pessoa falou, por texto, normalmente.
-- Se a pessoa mandou um contato (o texto começa com "[contato compartilhado]"), agradeça em uma frase curta e diga que
-  vai chamar essa pessoa. Não peça mais nada e não marque precisa_humano por isso; a mensagem para o contato é escrita à parte.
+- Se a pessoa mandou um contato (cartão de contato, "[contato compartilhado]", ou um e-mail/telefone de outra pessoa ou setor
+  para tratar do assunto), agradeça em uma frase curta e diga que vai falar com essa pessoa por lá. Não peça mais nada e não
+  marque precisa_humano por isso; a mensagem para o contato indicado é escrita e enviada à parte.
 - Marque precisa_humano quando: pedirem ligação, negociarem preço ou condições, reclamarem, ou o assunto sair do que
   está aqui. Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar.
 - Tamanho: ${limite}. Português do Brasil, frases curtas, no máximo 1 emoji.
@@ -121,39 +128,47 @@ ${texto}`,
   });
 }
 
-const IndicadoSchema = z.object({ mensagem: z.string() });
+const IndicadoSchema = z.object({ assunto: z.string(), mensagem: z.string() });
 const INDICADO_JSON_SCHEMA = {
   type: "object",
-  properties: { mensagem: { type: "string", description: "primeira mensagem de WhatsApp para o contato indicado" } },
-  required: ["mensagem"],
+  properties: {
+    assunto: { type: "string", description: "assunto do e-mail, curto e pessoal (vazio no WhatsApp)" },
+    mensagem: { type: "string", description: "primeira mensagem para o contato indicado" },
+  },
+  required: ["assunto", "mensagem"],
   additionalProperties: false,
 };
 
 /**
- * Primeira mensagem para quem foi indicado pela empresa prospectada (ex.: a recepção
- * mandou o contato do setor administrativo). Cita a indicação e puxa conversa, sem preço.
+ * Primeira mensagem para quem foi indicado pela empresa prospectada (ex.: "fale com o
+ * comercial, responsável Celso"). Cita a indicação e puxa conversa, sem preço.
+ * Retorna { assunto, mensagem } (assunto só no e-mail).
  */
-export async function mensagemParaIndicado({ lead, contato, nomeDeQuemIndicou, historico, campanha }) {
+export async function mensagemParaIndicado({ lead, contato, canal = "whatsapp", nomeDeQuemIndicou, textoDaIndicacao = "", historico, campanha }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
-  const r = await gerarJson({
+  const formato = canal === "email"
+    ? `E-mail em texto simples, 60 a 110 palavras, com saudação, e assinatura curta (${identidade(campanha.empresa).assinatura}).
+- Assunto curto e pessoal citando a indicação (ex.: "Indicação da recepção da ${lead.nome}"), sem caixa alta.`
+    : "WhatsApp: no máximo 3 frases curtas (até ~350 caracteres), sem assinatura. Assunto vazio.";
+  return gerarJson({
     system: `${contextoEmpresa(campanha)}
 
-Você (${quem}) estava conversando no WhatsApp com a ${lead.nome} e eles indicaram outra pessoa para tratar do assunto.
-Escreva a PRIMEIRA mensagem para essa pessoa indicada:
-- Cumprimente. Use o nome dela só se o nome do contato parecer o nome de uma pessoa (não "Recepção", "Adm", "Setor").
+Você (${quem}) estava conversando com a ${lead.nome} e eles indicaram outra pessoa para tratar do assunto.
+Escreva a PRIMEIRA mensagem para essa pessoa indicada, por ${canal === "email" ? "e-mail" : "WhatsApp"}:
+- Cumprimente pelo nome se souber o nome da pessoa (pela indicação ou pelo contato); não use nomes como "Recepção", "Adm", "Setor".
 - Diga quem você é em poucas palavras e quem passou o contato: a pessoa da ${lead.nome} que conversou com você. Use o nome
   dela se ela se apresentou na conversa${nomeDeQuemIndicou ? ` (o nome no WhatsApp é "${nomeDeQuemIndicou}", que pode ser só o nome da empresa)` : ""};
   se não souber, diga "o pessoal da ${lead.nome}".
-- Em uma frase, o motivo: o que você observou e pode ajudar (use a conversa abaixo, sem repetir tudo).
-- Termine com UMA pergunta simples e aberta. Sem preço, sem prazo, sem link, sem pedir reunião ainda.
-- No máximo 3 frases curtas (até ~350 caracteres), tom humano, primeira pessoa, no máximo 1 emoji.`,
-    pedido: `Contato indicado: ${contato.nome || "(sem nome)"}${contato.empresa ? ` · ${contato.empresa}` : ""}
-
+- Em uma frase, o motivo: o que você conversou e como pode ajudar (use a conversa abaixo, sem repetir tudo).
+- Termine com UMA pergunta simples e aberta, ou o convite para um bate-papo rápido. Sem preço, sem prazo, sem link.
+- ${formato}
+- Tom humano, primeira pessoa, no máximo 1 emoji no WhatsApp e nenhum no e-mail. Não escreva rodapé de descadastro.`,
+    pedido: `Contato indicado: ${contato.nome || "(sem nome)"}${contato.empresa ? ` · ${contato.empresa}` : ""} · ${contato.email ?? contato.numero}
+${textoDaIndicacao ? `\nMensagem em que a ${lead.nome} fez a indicação:\n${textoDaIndicacao}\n` : ""}
 Conversa com a ${lead.nome} até aqui:
 ${formatarHistorico(historico)}`,
     jsonSchema: INDICADO_JSON_SCHEMA,
     zodSchema: IndicadoSchema,
     effort: "low",
-  });
-  return r.mensagem.trim();
+  }).then((r) => ({ assunto: r.assunto.trim(), mensagem: r.mensagem.trim() }));
 }

@@ -6,7 +6,7 @@ import { registrarResposta } from "./processar.js";
 import { extrairMensagemUazap } from "../envio/uazap.js";
 import { extrairMensagemEvolution, baixarAudio } from "../envio/evolution.js";
 import { transcrever } from "../ia/transcricao.js";
-import { extrairContatosVcard, contatarIndicados } from "./indicacao.js";
+import { extrairContatosVcard } from "./indicacao.js";
 
 /** Confere o cabeçalho X-Hub-Signature-256 enviado pela Meta. */
 export function assinaturaValida(corpoBruto, cabecalho, segredo) {
@@ -107,7 +107,8 @@ async function registrarMensagemWhatsappWeb(m, campanha, baixar = null) {
     mensagemOriginal: original,
     campanha,
     forcarHumano,
+    contatosIndicados: contatos,
+    nomeRemetente: m.nome,
   });
-  if (r && contatos.length) await contatarIndicados({ lead, contatos, de: m.de, nomeDeQuemIndicou: m.nome, campanha });
   return r ? 1 : 0;
 }

@@ -3,6 +3,7 @@ import * as db from "../db.js";
 import { classificarResposta, limparTextoResposta } from "../ia/resposta.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento } from "../agenda/calendly.js";
+import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
@@ -31,8 +32,8 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
     return { precisaHumano: motivo };
   }
 
-  // No WhatsApp responde para quem escreveu (pode ser um contato indicado, não o número da empresa).
-  const destino = canal === "email" ? lead.email || de : de || lead.whatsapp;
+  // Responde para quem escreveu (pode ser um contato indicado, não o e-mail/número original da empresa).
+  const destino = de || (canal === "email" ? lead.email : lead.whatsapp);
   const mensagemId = await db.criarMensagem({
     lead_id: lead.id,
     canal,
@@ -57,7 +58,10 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
  * Em qualquer resposta humana, as etapas pendentes são canceladas e, com a resposta
  * automática ligada, a IA continua a conversa rumo ao agendamento.
  */
-export async function registrarResposta({ lead, canal, origem_id, de, assunto = null, texto, campanha, forcarHumano = null }) {
+export async function registrarResposta({
+  lead, canal, origem_id, de, assunto = null, texto, campanha, forcarHumano = null,
+  contatosIndicados = [], nomeRemetente = null, // cartão de contato do WhatsApp, já lido
+}) {
   if (origem_id && (await db.respostaJaRegistrada(origem_id))) return null;
 
   const limpo = limparTextoResposta(texto) || String(texto ?? "").slice(0, 2000);
@@ -108,6 +112,17 @@ export async function registrarResposta({ lead, canal, origem_id, de, assunto = 
         ).catch((e) => log(`⚠️  Não foi possível enviar o aviso: ${e.message}`));
       }
       await responderSozinha({ respostaId: id, lead, canal, de, assunto, origem_id, c, campanha });
+  }
+
+  // Indicou outra pessoa (cartão de contato, ou e-mail/telefone escrito na mensagem): a IA escreve para ela.
+  if (!["descadastro", "automatica"].includes(c.classificacao)) {
+    // Contatos escritos no texto só contam se a IA viu uma indicação (assinaturas de e-mail também têm telefone e e-mail).
+    const doTexto = c.indicou_contato ? contatosNoTexto(limpo, [de, lead.email, lead.whatsapp]) : [];
+    const indicados = [...contatosIndicados, ...doTexto];
+    if (indicados.length) {
+      await contatarIndicados({ lead, contatos: indicados, de, nomeDeQuemIndicou: nomeRemetente, textoDaIndicacao: limpo, campanha })
+        .catch((e) => log(`⚠️  Não foi possível escrever para o contato indicado: ${e.message}`));
+    }
   }
 
   log(`💬 Resposta de ${lead.nome} por ${canal}: ${c.classificacao}`);

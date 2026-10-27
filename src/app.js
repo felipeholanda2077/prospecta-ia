@@ -387,9 +387,18 @@ app.post("/api/leads/:id/indicado", async (req, res) => {
   try {
     const lead = await db.buscarLead(req.params.id);
     if (!lead) return res.status(404).json({ erro: "Empresa não encontrada" });
-    const numero = normalizarNumeroIndicado(req.body?.telefone);
-    if (numero.length < 12) return res.status(400).json({ erro: "Informe o WhatsApp do contato com DDD (ex.: 11 96548-1483)" });
-    const contato = { nome: String(req.body?.nome ?? "").trim().slice(0, 80), empresa: lead.nome, numero };
+    const informado = String(req.body?.contato ?? req.body?.telefone ?? "").trim();
+    const nome = String(req.body?.nome ?? "").trim().slice(0, 80);
+    let contato;
+    if (informado.includes("@")) {
+      const email = informado.toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/.test(email)) return res.status(400).json({ erro: "E-mail inválido" });
+      contato = { canal: "email", nome, empresa: lead.nome, email };
+    } else {
+      const numero = normalizarNumeroIndicado(informado);
+      if (numero.length < 12) return res.status(400).json({ erro: "Informe o WhatsApp com DDD (ex.: 11 96548-1483) ou um e-mail" });
+      contato = { canal: "whatsapp", nome, empresa: lead.nome, numero };
+    }
     const quem = String(req.body?.quemIndicou ?? "").trim().slice(0, 80) || null;
     const feitos = await contatarIndicados({ lead, contatos: [contato], nomeDeQuemIndicou: quem, campanha: await carregarCampanhaCompleta(), manual: true });
     if (!feitos.length) return res.status(400).json({ erro: `Não vou escrever para esse contato: ${feitos.ignorados[0]?.motivo ?? "número inválido"}` });

@@ -247,7 +247,7 @@ test("cartão de contato: lê o vCard e a IA escreve para a pessoa indicada", as
   const { extrairMensagemEvolution } = await import("../src/envio/evolution.js");
   const vcard = "BEGIN:VCARD\nVERSION:3.0\nN:;Numero Recepcao/adm;;;\nFN:Numero Recepcao/adm\nORG:Odonto Company;\n" +
     "item1.TEL;waid=5511965481483:+55 11 96548-1483\nitem1.X-ABLabel:Celular\nEND:VCARD";
-  assert.deepEqual(extrairContatosVcard([vcard]), [{ nome: "Numero Recepcao/adm", empresa: "Odonto Company", numero: "5511965481483" }]);
+  assert.deepEqual(extrairContatosVcard([vcard]), [{ canal: "whatsapp", nome: "Numero Recepcao/adm", empresa: "Odonto Company", numero: "5511965481483" }]);
   assert.deepEqual(extrairContatosVcard(["BEGIN:VCARD\nFN:Helena\nTEL;type=CELL:(11) 98888-7777\nEND:VCARD"])[0].numero, "5511988887777");
 
   const evento = { event: "messages.upsert", data: { key: { remoteJid: "5511912345678@s.whatsapp.net", fromMe: false, id: "C1" },
@@ -285,4 +285,25 @@ test("contato indicado informado no painel: escreve mesmo sem resposta automáti
   const repetido = await contatarIndicados({ lead, contatos, campanha: camp, escrever, manual: true });
   assert.equal(repetido.length, 0);
   assert.match(repetido.ignorados[0].motivo, /já existe conversa/);
+});
+
+test("indicação por texto: acha o e-mail do comercial e a IA escreve um e-mail para ele", async () => {
+  const { contatosNoTexto, contatarIndicados } = await import("../src/respostas/indicacao.js");
+  const texto = "Sr deve tratar diretamente com o setor comercial\nneuroclin@neuroclinosasco.com.br\nresponsável Celso";
+  assert.deepEqual(contatosNoTexto(texto, ["5511972049065"]), [{ canal: "email", email: "neuroclin@neuroclinosasco.com.br", nome: "", empresa: "" }]);
+  assert.deepEqual(contatosNoTexto("Fala com a Ana no (11) 98888-1234, ou me liga no 11 97204-9065", ["5511972049065"]).map((c) => c.numero),
+                   ["5511988881234"]); // o próprio número de quem escreveu fica de fora
+  assert.deepEqual(contatosNoTexto("Abs, joao@clinica.com", ["joao@clinica.com"]), []);
+
+  const lead = await novoLead("Neuroclin", null);
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6, calendly: "" } };
+  let pedido;
+  const escrever = async (p) => { pedido = p; return { assunto: "Indicação da Yasmin, da Neuroclin", mensagem: "Olá, Celso! A Yasmin me passou seu contato." }; };
+  const feitos = await contatarIndicados({ lead, contatos: contatosNoTexto(texto, ["5511972049065"]), de: "5511972049065",
+                                           textoDaIndicacao: texto, campanha: camp, escrever });
+  assert.equal(feitos.length, 1);
+  assert.equal(pedido.canal, "email");
+  assert.match(pedido.textoDaIndicacao, /Celso/);
+  const m = await db.buscarMensagem(feitos[0].mensagemId);
+  assert.deepEqual([m.canal, m.destino, m.assunto, m.tipo], ["email", "neuroclin@neuroclinosasco.com.br", "Indicação da Yasmin, da Neuroclin", "resposta"]);
 });
