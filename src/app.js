@@ -168,7 +168,8 @@ app.get("/api/cron/:tarefa", async (req, res) => {
     console.error("⚠️  Agendador do banco:", e.message);
     return { ativo: false, erro: e.message };
   });
-  res.json({ ...((await tarefa(await carregarCampanhaCompleta())) ?? {}), agendador });
+  const resultado = (await tarefa(await carregarCampanhaCompleta())) ?? {};
+  res.json({ ...resultado, agendador: agendador.ativo ? { ...agendador, ...(await statusDoBanco()) } : agendador });
 });
 
 // ---------- Login do painel ----------
