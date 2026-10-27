@@ -1904,8 +1904,10 @@ async function carregarLista() {
         // Fila: um cartão por empresa; o filtro de canal mostra só as etapas daquele canal.
         const empresas = agruparPorEmpresa(lista);
         const visiveis = agruparPorEmpresa(lista.filter((m) => doCanal(m.canal)));
+        const avisoWhatsapp = sessao.whatsappDesconectado
+          ? `<div class="alerta perigo" style="margin-bottom:16px">${ic("alert")}<div><b>WhatsApp desconectado.</b> As mensagens de WhatsApp ficam aqui na fila e saem sozinhas assim que você reconectar o número em <a href="#configuracoes">Configurações</a>. Os e-mails continuam saindo.</div></div>` : "";
         html = lista.length
-          ? abasDeCanal(empresas, (ms) => ms.map((m) => m.canal)) + (visiveis.length ? visiveis.map(cardFilaEmpresa).join("") : semNada(lista.length))
+          ? abasDeCanal(empresas, (ms) => ms.map((m) => m.canal)) + avisoWhatsapp + (visiveis.length ? visiveis.map(cardFilaEmpresa).join("") : semNada(lista.length))
           : vazio(...VAZIOS[view]);
       } else {
         const visiveis = lista.filter((m) => doCanal(m.canal));

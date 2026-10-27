@@ -349,3 +349,23 @@ test("empresas novas: intervalo sorteado de 5 a 12 minutos entre uma e a próxim
   assert.ok(proxima - Date.now() > 8 * 60_000 && proxima - Date.now() <= 8.5 * 60_000);
   await db.destravar("vez_da_empresa_nova");
 });
+
+test("WhatsApp desconectado: as mensagens que falharam por isso voltam para a fila", async () => {
+  await db.inserirLead(lead("queda-1"));
+  const [l] = (await db.leadsPorStatus("novo")).filter((x) => x.place_id === "queda-1");
+  const criar = async (canal, erro) => {
+    const id = await db.criarMensagem({ lead_id: l.id, canal, destino: canal === "email" ? "a@queda.com" : "5511999990000", corpo: "Oi", status: "aprovada" });
+    await db.atualizarMensagem(id, { status: "erro", erro });
+    return id;
+  };
+  const caiu = await criar("whatsapp", "UAZap respondeu 503: true");
+  const fechou = await criar("whatsapp", "Evolution API respondeu 400: Error: Connection Closed");
+  const numeroInvalido = await criar("whatsapp", "Evolution API respondeu 400: número não existe");
+  const email = await criar("email", "UAZap respondeu 503: true");
+  assert.equal(await db.devolverErrosDeConexaoWhatsapp(), 2);
+  assert.equal((await db.buscarMensagem(caiu)).status, "aprovada");
+  assert.equal((await db.buscarMensagem(fechou)).erro, null);
+  assert.equal((await db.buscarMensagem(numeroInvalido)).status, "erro");
+  assert.equal((await db.buscarMensagem(email)).status, "erro");
+  assert.equal(await pipeline.whatsappDesconectado("manual"), false);
+});

@@ -99,6 +99,11 @@ export async function conectadoAgora() {
   return status().then((s) => s.conectado, () => false);
 }
 
+/** Um envio falhou por queda da conexão: a próxima consulta pergunta de novo, sem usar o cache. */
+export function esquecerConexao() {
+  conectado = { valor: false, ate: 0 };
+}
+
 /** Inicia o pareamento: sem telefone devolve QR code; com telefone, código de pareamento. */
 export async function conectar(telefone) {
   const corpo = telefone ? { phone: String(telefone).replace(/\D/g, "") } : {};

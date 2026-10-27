@@ -5,7 +5,7 @@ import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
 import { gerarSequencia } from "./ia/proposta.js";
-import { enviarEmail, explicarErroEmail } from "./envio/email.js";
+import { enviarEmail, explicarErroEmail, enviarNotificacao } from "./envio/email.js";
 import { enviarWhatsapp, enviarTextoWhatsappOficial, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
@@ -67,6 +67,28 @@ export async function modoWhatsapp() {
   if (integracao) return integracao;
   if (config.whatsapp.ativo) return "oficial";
   return "manual";
+}
+
+// Erros de envio que indicam o número desconectado (e não um problema com a mensagem).
+const QUEDA_DO_WHATSAPP = /connection closed|not connected|disconnected|desconectad|respondeu 503|respondeu 502|instance.*(not found|close)|não foi possível acessar/i;
+const AVISO_DESCONECTADO_MS = 6 * 3600 * 1000;
+
+/**
+ * O WhatsApp Web (UAZap/Evolution) caiu? Enquanto estiver desconectado, as mensagens de
+ * WhatsApp ficam na fila (sem virar erro) e saem quando o número for reconectado.
+ */
+export async function whatsappDesconectado(modo) {
+  return Boolean(INTEGRACOES_WHATSAPP[modo]) && !(await INTEGRACOES_WHATSAPP[modo].conectadoAgora());
+}
+
+/** Avisa por e-mail que o WhatsApp caiu, no máximo a cada 6 horas. */
+async function avisarWhatsappDesconectado(modo) {
+  if (await db.travar("aviso_whatsapp_desconectado", AVISO_DESCONECTADO_MS)) {
+    await enviarNotificacao(
+      "WhatsApp desconectado: os envios estão parados",
+      `O número do WhatsApp (${modo === "evolution" ? "Evolution API" : "UAZap"}) está desconectado. As mensagens de WhatsApp ficam na Fila de envio e saem sozinhas assim que você reconectar o número em Configurações (lendo o QR code). Os e-mails continuam saindo normalmente.`
+    ).catch((e) => log(`⚠️  Não foi possível enviar o aviso: ${e.message}`));
+  }
 }
 
 // ---------- Datas e horário comercial ----------
@@ -502,6 +524,9 @@ export async function enviarMensagem(m, campanha) {
   if (!dentroDoHorario(campanha.limites)) {
     return { enviada: false, naFila: true, motivo: "fora do horário comercial; sai no próximo horário de envio" };
   }
+  if (m.canal === "whatsapp" && (await whatsappDesconectado(modo))) {
+    return { enviada: false, naFila: true, motivo: "WhatsApp desconectado; sai quando você reconectar o número em Configurações" };
+  }
   if (m.tipo !== "resposta" && m.etapa <= 1) {
     const limite = await limiteDoDia(campanha, m.canal);
     if ((await db.enviadasHoje(m.canal, { primeiroContato: true })) >= limite) {
@@ -545,6 +570,13 @@ export async function enviarMensagem(m, campanha) {
     log(`📨 ${m.canal} (etapa ${m.etapa}) enviado para ${m.empresa} <${m.destino}>`);
     return { enviada: true };
   } catch (e) {
+    // O número caiu no meio do envio: a mensagem volta para a fila em vez de virar erro.
+    if (m.canal === "whatsapp" && INTEGRACOES_WHATSAPP[modo] && QUEDA_DO_WHATSAPP.test(e.message)) {
+      INTEGRACOES_WHATSAPP[modo].esquecerConexao();
+      await db.atualizarMensagem(m.id, { status: "aprovada", erro: null });
+      log(`📵 WhatsApp desconectado ao enviar para ${m.empresa}; a mensagem continua na fila`);
+      return { enviada: false, naFila: true, motivo: "WhatsApp desconectado; a mensagem continua na fila" };
+    }
     await db.atualizarMensagem(m.id, { status: "erro", erro: e.message });
     log(`⚠️  Falha ao enviar para ${m.empresa}: ${e.message}`);
     return { enviada: false, motivo: e.message };
@@ -655,7 +687,13 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
     return { enviadas: 0, motivo: "fora do horário comercial" };
   }
 
-  const manual = (await modoWhatsapp()) === "manual";
+  const modo = await modoWhatsapp();
+  // Manual ou desconectado: o WhatsApp fica na fila e só o e-mail sai nesta rodada.
+  const semWhatsapp = modo === "manual" || (await whatsappDesconectado(modo));
+  if (semWhatsapp && modo !== "manual") {
+    if (!somenteNovas) log("📵 WhatsApp desconectado: as mensagens de WhatsApp ficam na fila até reconectar");
+    await avisarWhatsappDesconectado(modo);
+  }
   // A meta do dia é de empresas novas (etapa 1). No WhatsApp ela é espalhada até a hora em
   // que ainda dá para as 3 etapas saírem hoje; no e-mail, até o fim do expediente (as etapas
   // seguintes saem em outros dias). Etapas 2 e 3 e respostas da conversa não entram na conta.
@@ -671,7 +709,7 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   const vagasDaRodada = { ...vagas };
   const todas = ordenarFilaDeEnvio(await db.filaDeEnvio(400));
   const daConversa = (m) => m.tipo === "resposta" || m.etapa > 1;
-  const enviaveis = todas.filter((m) => m.canal === "email" || !manual);
+  const enviaveis = todas.filter((m) => m.canal === "email" || !semWhatsapp);
   // Da empresa nova da vez (a de mais potencial com vaga hoje) saem juntos o e-mail e o WhatsApp.
   const novas = enviaveis.filter((m) => !daConversa(m) && vagas[m.canal] > 0);
   const empresaDaVez = novas[0]?.lead_id;
@@ -749,6 +787,8 @@ export async function rodadaAutomatica(campanha) {
 async function rodada(campanha) {
   const ate = prazoPadrao();
   await db.liberarEnviosTravados();
+  const devolvidas = await db.devolverErrosDeConexaoWhatsapp();
+  if (devolvidas) log(`↩️  ${devolvidas} mensagens de WhatsApp que falharam com o número desconectado voltaram para a fila`);
   await reagendarEmailsDoMesmoDia(campanha);
   await conferirWebhookWhatsapp();
   const resultado = { respostas: await verificarRespostas(campanha) };

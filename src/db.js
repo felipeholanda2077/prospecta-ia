@@ -94,6 +94,20 @@ export async function liberarEnviosTravados() {
   );
 }
 
+/**
+ * Mensagens de WhatsApp que deram erro porque o número estava desconectado voltam para a
+ * fila (as dos últimos 3 dias). Retorna quantas voltaram.
+ */
+export async function devolverErrosDeConexaoWhatsapp() {
+  const r = await q(
+    `UPDATE mensagens SET status = 'aprovada', erro = NULL
+      WHERE status = 'erro' AND canal = 'whatsapp' AND criado_em > now() - interval '3 days'
+        AND erro ~* '(connection closed|not connected|disconnected|desconectad|respondeu 50[23]|não foi possível acessar)'
+      RETURNING id`
+  );
+  return r.length;
+}
+
 // ---------- Estado interno ----------
 
 export async function lerEstado(chave) {

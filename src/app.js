@@ -254,6 +254,7 @@ app.get("/api/sessao", async (req, res) => {
     modoWhatsapp: modo,
     automacao: { ativo: campanha.automacao.ativo, respostaAutomatica: campanha.automacao.respostaAutomatica },
     whatsappAutomatico: modo !== "manual",
+    whatsappDesconectado: await pipeline.whatsappDesconectado(modo),
     perfilIncompleto: !campanha.empresa.responsavel || !campanha.empresa.telefone,
     horario: campanha.limites.horarioComercial,
     cadencia: campanha.cadencia?.horasEntreEtapas ?? [2, 2],
