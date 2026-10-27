@@ -11,7 +11,8 @@ name: Envios em horário comercial
 
 on:
   schedule:
-    - cron: "*/10 9-20 * * 1-5" # 6h às 17h50 em Brasília (UTC-3), segunda a sexta
+    # Minuto 3, 13, 23...: o GitHub atrasa ou pula agendamentos no minuto cheio (:00), quando todo mundo roda.
+    - cron: "3-59/10 9-20 * * 1-5" # 6h03 às 17h53 em Brasília (UTC-3), segunda a sexta
   workflow_dispatch:
 
 permissions:
