@@ -2363,7 +2363,7 @@ const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, ""
  * Título grande com as palavras do `destaque` em degradê. Diminui a fonte até caber em
  * `alturaMax`. `progresso` (0 a 1) anima a entrada linha a linha, no Reels.
  */
-function tituloComDestaque(ctx, { texto, destaque, x, y, largura, alturaMax, maior, menor, progresso = 1 }) {
+function medirTitulo(ctx, { texto, largura, alturaMax, maior, menor }) {
   let tamanho = maior;
   let linhas;
   for (; tamanho >= menor; tamanho -= 4) {
@@ -2371,6 +2371,18 @@ function tituloComDestaque(ctx, { texto, destaque, x, y, largura, alturaMax, mai
     linhas = quebrarLinhas(ctx, texto, largura);
     if (linhas.length * tamanho * 1.12 <= alturaMax) break;
   }
+  return { tamanho: Math.max(tamanho, menor), linhas, altura: linhas.length * Math.max(tamanho, menor) * 1.12 };
+}
+
+function alturaDoParagrafo(ctx, texto, largura, tamanho) {
+  if (!texto) return 0;
+  ctx.font = `500 ${tamanho}px Inter`;
+  return quebrarLinhas(ctx, texto, largura).length * tamanho * 1.4;
+}
+
+function tituloComDestaque(ctx, { texto, destaque, x, y, largura, alturaMax, maior, menor, progresso = 1 }) {
+  const { tamanho, linhas } = medirTitulo(ctx, { texto, largura, alturaMax, maior, menor });
+  ctx.font = `800 ${tamanho}px Inter`;
   const realce = new Set(String(destaque ?? "").split(/\s+/).map(semAcento).filter(Boolean));
   const altura = tamanho * 1.12;
   ctx.textBaseline = "top";
@@ -2452,24 +2464,27 @@ function desenharTelaCarrossel(ctx, post, i) {
   ctx.fillText(`${i + 1}/${telas.length}`, w - 80, 113);
   ctx.textAlign = "left";
 
-  if (i === 0) {
-    const fim = tituloComDestaque(ctx, { texto: tela.titulo, destaque: tela.destaque, x: 80, y: 330, largura: w - 160, alturaMax: 620, maior: 118, menor: 70 });
-    paragrafo(ctx, { texto: tela.texto, x: 80, y: fim + 40, largura: w - 160, tamanho: 46 });
-    pilulaCta(ctx, "Arrasta para o lado  →", 80, h - 200);
-    return;
-  }
-  if (!ultima) {
+  // O bloco de texto fica centralizado na altura, entre a marca e o rodapé.
+  const largura = w - 160;
+  const capa = i === 0;
+  const opcoes = capa ? { alturaMax: 620, maior: 118, menor: 70 } : { alturaMax: 460, maior: 92, menor: 56 };
+  const titulo = medirTitulo(ctx, { texto: tela.titulo, largura, ...opcoes });
+  const numero = capa || ultima ? 0 : 190;
+  const bloco = numero + titulo.altura + (tela.texto ? 40 + alturaDoParagrafo(ctx, tela.texto, largura, capa ? 46 : 44) : 0) + (capa || ultima ? 130 : 0);
+  const topo = Math.max(230, (h - bloco) / 2);
+  if (numero) {
     ctx.font = "800 150px Inter";
-    const g = ctx.createLinearGradient(80, 250, 330, 400);
+    const g = ctx.createLinearGradient(80, topo, 330, topo + 150);
     g.addColorStop(0, "#a99bff");
     g.addColorStop(1, "#22d3ee");
     ctx.fillStyle = g;
     ctx.textBaseline = "top";
-    ctx.fillText(String(i).padStart(2, "0"), 72, 240);
+    ctx.fillText(String(i).padStart(2, "0"), 72, topo - 10);
   }
-  const fim = tituloComDestaque(ctx, { texto: tela.titulo, destaque: tela.destaque, x: 80, y: ultima ? 330 : 450, largura: w - 160, alturaMax: 420, maior: 92, menor: 56 });
-  paragrafo(ctx, { texto: tela.texto, x: 80, y: fim + 36, largura: w - 160, tamanho: 44 });
-  if (ultima) pilulaCta(ctx, "Chama no direct", 80, h - 230);
+  const fim = tituloComDestaque(ctx, { texto: tela.titulo, destaque: tela.destaque, x: 80, y: topo + numero, largura, ...opcoes });
+  const fimTexto = paragrafo(ctx, { texto: tela.texto, x: 80, y: fim + 40, largura, tamanho: capa ? 46 : 44 });
+  if (capa) return pilulaCta(ctx, "Arrasta para o lado  →", 80, fimTexto + 50);
+  if (ultima) pilulaCta(ctx, "Chama no direct", 80, fimTexto + 50);
   // Pontinhos de progresso no rodapé.
   telas.forEach((_, j) => {
     ctx.fillStyle = j === i ? "#fff" : "rgba(255,255,255,.28)";
@@ -2508,25 +2523,29 @@ function desenharQuadroReels(ctx, post, t) {
 
   const entrada = Math.min(1, local / 0.7);
   const saida = ultima ? 1 : Math.min(1, Math.max(0, (dur - local) / 0.25));
-  ctx.globalAlpha = saida;
-  const topo = i === 0 ? 560 : 520;
-  if (i > 0 && !ultima) {
+  // Bloco centralizado um pouco acima do meio: a parte de baixo do Reels fica sob a legenda e os botões do Instagram.
+  const largura = w - 160;
+  const opcoes = { alturaMax: 680, maior: i === 0 ? 128 : 104, menor: 64 };
+  const titulo = medirTitulo(ctx, { texto: tela.titulo, largura, ...opcoes });
+  const numero = i > 0 && !ultima ? 170 : 0;
+  const bloco = numero + titulo.altura + (tela.texto ? 44 + alturaDoParagrafo(ctx, tela.texto, largura, 50) : 0) + (ultima ? 150 : 0);
+  const topo = Math.max(300, h * 0.45 - bloco / 2);
+  if (numero) {
     ctx.globalAlpha = saida * Math.min(1, local / 0.3);
-    ctx.font = "800 120px Inter";
-    const g = ctx.createLinearGradient(80, 340, 300, 460);
+    ctx.font = "800 130px Inter";
+    const g = ctx.createLinearGradient(80, topo, 300, topo + 130);
     g.addColorStop(0, "#a99bff");
     g.addColorStop(1, "#22d3ee");
     ctx.fillStyle = g;
     ctx.textBaseline = "top";
-    ctx.fillText(String(i).padStart(2, "0"), 76, 360);
+    ctx.fillText(String(i).padStart(2, "0"), 76, topo - 10);
   }
   ctx.save();
   ctx.globalAlpha = saida;
-  const fim = tituloComDestaque(ctx, { texto: tela.titulo, destaque: tela.destaque, x: 80, y: topo, largura: w - 160, alturaMax: 640,
-                                         maior: i === 0 ? 124 : 96, menor: 60, progresso: entrada });
+  const fim = tituloComDestaque(ctx, { texto: tela.titulo, destaque: tela.destaque, x: 80, y: topo + numero, largura, ...opcoes, progresso: entrada });
   ctx.restore();
-  paragrafo(ctx, { texto: tela.texto, x: 80, y: fim + 40, largura: w - 160, tamanho: 48, alpha: saida * Math.min(1, Math.max(0, (local - 0.6) / 0.5)) });
-  if (ultima) pilulaCta(ctx, "Chama no direct", 80, 1380, 1 + 0.04 * Math.sin(local * 6));
+  const fimTexto = paragrafo(ctx, { texto: tela.texto, x: 80, y: fim + 44, largura, tamanho: 50, alpha: saida * Math.min(1, Math.max(0, (local - 0.6) / 0.5)) });
+  if (ultima) pilulaCta(ctx, "Chama no direct", 80, fimTexto + 60, 1 + 0.04 * Math.sin(local * 6));
   ctx.globalAlpha = 1;
 }
 
