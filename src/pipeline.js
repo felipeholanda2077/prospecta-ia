@@ -8,6 +8,7 @@ import { gerarSequencia } from "./ia/proposta.js";
 import { enviarEmail, explicarErroEmail } from "./envio/email.js";
 import { enviarWhatsapp, enviarTextoWhatsappOficial, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
+import { verificarAgendamentos } from "./agenda/calendly.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -589,6 +590,11 @@ const RESERVA_DE_EMPRESAS = 15;
 export async function rodadaAutomatica(campanha) {
   const ate = prazoPadrao();
   const resultado = { respostas: await verificarRespostas(campanha) };
+  // Antes dos envios, para quem acabou de marcar a reunião não receber a próxima etapa.
+  resultado.agendamentos = await verificarAgendamentos().catch((e) => {
+    log(`⚠️  Falha ao conferir o Calendly: ${e.message}`);
+    return { erro: e.message };
+  });
   resultado.envio = await enviar(campanha, { ate, distribuir: Boolean(campanha.automacao?.ativo) });
   if (!campanha.automacao?.ativo) return resultado;
 

@@ -537,7 +537,7 @@
               <input id="calendly-token" name="token" type="password" autocomplete="off" required></div>
           </div>
           <div class="acoes"><button class="btn primario" type="submit"><span data-ic="check"></span>Conectar Calendly</button>
-            <span class="muted" style="font-size:13px">O aviso de agendamento exige um plano pago do Calendly.</span></div>
+            <span class="muted" style="font-size:13px">Funciona no plano grátis: o sistema confere as reuniões a cada rodada. Nos planos pagos o aviso chega na hora.</span></div>
         </form>
 
         <div class="cartao" id="cartao-uazap" style="margin-top:16px">
@@ -1552,7 +1552,7 @@ async function carregarConfiguracoes() {
   carregarEmail();
   carregarCron();
   api("/api/calendly/status").then((c) => {
-    $("#calendly-status").innerHTML = c.conectado ? `<span class="pilula ok">Conectado${c.conta ? ` · ${esc(c.conta)}` : ""}</span>` : `<span class="pilula">Não conectado</span>`;
+    $("#calendly-status").innerHTML = c.conectado ? pilulaCalendly(c) : `<span class="pilula">Não conectado</span>`;
     $("#calendly-token").required = !c.conectado;
   }).catch(() => {});
   try {
@@ -1684,6 +1684,10 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
   }
 });
 
+function pilulaCalendly(c) {
+  return `<span class="pilula ok">Conectado${c.conta ? ` · ${esc(c.conta)}` : ""}${c.modo === "consulta" ? " · confere a cada rodada" : ""}</span>`;
+}
+
 $("#form-calendly").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const btn = ev.submitter;
@@ -1691,8 +1695,9 @@ $("#form-calendly").addEventListener("submit", async (ev) => {
   try {
     const r = await post("/api/calendly/conectar", { token: $("#calendly-token").value });
     $("#calendly-token").value = "";
-    $("#calendly-status").innerHTML = `<span class="pilula ok">Conectado${r.conta ? ` · ${esc(r.conta)}` : ""}</span>`;
-    avisar(`Calendly conectado.${r.agendamento ? ` Seu link: ${r.agendamento}` : ""}`, "ok", 8000);
+    $("#calendly-status").innerHTML = pilulaCalendly(r);
+    const modo = r.modo === "consulta" ? " Seu plano não tem webhook, então o sistema confere as reuniões a cada rodada (a cada 10 min)." : "";
+    avisar(`Calendly conectado.${modo}${r.agendamento ? ` Seu link: ${r.agendamento}` : ""}`, "ok", 10000);
   } catch (e) {
     avisar(e.message, "perigo", 8000);
   } finally {

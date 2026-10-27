@@ -112,18 +112,7 @@ app.post("/webhooks/calendly", async (req, res) => {
     return res.sendStatus(401);
   }
   const { event: evento, payload } = req.body ?? {};
-  const lead = await calendly.leadDoEvento(payload);
-  if (lead && evento === "invitee.created") {
-    const inicio = payload?.scheduled_event?.start_time;
-    const quando = inicio ? new Date(inicio).toLocaleString("pt-BR", { timeZone: config.timezone, dateStyle: "short", timeStyle: "short" }) : "";
-    await db.cancelarPendentes(lead.id, "reunião agendada");
-    await db.atualizarLead(lead.id, { status: "agendado", observacao: `Reunião agendada${quando ? ` para ${quando}` : ""} pelo Calendly` });
-    await enviarNotificacao(`Reunião agendada com ${lead.nome}`, `${payload?.name ?? ""} <${payload?.email ?? ""}> marcou${quando ? ` para ${quando}` : ""}.`)
-      .catch((e) => console.error("Aviso de agendamento:", e.message));
-    console.log(`📅 Reunião agendada: ${lead.nome}${quando ? ` (${quando})` : ""}`);
-  } else if (lead && evento === "invitee.canceled") {
-    await db.atualizarLead(lead.id, { status: "respondeu", observacao: "Reunião cancelada pelo Calendly" });
-  }
+  await calendly.registrarAgendamento(evento, payload);
   res.sendStatus(200);
 });
 

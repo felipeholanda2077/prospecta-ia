@@ -190,3 +190,35 @@ test("agendamento do GitHub: só aceita o workflow de envios deste repositório 
   assert.equal(conferirClaims({ ...certo, workflow_ref: "felipeholanda2077/prospecta-ia/.github/workflows/outro.yml@refs/heads/main" }), false);
   assert.equal(await tokenDoGithubValido("nao-e-jwt"), false);
 });
+
+test("Calendly no plano grátis: conecta sem webhook e confere as reuniões pela API", async () => {
+  const calendly = await import("../src/agenda/calendly.js");
+  const lead = await novoLead("Consulta", "consulta@pet.com");
+  const original = globalThis.fetch;
+  let statusDaReuniao = "active";
+  const resposta = (status, corpo) => new Response(JSON.stringify(corpo), { status, headers: { "Content-Type": "application/json" } });
+  globalThis.fetch = async (url, opcoes = {}) => {
+    const u = String(url);
+    if (u.endsWith("/users/me")) return resposta(200, { resource: { uri: "https://api.calendly.com/users/U1", current_organization: "o", name: "FluxDeck" } });
+    if (u.includes("/webhook_subscriptions")) return resposta(403, { message: "Please upgrade your Calendly account to Standard" });
+    if (u.includes("/scheduled_events?")) return resposta(200, { collection: [{ uri: "https://api.calendly.com/scheduled_events/E1", status: statusDaReuniao, start_time: new Date(Date.now() + 864e5).toISOString() }], pagination: {} });
+    if (u.includes("/scheduled_events/E1/invitees")) return resposta(200, { collection: [{ email: "x@y.com", name: "Ana", tracking: { utm_content: lead.token } }] });
+    throw new Error(`fetch inesperado: ${opcoes.method ?? "GET"} ${u}`);
+  };
+  try {
+    const r = await calendly.conectar("tok");
+    assert.equal(r.modo, "consulta");
+    assert.deepEqual(await calendly.status(), { conectado: true, modo: "consulta", conta: "FluxDeck" });
+
+    assert.equal((await calendly.verificarAgendamentos()).novas, 1);
+    assert.equal((await db.buscarLead(lead.id)).status, "agendado");
+    assert.equal((await calendly.verificarAgendamentos()).novas, 0); // já vista, não avisa de novo
+
+    statusDaReuniao = "canceled";
+    assert.equal((await calendly.verificarAgendamentos()).novas, 1);
+    assert.equal((await db.buscarLead(lead.id)).status, "respondeu");
+  } finally {
+    globalThis.fetch = original;
+    await db.gravarConfig("calendly", null);
+  }
+});
