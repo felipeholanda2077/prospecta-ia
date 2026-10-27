@@ -29,6 +29,8 @@ const INTERVALO_MINIMO_MIN = 45;
 const MARGEM_FIM_MIN = 15;
 // Sequência nova só começa se ainda der tempo de as 3 etapas saírem hoje.
 const TEMPO_PARA_SEQUENCIA_MIN = 2 * INTERVALO_MINIMO_MIN + MARGEM_FIM_MIN;
+// Empresas novas por rodada, no mínimo: terminou uma, já vai para a próxima (com intervalo entre elas).
+const LOTE_POR_RODADA = 5;
 
 /** Momento-limite para uma etapa terminar. */
 export function prazoPadrao() {
@@ -616,14 +618,18 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
       ? (await limiteDoDia(campanha, canal)) - (await db.enviadasHoje(canal, { primeiroContato: true }))
       : 0;
     const rodadas = rodadasRestantesHoje(limites, new Date(), TEMPO_PARA_SEQUENCIA_MIN);
-    vagas[canal] = distribuir ? Math.min(restante, Math.ceil(restante / rodadas)) : restante;
+    vagas[canal] = distribuir ? Math.min(restante, Math.max(LOTE_POR_RODADA, Math.ceil(restante / rodadas))) : restante;
   }
-  const fila = (await db.filaDeEnvio(400))
+  const vagasDaRodada = { ...vagas };
+  const todas = await db.filaDeEnvio(400);
+  const fila = todas
     .filter((m) => m.canal === "email" || !manual)
     .filter((m) => m.tipo === "resposta" || m.etapa > 1 || vagas[m.canal]-- > 0);
+  const naFila = { email: 0, whatsapp: 0 };
+  for (const m of todas) naFila[m.canal]++;
   if (!fila.length) {
     log("📭 Nada para enviar agora");
-    return { enviadas: 0 };
+    return { enviadas: 0, naFila, vagas: vagasDaRodada };
   }
 
   // Respostas de conversa primeiro (quem respondeu não pode esperar), depois as etapas 2 e 3
@@ -632,9 +638,13 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   fila.sort((a, b) => ordem(a) - ordem(b));
   const intervalo = limites.intervaloEntreEnviosSegundos * 1000;
   let enviadas = 0;
+  const porCanal = { email: 0, whatsapp: 0 };
   for (const [i, m] of fila.entries()) {
     const r = await enviarMensagem(m, campanha);
-    if (r.enviada) enviadas++;
+    if (r.enviada) {
+      enviadas++;
+      porCanal[m.canal]++;
+    }
     if (i === fila.length - 1) break;
     // Intervalo variável entre envios, para não parecer disparo em massa (nem cair no spam).
     const espera = Math.round(intervalo * (0.6 + Math.random() * 0.8));
@@ -642,8 +652,8 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
     await esperar(espera);
   }
 
-  log(`📨 ${enviadas} mensagens enviadas`);
-  return { enviadas };
+  log(`📨 ${enviadas} mensagens enviadas (e-mail: ${porCanal.email}, WhatsApp: ${porCanal.whatsapp})`);
+  return { enviadas, porCanal, naFila, vagas: vagasDaRodada };
 }
 
 // ---------- Rotinas ----------

@@ -306,6 +306,18 @@ export async function etapasPendentes(leadId) {
   );
 }
 
+/** Próxima etapa ainda não enviada de cada sequência (empresa + canal), para mostrar nas enviadas. */
+export async function proximasEtapas(leadIds) {
+  if (!leadIds.length) return [];
+  return q(
+    `SELECT DISTINCT ON (lead_id, canal) lead_id, canal, etapa, agendada_para
+       FROM mensagens
+      WHERE lead_id IN (${marcadores(leadIds.length)}) AND status = 'aprovada' AND tipo IN ('inicial', 'sequencia')
+      ORDER BY lead_id, canal, etapa`,
+    leadIds
+  );
+}
+
 /** Agenda a próxima etapa da sequência (se existir e estiver aprovada). */
 export async function agendarProximaEtapa(m, quando) {
   await q(

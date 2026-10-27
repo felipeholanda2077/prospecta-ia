@@ -259,3 +259,16 @@ test("o marcador da última etapa vira o link de agendamento da empresa (ou some
   assert.equal(aplicarLinkAgendamento(texto, "", { token: "tok1" }, "whatsapp"), "Topa um bate-papo de 15 minutos? Escolha o melhor horário:");
   assert.equal(aplicarLinkAgendamento("sem marcador", "https://calendly.com/x", { token: "t" }, "email"), "sem marcador");
 });
+
+test("nas enviadas, a próxima etapa pendente de cada sequência aparece com o horário", async () => {
+  await db.inserirLead(lead("proxima-1"));
+  const [l] = (await db.leadsPorStatus("novo")).filter((x) => x.place_id === "proxima-1");
+  const quando = new Date(Date.now() + 2 * 3600 * 1000).toISOString();
+  await db.criarMensagem({ lead_id: l.id, canal: "whatsapp", destino: "5585900004444", corpo: "1", etapa: 1, status: "enviada", enviada_em: new Date().toISOString() });
+  const id2 = await db.criarMensagem({ lead_id: l.id, canal: "whatsapp", destino: "5585900004444", corpo: "2", etapa: 2, tipo: "sequencia", status: "aprovada" });
+  await db.atualizarMensagem(id2, { agendada_para: quando });
+  await db.criarMensagem({ lead_id: l.id, canal: "whatsapp", destino: "5585900004444", corpo: "3", etapa: 3, tipo: "sequencia", status: "aprovada" });
+  const [p] = await db.proximasEtapas([l.id]);
+  assert.equal(p.etapa, 2);
+  assert.equal(new Date(p.agendada_para).toISOString(), quando);
+});

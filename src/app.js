@@ -164,8 +164,11 @@ app.get("/api/cron/:tarefa", async (req, res) => {
   if (!(await chaveDoCronValida(recebido))) return res.sendStatus(401);
   await db.gravarEstado("ultima_rodada", new Date().toISOString());
   // Se o agendador do banco ainda não estiver ligado, liga (na primeira rodada que chegar).
-  await garantirAgendamentoNoBanco().catch((e) => console.error("⚠️  Agendador do banco:", e.message));
-  res.json((await tarefa(await carregarCampanhaCompleta())) ?? {});
+  const agendador = await garantirAgendamentoNoBanco().catch((e) => {
+    console.error("⚠️  Agendador do banco:", e.message);
+    return { ativo: false, erro: e.message };
+  });
+  res.json({ ...((await tarefa(await carregarCampanhaCompleta())) ?? {}), agendador });
 });
 
 // ---------- Login do painel ----------
@@ -295,9 +298,13 @@ function prepararMensagem({ token, ...m }, modo) {
 }
 
 app.get("/api/mensagens", async (req, res) => {
-  const mensagens = await db.mensagensPorStatus(req.query.status || "rascunho", 300);
+  const status = req.query.status || "rascunho";
+  const mensagens = await db.mensagensPorStatus(status, 300);
   const modo = await pipeline.modoWhatsapp();
-  res.json(mensagens.map((m) => prepararMensagem(m, modo)));
+  // Nas enviadas, mostra qual etapa vem depois e quando (se a empresa não responder).
+  const proximas = status === "enviada" ? await db.proximasEtapas([...new Set(mensagens.map((m) => m.lead_id))]) : [];
+  const proximaDe = (m) => proximas.find((p) => p.lead_id === m.lead_id && p.canal === m.canal && p.etapa > m.etapa) ?? null;
+  res.json(mensagens.map((m) => ({ ...prepararMensagem(m, modo), proxima: status === "enviada" ? proximaDe(m) : undefined })));
 });
 
 app.put("/api/mensagens/:id", async (req, res) => {

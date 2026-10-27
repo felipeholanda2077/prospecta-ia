@@ -1171,6 +1171,19 @@ function previaHtml(m) {
   </div>`;
 }
 
+/** Nas enviadas: o que sai depois para esta empresa, e quando. */
+function linhaProxima(m) {
+  if (m.tipo === "resposta") return "";
+  if (!m.proxima) {
+    const fim = m.status_lead === "respondeu" ? "A empresa respondeu: a sequência parou e a conversa segue em Respostas."
+      : m.status_lead === "agendado" ? "Reunião agendada: a sequência parou."
+      : m.etapa >= 3 ? "Sequência concluída: esta foi a última etapa." : "Nenhuma etapa pendente.";
+    return `<div class="meta" style="margin-top:6px"><span>${ic("check", "sm")}${fim}</span></div>`;
+  }
+  const quando = m.proxima.agendada_para ? `sai ${dataHora(m.proxima.agendada_para)}` : "aguardando agendamento";
+  return `<div class="meta" style="margin-top:6px"><span>${ic("clock", "sm")}Próxima: <b>etapa ${m.proxima.etapa} de 3</b>, ${quando} (se não responder)</span></div>`;
+}
+
 function cardMensagem(m) {
   const editavel = ["rascunho", "aprovada", "erro"].includes(m.status);
   const oportunidades = m.oportunidades.length
@@ -1184,6 +1197,7 @@ function cardMensagem(m) {
       <div class="cartao-corpo">
         <details class="ver-msg"><summary>${ic("mail", "sm")}Ver mensagem enviada</summary>${previaHtml(m)}</details>
         <div class="meta" style="margin-top:8px"><span>${ic("checkCircle", "sm")}${m.status === "enviada" ? `Enviada em ${dataHora(m.enviada_em)}` : esc(m.status)}</span></div>
+        ${m.status === "enviada" ? linhaProxima(m) : ""}
       </div></article>`;
   }
 
