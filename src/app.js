@@ -5,6 +5,7 @@ import * as db from "./db.js";
 import * as pipeline from "./pipeline.js";
 import { waitUntil } from "@vercel/functions";
 import { carregarCampanhaCompleta, CAMPOS_EMPRESA, lerAutomacao, AUTOMACAO_PADRAO } from "./campanha.js";
+import { contatarIndicados, normalizarNumeroIndicado } from "./respostas/indicacao.js";
 import * as calendly from "./agenda/calendly.js";
 import { tokenDoGithubValido } from "./agendamento/github.js";
 import { garantirAgendamentoNoBanco, chaveDoBancoValida, statusDoBanco } from "./agendamento/banco.js";
@@ -375,6 +376,24 @@ app.post("/api/leads/:id/reanalisar", async (req, res) => {
   try {
     await pipeline.reanalisar(req.params.id);
     res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Contato indicado informado por você (ex.: passaram o número por ligação ou o cartão chegou antes):
+// a IA escreve para ele citando a indicação, e a conversa segue sozinha.
+app.post("/api/leads/:id/indicado", async (req, res) => {
+  try {
+    const lead = await db.buscarLead(req.params.id);
+    if (!lead) return res.status(404).json({ erro: "Empresa não encontrada" });
+    const numero = normalizarNumeroIndicado(req.body?.telefone);
+    if (numero.length < 12) return res.status(400).json({ erro: "Informe o WhatsApp do contato com DDD (ex.: 11 96548-1483)" });
+    const contato = { nome: String(req.body?.nome ?? "").trim().slice(0, 80), empresa: lead.nome, numero };
+    const quem = String(req.body?.quemIndicou ?? "").trim().slice(0, 80) || null;
+    const feitos = await contatarIndicados({ lead, contatos: [contato], nomeDeQuemIndicou: quem, campanha: await carregarCampanhaCompleta(), manual: true });
+    if (!feitos.length) return res.status(400).json({ erro: `Não vou escrever para esse contato: ${feitos.ignorados[0]?.motivo ?? "número inválido"}` });
+    res.json({ ok: true, mensagem: feitos[0].corpo, agendadaPara: feitos[0].agendadaPara });
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }

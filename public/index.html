@@ -612,6 +612,7 @@ const inicial = (nome) => esc((String(nome ?? "?").trim()[0] ?? "?").toUpperCase
 const ICONES = {
   pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   checkCircle: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
@@ -1414,11 +1415,22 @@ function cardLead(l) {
     ${["descartado", "analisado", "proposta_gerada"].includes(l.status) ? `<div class="acoes">
       <button class="btn sm" data-reanalisar>${ic("refresh", "sm")}Analisar de novo${l.status === "proposta_gerada" ? " (incluir WhatsApp)" : ""}</button>
     </div>` : ""}
+    ${["contatado", "respondeu", "agendado"].includes(l.status) ? `<form class="cartao-corpo config-grade indicado-form" data-indicado hidden style="border-top:1px solid var(--border)">
+      <div class="campo"><label for="ind-nome-${l.id}">Nome do contato indicado</label><input id="ind-nome-${l.id}" name="nome" placeholder="Helena (administrativo)" autocomplete="off"></div>
+      <div class="campo"><label for="ind-tel-${l.id}">WhatsApp com DDD</label><input id="ind-tel-${l.id}" name="telefone" inputmode="tel" placeholder="11 96548-1483" required autocomplete="off"></div>
+      <div class="campo" style="grid-column:1/-1"><label for="ind-quem-${l.id}">Quem indicou (opcional)</label><input id="ind-quem-${l.id}" name="quemIndicou" placeholder="Tatiane, da recepção" autocomplete="off"></div>
+      <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <button class="btn primario sm" type="submit">${ic("send", "sm")}A IA escreve para ele</button>
+        <span class="muted" style="font-size:13px">A mensagem cita a indicação e sai em cerca de 1 minuto, em horário comercial.</span>
+      </div>
+    </form>` : ""}
     ${["contatado", "respondeu"].includes(l.status) ? `<div class="acoes">
+      <button class="btn sm" data-abrir-indicado>${ic("users", "sm")}Contato indicado</button>
       ${l.status !== "respondeu" ? `<button class="btn sm" data-status="respondeu">${ic("message", "sm")}Respondeu</button>` : ""}
       <button class="btn sm" data-status="sem_interesse">${ic("x", "sm")}Sem interesse</button>
       <button class="btn sm perigo" data-status="descadastrado">${ic("ban", "sm")}Não quer receber</button>
     </div>` : ""}
+    ${l.status === "agendado" ? `<div class="acoes"><button class="btn sm" data-abrir-indicado>${ic("users", "sm")}Contato indicado</button></div>` : ""}
   </article>`;
 }
 
@@ -1573,6 +1585,26 @@ async function carregarEmail() {
     avisar(err.message, "perigo");
   }
 }
+
+// Contato indicado informado no cartão da empresa: a IA escreve para ele.
+document.addEventListener("submit", async (ev) => {
+  const form = ev.target.closest?.("[data-indicado]");
+  if (!form) return;
+  ev.preventDefault();
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    const r = await post(`/api/leads/${form.closest("[data-lead]").dataset.lead}/indicado`, Object.fromEntries(new FormData(form)));
+    form.innerHTML = `<div class="alerta info" style="grid-column:1/-1">${ic("checkCircle")}<div><b>A IA vai escrever às ${esc(dataHora(r.agendadaPara))}</b> (ou no próximo horário comercial):
+      <div style="margin-top:6px;white-space:pre-wrap">${esc(r.mensagem)}</div>
+      <div class="muted" style="margin-top:6px;font-size:13px">Dá para editar ou cancelar em Fila de envio antes de sair.</div></div></div>`;
+    avisar("Mensagem para o contato indicado na fila", "ok");
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 $("#form-email").addEventListener("submit", async (ev) => {
   ev.preventDefault();
@@ -1962,6 +1994,10 @@ document.addEventListener("click", async (ev) => {
     } else if ("lida" in btn.dataset) {
       await post(`/api/respostas/${btn.closest("[data-resposta]").dataset.resposta}/lida`);
       await atualizar();
+    } else if ("abrirIndicado" in btn.dataset) {
+      const form = $("[data-indicado]", btn.closest("[data-lead]"));
+      form.hidden = !form.hidden;
+      if (!form.hidden) $("input[name=nome]", form).focus();
     } else if ("reanalisar" in btn.dataset) {
       btn.disabled = true;
       await post(`/api/leads/${btn.closest("[data-lead]").dataset.lead}/reanalisar`);

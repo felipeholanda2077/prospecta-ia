@@ -268,3 +268,21 @@ test("cartão de contato: lê o vCard e a IA escreve para a pessoa indicada", as
   assert.equal((await contatarIndicados({ lead, contatos, de: "5511912345678", campanha: camp, escrever })).length, 0);
   assert.equal((await contatarIndicados({ lead, contatos: [{ nome: "Eu", numero: "5511912345678" }], de: "5511912345678", campanha: camp, escrever })).length, 0);
 });
+
+test("contato indicado informado no painel: escreve mesmo sem resposta automática e explica quando não escreve", async () => {
+  const { contatarIndicados, normalizarNumeroIndicado } = await import("../src/respostas/indicacao.js");
+  assert.equal(normalizarNumeroIndicado("(11) 97777-1234"), "5511977771234");
+  assert.equal(normalizarNumeroIndicado("+55 11 97777-1234"), "5511977771234");
+
+  const lead = await novoLead("Manual", "manual@odonto.com");
+  const camp = { ...campanha, automacao: { respostaAutomatica: false, maxRespostasIA: 6, calendly: "" } };
+  const escrever = async () => "Oi! A recepção me passou seu contato.";
+  const contatos = [{ nome: "Helena", empresa: lead.nome, numero: "5511977771234" }];
+  const feitos = await contatarIndicados({ lead, contatos, campanha: camp, escrever, manual: true });
+  assert.equal(feitos.length, 1);
+  assert.ok(new Date(feitos[0].agendadaPara) - Date.now() <= 61_000);
+
+  const repetido = await contatarIndicados({ lead, contatos, campanha: camp, escrever, manual: true });
+  assert.equal(repetido.length, 0);
+  assert.match(repetido.ignorados[0].motivo, /já existe conversa/);
+});
