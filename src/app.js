@@ -17,6 +17,7 @@ import { rodapeDescadastro } from "./envio/email.js";
 import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
+import { testarIA } from "./ia/cliente.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -577,6 +578,14 @@ app.put("/api/config/automacao", async (req, res) => {
 });
 
 app.get("/api/email/status", (req, res) => res.json(statusEmail()));
+
+app.post("/api/ia/teste", async (req, res) => {
+  try {
+    res.json({ ok: true, ...(await testarIA()) });
+  } catch (e) {
+    res.status(502).json({ ok: false, modelo: config.claude.model, erro: e.message });
+  }
+});
 
 // Envia um e-mail de teste e confere a leitura da caixa de entrada.
 app.post("/api/email/teste", async (req, res) => res.json(await testarEmail(req.body?.para)));

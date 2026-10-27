@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 import { config } from "../config.js";
 
 let client;
@@ -47,4 +48,17 @@ export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort 
     .map((b) => b.text)
     .join("");
   return zodSchema.parse(JSON.parse(texto));
+}
+
+/** Pedido mínimo à IA, para conferir a chave e o modelo em uso (não envia nada a ninguém). */
+export async function testarIA() {
+  const inicio = Date.now();
+  const r = await gerarJson({
+    system: "Você escreve mensagens curtas de prospecção em português do Brasil.",
+    pedido: "Escreva uma saudação de uma frase para o dono de uma clínica odontológica.",
+    jsonSchema: { type: "object", properties: { frase: { type: "string" } }, required: ["frase"], additionalProperties: false },
+    zodSchema: z.object({ frase: z.string() }),
+    effort: "low",
+  });
+  return { modelo: config.claude.model, exemplo: r.frase, ms: Date.now() - inicio };
 }
