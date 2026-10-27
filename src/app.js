@@ -19,6 +19,7 @@ import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
 import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia } from "./conteudo/diario.js";
+import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -587,13 +588,14 @@ app.get("/api/email/status", (req, res) => res.json(statusEmail()));
 
 app.get("/api/conteudo", async (req, res) => {
   const conf = await lerConfigConteudo();
-  res.json({ config: conf, hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14) });
+  res.json({ config: conf, base: await lerBaseDeConteudo(), hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14) });
 });
 
 app.put("/api/conteudo/config", async (req, res) => {
   const horario = Number.parseInt(req.body?.horario, 10);
   if (!(horario >= 6 && horario <= 23)) return res.status(400).json({ erro: "Escolha um horário entre 6h e 23h" });
   await db.gravarConfig("conteudo", { ativo: req.body?.ativo !== false, horario });
+  if (typeof req.body?.base === "string") await gravarBaseDeConteudo(req.body.base);
   res.json({ ok: true });
 });
 

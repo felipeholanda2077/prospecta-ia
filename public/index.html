@@ -710,7 +710,7 @@
       <section id="view-conteudo" hidden>
         <form class="cartao" id="form-conteudo" style="margin-bottom:16px">
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="spark"></span><div class="titulos"><h3>Post do dia <span id="conteudo-status"></span></h3>
-            <div class="meta">Todo dia a IA cria um post sobre a FluxDeck, alternando Reels e carrossel, com legenda e hashtags. Você baixa, copia a legenda e posta.</div></div></div>
+            <div class="meta">Todo dia a IA cria um post sobre a FluxDeck, com base no conteúdo do site, alternando Reels e carrossel, com legenda e hashtags. Você baixa, copia a legenda e posta.</div></div></div>
           <div class="cartao-corpo" style="display:grid;gap:18px">
             <label class="chave"><input type="checkbox" name="ativo"><div><b>Criar o post do dia sozinho</b>
               <span>Inclusive sábado e domingo. Você recebe um aviso por e-mail quando ele fica pronto.</span></div></label>
@@ -718,6 +718,9 @@
               <div class="campo"><label for="conteudo-horario">Horário em que o post fica pronto</label>
                 <select id="conteudo-horario" name="horario"></select></div>
             </div>
+            <div class="campo"><label for="conteudo-base">Base de conteúdo (tirada do site fluxdeck.vercel.app)</label>
+              <textarea id="conteudo-base" name="base" style="min-height:220px"></textarea>
+              <span class="muted" style="font-size:12.5px">A IA cria os posts só com o que está aqui: serviços, portfólio, diferenciais e o jeito de trabalhar. Quando o site mudar, atualize este texto e salve.</span></div>
           </div>
           <div class="acoes">
             <button class="btn primario" type="submit"><span data-ic="save"></span>Salvar</button>
@@ -2298,7 +2301,8 @@ async function acaoWa(p, btn) {
 const TAMANHOS_POST = { carrossel: [1080, 1350], reels: [1080, 1920] };
 const MARCA = { fundo: "#0b0c14", roxo: "#5b4cf0", roxoClaro: "#8b7dff", ciano: "#06b6d4", texto: "#ffffff", suave: "rgba(255,255,255,.74)" };
 const NOMES_PILAR = { erro: "Erros comuns", dica: "Dica prática", mito: "Mito x verdade", teste: "Teste rápido",
-                      tendencia: "Tendência", bastidores: "Bastidores", transformacao: "Antes x depois" };
+                      tendencia: "Tendência", bastidores: "Bastidores", transformacao: "Antes x depois",
+                      portfolio: "Projeto do portfólio", faq: "Pergunta frequente" };
 let postsCarregados = [];
 let previasReels = [];
 let quadroPrevias = null;
@@ -2694,6 +2698,7 @@ async function carregarConteudo() {
     const r = await api("/api/conteudo");
     f.ativo.checked = r.config.ativo;
     f.horario.value = String(r.config.horario);
+    if (!f.base.matches(":focus")) f.base.value = r.base;
     $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${r.config.horario}h</span>` : `<span class="pilula">Desligado</span>`;
     postsCarregados = r.posts;
     $("#lista-posts").innerHTML = r.posts.length
@@ -2714,7 +2719,7 @@ $("#form-conteudo").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const f = ev.target;
   try {
-    await api("/api/conteudo/config", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, horario: f.horario.value }) });
+    await api("/api/conteudo/config", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, horario: f.horario.value, base: f.base.value }) });
     avisar(f.ativo.checked ? `Pronto: todo dia às ${f.horario.value}h um post novo fica pronto aqui.` : "Post do dia desligado.", "ok");
     carregarConteudo();
   } catch (e) {

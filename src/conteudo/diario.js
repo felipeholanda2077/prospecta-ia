@@ -2,6 +2,7 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import { gerarPost, PILARES } from "../ia/conteudo.js";
 import { enviarNotificacao } from "../envio/email.js";
+import { lerBaseDeConteudo } from "./base.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
@@ -47,7 +48,8 @@ export async function criarPostDeHoje(campanha, { formato, escrever = gerarPost,
   const ultimoAntesDeHoje = recentes.find((p) => p.dia < dia);
   const escolhido = formato ?? deHoje.find((p) => p.status !== "descartado")?.formato ?? proximoFormato(ultimoAntesDeHoje);
   const pilar = pilarDoDia(dia, deHoje.length);
-  const conteudo = await escrever({ campanha, formato: escolhido, pilar, recentes: recentes.map((p) => p.tema) });
+  const base = await lerBaseDeConteudo();
+  const conteudo = await escrever({ campanha, formato: escolhido, pilar, base, recentes: recentes.map((p) => p.tema) });
   const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo });
   log(`🎬 Post do dia criado (${escolhido}, ${pilar}): ${conteudo.tema}`);
   return db.buscarPost(id);

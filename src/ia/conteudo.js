@@ -10,6 +10,8 @@ export const PILARES = {
   tendencia: "Uma tendência (IA, automação no WhatsApp, agendamento online...) explicada de um jeito simples",
   bastidores: "Bastidores de como a FluxDeck pensa e entrega um projeto",
   transformacao: "Antes x depois: o que muda para a empresa quando o digital funciona (sem inventar números)",
+  portfolio: "Um projeto do portfólio da FluxDeck: o desafio do cliente e o que foi construído (sem inventar resultados)",
+  faq: "Uma das perguntas frequentes dos clientes, respondida de forma simples e honesta",
 };
 
 export const FORMATOS = {
@@ -57,14 +59,18 @@ const POST_JSON_SCHEMA = {
   additionalProperties: false,
 };
 
-function montarSistema(campanha) {
-  const { empresa, servicos } = campanha;
+function montarSistema(campanha, base) {
+  const { empresa } = campanha;
   return `Você é o social media da ${empresa.nome}${empresa.responsavel ? `, empresa de ${empresa.responsavel}` : ""}.
-A ${empresa.nome} cria sites, lojas virtuais, sistemas de agendamento, sistemas de gestão e automação de atendimento no WhatsApp para pequenas e médias empresas.
-Serviços: ${servicos.map((s) => `${s.nome} (${s.descricao})`).join("; ")}
-Diferenciais: ${empresa.diferenciais.join("; ")}
 
-Você cria posts para o Instagram da ${empresa.nome}, falando com donos de pequenas e médias empresas (clínicas, lojas, prestadores de serviço).
+Tudo o que você sabe sobre a ${empresa.nome} está na base abaixo, tirada do site dela. Os posts têm que ser sobre esses
+serviços, diferenciais, projetos do portfólio, missão e forma de trabalhar. Fatos, números e nomes de clientes: use só os
+que estão na base, exatamente como estão.
+<base_do_site>
+${base}
+</base_do_site>
+
+Você cria posts para o Instagram da ${empresa.nome}, falando com donos de empresas e empreendedores.
 Objetivo: alcance orgânico (salvamentos, compartilhamentos, comentários) e gerar conversas no direct.
 
 Regras:
@@ -72,7 +78,7 @@ Regras:
 - O gancho tem que fazer a pessoa parar de rolar: curiosidade, dor real, contraste ou número concreto de passos ("3 sinais de que...").
 - Cada tela traz uma ideia só. O conteúdo tem que ter valor de verdade, mesmo para quem nunca contratar a ${empresa.nome}.
 - A última tela convida para falar com a ${empresa.nome} (chamar no direct ou link na bio), sem parecer anúncio forçado.
-- Nunca invente clientes, depoimentos, resultados, estatísticas ou números de pesquisa. Não cite preços.
+- Nunca invente clientes, depoimentos, resultados, estatísticas ou números de pesquisa que não estejam na base. Não cite preços.
 - Não use telefone, site ou e-mail no post: a chamada é sempre para o direct ou o link na bio.
 - Hashtags: escolha as que têm mais alcance no Brasil para o tema, misturando 2 bem amplas (ex.: empreendedorismo, marketingdigital), 2 do nicho do assunto e a da marca (${empresa.nome.toLowerCase().replace(/\W/g, "")}). Sem acentos, sem espaços, sem o #.`;
 }
@@ -81,12 +87,12 @@ Regras:
  * Escreve o post do dia: tema, gancho, telas (do carrossel ou cenas do Reels), legenda e hashtags.
  * `recentes` são os temas dos últimos dias, para não repetir.
  */
-export async function gerarPost({ campanha, formato, pilar, recentes = [] }) {
+export async function gerarPost({ campanha, formato, pilar, base, recentes = [] }) {
   const pedido = `Formato: ${FORMATOS[formato]}
 Linha editorial de hoje: ${PILARES[pilar]}
 ${recentes.length ? `Temas já usados nos últimos dias (não repita nem faça parecido):\n${recentes.map((t) => `- ${t}`).join("\n")}\n` : ""}
 Crie o post.`;
-  const r = await gerarJson({ system: montarSistema(campanha), pedido, jsonSchema: POST_JSON_SCHEMA, zodSchema: PostSchema });
+  const r = await gerarJson({ system: montarSistema(campanha, base), pedido, jsonSchema: POST_JSON_SCHEMA, zodSchema: PostSchema });
   const tag = (t) => String(t).replace(/^#+/, "").replace(/[^\p{L}\p{N}_]/gu, "").toLowerCase();
   const unicas = (lista) => [...new Set(lista.map(tag).filter(Boolean))];
   const hashtags = unicas(r.hashtags).slice(0, 5);

@@ -54,3 +54,15 @@ test("post do dia: desligado em Conteúdo, nada é criado", async () => {
   assert.equal(r.conteudo, "desligado");
   await db.gravarConfig("conteudo", { ativo: true, horario: 18 });
 });
+
+test("post do dia: a IA recebe a base de conteúdo do site (editável no painel)", async () => {
+  const { BASE_PADRAO, gravarBaseDeConteudo } = await import("../src/conteudo/base.js");
+  let recebida;
+  await diario.criarPostDeHoje(campanha, { escrever: async (o) => ((recebida = o.base), escrever(o)) });
+  assert.equal(recebida, BASE_PADRAO);
+  assert.match(recebida, /Amenai/);
+  await gravarBaseDeConteudo("FluxDeck: novo texto do site");
+  await diario.criarPostDeHoje(campanha, { escrever: async (o) => ((recebida = o.base), escrever(o)) });
+  assert.equal(recebida, "FluxDeck: novo texto do site");
+  await gravarBaseDeConteudo("");
+});
