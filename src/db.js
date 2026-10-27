@@ -108,6 +108,36 @@ export async function devolverErrosDeConexaoWhatsapp() {
   return r.length;
 }
 
+// ---------- Posts de conteúdo ----------
+
+const lerPost = (p) => p && { ...p, dia: p.dia instanceof Date ? p.dia.toISOString().slice(0, 10) : String(p.dia).slice(0, 10), conteudo: JSON.parse(p.conteudo) };
+
+export async function criarPost({ dia, formato, pilar, tema, conteudo }) {
+  const r = await um(
+    "INSERT INTO posts (dia, formato, pilar, tema, conteudo) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+    [dia, formato, pilar, tema, JSON.stringify(conteudo)]
+  );
+  return r.id;
+}
+
+export async function buscarPost(id) {
+  return lerPost(await um("SELECT * FROM posts WHERE id = $1", [id]));
+}
+
+/** Posts mais recentes, do mais novo para o mais antigo (sem os descartados). */
+export async function postsRecentes(limite = 20) {
+  return (await q("SELECT * FROM posts WHERE status <> 'descartado' ORDER BY dia DESC, id DESC LIMIT $1", [limite])).map(lerPost);
+}
+
+/** Posts do dia, inclusive os descartados (o rodízio de linhas editoriais conta com eles). */
+export async function postsDoDia(dia) {
+  return (await q("SELECT * FROM posts WHERE dia = $1 ORDER BY id", [dia])).map(lerPost);
+}
+
+export async function atualizarStatusPost(id, status) {
+  await q("UPDATE posts SET status = $2, postado_em = CASE WHEN $2 = 'postado' THEN now() ELSE NULL END WHERE id = $1", [id, status]);
+}
+
 // ---------- Estado interno ----------
 
 export async function lerEstado(chave) {

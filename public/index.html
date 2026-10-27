@@ -405,6 +405,24 @@
   .etapa .resultado:empty { display: none; }
   .etapa .resultado.erro { color: var(--danger); }
 
+  /* ---------- Conteúdo (Instagram) ---------- */
+  .post-corpo { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 22px; align-items: start; }
+  .post-previa { display: grid; gap: 10px; justify-items: start; }
+  .post-previa canvas { display: block; border-radius: 12px; box-shadow: var(--shadow); background: #0b0c14; }
+  .post-previa .reels { width: 220px; height: auto; }
+  .post-thumbs { display: flex; gap: 10px; overflow-x: auto; max-width: 100%; padding-bottom: 6px; scroll-snap-type: x mandatory; }
+  .post-thumbs canvas { width: 200px; height: auto; flex: none; scroll-snap-align: start; }
+  .post-texto { display: grid; gap: 14px; min-width: 0; }
+  .post-legenda { white-space: pre-wrap; font-size: 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+                  padding: 12px 14px; max-height: 260px; overflow: auto; margin: 0; font-family: inherit; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { font: inherit; font-size: 12.5px; font-weight: 600; border: 1px solid var(--border); background: var(--surface); color: var(--accent-text);
+         border-radius: 999px; padding: 4px 10px; cursor: pointer; }
+  .tag:hover { border-color: var(--accent); }
+  .tag.extra { color: var(--muted); font-weight: 500; }
+  .post-progresso { font-size: 13px; color: var(--muted); }
+  @media (max-width: 900px) { .post-corpo { grid-template-columns: 1fr; } }
+
   /* ---------- Avisos (toasts) ---------- */
   .toasts { position: fixed; z-index: 60; right: 24px; bottom: 24px; display: grid; gap: 10px; width: min(380px, calc(100% - 32px)); }
   .versao-nova { position: fixed; z-index: 61; left: 50%; top: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
@@ -688,6 +706,28 @@
         </div>
       </section>
 
+      <!-- Conteúdo para o Instagram -->
+      <section id="view-conteudo" hidden>
+        <form class="cartao" id="form-conteudo" style="margin-bottom:16px">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="spark"></span><div class="titulos"><h3>Post do dia <span id="conteudo-status"></span></h3>
+            <div class="meta">Todo dia a IA cria um post sobre a FluxDeck, alternando Reels e carrossel, com legenda e hashtags. Você baixa, copia a legenda e posta.</div></div></div>
+          <div class="cartao-corpo" style="display:grid;gap:18px">
+            <label class="chave"><input type="checkbox" name="ativo"><div><b>Criar o post do dia sozinho</b>
+              <span>Inclusive sábado e domingo. Você recebe um aviso por e-mail quando ele fica pronto.</span></div></label>
+            <div class="config-grade">
+              <div class="campo"><label for="conteudo-horario">Horário em que o post fica pronto</label>
+                <select id="conteudo-horario" name="horario"></select></div>
+            </div>
+          </div>
+          <div class="acoes">
+            <button class="btn primario" type="submit"><span data-ic="save"></span>Salvar</button>
+            <button class="btn" type="button" data-conteudo-gerar="reels"><span data-ic="spark"></span>Criar um Reels agora</button>
+            <button class="btn" type="button" data-conteudo-gerar="carrossel"><span data-ic="spark"></span>Criar um carrossel agora</button>
+          </div>
+        </form>
+        <div id="lista-posts" class="lista"></div>
+      </section>
+
       <!-- Listas dinâmicas -->
       <section id="view-lista" class="lista"></section>
     </main>
@@ -745,6 +785,9 @@ const ICONES = {
   settings: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
   chevron: '<path d="m9 18 6-6-6-6"/>',
   calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/>',
+  video: '<path d="m16 13 5.22 3.48a.5.5 0 0 0 .78-.42V7.94a.5.5 0 0 0-.78-.42L16 11"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/>',
   repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
 };
 const ic = (nome, cls = "") => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONES[nome] ?? ""}</svg>`;
@@ -859,6 +902,8 @@ const VIEWS = {
                sub: "Cada conversa como no WhatsApp, com a chance de fechar e o próximo passo.", contador: () => stats?.respostasNaoLidas },
   leads:     { grupo: "Relacionamento", nome: "Empresas", curto: "Empresas", icone: "building", titulo: "Empresas",
                sub: "Todas as empresas capturadas e em que etapa do funil estão." },
+  conteudo:  { grupo: "Marketing", nome: "Conteúdo", icone: "image", titulo: "Conteúdo para o Instagram",
+               sub: "O post do dia da FluxDeck: imagem ou vídeo pronto, legenda e hashtags para postar." },
   automacao: { grupo: "Sistema", nome: "Automação", icone: "zap", titulo: "Automação",
                sub: "Rode as etapas do funil manualmente quando quiser." },
   configuracoes: { grupo: "Sistema", nome: "Configurações", icone: "settings", titulo: "Configurações",
@@ -898,8 +943,11 @@ function irParaHash() {
   $("#view-maps").hidden = viewAtual !== "maps";
   $("#view-automacao").hidden = viewAtual !== "automacao";
   $("#view-configuracoes").hidden = viewAtual !== "configuracoes";
-  $("#view-lista").hidden = ["maps", "automacao", "configuracoes"].includes(viewAtual);
+  $("#view-conteudo").hidden = viewAtual !== "conteudo";
+  $("#view-lista").hidden = ["maps", "automacao", "configuracoes", "conteudo"].includes(viewAtual);
   if (viewAtual === "configuracoes") carregarConfiguracoes();
+  if (viewAtual === "conteudo") carregarConteudo();
+  else pararPreviasReels();
   if (viewAtual === "automacao") carregarAutomacao();
   else { pararPollingWa("uazap"); pararPollingWa("evolution"); }
   if (!$("#view-lista").hidden) carregarLista();
@@ -2243,6 +2291,457 @@ async function acaoWa(p, btn) {
     btn.disabled = false;
   }
 }
+
+// ===================== Conteúdo (Instagram) =====================
+// As imagens e o vídeo são desenhados aqui no navegador, com as cores da FluxDeck:
+// carrossel em 1080x1350 (4:5) e Reels em 1080x1920 (9:16), prontos para baixar e postar.
+const TAMANHOS_POST = { carrossel: [1080, 1350], reels: [1080, 1920] };
+const MARCA = { fundo: "#0b0c14", roxo: "#5b4cf0", roxoClaro: "#8b7dff", ciano: "#06b6d4", texto: "#ffffff", suave: "rgba(255,255,255,.74)" };
+const NOMES_PILAR = { erro: "Erros comuns", dica: "Dica prática", mito: "Mito x verdade", teste: "Teste rápido",
+                      tendencia: "Tendência", bastidores: "Bastidores", transformacao: "Antes x depois" };
+let postsCarregados = [];
+let previasReels = [];
+let quadroPrevias = null;
+
+const fontesProntas = () => Promise.all(["800 90px Inter", "600 44px Inter", "700 40px Inter"].map((f) => document.fonts.load(f))).catch(() => {});
+
+function fundoDaMarca(ctx, w, h, t = 0) {
+  ctx.fillStyle = MARCA.fundo;
+  ctx.fillRect(0, 0, w, h);
+  const brilho = (x, y, r, cor) => {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, cor);
+    g.addColorStop(1, "rgba(11,12,20,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  };
+  brilho(w * (0.12 + 0.06 * Math.sin(t * 0.6)), h * (0.1 + 0.03 * Math.cos(t * 0.5)), w * 0.85, "rgba(91,76,240,.55)");
+  brilho(w * (0.95 - 0.05 * Math.cos(t * 0.4)), h * (0.92 - 0.03 * Math.sin(t * 0.7)), w * 0.8, "rgba(6,182,212,.38)");
+  // Grade de pontos discreta.
+  ctx.fillStyle = "rgba(255,255,255,.05)";
+  for (let x = 40; x < w; x += 60) for (let y = 40; y < h; y += 60) ctx.fillRect(x, y, 3, 3);
+}
+
+function marcaNoTopo(ctx, x, y, nome) {
+  const g = ctx.createLinearGradient(x, y, x + 64, y + 64);
+  g.addColorStop(0, MARCA.roxo);
+  g.addColorStop(1, MARCA.ciano);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.roundRect(x, y, 64, 64, 18);
+  ctx.fill();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 7;
+  ctx.lineCap = "round";
+  [[16, 22, 48], [16, 32, 40], [16, 42, 30]].forEach(([x1, yy, x2]) => {
+    ctx.beginPath(); ctx.moveTo(x + x1, y + yy); ctx.lineTo(x + x2, y + yy); ctx.stroke();
+  });
+  ctx.fillStyle = MARCA.texto;
+  ctx.font = "800 40px Inter";
+  ctx.textBaseline = "middle";
+  ctx.fillText(nome, x + 84, y + 33);
+}
+
+/** Quebra o texto em linhas que cabem na largura (com a fonte já definida no contexto). */
+function quebrarLinhas(ctx, texto, largura) {
+  const linhas = [];
+  let atual = "";
+  for (const palavra of String(texto ?? "").split(/\s+/).filter(Boolean)) {
+    const teste = atual ? `${atual} ${palavra}` : palavra;
+    if (ctx.measureText(teste).width > largura && atual) {
+      linhas.push(atual);
+      atual = palavra;
+    } else atual = teste;
+  }
+  if (atual) linhas.push(atual);
+  return linhas;
+}
+
+const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+
+/**
+ * Título grande com as palavras do `destaque` em degradê. Diminui a fonte até caber em
+ * `alturaMax`. `progresso` (0 a 1) anima a entrada linha a linha, no Reels.
+ */
+function tituloComDestaque(ctx, { texto, destaque, x, y, largura, alturaMax, maior, menor, progresso = 1 }) {
+  let tamanho = maior;
+  let linhas;
+  for (; tamanho >= menor; tamanho -= 4) {
+    ctx.font = `800 ${tamanho}px Inter`;
+    linhas = quebrarLinhas(ctx, texto, largura);
+    if (linhas.length * tamanho * 1.12 <= alturaMax) break;
+  }
+  const realce = new Set(String(destaque ?? "").split(/\s+/).map(semAcento).filter(Boolean));
+  const altura = tamanho * 1.12;
+  ctx.textBaseline = "top";
+  linhas.forEach((linha, i) => {
+    const p = Math.min(1, Math.max(0, progresso * (linhas.length + 1) - i));
+    if (p <= 0) return;
+    ctx.globalAlpha = p;
+    const yy = y + i * altura + (1 - p) * 40;
+    let xx = x;
+    for (const palavra of linha.split(" ")) {
+      const larg = ctx.measureText(palavra).width;
+      if (realce.has(semAcento(palavra))) {
+        const g = ctx.createLinearGradient(xx, yy, xx + larg, yy + tamanho);
+        g.addColorStop(0, "#a99bff");
+        g.addColorStop(1, "#22d3ee");
+        ctx.fillStyle = g;
+      } else ctx.fillStyle = MARCA.texto;
+      ctx.fillText(palavra, xx, yy);
+      xx += larg + ctx.measureText(" ").width;
+    }
+  });
+  ctx.globalAlpha = 1;
+  return y + linhas.length * altura;
+}
+
+function paragrafo(ctx, { texto, x, y, largura, tamanho = 44, cor = MARCA.suave, alpha = 1 }) {
+  if (!texto) return y;
+  ctx.font = `500 ${tamanho}px Inter`;
+  ctx.fillStyle = cor;
+  ctx.globalAlpha = alpha;
+  ctx.textBaseline = "top";
+  const linhas = quebrarLinhas(ctx, texto, largura);
+  linhas.forEach((l, i) => ctx.fillText(l, x, y + i * tamanho * 1.4));
+  ctx.globalAlpha = 1;
+  return y + linhas.length * tamanho * 1.4;
+}
+
+function pilulaCta(ctx, texto, x, y, escala = 1) {
+  ctx.font = "700 40px Inter";
+  const w = ctx.measureText(texto).width + 80;
+  ctx.save();
+  ctx.translate(x + w / 2, y + 45);
+  ctx.scale(escala, escala);
+  const g = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+  g.addColorStop(0, MARCA.roxo);
+  g.addColorStop(1, MARCA.ciano);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.roundRect(-w / 2, -45, w, 90, 45);
+  ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "center";
+  ctx.fillText(texto, 0, 2);
+  ctx.restore();
+  ctx.textAlign = "left";
+  return w;
+}
+
+const telasDoPost = (post) => {
+  const c = post.conteudo;
+  const telas = c.slides?.length ? c.slides.map((s) => ({ ...s })) : [{ titulo: c.gancho, texto: "", destaque: "" }];
+  telas[0].titulo ||= c.gancho;
+  return telas;
+};
+
+/** Uma tela do carrossel (1080x1350). */
+function desenharTelaCarrossel(ctx, post, i) {
+  const [w, h] = TAMANHOS_POST.carrossel;
+  const telas = telasDoPost(post);
+  const tela = telas[i];
+  const ultima = i === telas.length - 1 && telas.length > 1;
+  fundoDaMarca(ctx, w, h, i * 1.7);
+  marcaNoTopo(ctx, 80, 80, sessao?.empresa ?? "FluxDeck");
+  ctx.font = "600 34px Inter";
+  ctx.fillStyle = MARCA.suave;
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
+  ctx.fillText(`${i + 1}/${telas.length}`, w - 80, 113);
+  ctx.textAlign = "left";
+
+  if (i === 0) {
+    const fim = tituloComDestaque(ctx, { texto: tela.titulo, destaque: tela.destaque, x: 80, y: 330, largura: w - 160, alturaMax: 620, maior: 118, menor: 70 });
+    paragrafo(ctx, { texto: tela.texto, x: 80, y: fim + 40, largura: w - 160, tamanho: 46 });
+    pilulaCta(ctx, "Arrasta para o lado  →", 80, h - 200);
+    return;
+  }
+  if (!ultima) {
+    ctx.font = "800 150px Inter";
+    const g = ctx.createLinearGradient(80, 250, 330, 400);
+    g.addColorStop(0, "#a99bff");
+    g.addColorStop(1, "#22d3ee");
+    ctx.fillStyle = g;
+    ctx.textBaseline = "top";
+    ctx.fillText(String(i).padStart(2, "0"), 72, 240);
+  }
+  const fim = tituloComDestaque(ctx, { texto: tela.titulo, destaque: tela.destaque, x: 80, y: ultima ? 330 : 450, largura: w - 160, alturaMax: 420, maior: 92, menor: 56 });
+  paragrafo(ctx, { texto: tela.texto, x: 80, y: fim + 36, largura: w - 160, tamanho: 44 });
+  if (ultima) pilulaCta(ctx, "Chama no direct", 80, h - 230);
+  // Pontinhos de progresso no rodapé.
+  telas.forEach((_, j) => {
+    ctx.fillStyle = j === i ? "#fff" : "rgba(255,255,255,.28)";
+    ctx.beginPath();
+    ctx.roundRect(80 + j * 34, h - 90, j === i ? 24 : 12, 12, 6);
+    ctx.fill();
+  });
+}
+
+const DURACAO_CENA = (i, total) => (i === 0 ? 2.8 : i === total - 1 ? 3.6 : 3.4);
+const duracaoReels = (post) => telasDoPost(post).reduce((s, _, i, t) => s + DURACAO_CENA(i, t.length), 0);
+
+/** Um quadro do Reels (1080x1920) no instante `t` (segundos). */
+function desenharQuadroReels(ctx, post, t) {
+  const [w, h] = TAMANHOS_POST.reels;
+  const telas = telasDoPost(post);
+  let inicio = 0;
+  let i = 0;
+  while (i < telas.length - 1 && t >= inicio + DURACAO_CENA(i, telas.length)) inicio += DURACAO_CENA(i++, telas.length);
+  const dur = DURACAO_CENA(i, telas.length);
+  const local = t - inicio;
+  const ultima = i === telas.length - 1 && telas.length > 1;
+  const tela = telas[i];
+
+  fundoDaMarca(ctx, w, h, t);
+  // Barras de progresso, como nos stories.
+  const larg = (w - 120 - (telas.length - 1) * 12) / telas.length;
+  telas.forEach((_, j) => {
+    const x = 60 + j * (larg + 12);
+    ctx.fillStyle = "rgba(255,255,255,.25)";
+    ctx.fillRect(x, 70, larg, 8);
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(x, 70, larg * (j < i ? 1 : j > i ? 0 : Math.min(1, local / dur)), 8);
+  });
+  marcaNoTopo(ctx, 60, 120, sessao?.empresa ?? "FluxDeck");
+
+  const entrada = Math.min(1, local / 0.7);
+  const saida = ultima ? 1 : Math.min(1, Math.max(0, (dur - local) / 0.25));
+  ctx.globalAlpha = saida;
+  const topo = i === 0 ? 560 : 520;
+  if (i > 0 && !ultima) {
+    ctx.globalAlpha = saida * Math.min(1, local / 0.3);
+    ctx.font = "800 120px Inter";
+    const g = ctx.createLinearGradient(80, 340, 300, 460);
+    g.addColorStop(0, "#a99bff");
+    g.addColorStop(1, "#22d3ee");
+    ctx.fillStyle = g;
+    ctx.textBaseline = "top";
+    ctx.fillText(String(i).padStart(2, "0"), 76, 360);
+  }
+  ctx.save();
+  ctx.globalAlpha = saida;
+  const fim = tituloComDestaque(ctx, { texto: tela.titulo, destaque: tela.destaque, x: 80, y: topo, largura: w - 160, alturaMax: 640,
+                                         maior: i === 0 ? 124 : 96, menor: 60, progresso: entrada });
+  ctx.restore();
+  paragrafo(ctx, { texto: tela.texto, x: 80, y: fim + 40, largura: w - 160, tamanho: 48, alpha: saida * Math.min(1, Math.max(0, (local - 0.6) / 0.5)) });
+  if (ultima) pilulaCta(ctx, "Chama no direct", 80, 1380, 1 + 0.04 * Math.sin(local * 6));
+  ctx.globalAlpha = 1;
+}
+
+function criarCanvas([w, h]) {
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  return c;
+}
+
+function baixarArquivo(blob, nome) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nome;
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+const nomeDoArquivo = (post, sufixo) => `fluxdeck-${post.dia}-${semAcento(post.tema).slice(0, 30) || post.id}${sufixo}`;
+
+async function baixarCarrossel(post) {
+  await fontesProntas();
+  const telas = telasDoPost(post);
+  for (let i = 0; i < telas.length; i++) {
+    const c = criarCanvas(TAMANHOS_POST.carrossel);
+    desenharTelaCarrossel(c.getContext("2d"), post, i);
+    const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+    baixarArquivo(blob, nomeDoArquivo(post, `-${i + 1}.png`));
+    await esperarMs(350); // o navegador baixa um por vez
+  }
+}
+
+/** Grava o Reels em tempo real (o tempo do vídeo) e devolve o arquivo. MP4 quando o navegador grava MP4. */
+async function gravarReels(post, aoAvancar) {
+  await fontesProntas();
+  const tipos = ["video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
+  const tipo = window.MediaRecorder && tipos.find((t) => MediaRecorder.isTypeSupported(t));
+  if (!tipo) throw new Error("Este navegador não grava vídeo. Use o Chrome ou o Safari atualizados.");
+  const c = criarCanvas(TAMANHOS_POST.reels);
+  const ctx = c.getContext("2d");
+  desenharQuadroReels(ctx, post, 0);
+  const gravador = new MediaRecorder(c.captureStream(30), { mimeType: tipo, videoBitsPerSecond: 8_000_000 });
+  const partes = [];
+  gravador.ondataavailable = (e) => e.data.size && partes.push(e.data);
+  const parou = new Promise((r) => (gravador.onstop = r));
+  const duracao = duracaoReels(post);
+  gravador.start(250);
+  const inicio = performance.now();
+  await new Promise((pronto) => {
+    const quadro = () => {
+      const t = (performance.now() - inicio) / 1000;
+      desenharQuadroReels(ctx, post, Math.min(t, duracao));
+      aoAvancar?.(Math.min(1, t / duracao));
+      if (t >= duracao + 0.3) return pronto();
+      requestAnimationFrame(quadro);
+    };
+    requestAnimationFrame(quadro);
+  });
+  gravador.stop();
+  await parou;
+  const mime = tipo.split(";")[0];
+  return { blob: new Blob(partes, { type: mime }), extensao: mime === "video/mp4" ? ".mp4" : ".webm" };
+}
+
+/** Prévia animada dos Reels na página (só enquanto a página de Conteúdo está aberta). */
+function animarPreviasReels() {
+  pararPreviasReels();
+  previasReels = $$("canvas[data-reels]").map((c) => ({ c, post: postsCarregados.find((p) => String(p.id) === c.dataset.reels) })).filter((x) => x.post);
+  if (!previasReels.length) return;
+  const inicio = performance.now();
+  const quadro = () => {
+    const t = (performance.now() - inicio) / 1000;
+    for (const { c, post } of previasReels) desenharQuadroReels(c.getContext("2d"), post, t % (duracaoReels(post) + 1));
+    quadroPrevias = requestAnimationFrame(quadro);
+  };
+  quadroPrevias = requestAnimationFrame(quadro);
+}
+
+function pararPreviasReels() {
+  if (quadroPrevias) cancelAnimationFrame(quadroPrevias);
+  quadroPrevias = null;
+  previasReels = [];
+}
+
+const legendaCompleta = (post) => `${post.conteudo.legenda}\n\n${post.conteudo.hashtags.map((t) => `#${t}`).join(" ")}`;
+
+function cardPost(post, hoje) {
+  const c = post.conteudo;
+  const reels = post.formato === "reels";
+  const quando = post.dia === hoje ? "Hoje" : new Date(`${post.dia}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+  const previa = reels
+    ? `<canvas class="reels" data-reels="${post.id}" width="1080" height="1920" aria-label="Prévia do Reels"></canvas>`
+    : `<div class="post-thumbs">${telasDoPost(post).map((_, i) => `<canvas data-tela="${post.id}:${i}" width="1080" height="1350" aria-label="Tela ${i + 1}"></canvas>`).join("")}</div>`;
+  return `<article class="cartao" data-post="${post.id}">
+    <div class="cartao-cab"><span class="kpi-ic">${ic(reels ? "video" : "image")}</span>
+      <div class="titulos"><h3>${esc(c.gancho)}
+        ${post.status === "postado" ? `<span class="pilula ok">${ic("check", "sm")}Postado</span>` : `<span class="pilula acc">Pronto para postar</span>`}</h3>
+        <div class="meta">${quando} · ${reels ? "Reels" : `Carrossel com ${telasDoPost(post).length} imagens`} · ${esc(NOMES_PILAR[post.pilar] ?? post.pilar)}</div></div></div>
+    <div class="cartao-corpo post-corpo">
+      <div class="post-previa">${previa}
+        ${reels ? `<span class="post-progresso" data-progresso></span>` : `<span class="muted" style="font-size:12.5px">Arraste para ver todas as imagens</span>`}</div>
+      <div class="post-texto">
+        <div class="campo"><span class="rotulo">Legenda</span><pre class="post-legenda">${esc(legendaCompleta(post))}</pre></div>
+        <div class="campo"><span class="rotulo">Hashtags (já na legenda)</span>
+          <div class="tags">${c.hashtags.map((t) => `<button type="button" class="tag" data-copiar-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div></div>
+        ${c.hashtags_extras?.length ? `<div class="campo"><span class="rotulo">Outras hashtags para trocar (clique para copiar)</span>
+          <div class="tags">${c.hashtags_extras.map((t) => `<button type="button" class="tag extra" data-copiar-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div></div>` : ""}
+        ${reels && c.audio ? `<div class="alerta info">${ic("video")}<div><b>Áudio:</b> ${esc(c.audio)}. Escolha um áudio em alta na biblioteca do Instagram na hora de postar: ajuda muito no alcance.</div></div>` : ""}
+        ${reels && c.narracao ? `<details><summary class="rotulo" style="cursor:pointer">Texto para narrar com a sua voz (opcional)</summary><p style="white-space:pre-wrap;margin:8px 0 0">${esc(c.narracao)}</p></details>` : ""}
+      </div>
+    </div>
+    <div class="acoes">
+      <button class="btn primario" type="button" data-post-acao="baixar">${ic("download")}${reels ? "Baixar vídeo" : "Baixar imagens"}</button>
+      <button class="btn" type="button" data-post-acao="copiar">${ic("copy")}Copiar legenda com hashtags</button>
+      ${post.status === "postado"
+        ? `<button class="btn fantasma" type="button" data-post-acao="pronto">Desmarcar postado</button>`
+        : `<button class="btn ok" type="button" data-post-acao="postado">${ic("check")}Já postei</button>`}
+      <button class="btn fantasma" type="button" data-post-acao="refazer">${ic("refresh")}Criar outro no lugar</button>
+    </div>
+  </article>`;
+}
+
+async function carregarConteudo() {
+  const f = $("#form-conteudo");
+  if (!f.horario.options.length) {
+    f.horario.innerHTML = Array.from({ length: 18 }, (_, i) => i + 6).map((h) => `<option value="${h}">${h}h</option>`).join("");
+  }
+  try {
+    const r = await api("/api/conteudo");
+    f.ativo.checked = r.config.ativo;
+    f.horario.value = String(r.config.horario);
+    $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${r.config.horario}h</span>` : `<span class="pilula">Desligado</span>`;
+    postsCarregados = r.posts;
+    $("#lista-posts").innerHTML = r.posts.length
+      ? r.posts.map((p) => cardPost(p, r.hoje)).join("")
+      : `<div class="cartao cartao-corpo muted">Ainda não há posts. O primeiro fica pronto hoje às ${r.config.horario}h, ou crie um agora pelos botões acima.</div>`;
+    await fontesProntas();
+    $$("canvas[data-tela]").forEach((c) => {
+      const [id, i] = c.dataset.tela.split(":");
+      desenharTelaCarrossel(c.getContext("2d"), postsCarregados.find((p) => String(p.id) === id), Number(i));
+    });
+    animarPreviasReels();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+}
+
+$("#form-conteudo").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  try {
+    await api("/api/conteudo/config", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, horario: f.horario.value }) });
+    avisar(f.ativo.checked ? `Pronto: todo dia às ${f.horario.value}h um post novo fica pronto aqui.` : "Post do dia desligado.", "ok");
+    carregarConteudo();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+});
+
+$$("[data-conteudo-gerar]").forEach((btn) => btn.addEventListener("click", async () => {
+  btn.disabled = true;
+  try {
+    await post("/api/conteudo/gerar", { formato: btn.dataset.conteudoGerar });
+    avisar("Post criado.", "ok");
+    await carregarConteudo();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+}));
+
+$("#lista-posts").addEventListener("click", async (ev) => {
+  const tag = ev.target.closest("[data-copiar-tag]");
+  if (tag) {
+    await navigator.clipboard.writeText(tag.dataset.copiarTag).catch(() => {});
+    return avisar(`${tag.dataset.copiarTag} copiada`, "ok", 1800);
+  }
+  const btn = ev.target.closest("[data-post-acao]");
+  if (!btn) return;
+  const card = btn.closest("[data-post]");
+  const p = postsCarregados.find((x) => String(x.id) === card.dataset.post);
+  const acao = btn.dataset.postAcao;
+  btn.disabled = true;
+  try {
+    if (acao === "copiar") {
+      await navigator.clipboard.writeText(legendaCompleta(p));
+      avisar("Legenda com hashtags copiada. É só colar no Instagram.", "ok");
+    } else if (acao === "baixar" && p.formato === "carrossel") {
+      await baixarCarrossel(p);
+      avisar("Imagens baixadas. No Instagram, escolha todas na ordem para montar o carrossel.", "ok", 6000);
+    } else if (acao === "baixar") {
+      const progresso = $("[data-progresso]", card);
+      progresso.textContent = "Gerando o vídeo… mantenha esta aba aberta.";
+      const { blob, extensao } = await gravarReels(p, (x) => (progresso.textContent = `Gerando o vídeo… ${Math.round(x * 100)}% (mantenha esta aba aberta)`));
+      baixarArquivo(blob, nomeDoArquivo(p, extensao));
+      progresso.textContent = extensao === ".mp4" ? "Vídeo baixado (MP4)." : "Vídeo baixado em WebM: para MP4, use o Chrome ou o Safari atualizados.";
+    } else if (acao === "refazer") {
+      if (!confirm("Criar outro post no lugar deste? Este será descartado.")) return;
+      await post(`/api/conteudo/${p.id}/refazer`);
+      avisar("Novo post criado.", "ok");
+      await carregarConteudo();
+    } else {
+      await post(`/api/conteudo/${p.id}/status`, { status: acao });
+      await carregarConteudo();
+    }
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // ===================== Automação =====================
 async function carregarAutomacao() {

@@ -18,6 +18,7 @@ import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
+import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia } from "./conteudo/diario.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -144,6 +145,8 @@ const TAREFAS_CRON = {
   // Chamado a cada minuto pelo agendador do banco: só a próxima empresa nova, quando acabar
   // o intervalo de 5 a 12 minutos desde a anterior.
   novas: (c) => pipeline.enviar(c, { somenteNovas: true, distribuir: Boolean(c.automacao?.ativo) }),
+  // A cada 15 minutos: no horário escolhido em Conteúdo, cria o post do dia para o Instagram.
+  conteudo: (c) => rodadaDeConteudo(c),
 };
 
 const resumoChave = (v) => crypto.createHash("sha256").update(`prospecta-cron:${v}`).digest("hex");
@@ -169,7 +172,7 @@ app.get("/api/cron/:tarefa", async (req, res) => {
   if (!tarefa) return res.sendStatus(404);
   const recebido = String(req.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!(await chaveDoCronValida(recebido))) return res.sendStatus(401);
-  if (req.params.tarefa !== "novas") await db.gravarEstado("ultima_rodada", new Date().toISOString());
+  if (!["novas", "conteudo"].includes(req.params.tarefa)) await db.gravarEstado("ultima_rodada", new Date().toISOString());
   // Se o agendador do banco ainda não estiver ligado, liga (na primeira rodada que chegar).
   const agendador = await garantirAgendamentoNoBanco().catch((e) => {
     console.error("⚠️  Agendador do banco:", e.message);
@@ -579,6 +582,43 @@ app.put("/api/config/automacao", async (req, res) => {
 });
 
 app.get("/api/email/status", (req, res) => res.json(statusEmail()));
+
+// ---------- Conteúdo para o Instagram ----------
+
+app.get("/api/conteudo", async (req, res) => {
+  const conf = await lerConfigConteudo();
+  res.json({ config: conf, hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14) });
+});
+
+app.put("/api/conteudo/config", async (req, res) => {
+  const horario = Number.parseInt(req.body?.horario, 10);
+  if (!(horario >= 6 && horario <= 23)) return res.status(400).json({ erro: "Escolha um horário entre 6h e 23h" });
+  await db.gravarConfig("conteudo", { ativo: req.body?.ativo !== false, horario });
+  res.json({ ok: true });
+});
+
+// Cria agora um post para hoje (além do que já existir).
+app.post("/api/conteudo/gerar", async (req, res) => {
+  const formato = ["reels", "carrossel"].includes(req.body?.formato) ? req.body.formato : undefined;
+  res.json(await criarPostDeHoje(await carregarCampanhaCompleta(), { formato }));
+});
+
+// Descarta o post e cria outro do mesmo formato no lugar.
+app.post("/api/conteudo/:id/refazer", async (req, res) => {
+  const post = await db.buscarPost(req.params.id);
+  if (!post) return res.status(404).json({ erro: "Post não encontrado" });
+  const novo = await criarPostDeHoje(await carregarCampanhaCompleta(), { formato: post.formato });
+  await db.atualizarStatusPost(post.id, "descartado");
+  res.json(novo);
+});
+
+app.post("/api/conteudo/:id/status", async (req, res) => {
+  const status = req.body?.status;
+  if (!["pronto", "postado", "descartado"].includes(status)) return res.status(400).json({ erro: "Status inválido" });
+  if (!(await db.buscarPost(req.params.id))) return res.status(404).json({ erro: "Post não encontrado" });
+  await db.atualizarStatusPost(req.params.id, status);
+  res.json({ ok: true });
+});
 
 app.post("/api/ia/teste", async (req, res) => {
   try {

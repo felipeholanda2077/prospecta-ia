@@ -14,6 +14,8 @@ const JOBS = [
   // A cada minuto do horário comercial (9h às 17h59 em Brasília): a próxima empresa nova sai
   // assim que termina o intervalo de 5 a 12 minutos desde a anterior.
   { nome: "prospecta-ia-empresas-novas", agenda: "* 12-20 * * 1-5", tarefa: "novas" },
+  // A cada 15 minutos, todos os dias: cria o post de conteúdo do dia no horário escolhido.
+  { nome: "prospecta-ia-conteudo", agenda: "*/15 * * * *", tarefa: "conteudo" },
 ];
 
 export const resumoDaChave = (chave) => crypto.createHash("sha256").update(`prospecta-banco:${chave}`).digest("hex");
@@ -56,7 +58,7 @@ export async function garantirAgendamentoNoBanco({ forcar = false } = {}) {
   }
   await db.gravarConfig("cron_banco", { resumo: resumoDaChave(chave), criado: new Date().toISOString() });
   configurado = true;
-  console.log("⏰ Agendador do banco (pg_cron) ligado: rodada a cada 10 minutos e empresas novas a cada minuto, em horário comercial");
+  console.log("⏰ Agendador do banco (pg_cron) ligado: rodada a cada 10 minutos, empresas novas a cada minuto e o post do dia");
   return { ativo: true, ligadoAgora: true };
 }
 
