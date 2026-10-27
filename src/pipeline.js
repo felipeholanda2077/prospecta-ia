@@ -57,6 +57,31 @@ export function dentroDoHorario(limites, agora = new Date()) {
   return hora >= limites.horarioComercial.inicio && hora < limites.horarioComercial.fim;
 }
 
+/** Dias úteis entre duas datas (sem contar o dia inicial). */
+export function diasUteisEntre(inicio, fim = new Date()) {
+  let dias = 0;
+  const d = new Date(inicio);
+  while (true) {
+    d.setTime(d.getTime() + 24 * 3600 * 1000);
+    if (d > fim) return dias;
+    if (!ehFimDeSemana(d)) dias++;
+  }
+}
+
+// Aquecimento do número de WhatsApp: começa com 20 por dia e sobe 10 a cada dia útil.
+const AQUECIMENTO_INICIAL = 20;
+const AQUECIMENTO_PASSO = 10;
+
+/** Quantas mensagens de prospecção podem sair hoje por este canal. */
+export async function limiteDoDia(campanha, canal) {
+  const auto = campanha.automacao;
+  const meta = Number(auto?.metaDiaria?.[canal]) || campanha.limites.envioDiarioMax;
+  if (canal !== "whatsapp" || !auto?.aquecimentoWhatsapp) return meta;
+  const inicio = await db.lerEstado("aquecimento_whatsapp_inicio");
+  const dias = inicio ? diasUteisEntre(inicio) : 0;
+  return Math.min(meta, AQUECIMENTO_INICIAL + AQUECIMENTO_PASSO * dias);
+}
+
 /** Soma dias úteis (segunda a sexta) mantendo o horário. */
 export function somarDiasUteis(data, dias) {
   const resultado = new Date(data);
@@ -88,6 +113,38 @@ export async function descobrir(campanha, { ate = prazoPadrao() } = {}) {
   }
   log(`🔎 Descoberta concluída: ${novas} empresas novas`);
   return { novas };
+}
+
+/** Todas as combinações segmento × cidade da campanha, na ordem da rotação. */
+export function combinacoesDeBusca(campanha) {
+  return campanha.buscas.flatMap(({ nicho, cidades }) => cidades.map((cidade) => ({ nicho, cidade })));
+}
+
+/**
+ * Busca automática: pega a próxima combinação segmento × cidade da rotação. Se ela não
+ * trouxer nenhuma empresa nova (já capturou todas), tenta as seguintes.
+ */
+export async function descobrirProxima(campanha, { tentativas = 3 } = {}) {
+  const combinacoes = combinacoesDeBusca(campanha);
+  if (!combinacoes.length) return { novas: 0, motivo: "nenhuma busca configurada" };
+  let indice = Number((await db.lerEstado("busca_rotacao")) ?? 0);
+  let novas = 0;
+  const feitas = [];
+  for (let t = 0; t < Math.min(tentativas, combinacoes.length) && !novas; t++) {
+    const { nicho, cidade } = combinacoes[indice % combinacoes.length];
+    indice++;
+    try {
+      const empresas = ordenarPorPrioridade(await buscarEmpresas(`${nicho} em ${cidade}`, 60));
+      for (const e of empresas) if (await db.inserirLead({ ...e, nicho, cidade })) novas++;
+      feitas.push(`${nicho} em ${cidade}`);
+      log(`🔎 Busca automática "${nicho} em ${cidade}": ${novas} novas`);
+    } catch (e) {
+      log(`⚠️  Falha na busca automática "${nicho} em ${cidade}": ${e.message}`);
+      break;
+    }
+  }
+  await db.gravarEstado("busca_rotacao", indice % combinacoes.length);
+  return { novas, buscas: feitas };
 }
 
 /** Busca no Google Maps pelo painel, sem salvar: mostra o resultado para você escolher quem capturar. */
@@ -177,8 +234,8 @@ export async function descobrirWhatsapp(lead, analise) {
 }
 
 /** Etapa 2: visita o site de cada empresa nova, encontra contatos e oportunidades. */
-export async function analisar({ ate = prazoPadrao() } = {}) {
-  const leads = await db.leadsPorStatus("novo");
+export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
+  const leads = await db.leadsPorStatus("novo", limite);
   let analisados = 0;
   let descartados = 0;
   const descartes = [];
@@ -187,8 +244,8 @@ export async function analisar({ ate = prazoPadrao() } = {}) {
     if (semTempo(ate)) break;
     const analise = await analisarSite(lead.site);
     let oportunidades = identificarOportunidades(analise, lead.nicho);
-    // Empresa escolhida por você no Maps nunca é descartada por "site bom": muda o ângulo.
-    if (!oportunidades.length && lead.origem === "maps") oportunidades = oportunidadesParaSiteBom(lead.nicho);
+    // Empresa com site bom não é descartada: a abordagem muda para automação e sistema.
+    if (!oportunidades.length) oportunidades = oportunidadesParaSiteBom(lead.nicho);
     const email = analise.emails?.[0] ?? null;
     const { whatsapp, whatsapp_status } = await descobrirWhatsapp(lead, analise);
 
@@ -237,8 +294,10 @@ export async function reanalisar(leadId) {
  * Etapa 3: a IA escreve a sequência gradual (3 etapas por canal) de cada empresa analisada.
  * Tudo fica como rascunho, aguardando sua aprovação no painel.
  */
-export async function propor(campanha, { ate = prazoPadrao() } = {}) {
-  const leads = await db.leadsPorStatus("analisado", campanha.limites.maxPropostasPorCiclo);
+export async function propor(campanha, { ate = prazoPadrao(), limite = campanha.limites.maxPropostasPorCiclo } = {}) {
+  const leads = await db.leadsPorStatus("analisado", limite);
+  // No modo automático as sequências já nascem aprovadas; senão esperam você no painel.
+  const statusInicial = campanha.automacao?.ativo ? "aprovada" : "rascunho";
   let geradas = 0;
   let ultimoErro = null;
   const prontas = [];
@@ -276,6 +335,7 @@ export async function propor(campanha, { ate = prazoPadrao() } = {}) {
             corpo,
             etapa: i + 1,
             tipo: i === 0 ? "inicial" : "sequencia",
+            status: statusInicial,
           });
         }
       }
@@ -291,7 +351,7 @@ export async function propor(campanha, { ate = prazoPadrao() } = {}) {
   }
 
   const restantes = await db.contarLeadsPorStatus("analisado");
-  log(`✍️  ${geradas} sequências geradas, aguardando aprovação no painel (${restantes} empresas na fila)`);
+  log(`✍️  ${geradas} sequências geradas (${statusInicial === "aprovada" ? "aprovadas automaticamente" : "aguardando aprovação no painel"}; ${restantes} empresas na fila)`);
   return { geradas, restantes, prontas, ...(ultimoErro ? { erro: ultimoErro } : {}) };
 }
 
@@ -353,8 +413,11 @@ export async function enviarMensagem(m, campanha) {
   if (!dentroDoHorario(campanha.limites)) {
     return { enviada: false, naFila: true, motivo: "fora do horário comercial; sai no próximo horário de envio" };
   }
-  if (m.tipo !== "resposta" && (await db.enviadasHoje()) >= campanha.limites.envioDiarioMax) {
-    return { enviada: false, naFila: true, motivo: `limite diário de ${campanha.limites.envioDiarioMax} envios atingido` };
+  if (m.tipo !== "resposta") {
+    const limite = await limiteDoDia(campanha, m.canal);
+    if ((await db.enviadasHoje(m.canal)) >= limite) {
+      return { enviada: false, naFila: true, motivo: `limite de hoje no ${m.canal === "email" ? "e-mail" : "WhatsApp"} (${limite}) atingido` };
+    }
   }
 
   try {
@@ -377,6 +440,9 @@ export async function enviarMensagem(m, campanha) {
       messageId = await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo });
     }
     await registrarEnvio(m, campanha, messageId);
+    if (m.canal === "whatsapp" && !(await db.lerEstado("aquecimento_whatsapp_inicio"))) {
+      await db.gravarEstado("aquecimento_whatsapp_inicio", new Date().toISOString());
+    }
     log(`📨 ${m.canal} (etapa ${m.etapa}) enviado para ${m.empresa} <${m.destino}>`);
     return { enviada: true };
   } catch (e) {
@@ -450,33 +516,55 @@ export async function responderConversa(respostaId, texto, campanha) {
  * Etapa 4: envia a fila (etapas aprovadas e já no dia agendado), com intervalo entre elas.
  * Nada sai fora do horário comercial de segunda a sexta.
  */
-export async function enviar(campanha, { ate = prazoPadrao() } = {}) {
+/** Rodadas de 10 minutos que ainda restam no horário comercial de hoje. */
+export function rodadasRestantesHoje(limites, agora = new Date()) {
+  const partes = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: config.timezone, hour: "numeric", minute: "numeric", hourCycle: "h23" })
+      .formatToParts(agora)
+      .map((p) => [p.type, p.value])
+  );
+  const minutos = (limites.horarioComercial.fim - Number(partes.hour)) * 60 - Number(partes.minute);
+  return Math.max(1, Math.floor(minutos / 10));
+}
+
+/**
+ * Etapa 4: envia a fila (etapas aprovadas e já no dia agendado), com intervalo variável.
+ * Nada sai fora do horário comercial de segunda a sexta. Com `distribuir`, a cota de
+ * hoje é espalhada pelas rodadas que faltam, para não sair tudo de uma vez.
+ */
+export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false } = {}) {
   const { limites } = campanha;
   if (!dentroDoHorario(limites)) {
     log("📭 Fora do horário comercial; nada enviado");
     return { enviadas: 0, motivo: "fora do horário comercial" };
   }
 
-  const restante = limites.envioDiarioMax - (await db.enviadasHoje());
   const manual = (await modoWhatsapp()) === "manual";
-  let vagas = restante;
-  const fila = (await db.filaDeEnvio(200))
+  const vagas = {};
+  for (const canal of ["email", "whatsapp"]) {
+    const restante = (await limiteDoDia(campanha, canal)) - (await db.enviadasHoje(canal));
+    vagas[canal] = distribuir ? Math.min(restante, Math.ceil(restante / rodadasRestantesHoje(limites))) : restante;
+  }
+  const fila = (await db.filaDeEnvio(400))
     .filter((m) => m.canal === "email" || !manual)
-    .filter((m) => m.tipo === "resposta" || vagas-- > 0);
+    .filter((m) => m.tipo === "resposta" || vagas[m.canal]-- > 0);
   if (!fila.length) {
-    log(restante <= 0 ? `📭 Limite diário de ${limites.envioDiarioMax} envios atingido` : "📭 Nada para enviar agora");
-    return { enviadas: 0, ...(restante <= 0 ? { motivo: "limite diário atingido" } : {}) };
+    log("📭 Nada para enviar agora");
+    return { enviadas: 0 };
   }
 
+  // Respostas de conversa primeiro: quem respondeu não pode esperar a prospecção.
+  fila.sort((a, b) => Number(b.tipo === "resposta") - Number(a.tipo === "resposta"));
   const intervalo = limites.intervaloEntreEnviosSegundos * 1000;
   let enviadas = 0;
   for (const [i, m] of fila.entries()) {
     const r = await enviarMensagem(m, campanha);
     if (r.enviada) enviadas++;
     if (i === fila.length - 1) break;
-    // Intervalo entre envios para não parecer disparo em massa (e não cair no spam).
-    if (Date.now() + intervalo > ate) break;
-    await esperar(intervalo);
+    // Intervalo variável entre envios, para não parecer disparo em massa (nem cair no spam).
+    const espera = Math.round(intervalo * (0.6 + Math.random() * 0.8));
+    if (Date.now() + espera > ate) break;
+    await esperar(espera);
   }
 
   log(`📨 ${enviadas} mensagens enviadas`);
@@ -485,14 +573,30 @@ export async function enviar(campanha, { ate = prazoPadrao() } = {}) {
 
 // ---------- Rotinas ----------
 
-/** Rodada de envios do horário comercial: lê respostas (para parar sequências) e envia a fila. */
-export async function rodadaDeEnvios(campanha) {
+// Quantas empresas preparadas (analisadas ou na fila de análise) manter de reserva.
+const RESERVA_DE_EMPRESAS = 15;
+
+/**
+ * Rodada do funil automático (a cada 10 minutos): lê respostas, envia a cota da rodada
+ * (só em horário comercial) e, no modo automático, usa o tempo que sobra para buscar,
+ * analisar e preparar novas sequências. Antes das 9h ela só prepara, para o dia começar
+ * com a fila cheia.
+ */
+export async function rodadaAutomatica(campanha) {
   const ate = prazoPadrao();
-  return {
-    respostas: await verificarRespostas(campanha),
-    envio: await enviar(campanha, { ate }),
-  };
+  const resultado = { respostas: await verificarRespostas(campanha) };
+  resultado.envio = await enviar(campanha, { ate, distribuir: Boolean(campanha.automacao?.ativo) });
+  if (!campanha.automacao?.ativo) return resultado;
+
+  const reserva = (await db.contarLeadsPorStatus("novo")) + (await db.contarLeadsPorStatus("analisado"));
+  if (reserva < RESERVA_DE_EMPRESAS && !semTempo(ate)) resultado.descoberta = await descobrirProxima(campanha);
+  if (!semTempo(ate)) resultado.analise = await analisar({ ate, limite: 10 });
+  if (!semTempo(ate)) resultado.propostas = await propor(campanha, { ate, limite: 6 });
+  return resultado;
 }
+
+/** Compatibilidade: o agendamento antigo chamava "envios". */
+export const rodadaDeEnvios = rodadaAutomatica;
 
 let cicloEmAndamento = false;
 

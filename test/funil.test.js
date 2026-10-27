@@ -172,3 +172,26 @@ test("empresa capturada no Maps sem site e só com telefone fixo não é descart
   await db.atualizarLead(l.id, { status: "contatado" });
   await assert.rejects(pipeline.reanalisar(l.id), /já está em contato/);
 });
+
+test("meta diária por canal com aquecimento do WhatsApp", async () => {
+  const camp = { ...campanha, automacao: { metaDiaria: { email: 100, whatsapp: 100 }, aquecimentoWhatsapp: true } };
+  assert.equal(await pipeline.limiteDoDia(camp, "email"), 100);
+  assert.equal(await pipeline.limiteDoDia(camp, "whatsapp"), 20); // ainda não começou: 20 no primeiro dia
+  await db.gravarEstado("aquecimento_whatsapp_inicio", pipeline.somarDiasUteis(new Date(), -0).toISOString());
+  const tresDiasUteisAtras = new Date(Date.now() - 5 * 86400000); // pelo menos 3 dias úteis
+  await db.gravarEstado("aquecimento_whatsapp_inicio", tresDiasUteisAtras.toISOString());
+  const dias = pipeline.diasUteisEntre(tresDiasUteisAtras);
+  assert.equal(await pipeline.limiteDoDia(camp, "whatsapp"), Math.min(100, 20 + 10 * dias));
+  assert.equal(await pipeline.limiteDoDia({ ...camp, automacao: { ...camp.automacao, aquecimentoWhatsapp: false } }, "whatsapp"), 100);
+});
+
+test("cota espalhada: rodadas de 10 minutos que faltam até as 18h", () => {
+  assert.equal(pipeline.rodadasRestantesHoje(LIMITES, new Date("2026-10-27T20:30:00Z")), 3); // 17h30 em SP
+  assert.equal(pipeline.rodadasRestantesHoje(LIMITES, new Date("2026-10-27T12:00:00Z")), 54); // 9h
+  assert.equal(pipeline.rodadasRestantesHoje(LIMITES, new Date("2026-10-27T22:00:00Z")), 1); // depois do expediente
+});
+
+test("busca automática em rotação percorre segmento × cidade", () => {
+  const c = pipeline.combinacoesDeBusca({ buscas: [{ nicho: "pet shop", cidades: ["Barueri", "Osasco"] }, { nicho: "construtora", cidades: ["Barueri"] }] });
+  assert.deepEqual(c.map((x) => `${x.nicho}/${x.cidade}`), ["pet shop/Barueri", "pet shop/Osasco", "construtora/Barueri"]);
+});

@@ -80,8 +80,8 @@
   "limites": {
     "maxEmpresasPorBusca": 20,
     "maxPropostasPorCiclo": 20,
-    "envioDiarioMax": 30,
-    "intervaloEntreEnviosSegundos": 90,
+    "envioDiarioMax": 100,
+    "intervaloEntreEnviosSegundos": 25,
     "horarioComercial": {
       "inicio": 9,
       "fim": 18

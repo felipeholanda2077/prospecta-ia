@@ -288,6 +288,19 @@
   .balao.lead { justify-self: start; background: var(--surface-2); border-bottom-left-radius: 4px; }
   .balao small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; }
 
+  /* ---------- Interruptor ---------- */
+  .chave { display: flex; align-items: flex-start; gap: 12px; cursor: pointer; }
+  .chave input { appearance: none; -webkit-appearance: none; flex: none; width: 44px; height: 26px; min-height: 0; padding: 0; border-radius: 999px;
+                 background: var(--surface-3); border: 1px solid var(--border); position: relative; cursor: pointer; transition: background .15s; }
+  .chave input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff;
+                        box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .15s; }
+  .chave input:checked { background: var(--ok); border-color: var(--ok); }
+  .chave input:checked::after { transform: translateX(18px); }
+  .chave b { display: block; font-size: 14.5px; }
+  .chave span { font-size: 13px; color: var(--muted); }
+  .medidor { height: 8px; border-radius: 999px; background: var(--surface-3); overflow: hidden; margin-top: 6px; }
+  .medidor i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--cyan)); border-radius: inherit; }
+
   /* ---------- Configurações ---------- */
   .config-grade { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   .qr { display: grid; place-items: center; gap: 10px; padding: 18px; border: 1px dashed var(--border); border-radius: 12px; text-align: center; }
@@ -440,6 +453,33 @@
 
       <!-- Automação -->
       <section id="view-automacao" hidden>
+        <form class="cartao" id="form-automacao" style="margin-bottom:16px">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="zap"></span><div class="titulos"><h3>Funil automático <span id="auto-status"></span></h3>
+            <div class="meta">Busca empresas, envia as sequências, responde com IA e leva para o agendamento no Calendly.</div></div></div>
+          <div class="cartao-corpo" style="display:grid;gap:18px">
+            <label class="chave"><input type="checkbox" name="ativo"><div><b>Modo automático</b>
+              <span>A cada 10 minutos: busca empresas no Google Maps, analisa, a IA escreve a sequência e ela já sai aprovada. Envios só de segunda a sexta, das 9h às 18h.</span></div></label>
+            <label class="chave"><input type="checkbox" name="respostaAutomatica"><div><b>IA responde as conversas sozinha</b>
+              <span>Responde em alguns minutos, em tom humano, uma informação por vez, até a pessoa marcar no Calendly. Passa para você se pedirem ligação, negociarem ou reclamarem.</span></div></label>
+            <div class="config-grade">
+              <div class="campo"><label for="auto-meta-email">E-mails por dia</label><input id="auto-meta-email" name="metaEmail" type="number" min="0" max="500"></div>
+              <div class="campo"><label for="auto-meta-wa">WhatsApp por dia</label><input id="auto-meta-wa" name="metaWhatsapp" type="number" min="0" max="300"></div>
+            </div>
+            <label class="chave"><input type="checkbox" name="aquecimentoWhatsapp"><div><b>Aquecer o número de WhatsApp</b>
+              <span>Começa com 20 mensagens por dia e sobe 10 a cada dia útil até a meta. Reduz bastante o risco de bloqueio do número.</span></div></label>
+            <div class="config-grade">
+              <div class="campo"><label for="auto-calendly">Link do Calendly</label><input id="auto-calendly" name="calendly" placeholder="https://calendly.com/fluxdeck/15min"></div>
+              <div class="campo"><label for="auto-max-ia">Respostas da IA por conversa (depois passa para você)</label><input id="auto-max-ia" name="maxRespostasIA" type="number" min="1" max="20"></div>
+            </div>
+            <div class="config-grade">
+              <div class="campo"><label for="auto-nichos">Segmentos para buscar (um por linha)</label><textarea id="auto-nichos" name="nichos" style="min-height:120px" placeholder="clínica odontológica&#10;pet shop&#10;construtora"></textarea></div>
+              <div class="campo"><label for="auto-cidades">Cidades (uma por linha)</label><textarea id="auto-cidades" name="cidades" style="min-height:120px" placeholder="Barueri - SP&#10;Osasco - SP"></textarea></div>
+            </div>
+            <div id="auto-hoje"></div>
+          </div>
+          <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar automação</button>
+            <span class="muted" style="font-size:13px">A rodada roda a cada 10 minutos pelo agendamento do GitHub.</span></div>
+        </form>
         <div class="alerta info" style="margin-bottom:16px"><span data-ic="spark"></span>
           <div>De segunda a sexta, em horário comercial, o sistema faz uma rodada de envios a cada 20 minutos: envia as etapas que você aprovou e que já chegaram no dia.
             Fora desse horário nada é enviado. Toda manhã ele também busca empresas da campanha e prepara sequências novas para você aprovar.</div></div>
@@ -461,6 +501,18 @@
             <div class="campo" style="grid-column:1/-1"><label for="emp-portfolio">Link do portfólio</label><input id="emp-portfolio" name="portfolio" placeholder="https://"></div>
           </div>
           <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar perfil</button></div>
+        </form>
+
+        <form class="cartao" id="form-calendly" style="margin-top:16px">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="calendar"></span><div class="titulos"><h3>Calendly <span id="calendly-status"></span></h3>
+            <div class="meta">Conecte para o sistema saber quando uma empresa marcou a reunião: ela vira "Reunião agendada", as mensagens param e você recebe um aviso.
+              O link de agendamento fica em Automação.</div></div></div>
+          <div class="cartao-corpo config-grade">
+            <div class="campo" style="grid-column:1/-1"><label for="calendly-token">Token de acesso pessoal (Calendly → Integrações → API e Webhooks)</label>
+              <input id="calendly-token" name="token" type="password" autocomplete="off" required></div>
+          </div>
+          <div class="acoes"><button class="btn primario" type="submit"><span data-ic="check"></span>Conectar Calendly</button>
+            <span class="muted" style="font-size:13px">O aviso de agendamento exige um plano pago do Calendly.</span></div>
         </form>
 
         <div class="cartao" id="cartao-uazap" style="margin-top:16px">
@@ -693,6 +745,7 @@ function irParaHash() {
   $("#view-configuracoes").hidden = viewAtual !== "configuracoes";
   $("#view-lista").hidden = ["maps", "automacao", "configuracoes"].includes(viewAtual);
   if (viewAtual === "configuracoes") carregarConfiguracoes();
+  if (viewAtual === "automacao") carregarAutomacao();
   else pararPollingUazap();
   if (!$("#view-lista").hidden) carregarLista();
   window.scrollTo({ top: 0 });
@@ -728,6 +781,7 @@ async function iniciar() {
   $$("[data-empresa]").forEach((el) => (el.textContent = sessao.empresa));
   $("#status-lista").innerHTML = [
     sessao.modoTeste ? `<span class="pilula atencao">${ic("alert", "sm")}Modo teste: os envios vão para você</span>` : "",
+    sessao.automacao?.ativo ? `<span class="pilula ok">${ic("zap", "sm")}Funil automático ligado</span>` : `<span class="pilula">${ic("zap", "sm")}Funil automático desligado</span>`,
     `<span class="pilula wa">${ic("message", "sm")}WhatsApp ${{ uazap: "pela UAZap", oficial: "pela API oficial", manual: "manual, pelo seu número" }[sessao.modoWhatsapp]}</span>`,
     sessao.dentroDoHorario
       ? `<span class="pilula ok">${ic("clock", "sm")}Dentro do horário de envio</span>`
@@ -749,9 +803,9 @@ async function carregarStats() {
     ["building", "", capturadas, "Empresas capturadas"],
     ["checkCircle", "atencao", stats.sequenciasPendentes ?? 0, "Sequências para aprovar"],
     ["send", "", stats.enviadasHoje, "Enviadas hoje"],
-    ["trend", "", stats.mensagens.enviada ?? 0, "Total enviadas"],
     ["heart", "ok", interessados, "Interessados"],
-    ["ban", "perigo", stats.descadastros, "Descadastros"],
+    ["calendar", "ok", stats.leads.agendado ?? 0, "Reuniões agendadas"],
+    ["alert", stats.precisamDeVoce ? "perigo" : "", stats.precisamDeVoce ?? 0, "Precisam de você"],
   ];
   $("#kpis").innerHTML = itens.map(([i, cor, n, t]) =>
     `<div class="kpi"><span class="kpi-ic ${cor}">${ic(i)}</span><div><b>${n}</b><span>${t}</span></div></div>`).join("");
@@ -926,6 +980,7 @@ async function processarCapturadas(btn) {
 
 // ===================== Etapas =====================
 const ETAPAS = [
+  ["automatica", "zap", "Rodada automática agora", "Faz agora o que a rodada de 10 em 10 minutos faz: respostas, envios e preparação."],
   ["respostas", "inbox", "Ler respostas", "Busca respostas novas no seu e-mail e classifica com a IA."],
   ["descobrir", "pin", "Buscar pela campanha", "Captura empresas dos segmentos e cidades da campanha."],
   ["analisar", "globe", "Analisar sites", "Encontra e-mail, WhatsApp e oportunidades de cada empresa."],
@@ -1209,12 +1264,15 @@ function cardResposta(r) {
     <div class="cartao-cab">
       <span class="avatar">${inicial(r.empresa)}</span>
       <div class="titulos">
-        <h3>${esc(r.empresa)} <span class="pilula ${cor}">${ic(icone, "sm")}${rotulo}</span>${r.lida ? "" : `<span class="pilula acc">Nova</span>`}</h3>
+        <h3>${esc(r.empresa)} <span class="pilula ${cor}">${ic(icone, "sm")}${rotulo}</span>${r.lida ? "" : `<span class="pilula acc">Nova</span>`}
+          ${r.mensagem_id ? `<span class="pilula acc">${ic("spark", "sm")}Respondida pela IA</span>` : ""}
+          ${r.precisa_humano ? `<span class="pilula perigo">${ic("alert", "sm")}Precisa de você</span>` : ""}</h3>
         <div class="meta"><span>${ic(r.canal === "whatsapp" ? "message" : "mail", "sm")}${esc(r.de)}</span><span>${ic("clock", "sm")}${dataHora(r.recebida_em)}</span></div>
       </div>
     </div>
     <div class="cartao-corpo" style="display:grid;gap:12px">
       ${r.resumo ? `<div class="alerta info">${ic("spark")}<div>${esc(r.resumo)}</div></div>` : ""}
+      ${r.precisa_humano ? `<div class="alerta perigo">${ic("alert")}<div>A IA passou para você: ${esc(r.precisa_humano)}</div></div>` : ""}
       <details class="ver-msg" data-conversa="${r.lead_id}"><summary>${ic("message", "sm")}Ver a conversa inteira</summary><div class="conversa">Carregando…</div></details>
       <div class="texto-bloco">${esc(r.texto)}</div>
       ${r.sugestao ? `<div class="campo"><label for="sug-${r.id}">Próxima mensagem sugerida pela IA (revise antes de enviar)</label><textarea id="sug-${r.id}" style="min-height:140px">${esc(r.sugestao)}</textarea></div>` : ""}
@@ -1229,12 +1287,12 @@ function cardResposta(r) {
 
 const STATUS_LEAD = {
   novo: ["Aguardando análise", ""], analisado: ["Aguardando proposta", "acc"], proposta_gerada: ["Proposta para aprovar", "atencao"],
-  contatado: ["Contatada", "acc"], respondeu: ["Respondeu", "ok"], sem_interesse: ["Sem interesse", ""],
+  contatado: ["Contatada", "acc"], respondeu: ["Respondeu", "ok"], agendado: ["Reunião agendada", "ok"], sem_interesse: ["Sem interesse", ""],
   descartado: ["Descartada", ""], descadastrado: ["Descadastrada", "perigo"],
 };
 const FILTROS_LEADS = [
-  ["novo,analisado,proposta_gerada,contatado,respondeu", "Em andamento"], ["novo,analisado,proposta_gerada", "Em preparação"],
-  ["contatado", "Contatadas"], ["respondeu", "Responderam"], ["sem_interesse,descartado,descadastrado", "Descartadas e encerradas"],
+  ["novo,analisado,proposta_gerada,contatado,respondeu,agendado", "Em andamento"], ["novo,analisado,proposta_gerada", "Em preparação"],
+  ["contatado", "Contatadas"], ["respondeu", "Responderam"], ["agendado", "Reuniões agendadas"], ["sem_interesse,descartado,descadastrado", "Descartadas e encerradas"],
 ];
 let filtroLeads = FILTROS_LEADS[0][0];
 
@@ -1389,6 +1447,10 @@ function iniciarPollingUazap() {
 }
 
 async function carregarConfiguracoes() {
+  api("/api/calendly/status").then((c) => {
+    $("#calendly-status").innerHTML = c.conectado ? `<span class="pilula ok">Conectado${c.conta ? ` · ${esc(c.conta)}` : ""}</span>` : `<span class="pilula">Não conectado</span>`;
+    $("#calendly-token").required = !c.conectado;
+  }).catch(() => {});
   try {
     const c = await api("/api/config");
     for (const [k, v] of Object.entries(c.empresa)) {
@@ -1470,6 +1532,69 @@ async function acaoUazap(btn) {
     btn.disabled = false;
   }
 }
+
+// ===================== Automação =====================
+async function carregarAutomacao() {
+  try {
+    const a = await api("/api/config/automacao");
+    const f = $("#form-automacao");
+    f.ativo.checked = a.ativo;
+    f.respostaAutomatica.checked = a.respostaAutomatica;
+    f.aquecimentoWhatsapp.checked = a.aquecimentoWhatsapp;
+    f.metaEmail.value = a.metaDiaria.email;
+    f.metaWhatsapp.value = a.metaDiaria.whatsapp;
+    f.maxRespostasIA.value = a.maxRespostasIA;
+    f.calendly.value = a.calendly ?? "";
+    f.nichos.value = [...new Set((a.buscas ?? []).map((b) => b.nicho))].join("\n");
+    f.cidades.value = [...new Set((a.buscas ?? []).flatMap((b) => b.cidades))].join("\n");
+    $("#auto-status").innerHTML = a.ativo ? `<span class="pilula ok">Ligado</span>` : `<span class="pilula">Desligado</span>`;
+    const barra = (nome, h) => `<div><div style="display:flex;justify-content:space-between;font-size:13.5px"><b>${nome}</b><span class="muted">${h.enviadas} de ${h.limite} hoje</span></div>
+      <div class="medidor"><i style="width:${h.limite ? Math.min(100, (h.enviadas / h.limite) * 100) : 0}%"></i></div></div>`;
+    $("#auto-hoje").innerHTML = `<div class="config-grade">${barra("E-mail", a.hoje.email)}${barra("WhatsApp", a.hoje.whatsapp)}</div>
+      ${a.aquecimentoWhatsapp && a.hoje.whatsapp.limite < a.metaDiaria.whatsapp
+        ? `<p class="muted" style="margin:8px 0 0;font-size:13px">WhatsApp em aquecimento: hoje até ${a.hoje.whatsapp.limite}, subindo até ${a.metaDiaria.whatsapp} por dia.</p>` : ""}
+      ${a.respostaAutomatica && !a.calendly ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>Coloque o link do Calendly para a IA conseguir levar as pessoas ao agendamento.</div></div>` : ""}
+      ${a.ativo && sessao.modoWhatsapp === "manual" ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>O WhatsApp está no modo manual: as mensagens automáticas de WhatsApp vão ficar na Fila de envio esperando você. Conecte a UAZap em <a href="#configuracoes">Configurações</a> para elas saírem sozinhas.</div></div>` : ""}`;
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+}
+
+$("#form-automacao").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    await api("/api/config/automacao", { method: "PUT", body: JSON.stringify({
+      ativo: f.ativo.checked, respostaAutomatica: f.respostaAutomatica.checked, aquecimentoWhatsapp: f.aquecimentoWhatsapp.checked,
+      metaEmail: f.metaEmail.value, metaWhatsapp: f.metaWhatsapp.value, maxRespostasIA: f.maxRespostasIA.value,
+      calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value,
+    }) });
+    await iniciar();
+    avisar(f.ativo.checked ? "Funil automático ligado. A próxima rodada começa em até 10 minutos." : "Automação salva.", "ok", 6000);
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#form-calendly").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    const r = await post("/api/calendly/conectar", { token: $("#calendly-token").value });
+    $("#calendly-token").value = "";
+    $("#calendly-status").innerHTML = `<span class="pilula ok">Conectado${r.conta ? ` · ${esc(r.conta)}` : ""}</span>`;
+    avisar(`Calendly conectado.${r.agendamento ? ` Seu link: ${r.agendamento}` : ""}`, "ok", 8000);
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 // ===================== Ações =====================
 async function salvar(card) {

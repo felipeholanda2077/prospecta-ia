@@ -6,9 +6,28 @@ export const CAMPOS_EMPRESA = ["nome", "responsavel", "cargo", "telefone", "emai
 // Valores de exemplo do campanha.json que não devem aparecer nas mensagens.
 const PLACEHOLDER = /seu nome|seudominio|99999-9999/i;
 
-/** Campanha do arquivo + perfil da empresa salvo no painel (que tem prioridade). */
+// Funil automático: começa desligado; você liga e ajusta em Automação.
+export const AUTOMACAO_PADRAO = {
+  ativo: false, // busca, aprova e envia sozinho
+  respostaAutomatica: false, // a IA responde as conversas sozinha
+  metaDiaria: { email: 100, whatsapp: 100 },
+  aquecimentoWhatsapp: true, // começa com 20/dia e sobe 10 por dia útil
+  maxRespostasIA: 6, // depois disso a conversa passa para você
+  calendly: "",
+  buscas: null, // null = usa as do campanha.json
+};
+
+export async function lerAutomacao() {
+  const salvo = (await db.lerConfig("automacao")) ?? {};
+  return { ...AUTOMACAO_PADRAO, ...salvo, metaDiaria: { ...AUTOMACAO_PADRAO.metaDiaria, ...(salvo.metaDiaria ?? {}) } };
+}
+
+/** Campanha do arquivo + perfil da empresa e automação salvos no painel (que têm prioridade). */
 export async function carregarCampanhaCompleta() {
   const campanha = carregarCampanha();
+  const automacao = await lerAutomacao();
+  if (Array.isArray(automacao.buscas) && automacao.buscas.length) campanha.buscas = automacao.buscas;
+  campanha.automacao = automacao;
   const salvo = (await db.lerConfig("empresa")) ?? {};
   const empresa = { ...campanha.empresa };
   for (const campo of CAMPOS_EMPRESA) {

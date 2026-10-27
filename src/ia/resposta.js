@@ -8,6 +8,8 @@ const ClassificacaoSchema = z.object({
   classificacao: z.enum(CLASSIFICACOES),
   resumo: z.string(),
   sugestao_resposta: z.string(),
+  precisa_humano: z.boolean(),
+  motivo_humano: z.string(),
 });
 
 const CLASSIFICACAO_JSON_SCHEMA = {
@@ -22,12 +24,17 @@ const CLASSIFICACAO_JSON_SCHEMA = {
         "automatica = resposta automática (férias, ausência, recebemos seu e-mail); outro = qualquer outra coisa",
     },
     resumo: { type: "string", description: "1 frase com o que a pessoa disse" },
+    precisa_humano: {
+      type: "boolean",
+      description: "true quando a conversa deve passar para o vendedor: pediu ligação ou para falar com uma pessoa, negociação de preço/condições, reclamação, assunto fora do que você sabe responder",
+    },
+    motivo_humano: { type: "string", description: "por que precisa do vendedor, em poucas palavras; vazio se não precisa" },
     sugestao_resposta: {
       type: "string",
       description: "próxima mensagem da conversa para o vendedor revisar; vazio se for descadastro, sem_interesse ou automatica",
     },
   },
-  required: ["classificacao", "resumo", "sugestao_resposta"],
+  required: ["classificacao", "resumo", "sugestao_resposta", "precisa_humano", "motivo_humano"],
   additionalProperties: false,
 };
 
@@ -49,9 +56,9 @@ export function limparTextoResposta(texto) {
 /** Casos óbvios resolvidos sem gastar IA. Retorna null quando precisa da IA. */
 export function classificarPorRegra(texto, assunto = "") {
   if (PEDIDO_SAIR.test(texto) || NAO_QUERO.test(texto))
-    return { classificacao: "descadastro", resumo: "Pediu para não receber mais mensagens.", sugestao_resposta: "" };
+    return { classificacao: "descadastro", resumo: "Pediu para não receber mais mensagens.", sugestao_resposta: "", precisa_humano: false, motivo_humano: "" };
   if (AUTOMATICA.test(assunto) || AUTOMATICA.test(texto.slice(0, 300)))
-    return { classificacao: "automatica", resumo: "Resposta automática.", sugestao_resposta: "" };
+    return { classificacao: "automatica", resumo: "Resposta automática.", sugestao_resposta: "", precisa_humano: false, motivo_humano: "" };
   return null;
 }
 
@@ -67,7 +74,7 @@ export function formatarHistorico(historico) {
  * Classifica a resposta de um lead e sugere o próximo passo da conversa.
  * A sugestão avança aos poucos: responde o que foi perguntado e entrega uma informação nova por vez.
  */
-export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email" }) {
+export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email", linkAgendamento = "" }) {
   const porRegra = classificarPorRegra(texto, assunto);
   if (porRegra) return porRegra;
 
@@ -75,17 +82,25 @@ export async function classificarResposta({ texto, assunto, lead, historico, cam
   return gerarJson({
     system: `${contextoEmpresa(campanha)}
 
-Você está conduzindo, aos poucos, uma conversa de prospecção que já começou. Classifique a última resposta da empresa
-e escreva a PRÓXIMA mensagem da conversa (sugestão que o vendedor vai revisar antes de enviar).
+Você conduz, aos poucos e com naturalidade, uma conversa de prospecção que já começou. O objetivo é levar a
+empresa a marcar uma conversa rápida de 15 minutos${linkAgendamento ? " pelo link de agendamento" : ""}. Classifique a última resposta
+e escreva a PRÓXIMA mensagem da conversa.
 
-Como conduzir:
-- Responda primeiro, de forma direta, o que a empresa perguntou ou comentou.
+Como conduzir (tom humano, como alguém da equipe escrevendo no celular):
+- Responda primeiro, de forma direta e simpática, o que a empresa perguntou ou comentou. Use o nome da pessoa se ela disse.
 - Entregue no máximo UMA informação nova por mensagem; não despeje tudo de uma vez.
-- Faça uma pergunta curta de descoberta (como fazem hoje, o que é prioridade, quem decide), exceto se já houver interesse claro.
-- Preço: só quando perguntarem ou quando já houver interesse claro, sempre como "a partir de", e explique o que está incluído.
-- Interesse claro: proponha uma conversa rápida de 15 minutos com duas opções de horário em dias úteis.
-- Nunca repita frases ou informações que já aparecem no histórico. Não invente fatos.
-- Tamanho: ${limite}. Português do Brasil, tom humano e cordial.
+- Se ainda não houver interesse claro, faça uma pergunta curta de descoberta (como fazem hoje, o que é prioridade).
+- Preço: só quando perguntarem ou quando já houver interesse claro, sempre como "a partir de", e diga o que está incluído.
+- Interesse claro ou pedido de mais detalhes: convide para a conversa de 15 minutos${linkAgendamento
+      ? ` e mande exatamente este link para a pessoa escolher o horário: ${linkAgendamento}`
+      : " com duas opções de horário em dias úteis"}.
+- Se a pessoa já recebeu o link e disse que vai marcar, agradeça em uma frase, sem insistir.
+- Nunca repita frases ou informações que já aparecem no histórico. Não invente fatos, prazos ou descontos.
+- Se perguntarem se você é um robô ou uma IA, diga com naturalidade que é o assistente virtual da ${campanha.empresa.nome}
+  e que uma pessoa da equipe pode assumir a conversa quando quiserem. Nunca afirme ser humano.
+- Marque precisa_humano quando: pedirem ligação ou para falar com uma pessoa, negociarem preço ou condições, reclamarem,
+  ou o assunto sair do que está aqui. Mesmo assim escreva uma sugestão curta dizendo que alguém da equipe vai responder em breve.
+- Tamanho: ${limite}. Português do Brasil, frases curtas, no máximo 1 emoji.
 - Se for descadastro, sem interesse ou resposta automática, deixe a sugestão vazia.`,
     pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""}) · canal: ${canal}
 

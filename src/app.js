@@ -4,7 +4,9 @@ import { config, carregarCampanha } from "./config.js";
 import * as db from "./db.js";
 import * as pipeline from "./pipeline.js";
 import { waitUntil } from "@vercel/functions";
-import { carregarCampanhaCompleta, CAMPOS_EMPRESA } from "./campanha.js";
+import { carregarCampanhaCompleta, CAMPOS_EMPRESA, lerAutomacao, AUTOMACAO_PADRAO } from "./campanha.js";
+import * as calendly from "./agenda/calendly.js";
+import { enviarNotificacao } from "./envio/email.js";
 import { assinaturaValida, processarWebhookWhatsapp, processarWebhookUazap } from "./respostas/whatsapp.js";
 import { rodapeDescadastro } from "./envio/email.js";
 import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
@@ -101,13 +103,37 @@ app.post("/webhooks/uazap/:segredo", async (req, res) => {
   );
 });
 
+// ---------- Webhook do Calendly (público, validado pela assinatura) ----------
+
+app.post("/webhooks/calendly", async (req, res) => {
+  const chave = await calendly.chaveDoWebhook();
+  if (!calendly.assinaturaValida(req.get("calendly-webhook-signature"), req.corpoBruto?.toString("utf8"), chave)) {
+    return res.sendStatus(401);
+  }
+  const { event: evento, payload } = req.body ?? {};
+  const lead = await calendly.leadDoEvento(payload);
+  if (lead && evento === "invitee.created") {
+    const inicio = payload?.scheduled_event?.start_time;
+    const quando = inicio ? new Date(inicio).toLocaleString("pt-BR", { timeZone: config.timezone, dateStyle: "short", timeStyle: "short" }) : "";
+    await db.cancelarPendentes(lead.id, "reunião agendada");
+    await db.atualizarLead(lead.id, { status: "agendado", observacao: `Reunião agendada${quando ? ` para ${quando}` : ""} pelo Calendly` });
+    await enviarNotificacao(`Reunião agendada com ${lead.nome}`, `${payload?.name ?? ""} <${payload?.email ?? ""}> marcou${quando ? ` para ${quando}` : ""}.`)
+      .catch((e) => console.error("Aviso de agendamento:", e.message));
+    console.log(`📅 Reunião agendada: ${lead.nome}${quando ? ` (${quando})` : ""}`);
+  } else if (lead && evento === "invitee.canceled") {
+    await db.atualizarLead(lead.id, { status: "respondeu", observacao: "Reunião cancelada pelo Calendly" });
+  }
+  res.sendStatus(200);
+});
+
 // ---------- Cron da Vercel (protegido pelo CRON_SECRET) ----------
 
 const TAREFAS_CRON = {
-  ciclo: (c) => pipeline.executarCiclo(c),
+  // O agendamento diário da Vercel é só uma rodada extra (a cota continua espalhada pelo dia).
+  ciclo: (c) => pipeline.rodadaAutomatica(c),
   respostas: (c) => pipeline.verificarRespostas(c),
-  // Chamado várias vezes ao dia (GitHub Actions); só envia em horário comercial.
-  envios: (c) => pipeline.rodadaDeEnvios(c),
+  // Chamado a cada 10 minutos (GitHub Actions); só envia em horário comercial.
+  envios: (c) => pipeline.rodadaAutomatica(c),
 };
 
 app.get("/api/cron/:tarefa", async (req, res) => {
@@ -186,6 +212,7 @@ app.get("/api/sessao", async (req, res) => {
   res.json({
     empresa: campanha.empresa.nome,
     modoWhatsapp: modo,
+    automacao: { ativo: campanha.automacao.ativo, respostaAutomatica: campanha.automacao.respostaAutomatica },
     whatsappAutomatico: modo !== "manual",
     perfilIncompleto: !campanha.empresa.responsavel || !campanha.empresa.telefone,
     horario: campanha.limites.horarioComercial,
@@ -357,6 +384,57 @@ app.get("/api/config", async (req, res) => {
   });
 });
 
+// Funil automático: liga/desliga, metas por canal, buscas e resposta automática da IA.
+app.get("/api/config/automacao", async (req, res) => {
+  const campanha = await carregarCampanhaCompleta();
+  const auto = await lerAutomacao();
+  res.json({
+    ...auto,
+    buscas: campanha.buscas,
+    hoje: {
+      email: { enviadas: await db.enviadasHoje("email"), limite: await pipeline.limiteDoDia(campanha, "email") },
+      whatsapp: { enviadas: await db.enviadasHoje("whatsapp"), limite: await pipeline.limiteDoDia(campanha, "whatsapp") },
+    },
+    calendlyConectado: (await calendly.status()).conectado,
+  });
+});
+
+app.put("/api/config/automacao", async (req, res) => {
+  const b = req.body ?? {};
+  const inteiro = (v, min, max, padrao) => Math.min(max, Math.max(min, Number.parseInt(v, 10) || padrao));
+  const lista = (v) => (Array.isArray(v) ? v : String(v ?? "").split(/\n|,/)).map((x) => String(x).trim()).filter(Boolean).slice(0, 50);
+  const nichos = lista(b.nichos);
+  const cidades = lista(b.cidades);
+  const calendlyLink = String(b.calendly ?? "").trim();
+  if (calendlyLink && !/^https:\/\/(www\.)?calendly\.com\//i.test(calendlyLink)) {
+    return res.status(400).json({ erro: "O link do Calendly deve começar com https://calendly.com/" });
+  }
+  if (b.ativo && (!nichos.length || !cidades.length)) {
+    return res.status(400).json({ erro: "Para ligar o modo automático, informe ao menos um segmento e uma cidade" });
+  }
+  const novo = {
+    ativo: Boolean(b.ativo),
+    respostaAutomatica: Boolean(b.respostaAutomatica),
+    metaDiaria: { email: inteiro(b.metaEmail, 0, 500, 100), whatsapp: inteiro(b.metaWhatsapp, 0, 300, 100) },
+    aquecimentoWhatsapp: b.aquecimentoWhatsapp !== false,
+    maxRespostasIA: inteiro(b.maxRespostasIA, 1, 20, AUTOMACAO_PADRAO.maxRespostasIA),
+    calendly: calendlyLink,
+    buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,
+  };
+  await db.gravarConfig("automacao", novo);
+  res.json({ ok: true });
+});
+
+app.get("/api/calendly/status", async (req, res) => res.json(await calendly.status()));
+
+app.post("/api/calendly/conectar", async (req, res) => {
+  try {
+    res.json(await calendly.conectar(req.body?.token));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.put("/api/config/empresa", async (req, res) => {
   const dados = Object.fromEntries(CAMPOS_EMPRESA.map((c) => [c, String(req.body?.[c] ?? "").trim().slice(0, 200)]));
   if (!dados.nome) return res.status(400).json({ erro: "Informe o nome da empresa" });
@@ -401,6 +479,7 @@ app.post("/api/uazap/desconectar", async (req, res) => {
 });
 
 const ETAPAS = {
+  automatica: (c) => pipeline.rodadaAutomatica(c),
   respostas: (c) => pipeline.verificarRespostas(c),
   descobrir: (c) => pipeline.descobrir(c),
   analisar: () => pipeline.analisar(),

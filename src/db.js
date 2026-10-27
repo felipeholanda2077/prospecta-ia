@@ -300,15 +300,32 @@ export async function ultimaEnviadaNoCanal(canal) {
   return um("SELECT * FROM mensagens WHERE canal = $1 AND status = 'enviada' ORDER BY enviada_em DESC LIMIT 1", [canal]);
 }
 
-export async function enviadasHoje() {
+/** Mensagens de prospecção enviadas hoje (respostas de conversa não contam). Sem canal = todos. */
+export async function enviadasHoje(canal = null) {
   return (
     await um(
       `SELECT count(*)::int AS n FROM mensagens
-        WHERE status = 'enviada' AND tipo <> 'resposta'
+        WHERE status = 'enviada' AND tipo <> 'resposta' AND ($2::text IS NULL OR canal = $2::text)
           AND (enviada_em AT TIME ZONE $1::text)::date = (now() AT TIME ZONE $1::text)::date`,
-      [config.timezone]
+      [config.timezone, canal]
     )
   ).n;
+}
+
+/** Quantas respostas já mandamos nesta conversa (para a IA passar a vez para você depois de um limite). */
+export async function respostasEnviadasNaConversa(leadId) {
+  return (await um("SELECT count(*)::int AS n FROM mensagens WHERE lead_id = $1 AND tipo = 'resposta' AND status IN ('aprovada', 'enviada')", [leadId])).n;
+}
+
+export async function atualizarResposta(id, campos) {
+  const permitidos = ["mensagem_id", "precisa_humano", "lida"];
+  const chaves = Object.keys(campos).filter((k) => permitidos.includes(k));
+  if (!chaves.length) return;
+  await q(`UPDATE respostas SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
+}
+
+export async function buscarLeadPorEmail(email) {
+  return um("SELECT * FROM leads WHERE lower(email) = lower($1) ORDER BY id DESC LIMIT 1", [email]);
 }
 
 // ---------- Respostas ----------
@@ -361,5 +378,7 @@ export async function estatisticas() {
     respostas: await contagem("SELECT classificacao AS chave, count(*)::int AS n FROM respostas GROUP BY classificacao"),
     respostasNaoLidas: (await um("SELECT count(*)::int AS n FROM respostas WHERE NOT lida")).n,
     sequenciasPendentes: (await um("SELECT count(DISTINCT (lead_id, canal))::int AS n FROM mensagens WHERE status = 'rascunho'")).n,
+    enviadasHojePorCanal: { email: await enviadasHoje("email"), whatsapp: await enviadasHoje("whatsapp") },
+    precisamDeVoce: (await um("SELECT count(*)::int AS n FROM respostas WHERE precisa_humano IS NOT NULL AND NOT lida")).n,
   };
 }

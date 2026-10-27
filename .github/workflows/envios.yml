@@ -1,12 +1,13 @@
 # Rodada de envios em horário comercial.
 # O plano gratuito da Vercel só permite agendar uma execução por dia, então este
-# agendamento chama o sistema a cada 20 minutos. O próprio sistema confere o horário
+# agendamento chama o sistema a cada 10 minutos. Antes das 9h ele só prepara as
+# mensagens do dia; o envio confere o horário
 # (9h às 18h de Brasília, segunda a sexta) e não envia nada fora dele.
 name: Envios em horário comercial
 
 on:
   schedule:
-    - cron: "*/20 12-20 * * 1-5" # 9h às 17h40 em Brasília (UTC-3), segunda a sexta
+    - cron: "*/10 9-20 * * 1-5" # 6h às 17h50 em Brasília (UTC-3), segunda a sexta
   workflow_dispatch:
 
 jobs:

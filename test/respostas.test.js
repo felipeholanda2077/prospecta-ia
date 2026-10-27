@@ -133,3 +133,35 @@ test("resposta automática não encerra o lead", async () => {
   assert.equal(r.classificacao, "automatica");
   assert.equal((await db.buscarLead(lead.id)).status, "contatado");
 });
+
+test("Calendly: link próprio de cada empresa e assinatura do webhook", async () => {
+  const calendly = await import("../src/agenda/calendly.js");
+  const link = calendly.linkAgendamento("https://calendly.com/fluxdeck/15min", { token: "abc123", email: "a@b.com" }, "email");
+  const u = new URL(link);
+  assert.equal(u.searchParams.get("utm_content"), "abc123");
+  assert.equal(u.searchParams.get("email"), "a@b.com");
+  assert.equal(calendly.linkAgendamento("", { token: "x" }, "email"), "");
+
+  const corpo = '{"event":"invitee.created"}';
+  const t = Math.floor(Date.now() / 1000);
+  const v1 = crypto.createHmac("sha256", "chave").update(`${t}.${corpo}`).digest("hex");
+  assert.equal(calendly.assinaturaValida(`t=${t},v1=${v1}`, corpo, "chave"), true);
+  assert.equal(calendly.assinaturaValida(`t=${t},v1=${v1}`, corpo + " ", "chave"), false);
+  assert.equal(calendly.assinaturaValida(`t=${t - 3600},v1=${v1}`, corpo, "chave"), false); // muito antigo
+
+  const lead = await novoLead("Agenda", "agenda@pet.com");
+  assert.equal((await calendly.leadDoEvento({ tracking: { utm_content: lead.token } })).id, lead.id);
+  assert.equal((await calendly.leadDoEvento({ email: "AGENDA@pet.com" })).id, lead.id);
+});
+
+test("resposta automática: quando a IA não consegue ler, passa a conversa para você", async () => {
+  const lead = await novoLead("Humano", "humano@pet.com");
+  await enviada(lead, 1);
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6, calendly: "" } };
+  const r = await registrarResposta({ lead, canal: "email", origem_id: "<h-1@x>", de: lead.email, texto: "Quanto custa?", campanha: camp });
+  assert.equal(r.precisa_humano, true);
+  const [registrada] = (await db.listarRespostas()).filter((x) => x.lead_id === lead.id);
+  assert.ok(registrada.precisa_humano);
+  assert.equal(registrada.mensagem_id, null);
+  assert.equal((await db.buscarLead(lead.id)).status, "respondeu");
+});
