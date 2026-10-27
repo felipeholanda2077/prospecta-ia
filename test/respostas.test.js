@@ -241,3 +241,30 @@ test("WhatsApp sai sem o rodapé de SAIR, mas quem pede para sair continua sendo
   assert.doesNotMatch(decodeURIComponent(linkWhatsapp("5585988887777", "Oi, tudo bem?")), /SAIR/);
   assert.equal(classificarPorRegra("sair").classificacao, "descadastro");
 });
+
+test("cartão de contato: lê o vCard e a IA escreve para a pessoa indicada", async () => {
+  const { extrairContatosVcard, contatarIndicados } = await import("../src/respostas/indicacao.js");
+  const { extrairMensagemEvolution } = await import("../src/envio/evolution.js");
+  const vcard = "BEGIN:VCARD\nVERSION:3.0\nN:;Numero Recepcao/adm;;;\nFN:Numero Recepcao/adm\nORG:Odonto Company;\n" +
+    "item1.TEL;waid=5511965481483:+55 11 96548-1483\nitem1.X-ABLabel:Celular\nEND:VCARD";
+  assert.deepEqual(extrairContatosVcard([vcard]), [{ nome: "Numero Recepcao/adm", empresa: "Odonto Company", numero: "5511965481483" }]);
+  assert.deepEqual(extrairContatosVcard(["BEGIN:VCARD\nFN:Helena\nTEL;type=CELL:(11) 98888-7777\nEND:VCARD"])[0].numero, "5511988887777");
+
+  const evento = { event: "messages.upsert", data: { key: { remoteJid: "5511912345678@s.whatsapp.net", fromMe: false, id: "C1" },
+    pushName: "Odontocompany", message: { contactMessage: { displayName: "Numero Recepcao/adm", vcard } } } };
+  assert.deepEqual(extrairMensagemEvolution(evento).vcards, [vcard]);
+
+  const lead = await novoLead("Indica", "indica@odonto.com");
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6, calendly: "" } };
+  const contatos = extrairContatosVcard([vcard]);
+  const escrever = async ({ contato }) => `Oi! A Tatiane me passou seu contato (${contato.nome}).`;
+  const feitos = await contatarIndicados({ lead, contatos, de: "5511912345678", nomeDeQuemIndicou: "Odontocompany", campanha: camp, escrever });
+  assert.equal(feitos.length, 1);
+  const m = await db.buscarMensagem(feitos[0].mensagemId);
+  assert.deepEqual([m.destino, m.status, m.tipo], ["5511965481483", "aprovada", "resposta"]);
+  assert.ok(new Date(m.agendada_para) > new Date());
+
+  // De novo (ou o próprio número de quem mandou): não escreve duas vezes.
+  assert.equal((await contatarIndicados({ lead, contatos, de: "5511912345678", campanha: camp, escrever })).length, 0);
+  assert.equal((await contatarIndicados({ lead, contatos: [{ nome: "Eu", numero: "5511912345678" }], de: "5511912345678", campanha: camp, escrever })).length, 0);
+});

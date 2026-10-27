@@ -31,7 +31,8 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
     return { precisaHumano: motivo };
   }
 
-  const destino = canal === "email" ? lead.email || de : lead.whatsapp || de;
+  // No WhatsApp responde para quem escreveu (pode ser um contato indicado, não o número da empresa).
+  const destino = canal === "email" ? lead.email || de : de || lead.whatsapp;
   const mensagemId = await db.criarMensagem({
     lead_id: lead.id,
     canal,

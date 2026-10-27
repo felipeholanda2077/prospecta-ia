@@ -102,6 +102,8 @@ Como conduzir (tom humano, como ${quem} escrevendo do próprio celular, em prime
 - Se a pessoa perguntar diretamente se está falando com um robô, uma IA ou uma mensagem automática, não responda essa
   pergunta: marque precisa_humano (motivo: "perguntou se é robô") e deixe a sugestão vazia, para o próprio ${quem} responder.
 - Se a mensagem veio de um áudio (o texto começa com "[áudio]"), responda ao que a pessoa falou, por texto, normalmente.
+- Se a pessoa mandou um contato (o texto começa com "[contato compartilhado]"), agradeça em uma frase curta e diga que
+  vai chamar essa pessoa. Não peça mais nada e não marque precisa_humano por isso; a mensagem para o contato é escrita à parte.
 - Marque precisa_humano quando: pedirem ligação, negociarem preço ou condições, reclamarem, ou o assunto sair do que
   está aqui. Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar.
 - Tamanho: ${limite}. Português do Brasil, frases curtas, no máximo 1 emoji.
@@ -117,4 +119,41 @@ ${texto}`,
     zodSchema: ClassificacaoSchema,
     effort: "low",
   });
+}
+
+const IndicadoSchema = z.object({ mensagem: z.string() });
+const INDICADO_JSON_SCHEMA = {
+  type: "object",
+  properties: { mensagem: { type: "string", description: "primeira mensagem de WhatsApp para o contato indicado" } },
+  required: ["mensagem"],
+  additionalProperties: false,
+};
+
+/**
+ * Primeira mensagem para quem foi indicado pela empresa prospectada (ex.: a recepção
+ * mandou o contato do setor administrativo). Cita a indicação e puxa conversa, sem preço.
+ */
+export async function mensagemParaIndicado({ lead, contato, nomeDeQuemIndicou, historico, campanha }) {
+  const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
+  const r = await gerarJson({
+    system: `${contextoEmpresa(campanha)}
+
+Você (${quem}) estava conversando no WhatsApp com a ${lead.nome} e eles indicaram outra pessoa para tratar do assunto.
+Escreva a PRIMEIRA mensagem para essa pessoa indicada:
+- Cumprimente. Use o nome dela só se o nome do contato parecer o nome de uma pessoa (não "Recepção", "Adm", "Setor").
+- Diga quem você é em poucas palavras e quem passou o contato: a pessoa da ${lead.nome} que conversou com você. Use o nome
+  dela se ela se apresentou na conversa${nomeDeQuemIndicou ? ` (o nome no WhatsApp é "${nomeDeQuemIndicou}", que pode ser só o nome da empresa)` : ""};
+  se não souber, diga "o pessoal da ${lead.nome}".
+- Em uma frase, o motivo: o que você observou e pode ajudar (use a conversa abaixo, sem repetir tudo).
+- Termine com UMA pergunta simples e aberta. Sem preço, sem prazo, sem link, sem pedir reunião ainda.
+- No máximo 3 frases curtas (até ~350 caracteres), tom humano, primeira pessoa, no máximo 1 emoji.`,
+    pedido: `Contato indicado: ${contato.nome || "(sem nome)"}${contato.empresa ? ` · ${contato.empresa}` : ""}
+
+Conversa com a ${lead.nome} até aqui:
+${formatarHistorico(historico)}`,
+    jsonSchema: INDICADO_JSON_SCHEMA,
+    zodSchema: IndicadoSchema,
+    effort: "low",
+  });
+  return r.mensagem.trim();
 }

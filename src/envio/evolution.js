@@ -237,15 +237,18 @@ export function extrairMensagemEvolution(payload) {
   if (!k || k.fromMe) return null;
   const msg = d.message ?? {};
   const audio = Boolean(msg.audioMessage) || d.messageType === "audioMessage";
+  // Cartão de contato ("fale com a Helena do administrativo"): um ou vários vCards.
+  const vcards = [msg.contactMessage?.vcard, ...(msg.contactsArrayMessage?.contacts ?? []).map((c) => c.vcard)].filter(Boolean);
   // A Evolution já traz a transcrição em speechToText quando a integração dela com a OpenAI está ligada.
   const texto = String(msg.conversation ?? msg.extendedTextMessage?.text ?? msg.buttonsResponseMessage?.selectedDisplayText ??
     msg.listResponseMessage?.title ?? msg.speechToText ?? "").trim();
-  if (!texto && !audio) return null;
+  if (!texto && !audio && !vcards.length) return null;
   if (String(k.remoteJid ?? "").endsWith("@g.us")) return null;
   // Com o WhatsApp novo o remoteJid pode vir como @lid; o telefone vem em remoteJidAlt/senderPn.
   const jid = [k.remoteJid, k.remoteJidAlt, k.senderPn].find((j) => /@s\.whatsapp\.net$/.test(String(j ?? "")));
   if (!jid) return null;
   const m = { id: String(k.id), de: jid.split("@")[0].split(":")[0], texto, nome: d.pushName ?? null };
   if (audio) Object.assign(m, { audio: true, base64: msg.base64 ?? d.base64 ?? null, mimetype: msg.audioMessage?.mimetype ?? "audio/ogg" });
+  if (vcards.length) m.vcards = vcards;
   return m;
 }

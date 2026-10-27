@@ -173,10 +173,14 @@ export function extrairMensagemUazap(payload) {
   const texto = String(m.text ?? "").trim();
   // Áudio pela UAZap ainda não é transcrito: a conversa passa para você.
   const audio = /audio|ptt/i.test(`${m.messageType ?? ""} ${m.mediaType ?? ""}`);
-  if (!texto && !audio) return null;
+  // Cartão de contato: o vCard pode vir em campos diferentes conforme a versão da UAZap.
+  const vcard = [m.vcard, m.content?.vcard, m.content?.displayName && m.content?.vcard, typeof m.content === "string" ? m.content : null]
+    .find((v) => /BEGIN:VCARD/i.test(String(v ?? "")));
+  if (!texto && !audio && !vcard) return null;
   // O número vem no JID (5511999999999@s.whatsapp.net); JIDs @lid não trazem o telefone.
   const jid = [m.chatid, m.sender, payload.chat?.wa_chatid].find((j) => /@s\.whatsapp\.net$/.test(String(j ?? "")));
   if (!jid) return null;
   const r = { id: String(m.messageid ?? m.id), de: jid.split("@")[0].split(":")[0], texto, nome: m.senderName ?? null };
+  if (vcard) return { ...r, texto: /BEGIN:VCARD/i.test(texto) ? "" : texto, vcards: [vcard] };
   return audio && !texto ? { ...r, audio: true } : r;
 }
