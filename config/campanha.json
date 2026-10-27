@@ -1,7 +1,7 @@
 {
   "empresa": {
     "nome": "FluxDeck",
-    "responsavel": "Seu Nome",
+    "responsavel": "Felipe Holanda",
     "cargo": "Fundador",
     "site": "https://seudominio.com.br",
     "telefone": "(85) 99999-9999",
@@ -89,9 +89,9 @@
     "somenteDiasUteis": true
   },
   "cadencia": {
-    "diasUteisEntreEtapas": [
+    "horasEntreEtapas": [
       2,
-      3
+      2
     ]
   },
   "canais": [

@@ -4,7 +4,8 @@ import * as db from "../db.js";
 import { variantesWhatsappBR } from "../analise/telefone.js";
 import { registrarResposta } from "./processar.js";
 import { extrairMensagemUazap } from "../envio/uazap.js";
-import { extrairMensagemEvolution } from "../envio/evolution.js";
+import { extrairMensagemEvolution, baixarAudio } from "../envio/evolution.js";
+import { transcrever } from "../ia/transcricao.js";
 
 /** Confere o cabeçalho X-Hub-Signature-256 enviado pela Meta. */
 export function assinaturaValida(corpoBruto, cabecalho, segredo) {
@@ -64,15 +65,32 @@ export function processarWebhookUazap(payload, campanha) {
   return registrarMensagemWhatsappWeb(extrairMensagemUazap(payload), campanha);
 }
 
-/** Respostas que chegam pelo webhook da Evolution API. */
+/** Respostas que chegam pelo webhook da Evolution API (texto ou áudio). */
 export function processarWebhookEvolution(payload, campanha) {
-  return registrarMensagemWhatsappWeb(extrairMensagemEvolution(payload), campanha);
+  return registrarMensagemWhatsappWeb(extrairMensagemEvolution(payload), campanha, baixarAudio);
 }
 
-async function registrarMensagemWhatsappWeb(m, campanha) {
+/**
+ * Áudio vira texto para a IA ler e responder. Se não der para transcrever, a mensagem
+ * fica registrada e a conversa passa para você. Retorna { texto, forcarHumano }.
+ */
+export async function textoDoAudio(m, baixar) {
+  try {
+    if (!baixar && !m.base64) throw new Error("esta integração ainda não transcreve áudios");
+    const { audio, mimetype } = m.base64 ? { audio: Buffer.from(m.base64, "base64"), mimetype: m.mimetype } : await baixar(m);
+    return { texto: `[áudio] ${await transcrever(audio, mimetype)}`, forcarHumano: null };
+  } catch (e) {
+    return { texto: "[áudio] (não foi possível transcrever)", forcarHumano: `mandou um áudio que não deu para transcrever: ${e.message}` };
+  }
+}
+
+async function registrarMensagemWhatsappWeb(m, campanha, baixar = null) {
   if (!m) return 0;
   const original = await mensagemOriginalWhatsapp(m.de);
   if (!original) return 0; // conversa que não veio de uma prospecção nossa
+  let forcarHumano = null;
+  if (m.audio && !m.texto) ({ texto: m.texto, forcarHumano } = await textoDoAudio(m, baixar));
+  else if (m.audio) m.texto = `[áudio] ${m.texto}`;
   const r = await registrarResposta({
     lead: await db.buscarLead(original.lead_id),
     canal: "whatsapp",
@@ -81,6 +99,7 @@ async function registrarMensagemWhatsappWeb(m, campanha) {
     texto: m.texto,
     mensagemOriginal: original,
     campanha,
+    forcarHumano,
   });
   return r ? 1 : 0;
 }

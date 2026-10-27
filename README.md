@@ -20,8 +20,8 @@ IA que **encontra empresas no Google Maps**, **analisa a presença digital** de 
 3. **Oportunidades** — transforma a análise em serviços do seu catálogo, com o motivo concreto (ex.: *"loja de roupas sem loja virtual"*, *"site sem versão para celular e com rodapé de 2017"*).
 4. **Sequência gradual com IA** — em vez de uma proposta direta, o Claude escreve 3 mensagens curtas por canal, que revelam a informação aos poucos:
    1. **Primeiro contato:** cumprimenta, cita algo positivo da empresa e faz uma pergunta leve. Sem preço, sem lista de serviços.
-   2. **Se não responder (2 dias úteis depois):** traz uma observação concreta e o impacto para o negócio. Ainda sem preço.
-   3. **Último toque (3 dias úteis depois):** oferece exemplos sem compromisso e cita o "a partir de" uma única vez.
+   2. **Se não responder (cerca de 2 horas depois, no mesmo dia):** traz uma observação concreta e o impacto para o negócio. Ainda sem preço.
+   3. **Último toque (cerca de 2 horas depois da etapa 2):** oferece exemplos sem compromisso e cita o "a partir de" uma única vez.
 
    Quando a empresa responde, a sequência para na hora.
 5. **Aprovação (obrigatória)** — cada sequência aparece na aba **Aprovar mensagens**, com as 3 etapas editáveis e a prévia exata do que a empresa vai receber. Você clica em **Aprovar sequência** ou **Não enviar**. Nada sai sem esse clique.
@@ -149,6 +149,7 @@ As tabelas são criadas sozinhas na primeira vez que o sistema conecta no banco.
 O WhatsApp funciona de três jeitos:
 
 - **UAZap (recomendado para automatizar)** — em **Configurações**, cole a *Server URL* e o *token da instância* da UAZap e clique em **Salvar e configurar webhook** (o sistema testa a conexão antes de salvar e aponta o webhook da instância para cá). Depois clique em **Conectar com QR code** e leia o código no celular (WhatsApp → Aparelhos conectados). As etapas aprovadas e as respostas passam a sair por esse número, e as respostas dos clientes chegam sozinhas no painel. A UAZap usa o WhatsApp Web, que não é a API oficial: por isso o sistema mantém volume baixo, intervalo entre envios, só horário comercial e opção de sair em toda sequência.
+- **Áudios** — quando a empresa responde com áudio pela Evolution, o sistema transcreve e a IA responde por texto. Cadastre `GROQ_API_KEY` (plano grátis em console.groq.com) ou `OPENAI_API_KEY` na Vercel. Sem a chave, ou se o áudio não puder ser transcrito, a conversa fica marcada como "Precisa de você".
 - **Evolution API (alternativa à UAZap)** — em **Configurações → WhatsApp pela Evolution API**, cole a *Server URL*, o *nome da instância* e a *API key* e clique em **Salvar e configurar webhook**. Se a instância não existir, o sistema cria (use a API key global do servidor). Depois conecte com QR code ou código. Com a UAZap e a Evolution configuradas, o WhatsApp sai pela que estiver conectada; se as duas estiverem, pela UAZap.
 - **Manual (padrão)** — a IA escreve a mensagem, você revisa no painel e clica em **Abrir no WhatsApp**: abre a conversa no seu WhatsApp (Web ou celular) com o texto pronto. Você aperta enviar e confirma no painel. Não precisa de API nem de aprovação da Meta, e como é você quem envia, uma a uma, o risco de bloqueio do número é baixo. As respostas chegam no seu WhatsApp; marque no painel quem respondeu.
 - **Automático (API oficial da Meta)** — o envio sai direto do sistema ao aprovar. Exige a WhatsApp Cloud API.

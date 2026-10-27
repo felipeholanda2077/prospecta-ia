@@ -39,7 +39,9 @@ const SEQUENCIA_JSON_SCHEMA = {
 
 /** Como a IA deve se apresentar e assinar, sem inventar dados que a empresa ainda não preencheu. */
 export function identidade(empresa) {
-  const quem = empresa.responsavel ? `${empresa.responsavel}, da ${empresa.nome}` : `a equipe da ${empresa.nome}`;
+  const quem = empresa.responsavel
+    ? `${empresa.responsavel}${empresa.cargo ? ` (${empresa.cargo})` : ""}, da ${empresa.nome}`
+    : `a equipe da ${empresa.nome}`;
   const assinatura = [empresa.responsavel, empresa.nome, empresa.telefone].filter(Boolean).join(" · ");
   return { quem, assinatura };
 }
@@ -47,7 +49,11 @@ export function identidade(empresa) {
 export function contextoEmpresa(campanha) {
   const { empresa, servicos } = campanha;
   const { quem, assinatura } = identidade(empresa);
-  return `Você escreve em nome de ${quem}. A ${empresa.nome} desenvolve sites, lojas virtuais e sistemas.
+  const pessoa = empresa.responsavel
+    ? `Você é ${quem}, escrevendo pessoalmente, em primeira pessoa ("eu"), do seu próprio WhatsApp e e-mail.
+Fale sempre como ${empresa.responsavel}: nunca se apresente como assistente, robô, IA, sistema ou "equipe".`
+    : `Você escreve em nome de ${quem}.`;
+  return `${pessoa} A ${empresa.nome} desenvolve sites, lojas virtuais e sistemas.
 Assinatura dos e-mails: ${assinatura}
 ${empresa.site ? `Site: ${empresa.site}\n` : ""}${empresa.portfolio ? `Portfólio: ${empresa.portfolio}\n` : ""}Diferenciais: ${empresa.diferenciais.join("; ")}
 
@@ -70,13 +76,16 @@ Etapa 1 — primeiro contato (curtíssima e leve):
 - PROIBIDO na etapa 1: preço, prazo, lista de serviços, link, pedido de reunião, dizer que "falta" algo à empresa.
 - WhatsApp: no máximo 2 frases curtas (até ~240 caracteres). E-mail: 40 a 70 palavras.
 
-Etapa 2 — se não houver resposta (2 dias úteis depois):
-- Retome com naturalidade, sem cobrar resposta.
+As 3 etapas saem no MESMO DIA, com cerca de 2 horas entre elas. Escreva como quem volta à conversa
+algumas horas depois (nada de "semana passada", "dias atrás" ou "retomando nosso contato").
+
+Etapa 2 — se não houver resposta (cerca de 2 horas depois):
+- Volte com naturalidade, sem cobrar resposta.
 - Compartilhe UMA observação concreta da análise e o impacto prático para o negócio (ex.: muita gente pesquisa no Google antes de escolher, e sem site esse cliente vai para quem aparece).
 - Ainda sem preço. Pergunte se faz sentido mostrar um exemplo de como ficaria para eles.
 - WhatsApp: até ~350 caracteres. E-mail: 60 a 100 palavras.
 
-Etapa 3 — último toque (3 dias úteis depois):
+Etapa 3 — último toque (cerca de 2 horas depois da etapa 2):
 - Ofereça algo útil e sem compromisso: enviar 2 ou 3 exemplos parecidos com o negócio deles.
 - Pode citar uma única vez o serviço principal com "a partir de" e o prazo do catálogo.
 - Deixe claro, com gentileza, que é a última mensagem e que tudo bem se não for o momento.

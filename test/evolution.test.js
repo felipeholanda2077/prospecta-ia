@@ -122,3 +122,36 @@ test("Evolution: garantirWebhook só configura de novo quando o webhook não apo
     srv.restaurar();
   }
 });
+
+test("áudio pela Evolution é transcrito e chega para a IA como texto", async () => {
+  const { textoDoAudio } = await import("../src/respostas/whatsapp.js");
+  const evento = { event: "messages.upsert", instance: "fluxdeck", data: { key: { remoteJid: "5585988887777@s.whatsapp.net", fromMe: false, id: "A1" },
+    messageType: "audioMessage", message: { audioMessage: { mimetype: "audio/ogg; codecs=opus" }, base64: Buffer.from("OggS").toString("base64") } } };
+  const m = evolution.extrairMensagemEvolution(evento);
+  assert.equal(m.audio, true);
+  assert.equal(m.texto, "");
+
+  // Sem chave de transcrição: a conversa passa para você.
+  delete process.env.GROQ_API_KEY;
+  delete process.env.OPENAI_API_KEY;
+  const semChave = await textoDoAudio(m, null);
+  assert.match(semChave.forcarHumano, /GROQ_API_KEY/);
+
+  process.env.GROQ_API_KEY = "teste";
+  const original = globalThis.fetch;
+  let enviado;
+  globalThis.fetch = async (url, opcoes) => {
+    enviado = { url: String(url), arquivo: opcoes.body.get("file"), idioma: opcoes.body.get("language") };
+    return new Response(JSON.stringify({ text: "Oi Felipe, quanto fica um site?" }), { status: 200 });
+  };
+  try {
+    const r = await textoDoAudio(m, null);
+    assert.deepEqual(r, { texto: "[áudio] Oi Felipe, quanto fica um site?", forcarHumano: null });
+    assert.match(enviado.url, /groq\.com/);
+    assert.equal(enviado.idioma, "pt");
+    assert.equal(enviado.arquivo.type, "audio/ogg");
+  } finally {
+    globalThis.fetch = original;
+    delete process.env.GROQ_API_KEY;
+  }
+});

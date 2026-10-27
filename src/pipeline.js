@@ -22,8 +22,13 @@ const TEMPO_POR_EXECUCAO_MS = 240_000;
 const FOLGA_MS = 60_000;
 const semTempo = (ate) => Date.now() + FOLGA_MS > ate;
 
-// Dias úteis de espera antes das etapas 2 e 3 da sequência.
-const CADENCIA_PADRAO = [2, 3];
+// As 3 etapas saem no mesmo dia: a 2 cerca de 2 h depois da 1, e a 3 cerca de 2 h depois da 2.
+// No fim do expediente o intervalo encolhe para caber no dia, mas nunca fica abaixo do mínimo.
+const HORAS_ENTRE_ETAPAS = [2, 2];
+const INTERVALO_MINIMO_MIN = 45;
+const MARGEM_FIM_MIN = 15;
+// Sequência nova só começa se ainda der tempo de as 3 etapas saírem hoje.
+const TEMPO_PARA_SEQUENCIA_MIN = 2 * INTERVALO_MINIMO_MIN + MARGEM_FIM_MIN;
 
 /** Momento-limite para uma etapa terminar. */
 export function prazoPadrao() {
@@ -98,6 +103,45 @@ export async function limiteDoDia(campanha, canal) {
   const dias = inicio ? diasUteisEntre(inicio) : 0;
   return Math.min(meta, AQUECIMENTO_INICIAL + AQUECIMENTO_PASSO * dias);
 }
+
+/** Minutos que faltam para o fim do horário comercial de hoje (negativo depois dele). */
+export function minutosAteOFim(limites, agora = new Date()) {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: config.timezone, hour: "numeric", minute: "numeric", hourCycle: "h23" })
+      .formatToParts(agora)
+      .map((x) => [x.type, x.value])
+  );
+  return limites.horarioComercial.fim * 60 - (Number(p.hour) * 60 + Number(p.minute));
+}
+
+/** Início do horário comercial do próximo dia útil (com alguns minutos de folga, como uma pessoa). */
+export function inicioDoProximoDiaUtil(limites, agora = new Date()) {
+  const minutosAgora = limites.horarioComercial.fim * 60 - minutosAteOFim(limites, agora);
+  const inicio = limites.horarioComercial.inicio * 60;
+  // Antes do expediente, o "próximo início" ainda é hoje.
+  const minutos = (minutosAgora < inicio ? 0 : 24 * 60) - minutosAgora + inicio + Math.floor(Math.random() * 30);
+  const d = new Date(agora.getTime() + minutos * 60_000);
+  while (limites.somenteDiasUteis !== false && ehFimDeSemana(d)) d.setTime(d.getTime() + 24 * 3600 * 1000);
+  return d;
+}
+
+/**
+ * Quando sai a próxima etapa depois de enviar `etapaEnviada`: no mesmo dia, encaixada
+ * até o fim do expediente. Se não couber, vai para o começo do próximo dia útil.
+ */
+export function horarioDaProximaEtapa(etapaEnviada, campanha, agora = new Date()) {
+  const { limites } = campanha;
+  const horas = campanha.cadencia?.horasEntreEtapas ?? HORAS_ENTRE_ETAPAS;
+  const ideal = (horas[etapaEnviada - 1] ?? 2) * 60 * (0.85 + Math.random() * 0.15);
+  const faltam = 3 - etapaEnviada;
+  const cabe = (minutosAteOFim(limites, agora) - MARGEM_FIM_MIN) / faltam;
+  const intervalo = Math.min(ideal, cabe);
+  if (dentroDoHorario(limites, agora) && intervalo >= INTERVALO_MINIMO_MIN) return new Date(agora.getTime() + intervalo * 60_000);
+  return inicioDoProximoDiaUtil(limites, agora);
+}
+
+/** Ainda dá tempo de começar uma sequência e as 3 etapas saírem hoje? */
+export const daTempoDeSequenciaHoje = (limites, agora = new Date()) => minutosAteOFim(limites, agora) >= TEMPO_PARA_SEQUENCIA_MIN;
 
 /** Soma dias úteis (segunda a sexta) mantendo o horário. */
 export function somarDiasUteis(data, dias) {
@@ -412,10 +456,7 @@ async function registrarEnvio(m, campanha, messageId = null) {
   await db.atualizarMensagem(m.id, { status: "enviada", enviada_em: new Date().toISOString(), erro: null, message_id: messageId });
   if (m.tipo === "resposta") return;
   await db.atualizarLead(m.lead_id, { status: "contatado" });
-  if (m.etapa < 3) {
-    const cadencia = campanha.cadencia?.diasUteisEntreEtapas ?? CADENCIA_PADRAO;
-    await db.agendarProximaEtapa(m, somarDiasUteis(new Date(), cadencia[m.etapa - 1] ?? 2).toISOString());
-  }
+  if (m.etapa < 3) await db.agendarProximaEtapa(m, horarioDaProximaEtapa(m.etapa, campanha).toISOString());
 }
 
 /**
@@ -435,9 +476,9 @@ export async function enviarMensagem(m, campanha) {
   if (!dentroDoHorario(campanha.limites)) {
     return { enviada: false, naFila: true, motivo: "fora do horário comercial; sai no próximo horário de envio" };
   }
-  if (m.tipo !== "resposta") {
+  if (m.tipo !== "resposta" && m.etapa <= 1) {
     const limite = await limiteDoDia(campanha, m.canal);
-    if ((await db.enviadasHoje(m.canal)) >= limite) {
+    if ((await db.enviadasHoje(m.canal, { primeiroContato: true })) >= limite) {
       return { enviada: false, naFila: true, motivo: `limite de hoje no ${m.canal === "email" ? "e-mail" : "WhatsApp"} (${limite}) atingido` };
     }
   }
@@ -539,14 +580,8 @@ export async function responderConversa(respostaId, texto, campanha) {
  * Nada sai fora do horário comercial de segunda a sexta.
  */
 /** Rodadas de 10 minutos que ainda restam no horário comercial de hoje. */
-export function rodadasRestantesHoje(limites, agora = new Date()) {
-  const partes = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", { timeZone: config.timezone, hour: "numeric", minute: "numeric", hourCycle: "h23" })
-      .formatToParts(agora)
-      .map((p) => [p.type, p.value])
-  );
-  const minutos = (limites.horarioComercial.fim - Number(partes.hour)) * 60 - Number(partes.minute);
-  return Math.max(1, Math.floor(minutos / 10));
+export function rodadasRestantesHoje(limites, agora = new Date(), folgaMin = 0) {
+  return Math.max(1, Math.floor((minutosAteOFim(limites, agora) - folgaMin) / 10));
 }
 
 /**
@@ -562,21 +597,29 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   }
 
   const manual = (await modoWhatsapp()) === "manual";
+  // A meta do dia é de empresas novas (etapa 1), espalhada até a hora em que ainda dá para
+  // as 3 etapas saírem hoje. Etapas 2 e 3 e respostas da conversa não entram na conta.
+  const iniciaSequencias = daTempoDeSequenciaHoje(limites);
   const vagas = {};
   for (const canal of ["email", "whatsapp"]) {
-    const restante = (await limiteDoDia(campanha, canal)) - (await db.enviadasHoje(canal));
-    vagas[canal] = distribuir ? Math.min(restante, Math.ceil(restante / rodadasRestantesHoje(limites))) : restante;
+    const restante = iniciaSequencias
+      ? (await limiteDoDia(campanha, canal)) - (await db.enviadasHoje(canal, { primeiroContato: true }))
+      : 0;
+    const rodadas = rodadasRestantesHoje(limites, new Date(), TEMPO_PARA_SEQUENCIA_MIN);
+    vagas[canal] = distribuir ? Math.min(restante, Math.ceil(restante / rodadas)) : restante;
   }
   const fila = (await db.filaDeEnvio(400))
     .filter((m) => m.canal === "email" || !manual)
-    .filter((m) => m.tipo === "resposta" || vagas[m.canal]-- > 0);
+    .filter((m) => m.tipo === "resposta" || m.etapa > 1 || vagas[m.canal]-- > 0);
   if (!fila.length) {
     log("📭 Nada para enviar agora");
     return { enviadas: 0 };
   }
 
-  // Respostas de conversa primeiro: quem respondeu não pode esperar a prospecção.
-  fila.sort((a, b) => Number(b.tipo === "resposta") - Number(a.tipo === "resposta"));
+  // Respostas de conversa primeiro (quem respondeu não pode esperar), depois as etapas 2 e 3
+  // já agendadas para hoje, e por último as empresas novas.
+  const ordem = (m) => (m.tipo === "resposta" ? 0 : m.etapa > 1 ? 1 : 2);
+  fila.sort((a, b) => ordem(a) - ordem(b));
   const intervalo = limites.intervaloEntreEnviosSegundos * 1000;
   let enviadas = 0;
   for (const [i, m] of fila.entries()) {

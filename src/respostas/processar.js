@@ -56,20 +56,22 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
  * Em qualquer resposta humana, as etapas pendentes são canceladas e, com a resposta
  * automática ligada, a IA continua a conversa rumo ao agendamento.
  */
-export async function registrarResposta({ lead, canal, origem_id, de, assunto = null, texto, campanha }) {
+export async function registrarResposta({ lead, canal, origem_id, de, assunto = null, texto, campanha, forcarHumano = null }) {
   if (origem_id && (await db.respostaJaRegistrada(origem_id))) return null;
 
   const limpo = limparTextoResposta(texto) || String(texto ?? "").slice(0, 2000);
   let c;
   try {
+    // Ex.: áudio que não deu para transcrever: a sequência para e você responde.
+    if (forcarHumano) throw new Error(forcarHumano);
     const historico = await db.historicoConversa(lead.id);
     c = await classificarResposta({
       texto: limpo, assunto, lead, historico, campanha, canal,
       linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal),
     });
   } catch (e) {
-    c = { classificacao: "outro", resumo: `Não foi possível classificar automaticamente: ${e.message}`, sugestao_resposta: "",
-          precisa_humano: true, motivo_humano: "a IA não conseguiu ler esta resposta" };
+    c = { classificacao: "outro", resumo: forcarHumano ? "Mandou um áudio." : `Não foi possível classificar automaticamente: ${e.message}`,
+          sugestao_resposta: "", precisa_humano: true, motivo_humano: forcarHumano || "a IA não conseguiu ler esta resposta" };
   }
 
   const id = await db.criarResposta({

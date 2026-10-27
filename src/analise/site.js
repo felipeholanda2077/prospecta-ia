@@ -22,14 +22,33 @@ const CONSTRUTORES = [
 
 const EXTENSOES_FALSAS = /\.(png|jpe?g|gif|webp|svg|css|js)$/i;
 
+/** E-mail escondido pela proteção do Cloudflare (data-cfemail): o 1º byte é a chave do XOR. */
+export function decodificarCfemail(hex) {
+  const bytes = String(hex).match(/../g)?.map((b) => parseInt(b, 16)) ?? [];
+  if (bytes.length < 2 || bytes.some(Number.isNaN)) return "";
+  return String.fromCharCode(...bytes.slice(1).map((b) => b ^ bytes[0]));
+}
+
 /** Extrai e-mails de um HTML, priorizando os do mesmo domínio do site. */
 export function extrairEmails(html, url) {
   const encontrados = new Set();
-  for (const m of html.matchAll(/mailto:([^"'?\s>]+)/gi)) encontrados.add(decodeURIComponent(m[1]));
+  for (const m of html.matchAll(/mailto:([^"'?\s>]+)/gi)) {
+    try {
+      encontrados.add(decodeURIComponent(m[1]));
+    } catch {}
+  }
   for (const m of html.matchAll(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)) encontrados.add(m[0]);
+  for (const m of html.matchAll(/data-cfemail=["']([0-9a-f]+)["']|\/cdn-cgi\/l\/email-protection#([0-9a-f]+)/gi)) {
+    encontrados.add(decodificarCfemail(m[1] ?? m[2]));
+  }
+  // "contato [arroba] empresa.com.br", "contato (at) empresa.com"
+  for (const m of html.matchAll(/([A-Z0-9._%+-]+)\s*[[(]\s*(?:arroba|at)\s*[\])]\s*([A-Z0-9-]+(?:\.[A-Z0-9-]+)*\.[A-Z]{2,})/gi)) {
+    encontrados.add(`${m[1]}@${m[2]}`);
+  }
 
   const emails = [...encontrados]
     .map((e) => e.trim().toLowerCase())
+    .filter((e) => /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(e))
     .filter((e) => !EXTENSOES_FALSAS.test(e))
     .filter((e) => !/(example|exemplo|sentry|wixpress|seudominio|domain)\./.test(e));
 
@@ -111,8 +130,29 @@ async function robotsPermite(origem) {
   }
 }
 
+const LINK_DE_CONTATO = /contato|contact|fale|atendimento|sobre|quem-somos|empresa/i;
+const MAX_PAGINAS_DE_CONTATO = 4;
+
 /**
- * Visita o site da empresa (página inicial + página de contato, se precisar)
+ * Páginas onde costuma estar o e-mail: primeiro os links do próprio site que parecem de
+ * contato (ex.: "Fale conosco", "Sobre"), depois os caminhos mais comuns.
+ */
+export function paginasDeContato(html, urlBase) {
+  const base = new URL(urlBase);
+  const links = [];
+  for (const m of html.matchAll(/<a\b[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    if (!LINK_DE_CONTATO.test(`${m[1]} ${m[2].replace(/<[^>]+>/g, " ")}`)) continue;
+    try {
+      const u = new URL(m[1], base);
+      if (u.hostname === base.hostname && /^https?:$/.test(u.protocol)) links.push(u.toString());
+    } catch {}
+  }
+  const comuns = ["/contato", "/fale-conosco", "/contact", "/sobre"].map((c) => new URL(c, base).toString());
+  return [...new Set([...links, ...comuns])].filter((u) => u !== base.toString()).slice(0, MAX_PAGINAS_DE_CONTATO);
+}
+
+/**
+ * Visita o site da empresa (página inicial + páginas de contato, se precisar)
  * e devolve a auditoria e os contatos encontrados.
  */
 export async function analisarSite(url) {
@@ -149,9 +189,9 @@ export async function analisarSite(url) {
     };
 
     if (!resultado.emails.length) {
-      for (const caminho of ["/contato", "/fale-conosco", "/contact"]) {
+      for (const endereco of paginasDeContato(pagina.html, pagina.urlFinal)) {
         try {
-          const contato = await baixar(new URL(caminho, pagina.urlFinal).toString());
+          const contato = await baixar(endereco);
           if (!contato.ok) continue;
           resultado.emails = extrairEmails(contato.html, pagina.urlFinal);
           resultado.whatsapp ??= extrairWhatsapp(contato.html);

@@ -236,7 +236,7 @@ app.get("/api/sessao", async (req, res) => {
     whatsappAutomatico: modo !== "manual",
     perfilIncompleto: !campanha.empresa.responsavel || !campanha.empresa.telefone,
     horario: campanha.limites.horarioComercial,
-    cadencia: campanha.cadencia?.diasUteisEntreEtapas ?? [2, 3],
+    cadencia: campanha.cadencia?.horasEntreEtapas ?? [2, 2],
     rodapeWhatsapp: RODAPE_WHATSAPP,
     modoTeste: Boolean(config.modoTeste.email || config.modoTeste.whatsapp),
     dentroDoHorario: pipeline.dentroDoHorario(campanha.limites),
@@ -419,8 +419,8 @@ app.get("/api/config/automacao", async (req, res) => {
     ...auto,
     buscas: campanha.buscas,
     hoje: {
-      email: { enviadas: await db.enviadasHoje("email"), limite: await pipeline.limiteDoDia(campanha, "email") },
-      whatsapp: { enviadas: await db.enviadasHoje("whatsapp"), limite: await pipeline.limiteDoDia(campanha, "whatsapp") },
+      email: { enviadas: await db.enviadasHoje("email", { primeiroContato: true }), limite: await pipeline.limiteDoDia(campanha, "email") },
+      whatsapp: { enviadas: await db.enviadasHoje("whatsapp", { primeiroContato: true }), limite: await pipeline.limiteDoDia(campanha, "whatsapp") },
     },
     calendlyConectado: (await calendly.status()).conectado,
   });

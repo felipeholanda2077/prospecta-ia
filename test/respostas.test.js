@@ -222,3 +222,22 @@ test("Calendly no plano grátis: conecta sem webhook e confere as reuniões pela
     await db.gravarConfig("calendly", null);
   }
 });
+
+test("áudio que não deu para transcrever: registra, para a sequência e passa para você", async () => {
+  const lead = await novoLead("Audio", "audio@pet.com");
+  await enviada(lead, 0);
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6, calendly: "" } };
+  const r = await registrarResposta({ lead, canal: "whatsapp", origem_id: "AUD-1", de: "5585900001111",
+                                      texto: "[áudio] (não foi possível transcrever)", campanha: camp, forcarHumano: "mandou um áudio" });
+  assert.equal(r.precisa_humano, true);
+  const [registrada] = (await db.listarRespostas()).filter((x) => x.lead_id === lead.id);
+  assert.equal(registrada.precisa_humano, "mandou um áudio");
+  assert.equal((await db.buscarLead(lead.id)).status, "respondeu");
+});
+
+test("WhatsApp sai sem o rodapé de SAIR, mas quem pede para sair continua sendo descadastrado", async () => {
+  const { RODAPE_WHATSAPP, linkWhatsapp } = await import("../src/envio/whatsapp.js");
+  assert.equal(RODAPE_WHATSAPP, "");
+  assert.doesNotMatch(decodeURIComponent(linkWhatsapp("5585988887777", "Oi, tudo bem?")), /SAIR/);
+  assert.equal(classificarPorRegra("sair").classificacao, "descadastro");
+});

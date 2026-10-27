@@ -301,13 +301,15 @@ export async function ultimaEnviadaNoCanal(canal) {
 }
 
 /** Mensagens de prospecção enviadas hoje (respostas de conversa não contam). Sem canal = todos. */
-export async function enviadasHoje(canal = null) {
+/** Mensagens de prospecção enviadas hoje; com `primeiroContato`, só as etapas 1 (empresas novas). */
+export async function enviadasHoje(canal = null, { primeiroContato = false } = {}) {
   return (
     await um(
       `SELECT count(*)::int AS n FROM mensagens
         WHERE status = 'enviada' AND tipo <> 'resposta' AND ($2::text IS NULL OR canal = $2::text)
+          AND ($3::boolean IS FALSE OR etapa <= 1)
           AND (enviada_em AT TIME ZONE $1::text)::date = (now() AT TIME ZONE $1::text)::date`,
-      [config.timezone, canal]
+      [config.timezone, canal, primeiroContato]
     )
   ).n;
 }

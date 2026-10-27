@@ -171,9 +171,12 @@ export function extrairMensagemUazap(payload) {
   const m = payload.message;
   if (!m || m.fromMe || m.isGroup || m.wasSentByApi) return null;
   const texto = String(m.text ?? "").trim();
-  if (!texto) return null;
+  // Áudio pela UAZap ainda não é transcrito: a conversa passa para você.
+  const audio = /audio|ptt/i.test(`${m.messageType ?? ""} ${m.mediaType ?? ""}`);
+  if (!texto && !audio) return null;
   // O número vem no JID (5511999999999@s.whatsapp.net); JIDs @lid não trazem o telefone.
   const jid = [m.chatid, m.sender, payload.chat?.wa_chatid].find((j) => /@s\.whatsapp\.net$/.test(String(j ?? "")));
   if (!jid) return null;
-  return { id: String(m.messageid ?? m.id), de: jid.split("@")[0].split(":")[0], texto, nome: m.senderName ?? null };
+  const r = { id: String(m.messageid ?? m.id), de: jid.split("@")[0].split(":")[0], texto, nome: m.senderName ?? null };
+  return audio && !texto ? { ...r, audio: true } : r;
 }

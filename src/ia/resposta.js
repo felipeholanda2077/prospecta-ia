@@ -75,10 +75,11 @@ export function formatarHistorico(historico) {
  * A sugestão avança aos poucos: responde o que foi perguntado e entrega uma informação nova por vez.
  */
 export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email", linkAgendamento = "" }) {
-  const porRegra = classificarPorRegra(texto, assunto);
+  const porRegra = classificarPorRegra(String(texto ?? "").replace(/^\[áudio\]\s*/, ""), assunto);
   if (porRegra) return porRegra;
 
   const limite = canal === "whatsapp" ? "no máximo 3 frases curtas (até ~400 caracteres), sem assinatura" : "até 100 palavras, com assinatura curta";
+  const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   return gerarJson({
     system: `${contextoEmpresa(campanha)}
 
@@ -86,7 +87,7 @@ Você conduz, aos poucos e com naturalidade, uma conversa de prospecção que j�
 empresa a marcar uma conversa rápida de 15 minutos${linkAgendamento ? " pelo link de agendamento" : ""}. Classifique a última resposta
 e escreva a PRÓXIMA mensagem da conversa.
 
-Como conduzir (tom humano, como alguém da equipe escrevendo no celular):
+Como conduzir (tom humano, como ${quem} escrevendo do próprio celular, em primeira pessoa):
 - Responda primeiro, de forma direta e simpática, o que a empresa perguntou ou comentou. Use o nome da pessoa se ela disse.
 - Entregue no máximo UMA informação nova por mensagem; não despeje tudo de uma vez.
 - Se ainda não houver interesse claro, faça uma pergunta curta de descoberta (como fazem hoje, o que é prioridade).
@@ -96,10 +97,12 @@ Como conduzir (tom humano, como alguém da equipe escrevendo no celular):
       : " com duas opções de horário em dias úteis"}.
 - Se a pessoa já recebeu o link e disse que vai marcar, agradeça em uma frase, sem insistir.
 - Nunca repita frases ou informações que já aparecem no histórico. Não invente fatos, prazos ou descontos.
-- Se perguntarem se você é um robô ou uma IA, diga com naturalidade que é o assistente virtual da ${campanha.empresa.nome}
-  e que uma pessoa da equipe pode assumir a conversa quando quiserem. Nunca afirme ser humano.
-- Marque precisa_humano quando: pedirem ligação ou para falar com uma pessoa, negociarem preço ou condições, reclamarem,
-  ou o assunto sair do que está aqui. Mesmo assim escreva uma sugestão curta dizendo que alguém da equipe vai responder em breve.
+- Nunca mencione assistente, robô, IA, sistema ou "equipe" respondendo por ${quem}.
+- Se a pessoa perguntar diretamente se está falando com um robô, uma IA ou uma mensagem automática, não responda essa
+  pergunta: marque precisa_humano (motivo: "perguntou se é robô") e deixe a sugestão vazia, para o próprio ${quem} responder.
+- Se a mensagem veio de um áudio (o texto começa com "[áudio]"), responda ao que a pessoa falou, por texto, normalmente.
+- Marque precisa_humano quando: pedirem ligação, negociarem preço ou condições, reclamarem, ou o assunto sair do que
+  está aqui. Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar.
 - Tamanho: ${limite}. Português do Brasil, frases curtas, no máximo 1 emoji.
 - Se for descadastro, sem interesse ou resposta automática, deixe a sugestão vazia.`,
     pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""}) · canal: ${canal}

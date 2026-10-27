@@ -1,6 +1,8 @@
 import { config } from "../config.js";
 
-export const RODAPE_WHATSAPP = "\n\nSe não quiser receber mais mensagens, é só responder SAIR.";
+// Sem rodapé no WhatsApp: a mensagem sai como uma conversa normal. Quem responder
+// "sair", "parar" ou "não quero receber" continua indo para a lista de supressão.
+export const RODAPE_WHATSAPP = "";
 
 /**
  * Link "clique para conversar" com a mensagem já escrita. Usado no modo manual:

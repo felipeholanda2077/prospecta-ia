@@ -560,7 +560,7 @@
             </div>
             <div id="uazap-conexao"></div>
             <div class="alerta info"><span data-ic="alert"></span><div>A UAZap usa o WhatsApp Web, que não é a API oficial. Para reduzir o risco de bloqueio do número,
-              o sistema envia poucas mensagens por dia, com intervalo, só em horário comercial, e toda primeira mensagem oferece a opção de sair.</div></div>
+              o sistema envia com intervalo, só em horário comercial, e para de mandar mensagens para quem pede para sair.</div></div>
           </div>
         </div>
 
@@ -1213,7 +1213,7 @@ function agruparSequencias(lista) {
 
 function blocoEtapa(m, total) {
   const quando = m.etapa === 1 ? "sai ao aprovar, em horário comercial"
-    : `${sessao.cadencia[m.etapa - 2] ?? 2} dias úteis depois da etapa ${m.etapa - 1}, se não houver resposta`;
+    : `cerca de ${sessao.cadencia[m.etapa - 2] ?? 2} h depois da etapa ${m.etapa - 1}, no mesmo dia, se não houver resposta`;
   return `<div class="etapa-seq" data-id="${m.id}" data-link="${esc(m.linkWhatsapp ?? "")}">
     <div class="etapa-cab"><span class="num">${m.etapa}</span><b>${NOMES_ETAPA[m.etapa] ?? `Etapa ${m.etapa}`}</b>
       <span class="muted">${total > 1 ? quando : "mensagem única"}</span></div>

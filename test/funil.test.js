@@ -8,7 +8,7 @@ const pipeline = await import("../src/pipeline.js");
 const { dentroDoHorario } = pipeline;
 
 const LIMITES = { horarioComercial: { inicio: 9, fim: 18 }, somenteDiasUteis: true };
-const campanha = { limites: { ...LIMITES, envioDiarioMax: 30, intervaloEntreEnviosSegundos: 0 }, cadencia: { diasUteisEntreEtapas: [2, 3] } };
+const campanha = { limites: { ...LIMITES, envioDiarioMax: 30, intervaloEntreEnviosSegundos: 0 }, cadencia: { horasEntreEtapas: [2, 2] } };
 
 const lead = (place_id, extra = {}) => ({ place_id, nome: `Empresa ${place_id}`, nicho: "pet shop", cidade: "Fortaleza - CE",
   endereco: null, telefone: null, site: null, maps_url: null, avaliacao: null, total_avaliacoes: null, ...extra });
@@ -102,10 +102,10 @@ test("sequência gradual: cada etapa só entra na fila depois da anterior e para
   assert.deepEqual(etapas.map((m) => m.status), ["aprovada", "aprovada", "aprovada"]);
   assert.deepEqual((await db.filaDeEnvio()).filter((m) => m.lead_id === l.id).map((m) => m.etapa), [1]);
 
-  // Enviada a etapa 1, a etapa 2 é agendada para 2 dias úteis depois; a 3 continua esperando.
+  // Enviada a etapa 1, a etapa 2 é agendada (no mesmo dia, ou no próximo dia útil se não couber); a 3 continua esperando.
   assert.equal(await pipeline.marcarEnviadaManual(ids[0], campanha), true);
   const depois = await db.mensagensDaSequencia(l.id, "whatsapp");
-  assert.ok(depois[1].agendada_para > new Date(Date.now() + 36 * 3600 * 1000));
+  assert.ok(depois[1].agendada_para > new Date());
   assert.equal(depois[2].agendada_para, null);
   assert.deepEqual((await db.filaDeEnvio()).filter((m) => m.lead_id === l.id), []);
 
@@ -194,4 +194,33 @@ test("cota espalhada: rodadas de 10 minutos que faltam até as 18h", () => {
 test("busca automática em rotação percorre segmento × cidade", () => {
   const c = pipeline.combinacoesDeBusca({ buscas: [{ nicho: "pet shop", cidades: ["Barueri", "Osasco"] }, { nicho: "construtora", cidades: ["Barueri"] }] });
   assert.deepEqual(c.map((x) => `${x.nicho}/${x.cidade}`), ["pet shop/Barueri", "pet shop/Osasco", "construtora/Barueri"]);
+});
+
+test("as 3 etapas saem no mesmo dia, encaixadas até o fim do expediente", () => {
+  const minutos = (a, b) => (b - a) / 60000;
+  const c = { limites: LIMITES, cadencia: { horasEntreEtapas: [2, 2] } };
+  const as10h = new Date("2026-10-27T13:00:00Z"); // terça 10h em SP
+  const etapa2 = pipeline.horarioDaProximaEtapa(1, c, as10h);
+  assert.ok(minutos(as10h, etapa2) >= 102 && minutos(as10h, etapa2) <= 120, `etapa 2 em ${minutos(as10h, etapa2)} min`);
+
+  // 16h: faltam 2 etapas e 2 h de expediente; o intervalo encolhe para caber hoje.
+  const as16h = new Date("2026-10-27T19:00:00Z");
+  assert.equal(Math.round(minutos(as16h, pipeline.horarioDaProximaEtapa(1, c, as16h))), 53);
+  // 17h, depois da etapa 2: a etapa 3 ainda cabe às 17h45.
+  const as17h = new Date("2026-10-27T20:00:00Z");
+  assert.equal(Math.round(minutos(as17h, pipeline.horarioDaProximaEtapa(2, c, as17h))), 45);
+
+  // 17h30 depois da etapa 1: não cabe mais hoje, vai para quarta 9h–9h30.
+  const quarta = pipeline.horarioDaProximaEtapa(1, c, new Date("2026-10-27T20:30:00Z"));
+  assert.ok(quarta >= new Date("2026-10-28T12:00:00Z") && quarta < new Date("2026-10-28T12:30:00Z"), quarta.toISOString());
+  // Sexta 17h30: vai para segunda.
+  const segunda = pipeline.horarioDaProximaEtapa(1, c, new Date("2026-10-30T20:30:00Z"));
+  assert.ok(segunda >= new Date("2026-11-02T12:00:00Z") && segunda < new Date("2026-11-02T12:30:00Z"), segunda.toISOString());
+  // Antes do expediente: hoje mesmo às 9h.
+  const hoje = pipeline.inicioDoProximoDiaUtil(LIMITES, new Date("2026-10-27T10:00:00Z")); // 7h
+  assert.ok(hoje >= new Date("2026-10-27T12:00:00Z") && hoje < new Date("2026-10-27T12:30:00Z"), hoje.toISOString());
+
+  // Empresa nova só começa se ainda der tempo das 3 etapas hoje.
+  assert.equal(pipeline.daTempoDeSequenciaHoje(LIMITES, new Date("2026-10-27T19:15:00Z")), true); // 16h15
+  assert.equal(pipeline.daTempoDeSequenciaHoje(LIMITES, new Date("2026-10-27T19:20:00Z")), false); // 16h20
 });

@@ -159,7 +159,8 @@ export async function configurarWebhook() {
   const destino = `${config.painel.urlPublica}/webhooks/evolution/${segredoWebhook}`;
   await chamar("/webhook/set/:instancia", {
     method: "POST",
-    corpo: { webhook: { enabled: true, url: destino, byEvents: false, base64: false, events: ["MESSAGES_UPSERT"] } },
+    // base64: os áudios recebidos já chegam no webhook, prontos para transcrever.
+    corpo: { webhook: { enabled: true, url: destino, byEvents: false, base64: true, events: ["MESSAGES_UPSERT"] } },
   });
   return destino;
 }
@@ -174,7 +175,8 @@ export async function garantirWebhook() {
   const destino = `${config.painel.urlPublica}/webhooks/evolution/${segredoWebhook}`;
   const atual = await chamar("/webhook/find/:instancia").catch(() => null);
   const eventos = (atual?.events ?? []).map((e) => String(e).toUpperCase());
-  if (atual?.enabled && atual.url === destino && eventos.includes("MESSAGES_UPSERT")) return false;
+  const comBase64 = atual?.webhookBase64 ?? atual?.base64;
+  if (atual?.enabled && atual.url === destino && eventos.includes("MESSAGES_UPSERT") && comBase64 !== false) return false;
   await configurarWebhook();
   return true;
 }
@@ -186,6 +188,16 @@ export async function enviarTexto(numero, texto) {
     corpo: { number: String(numero).replace(/\D/g, ""), text: texto, delay: 1500 },
   });
   return dados?.key?.id ?? null;
+}
+
+/** Baixa um áudio recebido (quando ele não veio no webhook). Retorna { audio: Buffer, mimetype }. */
+export async function baixarAudio(m) {
+  const dados = await chamar("/chat/getBase64FromMediaMessage/:instancia", {
+    method: "POST",
+    corpo: { message: { key: { id: m.id } }, convertToMp4: false },
+  });
+  if (!dados?.base64) throw new Error("a Evolution não devolveu o áudio");
+  return { audio: Buffer.from(dados.base64, "base64"), mimetype: dados.mimetype ?? m.mimetype ?? "audio/ogg" };
 }
 
 /**
@@ -214,7 +226,8 @@ export async function webhookValido(segredo, payload) {
 }
 
 /**
- * Extrai a mensagem de texto recebida de um evento `messages.upsert` da Evolution.
+ * Extrai a mensagem recebida de um evento `messages.upsert` da Evolution: texto ou áudio
+ * (com `audio: true`, e o áudio em base64 quando o webhook o envia).
  * Retorna null para o que não é mensagem de um contato (grupos, enviadas por nós, sem texto).
  */
 export function extrairMensagemEvolution(payload) {
@@ -223,12 +236,16 @@ export function extrairMensagemEvolution(payload) {
   const k = d?.key;
   if (!k || k.fromMe) return null;
   const msg = d.message ?? {};
+  const audio = Boolean(msg.audioMessage) || d.messageType === "audioMessage";
+  // A Evolution já traz a transcrição em speechToText quando a integração dela com a OpenAI está ligada.
   const texto = String(msg.conversation ?? msg.extendedTextMessage?.text ?? msg.buttonsResponseMessage?.selectedDisplayText ??
-    msg.listResponseMessage?.title ?? "").trim();
-  if (!texto) return null;
+    msg.listResponseMessage?.title ?? msg.speechToText ?? "").trim();
+  if (!texto && !audio) return null;
   if (String(k.remoteJid ?? "").endsWith("@g.us")) return null;
   // Com o WhatsApp novo o remoteJid pode vir como @lid; o telefone vem em remoteJidAlt/senderPn.
   const jid = [k.remoteJid, k.remoteJidAlt, k.senderPn].find((j) => /@s\.whatsapp\.net$/.test(String(j ?? "")));
   if (!jid) return null;
-  return { id: String(k.id), de: jid.split("@")[0].split(":")[0], texto, nome: d.pushName ?? null };
+  const m = { id: String(k.id), de: jid.split("@")[0].split(":")[0], texto, nome: d.pushName ?? null };
+  if (audio) Object.assign(m, { audio: true, base64: msg.base64 ?? d.base64 ?? null, mimetype: msg.audioMessage?.mimetype ?? "audio/ogg" });
+  return m;
 }

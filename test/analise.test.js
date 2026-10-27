@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { analisarHtml, extrairEmails, extrairWhatsapp } from "../src/analise/site.js";
+import { analisarHtml, extrairEmails, extrairWhatsapp, paginasDeContato, decodificarCfemail } from "../src/analise/site.js";
 import { identificarOportunidades } from "../src/analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR } from "../src/analise/telefone.js";
 
@@ -67,4 +67,21 @@ test("site completo de clínica não recebe redesign nem agendamento", () => {
   const servicos = identificarOportunidades(analise, "clínica odontológica").map((o) => o.servico);
   assert.ok(!servicos.includes("redesign"));
   assert.ok(!servicos.includes("agendamento"));
+});
+
+test("extrairEmails acha e-mail protegido pelo Cloudflare e escrito com [arroba]", () => {
+  const chave = 0x2a;
+  const hex = [chave, ...Buffer.from("contato@clinica.com.br")].map((b, i) => (i ? b ^ chave : b).toString(16).padStart(2, "0")).join("");
+  assert.equal(decodificarCfemail(hex), "contato@clinica.com.br");
+  const html = `<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="${hex}">[email&#160;protected]</a>
+    <p>Fale com a gente: agenda [arroba] clinica.com.br</p>`;
+  assert.deepEqual(extrairEmails(html, "https://clinica.com.br").sort(), ["agenda@clinica.com.br", "contato@clinica.com.br"]);
+});
+
+test("paginasDeContato segue os links do próprio site antes dos caminhos comuns", () => {
+  const html = `<a href="/fale-com-a-gente">Fale conosco</a> <a href="https://outro.com/contato">Contato</a>
+    <a href="/servicos">Serviços</a> <a href="quem-somos.html"><span>Quem somos</span></a>`;
+  const paginas = paginasDeContato(html, "https://clinica.com.br/");
+  assert.deepEqual(paginas, ["https://clinica.com.br/fale-com-a-gente", "https://clinica.com.br/quem-somos.html",
+                             "https://clinica.com.br/contato", "https://clinica.com.br/fale-conosco"]);
 });
