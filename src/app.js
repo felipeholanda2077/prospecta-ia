@@ -6,6 +6,7 @@ import * as pipeline from "./pipeline.js";
 import { waitUntil } from "@vercel/functions";
 import { carregarCampanhaCompleta, CAMPOS_EMPRESA, lerAutomacao, AUTOMACAO_PADRAO } from "./campanha.js";
 import * as calendly from "./agenda/calendly.js";
+import { tokenDoGithubValido } from "./agendamento/github.js";
 import { enviarNotificacao, statusEmail, testarEmail } from "./envio/email.js";
 import { assinaturaValida, processarWebhookWhatsapp, processarWebhookUazap } from "./respostas/whatsapp.js";
 import { rodapeDescadastro } from "./envio/email.js";
@@ -145,6 +146,8 @@ const resumoChave = (v) => crypto.createHash("sha256").update(`prospecta-cron:${
  */
 async function chaveDoCronValida(recebido) {
   if (!recebido) return false;
+  // O agendamento do GitHub manda um token assinado pelo próprio GitHub (sem segredo para copiar).
+  if (await tokenDoGithubValido(recebido)) return true;
   if (config.cronSecret && iguais(recebido, config.cronSecret)) return true;
   const salvo = (await db.lerConfig("cron"))?.resumo;
   return Boolean(salvo) && iguais(resumoChave(recebido), salvo);

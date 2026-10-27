@@ -177,3 +177,16 @@ test("teste de e-mail explica os erros comuns do SMTP", async () => {
   assert.match(r.smtp.erro, /SMTP não configurado/);
   assert.equal(r.imap.ok, false);
 });
+
+test("agendamento do GitHub: só aceita o workflow de envios deste repositório na main", async () => {
+  const { conferirClaims, tokenDoGithubValido } = await import("../src/agendamento/github.js");
+  const certo = { repository: "felipeholanda2077/prospecta-ia", ref: "refs/heads/main", event_name: "schedule",
+                  workflow_ref: "felipeholanda2077/prospecta-ia/.github/workflows/envios.yml@refs/heads/main" };
+  assert.equal(conferirClaims(certo), true);
+  assert.equal(conferirClaims({ ...certo, event_name: "workflow_dispatch" }), true);
+  assert.equal(conferirClaims({ ...certo, repository: "alguem/prospecta-ia" }), false); // fork
+  assert.equal(conferirClaims({ ...certo, ref: "refs/heads/outra" }), false);
+  assert.equal(conferirClaims({ ...certo, event_name: "pull_request" }), false);
+  assert.equal(conferirClaims({ ...certo, workflow_ref: "felipeholanda2077/prospecta-ia/.github/workflows/outro.yml@refs/heads/main" }), false);
+  assert.equal(await tokenDoGithubValido("nao-e-jwt"), false);
+});

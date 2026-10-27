@@ -1,14 +1,22 @@
-# Rodada de envios em horário comercial.
+# Rodada do funil automático.
 # O plano gratuito da Vercel só permite agendar uma execução por dia, então este
 # agendamento chama o sistema a cada 10 minutos. Antes das 9h ele só prepara as
-# mensagens do dia; o envio confere o horário
-# (9h às 18h de Brasília, segunda a sexta) e não envia nada fora dele.
+# mensagens do dia; o envio confere o horário (9h às 18h de Brasília, segunda a
+# sexta) e não envia nada fora dele.
+#
+# Autenticação: o GitHub emite um token OIDC assinado para esta execução e o
+# sistema confere a assinatura e de qual repositório/workflow ele veio. Não há
+# segredo para copiar.
 name: Envios em horário comercial
 
 on:
   schedule:
     - cron: "*/10 9-20 * * 1-5" # 6h às 17h50 em Brasília (UTC-3), segunda a sexta
   workflow_dispatch:
+
+permissions:
+  id-token: write # permite pedir o token OIDC
+  contents: read
 
 jobs:
   envios:
@@ -17,8 +25,8 @@ jobs:
     steps:
       - name: Rodada de envios
         env:
-          CRON_SECRET: ${{ secrets.CRON_SECRET }}
           URL: ${{ vars.PROSPECTA_URL || 'https://prospecta-ia-three.vercel.app' }}
         run: |
-          SEGREDO="$(printf '%s' "$CRON_SECRET" | tr -d '[:space:]')"
-          curl -fsS --max-time 300 -H "Authorization: Bearer $SEGREDO" "$URL/api/cron/envios"
+          TOKEN="$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=prospecta-ia" | jq -r .value)"
+          curl -fsS --max-time 300 -H "Authorization: Bearer $TOKEN" "$URL/api/cron/envios"
