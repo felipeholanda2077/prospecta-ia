@@ -6,7 +6,7 @@ import * as pipeline from "./pipeline.js";
 import { waitUntil } from "@vercel/functions";
 import { carregarCampanhaCompleta, CAMPOS_EMPRESA, lerAutomacao, AUTOMACAO_PADRAO } from "./campanha.js";
 import * as calendly from "./agenda/calendly.js";
-import { enviarNotificacao } from "./envio/email.js";
+import { enviarNotificacao, statusEmail, testarEmail } from "./envio/email.js";
 import { assinaturaValida, processarWebhookWhatsapp, processarWebhookUazap } from "./respostas/whatsapp.js";
 import { rodapeDescadastro } from "./envio/email.js";
 import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
@@ -424,6 +424,11 @@ app.put("/api/config/automacao", async (req, res) => {
   await db.gravarConfig("automacao", novo);
   res.json({ ok: true });
 });
+
+app.get("/api/email/status", (req, res) => res.json(statusEmail()));
+
+// Envia um e-mail de teste e confere a leitura da caixa de entrada.
+app.post("/api/email/teste", async (req, res) => res.json(await testarEmail(req.body?.para)));
 
 app.get("/api/calendly/status", async (req, res) => res.json(await calendly.status()));
 

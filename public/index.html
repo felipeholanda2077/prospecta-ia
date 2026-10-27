@@ -503,6 +503,20 @@
           <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar perfil</button></div>
         </form>
 
+        <form class="cartao" id="form-email" style="margin-top:16px">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="mail"></span><div class="titulos"><h3>E-mail <span id="email-status"></span></h3>
+            <div class="meta">Envio (SMTP) e leitura das respostas (IMAP). Os dados ficam nas variáveis de ambiente da Vercel (SMTP_HOST, SMTP_USER, SMTP_PASS, EMAIL_REMETENTE, IMAP_HOST).</div></div></div>
+          <div class="cartao-corpo" style="display:grid;gap:14px">
+            <div id="email-config" class="meta" style="display:grid;gap:4px"></div>
+            <div class="config-grade">
+              <div class="campo"><label for="email-teste-para">Enviar o teste para</label><input id="email-teste-para" name="para" type="email" placeholder="seu@email.com" required></div>
+            </div>
+            <div id="email-resultado"></div>
+          </div>
+          <div class="acoes"><button class="btn primario" type="submit"><span data-ic="send"></span>Enviar e-mail de teste</button>
+            <span class="muted" style="font-size:13px">Envia um e-mail de verdade e confere se dá para ler a caixa de entrada.</span></div>
+        </form>
+
         <form class="cartao" id="form-calendly" style="margin-top:16px">
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="calendar"></span><div class="titulos"><h3>Calendly <span id="calendly-status"></span></h3>
             <div class="meta">Conecte para o sistema saber quando uma empresa marcou a reunião: ela vira "Reunião agendada", as mensagens param e você recebe um aviso.
@@ -1446,7 +1460,49 @@ function iniciarPollingUazap() {
   }, 3000);
 }
 
+async function carregarEmail() {
+  try {
+    const e = await api("/api/email/status");
+    $("#email-status").innerHTML = e.smtp.configurado ? `<span class="pilula ok">SMTP configurado</span>` : `<span class="pilula perigo">SMTP não configurado</span>`;
+    const linha = (rotulo, valor) => `<span><b>${rotulo}:</b> ${valor ? esc(valor) : '<span class="muted">não configurado</span>'}</span>`;
+    $("#email-config").innerHTML = [
+      linha("Servidor de envio", e.smtp.host ? `${e.smtp.host}:${e.smtp.porta}` : ""),
+      linha("Usuário", e.smtp.usuario),
+      linha("Remetente", e.smtp.remetente),
+      linha("Leitura das respostas (IMAP)", e.imap.configurado ? `${e.imap.host} · ${e.imap.usuario}` : ""),
+      linha("Avisos para", e.notificar),
+    ].join("");
+    const campo = $("#email-teste-para");
+    if (!campo.value) campo.value = e.notificar || e.smtp.usuario || "";
+  } catch (err) {
+    avisar(err.message, "perigo");
+  }
+}
+
+$("#form-email").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = ev.submitter;
+  btn.disabled = true;
+  $("#email-resultado").innerHTML = `<div class="progresso"><i></i></div><span class="muted" style="font-size:13px">Conectando no servidor e enviando…</span>`;
+  try {
+    const r = await post("/api/email/teste", { para: $("#email-teste-para").value });
+    const bloco = (ok, titulo, texto) => `<div class="alerta ${ok ? "info" : "perigo"}">${ic(ok ? "checkCircle" : "alert")}<div><b>${titulo}</b><br>${texto}</div></div>`;
+    $("#email-resultado").innerHTML = `<div style="display:grid;gap:8px">
+      ${bloco(r.smtp.ok, r.smtp.ok ? "Envio funcionando" : "O envio falhou",
+        r.smtp.ok ? `E-mail de teste enviado para ${esc(r.para)}. Confira a caixa de entrada e também o spam.` : esc(r.smtp.erro))}
+      ${bloco(r.imap.ok, r.imap.ok ? "Leitura das respostas funcionando" : "A leitura das respostas não está funcionando",
+        r.imap.ok ? `Caixa de entrada acessada (${r.imap.mensagens} mensagens).` : esc(r.imap.erro))}
+    </div>`;
+    if (r.smtp.ok) avisar("E-mail de teste enviado", "ok");
+  } catch (e) {
+    $("#email-resultado").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 async function carregarConfiguracoes() {
+  carregarEmail();
   api("/api/calendly/status").then((c) => {
     $("#calendly-status").innerHTML = c.conectado ? `<span class="pilula ok">Conectado${c.conta ? ` · ${esc(c.conta)}` : ""}</span>` : `<span class="pilula">Não conectado</span>`;
     $("#calendly-token").required = !c.conectado;

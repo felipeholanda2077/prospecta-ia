@@ -165,3 +165,15 @@ test("resposta automática: quando a IA não consegue ler, passa a conversa para
   assert.equal(registrada.mensagem_id, null);
   assert.equal((await db.buscarLead(lead.id)).status, "respondeu");
 });
+
+test("teste de e-mail explica os erros comuns do SMTP", async () => {
+  const { explicarErroEmail, testarEmail } = await import("../src/envio/email.js");
+  assert.match(explicarErroEmail({ code: "EAUTH", message: "535 Invalid login" }), /senha de app/);
+  assert.match(explicarErroEmail({ code: "EDNS", message: "getaddrinfo ENOTFOUND smtp.x" }), /Não encontrei o servidor/);
+  assert.match(explicarErroEmail({ code: "ETIMEDOUT", message: "timeout" }), /porta/);
+  // Sem SMTP configurado (como nos testes), o painel recebe o motivo em vez de um erro.
+  const r = await testarEmail("teste@exemplo.com");
+  assert.equal(r.smtp.ok, false);
+  assert.match(r.smtp.erro, /SMTP não configurado/);
+  assert.equal(r.imap.ok, false);
+});

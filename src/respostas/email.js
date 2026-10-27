@@ -30,7 +30,8 @@ export async function verificarRespostasEmail(campanha) {
     return { lidas: 0, respostas: 0 };
   }
 
-  const cliente = new ImapFlow({ host, port, secure, auth: { user, pass }, logger: false });
+  const cliente = new ImapFlow({ host, port, secure, auth: { user, pass }, logger: false, socketTimeout: 30_000 });
+  cliente.on("error", (e) => log(`⚠️  IMAP: ${e.message}`));
   const emails = [];
 
   await cliente.connect();
