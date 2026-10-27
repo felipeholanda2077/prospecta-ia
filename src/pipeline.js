@@ -5,7 +5,7 @@ import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
 import { gerarSequencia } from "./ia/proposta.js";
-import { enviarEmail } from "./envio/email.js";
+import { enviarEmail, explicarErroEmail } from "./envio/email.js";
 import { enviarWhatsapp, enviarTextoWhatsappOficial, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
@@ -360,8 +360,9 @@ export async function verificarRespostas(campanha) {
   try {
     return await verificarRespostasEmail(campanha);
   } catch (e) {
-    log(`⚠️  Falha ao ler respostas por e-mail: ${e.message}`);
-    return { lidas: 0, respostas: 0, erro: e.message };
+    const motivo = explicarErroEmail(e, "IMAP");
+    log(`⚠️  Falha ao ler respostas por e-mail: ${motivo}${e.responseText ? ` (servidor: ${e.responseText})` : ""}`);
+    return { lidas: 0, respostas: 0, erro: motivo };
   }
 }
 

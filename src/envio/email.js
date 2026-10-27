@@ -94,7 +94,10 @@ export function statusEmail() {
 
 /** Traduz os erros mais comuns do SMTP/IMAP para o que você precisa corrigir. */
 export function explicarErroEmail(e, servico = "SMTP") {
-  const msg = `${e?.message ?? e}`;
+  const msg = `${e?.message ?? e}${e?.responseText ? ` ${e.responseText}` : ""}`;
+  if (/IMAP access is disabled|Web login required|enable IMAP/i.test(msg)) {
+    return "O Gmail está bloqueando o acesso IMAP desta conta. Em Gmail → Configurações → Encaminhamento e POP/IMAP, ative o IMAP.";
+  }
   if (e?.code === "EAUTH" || e?.authenticationFailed || /auth|credentials|535|534|Invalid login|AUTHENTICATIONFAILED/i.test(msg)) {
     return `O servidor recusou o usuário ou a senha do ${servico}. No Gmail/Google Workspace, use uma senha de app (myaccount.google.com/apppasswords), não a senha normal.`;
   }

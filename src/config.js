@@ -7,6 +7,10 @@ dotenv.config({ quiet: true });
 
 const env = process.env;
 
+// O Google mostra a senha de app em grupos de 4 letras ("abcd efgh ..."); colar com os
+// espaços faz o login falhar. Senha de app nunca tem espaço, então eles são removidos.
+const senhaDeEmail = (senha, host) => (/gmail|googlemail|google\.com/i.test(host ?? "") ? String(senha ?? "").replace(/\s+/g, "") : String(senha ?? ""));
+
 export const config = {
   claude: {
     model: env.CLAUDE_MODEL || "claude-opus-5-5",
@@ -17,7 +21,7 @@ export const config = {
     port: Number(env.SMTP_PORT || 587),
     secure: env.SMTP_SECURE === "true",
     user: env.SMTP_USER || "",
-    pass: env.SMTP_PASS || "",
+    pass: senhaDeEmail(env.SMTP_PASS, env.SMTP_HOST),
     remetente: env.EMAIL_REMETENTE || env.SMTP_USER || "",
     descadastro: env.EMAIL_DESCADASTRO || "",
   },
@@ -36,7 +40,7 @@ export const config = {
     port: Number(env.IMAP_PORT || 993),
     secure: env.IMAP_SECURE !== "false",
     user: env.IMAP_USER || env.SMTP_USER || "",
-    pass: env.IMAP_PASS || env.SMTP_PASS || "",
+    pass: senhaDeEmail(env.IMAP_PASS || env.SMTP_PASS, env.IMAP_HOST),
     pasta: env.IMAP_PASTA || "INBOX",
   },
   // Quem recebe o aviso quando um lead responde com interesse.
