@@ -455,12 +455,16 @@ app.post("/api/leads/:id/indicado", async (req, res) => {
 
 /** Conversas com a avaliação de andamento, das mais importantes para as menos. */
 async function conversasAvaliadas() {
-  const lista = (await db.conversas()).map((c) => ({ ...c, andamento: avaliarConversa(c) }));
+  const lista = (await db.conversas()).map((c) => {
+    const andamento = avaliarConversa(c);
+    // Já demonstrou interesse e a conversa não foi encerrada: ganha coroa e destaque no painel.
+    return { ...c, andamento, interessado: Boolean(c.mostrou_interesse) && andamento.chance !== "encerrada" };
+  });
   const quando = (c) => new Date(c.ultima?.quando ?? 0).getTime();
-  // Quem precisa de você primeiro; depois quem tem mais chance de fechar; depois as mais recentes.
+  // Quem precisa de você primeiro; depois quem demonstrou interesse; depois quem tem mais chance de fechar; depois as mais recentes.
   const chance = (c) => ({ agendada: 4, quente: 3, morna: 2, fria: 1, encerrada: 0 })[c.andamento.chance] ?? 0;
   return lista.sort((a, b) => Number(b.andamento.precisaDeVoce) - Number(a.andamento.precisaDeVoce)
-    || chance(b) - chance(a) || quando(b) - quando(a));
+    || Number(b.interessado) - Number(a.interessado) || chance(b) - chance(a) || quando(b) - quando(a));
 }
 
 app.get("/api/conversas", async (req, res) => {
@@ -477,6 +481,7 @@ app.get("/api/conversas/:leadId", async (req, res) => {
   res.json({
     lead: { ...dados, oportunidades: JSON.parse(dados.oportunidades || "[]") },
     andamento: conversa?.andamento ?? null,
+    interessado: conversa?.interessado ?? false,
     iaPausada: (await iaPausada(lead.id)) || null,
     mensagens: await db.historicoConversa(lead.id),
     agendadas: await db.agendadasDaConversa(lead.id),

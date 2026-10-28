@@ -334,6 +334,18 @@
   .chat-item .nome { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .chat-item .previa { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .chat-item .lado { display: grid; justify-items: end; gap: 5px; font-size: 11.5px; color: var(--muted); }
+  /* Demonstrou interesse: coroa, borda dourada e fundo levemente dourado. */
+  .chat-item.interessado { background: linear-gradient(90deg, var(--warn-soft), transparent 85%); box-shadow: inset 4px 0 0 var(--warn); }
+  .chat-item.interessado[aria-current="true"] { background: linear-gradient(90deg, var(--warn-soft), var(--accent-soft) 85%); }
+  .chat-item.interessado .nome { color: var(--warn); }
+  .avatar-coroa { position: relative; }
+  .avatar-coroa .coroa { position: absolute; top: -9px; right: -7px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--warn); color: #fff; box-shadow: 0 0 0 2px var(--surface); }
+  .avatar-coroa .coroa .ic { width: 12px; height: 12px; fill: currentColor; stroke-width: 1.5; }
+  .avatar-coroa > .avatar { box-shadow: 0 0 0 2px var(--warn); }
+  .pilula.coroa-pilula .ic { fill: currentColor; }
+  .coroa-filtro { color: var(--warn); display: inline-flex; vertical-align: -3px; margin-right: 4px; }
+  .coroa-filtro .ic { fill: currentColor; }
   .badge-nl { background: var(--wa); color: #fff; border-radius: 999px; min-width: 20px; height: 20px; padding: 0 6px;
               display: grid; place-items: center; font-size: 11.5px; font-weight: 700; }
   .chat-painel { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
@@ -760,6 +772,7 @@ const dataHora = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "s
 const inicial = (nome) => esc((String(nome ?? "?").trim()[0] ?? "?").toUpperCase());
 
 const ICONES = {
+  crown: '<path d="m2 7 4.5 4L12 4l5.5 7L22 7l-2 12H4L2 7Z"/><path d="M4 22h16"/>',
   pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
@@ -1635,7 +1648,7 @@ let conversaAberta = null;
 let filtroConversa = "todas";
 let dadosConversas = null;
 const FILTROS_CONVERSA = [
-  ["todas", "Todas"], ["precisa", "Precisam de você"], ["quente", "Chance alta"], ["morna", "Média"], ["fria", "Baixa"],
+  ["todas", "Todas"], ["interessados", `<span class="coroa-filtro">${ic("crown", "sm")}</span>Interessados`], ["precisa", "Precisam de você"], ["quente", "Chance alta"], ["morna", "Média"], ["fria", "Baixa"],
   ["agendada", "Agendadas"], ["encerrada", "Encerradas"],
 ];
 const COR_CHANCE = { agendada: "acc", quente: "ok", morna: "atencao", fria: "perigo", encerrada: "" };
@@ -1682,14 +1695,22 @@ function horaCurta(quando) {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
+/** Avatar da empresa; quem demonstrou interesse ganha a coroa. */
+function avatarConversa(nome, interessado) {
+  const avatar = `<span class="avatar">${inicial(nome)}</span>`;
+  return interessado ? `<span class="avatar-coroa" title="Demonstrou interesse">${avatar}<span class="coroa">${ic("crown", "sm")}</span></span>` : avatar;
+}
+
+const pilulaInteresse = () => `<span class="pilula atencao coroa-pilula">${ic("crown", "sm")}Interessado</span>`;
+
 function itemConversa(c) {
   const u = c.ultima;
   const previa = u ? `${u.autor === "nos" ? "Você: " : ""}${u.texto.replace(/\s+/g, " ")}` : "";
-  return `<button class="chat-item" data-conversa-id="${c.id}" aria-current="${c.id === conversaAberta}">
-    <span class="avatar">${inicial(c.nome)}</span>
+  return `<button class="chat-item${c.interessado ? " interessado" : ""}" data-conversa-id="${c.id}" aria-current="${c.id === conversaAberta}">
+    ${avatarConversa(c.nome, c.interessado)}
     <span class="meio"><span class="nome">${esc(c.nome)}</span>
       <span class="previa">${u ? ic(u.canal === "email" ? "mail" : "message", "sm") : ""} ${esc(previa)}</span>
-      <span>${pilulaChance(c.andamento)}${c.andamento.precisaDeVoce ? ` <span class="pilula perigo">${ic("alert", "sm")}Você</span>` : ""}</span></span>
+      <span>${c.interessado ? `${pilulaInteresse()} ` : ""}${pilulaChance(c.andamento)}${c.andamento.precisaDeVoce ? ` <span class="pilula perigo">${ic("alert", "sm")}Você</span>` : ""}</span></span>
     <span class="lado"><span>${horaCurta(u?.quando)}</span>${c.nao_lidas ? `<span class="badge-nl">${c.nao_lidas}</span>` : ""}</span>
   </button>`;
 }
@@ -1698,6 +1719,7 @@ function conversasFiltradas() {
   const lista = dadosConversas?.conversas ?? [];
   if (filtroConversa === "todas") return lista;
   if (filtroConversa === "precisa") return lista.filter((c) => c.andamento.precisaDeVoce);
+  if (filtroConversa === "interessados") return lista.filter((c) => c.interessado);
   return lista.filter((c) => c.andamento.chance === filtroConversa);
 }
 
@@ -1789,8 +1811,8 @@ async function abrirConversa(id, { atualizar = false } = {}) {
   painel.innerHTML = `
     <div class="chat-topo">
       <button class="btn fantasma sm so-celular" data-voltar-lista aria-label="Voltar para as conversas">${ic("arrowLeft", "sm")}</button>
-      <span class="avatar">${inicial(d.lead.nome)}</span>
-      <div class="titulos"><h3>${esc(d.lead.nome)}</h3>
+      ${avatarConversa(d.lead.nome, d.interessado)}
+      <div class="titulos"><h3>${esc(d.lead.nome)}${d.interessado ? ` ${pilulaInteresse()}` : ""}</h3>
         <div class="meta">${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}</div></div>
       ${a ? pilulaChance(a) : ""}
     </div>
