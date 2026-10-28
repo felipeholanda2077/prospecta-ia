@@ -443,6 +443,15 @@ export async function enviadasHoje(canal = null, { primeiroContato = false } = {
 }
 
 /** Quantas respostas já mandamos nesta conversa (para a IA passar a vez para você depois de um limite). */
+/** Alguma resposta da conversa saiu desde este momento (ISO)? */
+export async function respostaDaConversaDesde(leadId, desde) {
+  return Boolean(await um(
+    `SELECT 1 AS x FROM mensagens WHERE lead_id = $1 AND tipo = 'resposta' AND status IN ('enviando', 'enviada')
+        AND criado_em >= $2::timestamptz - interval '1 minute'`,
+    [leadId, desde]
+  ));
+}
+
 export async function respostasEnviadasNaConversa(leadId) {
   return (await um("SELECT count(*)::int AS n FROM mensagens WHERE lead_id = $1 AND tipo = 'resposta' AND status IN ('aprovada', 'enviada')", [leadId])).n;
 }

@@ -449,7 +449,15 @@ test("quem demonstra interesse recebe a apresentação uma vez; depois a convers
 
   await registrarResposta({ lead, canal: "whatsapp", origem_id: "AP1", de: "999@lid", texto: "Quero falar sobre site", campanha: camp, classificar, apresentar });
   assert.deepEqual(await corpos(), ["Apresentação completa"]);
+  // Ela escreveu de novo antes de a apresentação sair: a que estava na fila é trocada, e a nova ainda é a apresentação.
   await registrarResposta({ lead: await db.buscarLead(lead.id), canal: "whatsapp", origem_id: "AP2", de: "999@lid",
+    texto: "É para minha loja", campanha: camp, classificar, apresentar });
+  assert.deepEqual(await corpos(), ["Apresentação completa"]);
+  // Depois que ela saiu, a conversa segue sem repetir.
+  for (const m of (await db.mensagensPorStatus("aprovada")).filter((x) => x.lead_id === lead.id)) {
+    await db.atualizarMensagem(m.id, { status: "enviada", enviada_em: new Date().toISOString() });
+  }
+  await registrarResposta({ lead: await db.buscarLead(lead.id), canal: "whatsapp", origem_id: "AP3", de: "999@lid",
     texto: "Legal, e o prazo?", campanha: camp, classificar, apresentar });
   assert.deepEqual(await corpos(), ["Bora marcar?"]);
 });

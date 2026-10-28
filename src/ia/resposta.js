@@ -101,7 +101,7 @@ export async function classificarResposta({ texto, assunto, lead, historico, cam
   const limite = canal === "whatsapp" ? "no máximo 3 frases curtas (até ~400 caracteres), sem assinatura" : "até 100 palavras, com assinatura curta";
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   return gerarJson({
-    system: `${contextoEmpresa(campanha)}
+    system: `${contextoEmpresa(campanha, { semValores: Boolean(apresentacao) })}
 
 Você conduz, aos poucos e com naturalidade, uma conversa com uma empresa (de prospecção, ou de alguém que chamou
 por conta própria). O objetivo é levar a empresa a marcar um bate-papo${linkAgendamento ? " pelo link de agendamento" : ""}. Classifique a última resposta
@@ -177,14 +177,14 @@ const APRESENTACAO_JSON_SCHEMA = {
 export async function escreverApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", apresentacao, linkAgendamento = "" }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const r = await gerarJson({
-    system: `${contextoEmpresa(campanha)}
+    system: `${contextoEmpresa(campanha, { semValores: true })}
 
 A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa${canal === "email" ? " (e-mail)" : " (WhatsApp)"}, como ${quem}, em primeira pessoa:
 1. Uma frase respondendo o que ela disse, pelo primeiro nome se ela disse, com o cumprimento certo (bom dia, boa tarde...).
 2. Uma apresentação em tópicos curtos, com quebras de linha, tirada SÓ da apresentação abaixo:
    - como funciona (as etapas, resumidas);
-   - os planos: nome e uma linha de cada um, com os valores exatamente como estão escritos (não invente nem arredonde),
-     começando pelos que combinam com o que ela pediu;
+   - os planos: SÓ os planos da apresentação, com o nome e os valores exatamente como estão escritos (não invente
+     planos, valores ou "a partir de", nem arredonde), uma linha cada, começando pelos que combinam com o que ela precisa;
    - em quanto tempo fica pronto.
 3. Se ela pediu algo que não está na apresentação, uma frase sincera dizendo que isso vocês veem juntos no bate-papo.
 4. Feche dizendo que, se ela quiser saber mais, vocês marcam um bate-papo${linkAgendamento

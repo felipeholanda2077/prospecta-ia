@@ -47,7 +47,8 @@ export function identidade(empresa) {
   return { quem, assinatura };
 }
 
-export function contextoEmpresa(campanha) {
+/** `semValores`: na conversa com a apresentação, os únicos valores e prazos são os dela (não os do catálogo). */
+export function contextoEmpresa(campanha, { semValores = false } = {}) {
   const { empresa, servicos } = campanha;
   const { quem, assinatura } = identidade(empresa);
   const pessoa = empresa.responsavel
@@ -58,8 +59,9 @@ Fale sempre como ${empresa.responsavel}: nunca se apresente como assistente, rob
 Assinatura dos e-mails: ${assinatura}
 ${empresa.site ? `Site: ${empresa.site}\n` : ""}${empresa.portfolio ? `Portfólio: ${empresa.portfolio}\n` : ""}Diferenciais: ${empresa.diferenciais.join("; ")}
 
-Catálogo (use apenas estes serviços; valores e prazos são só para você saber, não para citar na prospecção):
-${servicos.map((s) => `- [${s.id}] ${s.nome}: ${s.descricao} A partir de ${s.aPartirDe}, prazo ${s.prazo}.`).join("\n")}
+${semValores
+    ? `Serviços que a ${empresa.nome} faz (valores, planos e prazos: só os da apresentação):\n${servicos.map((s) => `- ${s.nome}: ${s.descricao}`).join("\n")}`
+    : `Catálogo (use apenas estes serviços; valores e prazos são só para você saber, não para citar na prospecção):\n${servicos.map((s) => `- [${s.id}] ${s.nome}: ${s.descricao} A partir de ${s.aPartirDe}, prazo ${s.prazo}.`).join("\n")}`}
 
 Nunca invente nomes, telefones, sites, clientes, números ou resultados que não estejam aqui.`;
 }

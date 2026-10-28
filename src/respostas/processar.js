@@ -18,6 +18,15 @@ const QUER_SABER = ["interessado", "quer_informacoes"];
 const chaveApresentacao = (leadId) => `apresentacao_enviada:${leadId}`;
 /** A apresentação saiu (pela IA ou por você): nas próximas mensagens a conversa segue sem repeti-la. */
 export const marcarApresentacaoEnviada = (leadId) => db.gravarEstado(chaveApresentacao(leadId), new Date().toISOString());
+
+/**
+ * Já apresentou? Só conta se uma resposta da conversa saiu depois disso: se a apresentação ainda estava
+ * na fila (ou foi cancelada) quando a pessoa escreveu de novo, a próxima resposta ainda é a apresentação.
+ */
+async function jaApresentou(leadId) {
+  const desde = await db.lerEstado(chaveApresentacao(leadId));
+  return Boolean(desde) && db.respostaDaConversaDesde(leadId, desde);
+}
 export const AGRADECIMENTO_PADRAO = "Imagina, obrigado pelo retorno! Fico à disposição se precisarem no futuro. Um abraço!";
 
 /** Agenda uma mensagem da conversa para sair em alguns minutos, como uma pessoa responderia. */
@@ -78,7 +87,7 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
  */
 async function pensarResposta(contexto, { classificar, apresentar }) {
   const c = await classificar(contexto);
-  if (QUER_SABER.includes(c.classificacao) && c.sugestao_resposta && !c.precisa_humano && !(await db.lerEstado(chaveApresentacao(contexto.lead.id)))) {
+  if (QUER_SABER.includes(c.classificacao) && c.sugestao_resposta && !c.precisa_humano && !(await jaApresentou(contexto.lead.id))) {
     return { c: { ...c, sugestao_resposta: await apresentar(contexto) }, apresentou: true };
   }
   return { c, apresentou: false };
