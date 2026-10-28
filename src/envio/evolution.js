@@ -195,6 +195,23 @@ export async function enviarTexto(numero, texto) {
   return dados?.key?.id ?? null;
 }
 
+/**
+ * Mensagens recebidas nas últimas horas, direto do WhatsApp (mais nova primeiro). Serve para
+ * recuperar o que o webhook não entregou e para ler a conversa inteira de um contato novo.
+ * Cada item vem no formato do evento `messages.upsert`, pronto para `extrairMensagemEvolution`.
+ */
+export async function buscarMensagens({ horas = 6, remoteJid = null, limite = 200 } = {}) {
+  const desde = Math.floor(Date.now() / 1000) - horas * 3600;
+  const dados = await chamar("/chat/findMessages/:instancia", {
+    method: "POST",
+    corpo: { where: { key: remoteJid ? { remoteJid } : {}, messageTimestamp: { gte: desde } }, page: 1, offset: limite },
+  });
+  const registros = dados?.messages?.records ?? dados?.records ?? (Array.isArray(dados) ? dados : []);
+  return registros
+    .filter((r) => Number(r.messageTimestamp) >= desde)
+    .sort((a, b) => Number(b.messageTimestamp) - Number(a.messageTimestamp));
+}
+
 /** Baixa um áudio recebido (quando ele não veio no webhook). Retorna { audio: Buffer, mimetype }. */
 export async function baixarAudio(m) {
   const dados = await chamar("/chat/getBase64FromMediaMessage/:instancia", {

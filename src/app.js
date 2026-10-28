@@ -739,6 +739,25 @@ app.post("/api/evolution/conectar", async (req, res) => {
   }
 });
 
+// Diagnóstico: o que chegou no WhatsApp nas últimas horas e se o sistema registrou.
+app.get("/api/whatsapp/recebidas", async (req, res) => {
+  const horas = Math.min(48, Math.max(1, Number(req.query.horas) || 6));
+  const registros = await evolution.buscarMensagens({ horas });
+  const lista = [];
+  for (const r of registros) {
+    const k = r.key ?? {};
+    if (String(k.remoteJid ?? "").endsWith("@g.us")) continue;
+    const m = evolution.extrairMensagemEvolution({ event: "messages.upsert", data: r });
+    lista.push({
+      quando: new Date(Number(r.messageTimestamp) * 1000).toISOString(),
+      deMim: Boolean(k.fromMe), remoteJid: k.remoteJid, alt: k.remoteJidAlt ?? k.senderPn ?? null, nome: r.pushName ?? null,
+      tipo: r.messageType, texto: String(r.message?.conversation ?? r.message?.extendedTextMessage?.text ?? "").slice(0, 80),
+      lido: m ? { de: m.de, registrada: await db.respostaJaRegistrada(m.id) } : null,
+    });
+  }
+  res.json(lista);
+});
+
 app.post("/api/evolution/desconectar", async (req, res) => {
   try {
     await evolution.desconectar();
