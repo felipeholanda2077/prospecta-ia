@@ -742,7 +742,7 @@ app.post("/api/evolution/conectar", async (req, res) => {
 // Diagnóstico: o que chegou no WhatsApp nas últimas horas e se o sistema registrou.
 app.get("/api/whatsapp/recebidas", async (req, res) => {
   const horas = Math.min(48, Math.max(1, Number(req.query.horas) || 6));
-  const registros = await evolution.buscarMensagens({ horas });
+  const registros = await evolution.buscarMensagens({ horas, remoteJid: req.query.jid || null, limite: Math.min(1000, Number(req.query.limite) || 200) });
   const lista = [];
   for (const r of registros) {
     const k = r.key ?? {};
