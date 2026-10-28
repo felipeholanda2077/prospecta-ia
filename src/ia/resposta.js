@@ -1,6 +1,10 @@
 import { z } from "zod";
+import { config } from "../config.js";
 import { gerarJson } from "./cliente.js";
 import { contextoEmpresa, identidade } from "./proposta.js";
+
+/** Data de hoje, para a IA saber se uma promoção (ex.: a de novembro) ainda vai começar, está valendo ou acabou. */
+const hoje = () => new Date().toLocaleDateString("pt-BR", { timeZone: config.timezone, day: "numeric", month: "long", year: "numeric" });
 
 export const CLASSIFICACOES = ["interessado", "quer_informacoes", "sem_interesse", "descadastro", "automatica", "outro"];
 export const TEMPERATURAS = ["quente", "morna", "fria"];
@@ -90,7 +94,7 @@ export function formatarHistorico(historico) {
  * Classifica a resposta de um lead e sugere o próximo passo da conversa.
  * A sugestão avança aos poucos: responde o que foi perguntado e entrega uma informação nova por vez.
  */
-export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email", linkAgendamento = "", apresentacao = "" }) {
+export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email", linkAgendamento = "", apresentacao = "", nota = "" }) {
   const porRegra = classificarPorRegra(String(texto ?? "").replace(/^\[áudio\]\s*/, ""), assunto);
   if (porRegra) return porRegra;
 
@@ -103,7 +107,7 @@ Você conduz, aos poucos e com naturalidade, uma conversa com uma empresa (de pr
 por conta própria). O objetivo é levar a empresa a marcar um bate-papo${linkAgendamento ? " pelo link de agendamento" : ""}. Classifique a última resposta
 e escreva a PRÓXIMA mensagem da conversa.
 ${apresentacao ? `
-Apresentação da ${campanha.empresa.nome} (como funciona, planos e prazos; use só o que está aqui):
+Apresentação da ${campanha.empresa.nome} (como funciona, planos e prazos; use só o que está aqui). Hoje é ${hoje()}:
 <apresentacao>
 ${apresentacao}
 </apresentacao>
@@ -131,8 +135,13 @@ ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com
 - Se a pessoa mandou um contato (cartão de contato, "[contato compartilhado]", ou um e-mail/telefone de outra pessoa ou setor
   para tratar do assunto), agradeça em uma frase curta e diga que vai falar com essa pessoa por lá. Não peça mais nada e não
   marque precisa_humano por isso; a mensagem para o contato indicado é escrita e enviada à parte.
-- Marque precisa_humano quando: pedirem ligação, negociarem preço ou condições, reclamarem, ou o assunto sair do que
-  está aqui. Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar. Pedir um serviço que
+- Resposta curta, solta ou que parece fora de contexto (um número, uma porcentagem, "ok", uma palavra, a mesma mensagem
+  repetida) NÃO é motivo para precisa_humano: entenda pela sua última pergunta e pelo histórico (ex.: perguntou se
+  marcam pelo telefone ou WhatsApp e veio "98%" = 98% pelo WhatsApp), siga a conversa e avance um passo. Se não der
+  mesmo para entender, faça uma pergunta leve, sem parecer que não entendeu nada.
+- Nunca pergunte de novo algo que a pessoa já respondeu no histórico.
+- Marque precisa_humano só quando: pedirem ligação, negociarem preço ou condições, reclamarem, ou o assunto não tiver
+  nada a ver com o seu trabalho (ex.: currículo, cobrança, fornecedor). Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar. Pedir um serviço que
   não está na lista não é motivo para isso: responda e leve para o bate-papo.
 - Tamanho: ${limite}. Português do Brasil, frases curtas, no máximo 1 emoji.
 - Sem interesse: a sugestão é um agradecimento curto e cordial (1 ou 2 frases), sem pergunta, sem oferta, sem link,
@@ -144,7 +153,9 @@ Histórico da conversa (mais antigo primeiro):
 ${formatarHistorico(historico)}
 
 Última resposta da empresa${assunto ? ` (assunto: ${assunto})` : ""}:
-${texto}`,
+${texto}${nota ? `
+
+Observação de ${quem} sobre esta conversa (use para entender; não cite): ${nota}` : ""}`,
     jsonSchema: CLASSIFICACAO_JSON_SCHEMA,
     zodSchema: ClassificacaoSchema,
     effort: "low",
@@ -179,7 +190,9 @@ A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa${canal ==
 4. Feche dizendo que, se ela quiser saber mais, vocês marcam um bate-papo${linkAgendamento
       ? ` e mande exatamente este link para ela escolher o horário: ${linkAgendamento}`
       : " (ofereça duas opções de horário em dias úteis)"}.
-Até ~1.100 caracteres. Português do Brasil, simples e direto, no máximo 1 emoji.${canal === "email" ? "" : ` Negrito no WhatsApp é *assim* (um asterisco), nunca **assim**. Sem assinatura.`}
+Promoção com data (ex.: só em novembro): hoje é ${hoje()}. Se ainda não começou, conte como novidade que vem aí; se
+já acabou, não cite.
+Até ~1.200 caracteres. Português do Brasil, simples e direto, no máximo 1 emoji.${canal === "email" ? "" : ` Negrito no WhatsApp é *assim* (um asterisco), nunca **assim**. Sem assinatura.`}
 Nunca mencione assistente, robô, IA respondendo, sistema ou "equipe" respondendo por ${quem}. Não repita o que já está no histórico.
 
 <apresentacao>

@@ -72,6 +72,18 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
  * Em qualquer resposta humana, as etapas pendentes são canceladas e, com a resposta
  * automática ligada, a IA continua a conversa rumo ao agendamento.
  */
+/**
+ * Classifica a última mensagem e escreve a próxima. Na primeira demonstração de interesse,
+ * a próxima mensagem é a apresentação (processo, planos, prazo) com o convite.
+ */
+async function pensarResposta(contexto, { classificar, apresentar }) {
+  const c = await classificar(contexto);
+  if (QUER_SABER.includes(c.classificacao) && c.sugestao_resposta && !c.precisa_humano && !(await db.lerEstado(chaveApresentacao(contexto.lead.id)))) {
+    return { c: { ...c, sugestao_resposta: await apresentar(contexto) }, apresentou: true };
+  }
+  return { c, apresentou: false };
+}
+
 export async function registrarResposta({
   lead, canal, origem_id, de, assunto = null, texto, campanha, forcarHumano = null,
   contatosIndicados = [], nomeRemetente = null, // cartão de contato do WhatsApp, já lido
@@ -91,12 +103,7 @@ export async function registrarResposta({
       linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal),
       apresentacao: await lerApresentacao(),
     };
-    c = await classificar(contexto);
-    // Primeira vez que mostra interesse: a resposta é a apresentação (processo, planos, prazo) com o convite.
-    if (QUER_SABER.includes(c.classificacao) && c.sugestao_resposta && !c.precisa_humano && !(await db.lerEstado(chaveApresentacao(lead.id)))) {
-      c = { ...c, sugestao_resposta: await apresentar(contexto) };
-      apresentou = true;
-    }
+    ({ c, apresentou } = await pensarResposta(contexto, { classificar, apresentar }));
   } catch (e) {
     c = { classificacao: "outro", resumo: forcarHumano ? "Mandou um áudio." : `Não foi possível classificar automaticamente: ${e.message}`,
           sugestao_resposta: "", precisa_humano: true, motivo_humano: forcarHumano || "a IA não conseguiu ler esta resposta" };
@@ -171,4 +178,33 @@ export async function registrarResposta({
 
   log(`💬 Resposta de ${lead.nome} por ${canal}: ${c.classificacao}`);
   return { id, ...c };
+}
+
+/**
+ * Conversa que a IA tinha passado para você: ela lê tudo de novo (com a sua observação, se houver)
+ * e continua sozinha, respondendo a última mensagem em 1 a 2 minutos.
+ */
+export async function continuarComIA(respostaId, campanha, { nota = "", classificar = classificarResposta, apresentar = escreverApresentacao } = {}) {
+  const r = await db.buscarResposta(respostaId);
+  if (!r) throw new Error("Resposta não encontrada");
+  const lead = await db.buscarLead(r.lead_id);
+  const contexto = {
+    texto: r.texto, assunto: r.assunto, lead, historico: await db.historicoConversa(lead.id), campanha, canal: r.canal,
+    linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, r.canal), apresentacao: await lerApresentacao(),
+    nota: String(nota ?? "").trim().slice(0, 500),
+  };
+  const { c, apresentou } = await pensarResposta(contexto, { classificar, apresentar });
+  if (!c.sugestao_resposta?.trim()) throw new Error("A IA não escreveu uma resposta para esta conversa");
+  await db.atualizarResposta(r.id, {
+    precisa_humano: null, classificacao: c.classificacao, resumo: c.resumo, sugestao: c.sugestao_resposta,
+    temperatura: c.temperatura ?? null, proximo_passo: c.proximo_passo || null,
+  });
+  await db.cancelarPendentes(lead.id, "a IA respondeu de novo");
+  const { mensagemId } = await agendarResposta({
+    respostaId: r.id, lead, canal: r.canal, de: r.de, assunto: r.assunto, origem_id: r.origem_id,
+    corpo: c.sugestao_resposta.trim(), esperaMinMs: 60_000, esperaMaxMs: 2 * 60_000,
+  });
+  if (apresentou) await marcarApresentacaoEnviada(lead.id);
+  log(`🤖 IA voltou a conversar com ${lead.nome}`);
+  return { mensagemId, sugestao: c.sugestao_resposta.trim(), classificacao: c.classificacao };
 }

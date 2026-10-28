@@ -11,10 +11,13 @@ export const APRESENTACAO_PADRAO = `Como funciona:
 
 Planos (todos sem fidelidade, com setup rápido e suporte humano; garantia de reembolso total nos primeiros 7 dias):
 - Starter (valor sob consulta, conforme o projeto): presença digital profissional. Site responsivo, SEO, hospedagem inclusa, formulários de contato, integrações básicas, suporte mensal e até 1 reunião por semana.
-- Professional (R$ 4.500/mês, o mais escolhido): tudo do Starter, mais páginas ilimitadas, painel administrativo, IA própria para atendimento e vendas no WhatsApp, IA para criar imagens e vídeos, análise de dados, automações e 2 a 3 calls por semana. Bônus por tempo limitado: app mobile incluso.
+- Professional (R$ 2.500/mês, o mais escolhido): tudo do Starter, mais páginas ilimitadas, painel administrativo, IA para criar imagens e vídeos, análise de dados, automações e 2 a 3 calls por semana. Bônus por tempo limitado: app mobile incluso.
+- Professional com IA de atendimento no WhatsApp (R$ 4.500/mês): o Professional mais uma IA própria que atende, vende e agenda pelo WhatsApp. Esse valor é só para quem quer a IA de atendimento no WhatsApp.
 - App Mobile (sob consulta): aplicativo iOS e Android publicado na App Store e na Play Store.
 - Enterprise: para empresas grandes, com time dedicado e suporte 24/7.
 - Correções avulsas (R$ 1.000/mês): manutenção e melhorias em site ou sistema que já existe.
+
+Promoção de Black Friday (só em novembro de 2026): criação de site ou de e-commerce por R$ 1.500/mês.
 
 Prazo: projetos simples ficam prontos em 2 a 4 semanas; sistemas mais complexos levam de 2 a 3 meses. O cronograma exato sai na reunião inicial.`;
 

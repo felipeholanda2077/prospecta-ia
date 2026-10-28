@@ -448,7 +448,7 @@ export async function respostasEnviadasNaConversa(leadId) {
 }
 
 export async function atualizarResposta(id, campos) {
-  const permitidos = ["mensagem_id", "precisa_humano", "lida"];
+  const permitidos = ["mensagem_id", "precisa_humano", "lida", "classificacao", "resumo", "sugestao", "temperatura", "proximo_passo"];
   const chaves = Object.keys(campos).filter((k) => permitidos.includes(k));
   if (!chaves.length) return;
   await q(`UPDATE respostas SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);

@@ -22,7 +22,7 @@ import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia }
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
-import { marcarApresentacaoEnviada } from "./respostas/processar.js";
+import { marcarApresentacaoEnviada, continuarComIA } from "./respostas/processar.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -503,6 +503,11 @@ app.post("/api/respostas/:id/lida", async (req, res) => {
 });
 
 // Envia a próxima mensagem da conversa (a sugestão da IA, revisada por você).
+// Conversa que a IA passou para você: ela retoma e responde sozinha.
+app.post("/api/respostas/:id/ia-continua", async (req, res) => {
+  res.json(await continuarComIA(req.params.id, await carregarCampanhaCompleta(), { nota: req.body?.nota }));
+});
+
 // Escreve a apresentação (processo, planos, prazo e convite) para esta conversa, sem enviar: você revisa e envia
 // (já conta como apresentada, para a IA não mandar de novo).
 app.post("/api/respostas/:id/apresentacao", async (req, res) => {

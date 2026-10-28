@@ -453,3 +453,27 @@ test("quem demonstra interesse recebe a apresentação uma vez; depois a convers
     texto: "Legal, e o prazo?", campanha: camp, classificar, apresentar });
   assert.deepEqual(await corpos(), ["Bora marcar?"]);
 });
+
+test("IA continua: conversa que tinha passado para você volta para a IA, com a sua dica", async () => {
+  const { continuarComIA } = await import("../src/respostas/processar.js");
+  const lead = await novoLead("Clinica Ambigua", "ambigua@clinica.com");
+  await enviada(lead, 1);
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6 } };
+  const humano = async () => ({ classificacao: "outro", resumo: "98%", sugestao_resposta: "Só para confirmar?", precisa_humano: true,
+    motivo_humano: "resposta ambígua", indicou_contato: false, temperatura: "fria", proximo_passo: "" });
+  const r = await registrarResposta({ lead, canal: "whatsapp", origem_id: "AMB1", de: "5511900000000", texto: "98%", campanha: camp, classificar: humano });
+
+  let notaRecebida;
+  const segue = async ({ nota }) => {
+    notaRecebida = nota;
+    return { classificacao: "outro", resumo: "98% pelo WhatsApp", sugestao_resposta: "Que legal, 98% pelo WhatsApp!", precisa_humano: false,
+      motivo_humano: "", indicou_contato: false, temperatura: "morna", proximo_passo: "" };
+  };
+  const c = await continuarComIA(r.id, camp, { nota: "é sobre o WhatsApp", classificar: segue });
+  assert.equal(notaRecebida, "é sobre o WhatsApp");
+  assert.equal(c.sugestao, "Que legal, 98% pelo WhatsApp!");
+  const resp = await db.buscarResposta(r.id);
+  assert.equal(resp.precisa_humano, null);
+  assert.equal(resp.mensagem_id, c.mensagemId);
+  assert.deepEqual((await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id).map((m) => m.corpo), ["Que legal, 98% pelo WhatsApp!"]);
+});
