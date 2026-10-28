@@ -595,6 +595,9 @@
               <div class="campo"><label for="auto-nichos">Segmentos para buscar (um por linha)</label><textarea id="auto-nichos" name="nichos" style="min-height:120px" placeholder="clínica odontológica&#10;pet shop&#10;construtora"></textarea></div>
               <div class="campo"><label for="auto-cidades">Cidades (uma por linha)</label><textarea id="auto-cidades" name="cidades" style="min-height:120px" placeholder="Barueri - SP&#10;Osasco - SP"></textarea></div>
             </div>
+            <div class="campo"><label for="auto-apresentacao">Apresentação que a IA manda para quem se interessar</label>
+              <textarea id="auto-apresentacao" name="apresentacao" style="min-height:220px"></textarea>
+              <span class="muted" style="font-size:12.5px">Como funciona, planos e prazo. A IA manda isso, resumido em tópicos, para quem demonstrar interesse e depois oferece o bate-papo. Ela não fala de valores que não estejam aqui. Deixe vazio para voltar ao texto do site.</span></div>
             <div id="auto-hoje"></div>
           </div>
           <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar automação</button>
@@ -2801,6 +2804,7 @@ async function carregarAutomacao() {
     f.metaEmail.value = a.metaDiaria.email;
     f.metaWhatsapp.value = a.metaDiaria.whatsapp;
     f.maxRespostasIA.value = a.maxRespostasIA;
+    f.apresentacao.value = a.apresentacao ?? "";
     f.calendly.value = a.calendly ?? "";
     f.nichos.value = [...new Set((a.buscas ?? []).map((b) => b.nicho))].join("\n");
     f.cidades.value = [...new Set((a.buscas ?? []).flatMap((b) => b.cidades))].join("\n");
@@ -2826,7 +2830,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
   try {
     await api("/api/config/automacao", { method: "PUT", body: JSON.stringify({
       ativo: f.ativo.checked, respostaAutomatica: f.respostaAutomatica.checked, aquecimentoWhatsapp: f.aquecimentoWhatsapp.checked,
-      metaEmail: f.metaEmail.value, metaWhatsapp: f.metaWhatsapp.value, maxRespostasIA: f.maxRespostasIA.value,
+      metaEmail: f.metaEmail.value, metaWhatsapp: f.metaWhatsapp.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
       aquecimentoInicial: f.aquecimentoInicial.value, aquecimentoPasso: f.aquecimentoPasso.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,
       calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value,

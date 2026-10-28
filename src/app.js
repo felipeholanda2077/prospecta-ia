@@ -20,6 +20,7 @@ import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
 import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia } from "./conteudo/diario.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
+import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -548,6 +549,7 @@ app.get("/api/config/automacao", async (req, res) => {
     },
     calendlyConectado: (await calendly.status()).conectado,
     proximaEmpresaNova: await pipeline.proximaEmpresaNovaEm(),
+    apresentacao: await lerApresentacao(),
   });
 });
 
@@ -579,6 +581,7 @@ app.put("/api/config/automacao", async (req, res) => {
     buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,
   };
   await db.gravarConfig("automacao", novo);
+  if (b.apresentacao !== undefined) await gravarApresentacao(b.apresentacao);
   res.json({ ok: true });
 });
 
@@ -756,6 +759,17 @@ app.get("/api/whatsapp/recebidas", async (req, res) => {
     });
   }
   res.json(lista);
+});
+
+// Mensagem que não foi lida na hora (ex.: o webhook falhou): passa a última do contato pelo fluxo de novo.
+app.post("/api/whatsapp/reprocessar", async (req, res) => {
+  const jid = String(req.body?.jid ?? "").trim();
+  if (!/^\d+@(lid|s\.whatsapp\.net)$/.test(jid)) return res.status(400).json({ erro: "Informe o contato (ex.: 5511999999999@s.whatsapp.net)" });
+  const ultima = (await evolution.buscarMensagens({ horas: 72, remoteJid: jid, limite: 30 })).find((r) => !r.key?.fromMe);
+  if (!ultima) return res.status(404).json({ erro: "Nenhuma mensagem recebida desse contato nos últimos 3 dias" });
+  const campanha = await carregarCampanhaCompleta();
+  const registradas = await processarWebhookEvolution({ event: "messages.upsert", data: ultima }, campanha, { esperar: 0 });
+  res.json({ ok: true, registradas });
 });
 
 app.post("/api/evolution/desconectar", async (req, res) => {

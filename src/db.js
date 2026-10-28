@@ -454,6 +454,27 @@ export async function atualizarResposta(id, campos) {
   await q(`UPDATE respostas SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
 }
 
+/** Quem escreveu no WhatsApp por conta própria e é cliente em potencial vira um lead já em conversa. */
+export async function criarLeadDeContato({ nome, whatsapp = null, observacao = null }) {
+  const linha = await um(
+    `INSERT INTO leads (nome, whatsapp, telefone, origem, status, observacao, token)
+     VALUES ($1, $2, $2, 'whatsapp', 'respondeu', $3, $4) RETURNING id`,
+    [nome, whatsapp, observacao, crypto.randomBytes(16).toString("hex")]
+  );
+  return linha.id;
+}
+
+/** Empresas que receberam mensagem nossa nos últimos dias (para reconhecer quem responde de outro número). */
+export async function empresasContatadasRecentes(dias = 30, limite = 300) {
+  return q(
+    `SELECT l.id, l.nome FROM leads l
+      WHERE EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada'
+                     AND m.enviada_em > now() - make_interval(days => $1))
+      ORDER BY l.id DESC LIMIT $2`,
+    [dias, limite]
+  );
+}
+
 export async function buscarLeadPorEmail(email) {
   return um("SELECT * FROM leads WHERE lower(email) = lower($1) ORDER BY id DESC LIMIT 1", [email]);
 }

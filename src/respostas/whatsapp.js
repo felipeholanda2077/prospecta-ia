@@ -7,6 +7,7 @@ import { extrairMensagemUazap } from "../envio/uazap.js";
 import { extrairMensagemEvolution, baixarAudio } from "../envio/evolution.js";
 import { transcrever } from "../ia/transcricao.js";
 import { extrairContatosVcard } from "./indicacao.js";
+import { avaliarContato, leadDoContato } from "./contatoNovo.js";
 
 /** Confere o cabeçalho X-Hub-Signature-256 enviado pela Meta. */
 export function assinaturaValida(corpoBruto, cabecalho, segredo) {
@@ -34,7 +35,8 @@ export function extrairMensagens(payload) {
 
 /** Encontra a última proposta nossa enviada para esse número. */
 export async function mensagemOriginalWhatsapp(numero) {
-  const variantes = variantesWhatsappBR(numero);
+  // Contato @lid (sem telefone) é procurado como veio.
+  const variantes = String(numero).includes("@") ? [String(numero)] : variantesWhatsappBR(numero);
   const teste = config.modoTeste.whatsapp;
   if (teste && variantes.some((v) => variantesWhatsappBR(teste).includes(v))) {
     return db.ultimaEnviadaNoCanal("whatsapp");
@@ -66,9 +68,12 @@ export function processarWebhookUazap(payload, campanha) {
   return registrarMensagemWhatsappWeb(extrairMensagemUazap(payload), campanha);
 }
 
-/** Respostas que chegam pelo webhook da Evolution API (texto ou áudio). */
-export function processarWebhookEvolution(payload, campanha) {
-  return registrarMensagemWhatsappWeb(extrairMensagemEvolution(payload), campanha, baixarAudio);
+/**
+ * Respostas que chegam pelo webhook da Evolution API (texto ou áudio). Pela Evolution também
+ * dá para ler a conversa de quem chamou por conta própria, então contato novo é avaliado.
+ */
+export function processarWebhookEvolution(payload, campanha, opcoes = {}) {
+  return registrarMensagemWhatsappWeb(extrairMensagemEvolution(payload), campanha, baixarAudio, { avaliarNovo: avaliarContato, ...opcoes });
 }
 
 /**
@@ -85,10 +90,20 @@ export async function textoDoAudio(m, baixar) {
   }
 }
 
-async function registrarMensagemWhatsappWeb(m, campanha, baixar = null) {
+async function registrarMensagemWhatsappWeb(m, campanha, baixar = null, { avaliarNovo = null, ...opcoesNovo } = {}) {
   if (!m) return 0;
   const original = await mensagemOriginalWhatsapp(m.de);
-  if (!original) return 0; // conversa que não veio de uma prospecção nossa
+  const lead = original ? await db.buscarLead(original.lead_id) : await leadDoContato(m.de);
+  if (!lead) {
+    // Conversa que não veio de uma prospecção nossa: só entra se a IA vir que é cliente.
+    if (!avaliarNovo || !m.texto) return 0;
+    const r = await avaliarNovo(m, campanha, {
+      ...opcoesNovo,
+      registrar: ({ lead: novo, origem_id, texto }) =>
+        registrarResposta({ lead: novo, canal: "whatsapp", origem_id, de: m.de, texto, campanha, nomeRemetente: m.nome }),
+    });
+    return r?.lead ? 1 : 0;
+  }
   let forcarHumano = null;
   if (m.audio && !m.texto) ({ texto: m.texto, forcarHumano } = await textoDoAudio(m, baixar));
   else if (m.audio) m.texto = `[áudio] ${m.texto}`;
@@ -97,7 +112,6 @@ async function registrarMensagemWhatsappWeb(m, campanha, baixar = null) {
     const lista = contatos.map((c) => `${c.nome || "sem nome"}${c.empresa ? ` (${c.empresa})` : ""}: +${c.numero}`).join("; ");
     m.texto = `[contato compartilhado] ${lista}${m.texto ? `\n${m.texto}` : ""}`;
   }
-  const lead = await db.buscarLead(original.lead_id);
   const r = await registrarResposta({
     lead,
     canal: "whatsapp",

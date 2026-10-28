@@ -90,7 +90,7 @@ export function formatarHistorico(historico) {
  * Classifica a resposta de um lead e sugere o próximo passo da conversa.
  * A sugestão avança aos poucos: responde o que foi perguntado e entrega uma informação nova por vez.
  */
-export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email", linkAgendamento = "" }) {
+export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email", linkAgendamento = "", apresentacao = "" }) {
   const porRegra = classificarPorRegra(String(texto ?? "").replace(/^\[áudio\]\s*/, ""), assunto);
   if (porRegra) return porRegra;
 
@@ -99,17 +99,32 @@ export async function classificarResposta({ texto, assunto, lead, historico, cam
   return gerarJson({
     system: `${contextoEmpresa(campanha)}
 
-Você conduz, aos poucos e com naturalidade, uma conversa de prospecção que já começou. O objetivo é levar a
-empresa a marcar uma conversa rápida de 15 minutos${linkAgendamento ? " pelo link de agendamento" : ""}. Classifique a última resposta
+Você conduz, aos poucos e com naturalidade, uma conversa com uma empresa (de prospecção, ou de alguém que chamou
+por conta própria). O objetivo é levar a empresa a marcar um bate-papo${linkAgendamento ? " pelo link de agendamento" : ""}. Classifique a última resposta
 e escreva a PRÓXIMA mensagem da conversa.
-
+${apresentacao ? `
+Apresentação da ${campanha.empresa.nome} (como funciona, planos e prazos; use só o que está aqui):
+<apresentacao>
+${apresentacao}
+</apresentacao>
+` : ""}
 Como conduzir (tom humano, como ${quem} escrevendo do próprio celular, em primeira pessoa):
 - Responda primeiro, de forma direta e simpática, o que a empresa perguntou ou comentou. Use o nome da pessoa se ela disse.
 - Entregue no máximo UMA informação nova por mensagem; não despeje tudo de uma vez.
 - Se ainda não houver interesse claro, faça uma pergunta curta de descoberta (como fazem hoje, o que é prioridade).
-- Preço: não passe valor de cara. Se perguntarem, diga que depende do que eles precisam e convide para o bate-papo
+${apresentacao ? `- Quando a pessoa demonstrar interesse ou pedir informações (quer falar sobre site, sistema, redes sociais, preço,
+  planos, prazo, como funciona) e a apresentação ainda NÃO aparece no histórico, a próxima mensagem é a apresentação:
+  responda em uma frase o que ela disse (pelo nome, se ela disse) e conte, em tópicos curtos e com quebras de linha,
+  como funciona o processo, como são os planos e em quanto tempo fica pronto, tudo tirado da apresentação acima.
+  Termine dizendo que, se ela quiser saber mais, vocês marcam um bate-papo${linkAgendamento ? `, com este link para ela escolher o horário: ${linkAgendamento}` : ", com duas opções de horário em dias úteis"}.
+  Essa mensagem pode ter até ~1.100 caracteres. Não repita a apresentação se ela já foi enviada.
+- Valores: use só os da apresentação, como estão escritos. Orçamento exato, desconto ou condição especial: diga que
+  isso vocês fecham no bate-papo, conforme o que ela precisa.
+- Se pedir algo que não está na apresentação nem no catálogo, não prometa: diga com sinceridade que vocês veem isso
+  juntos no bate-papo.
+` : `- Preço: não passe valor de cara. Se perguntarem, diga que depende do que eles precisam e convide para o bate-papo
   rápido, onde você mostra exemplos e passa o valor certo. Só se insistirem depois disso, diga o "a partir de" do catálogo.
-- Interesse claro ou pedido de mais detalhes: convide para a conversa de 15 minutos${linkAgendamento
+`}- Interesse claro ou pedido de mais detalhes${apresentacao ? " depois da apresentação" : ""}: convide para o bate-papo${linkAgendamento
       ? ` e mande exatamente este link para a pessoa escolher o horário: ${linkAgendamento}`
       : " com duas opções de horário em dias úteis"}.
 - Se a pessoa já recebeu o link e disse que vai marcar, agradeça em uma frase, sem insistir.
@@ -122,12 +137,13 @@ Como conduzir (tom humano, como ${quem} escrevendo do próprio celular, em prime
   para tratar do assunto), agradeça em uma frase curta e diga que vai falar com essa pessoa por lá. Não peça mais nada e não
   marque precisa_humano por isso; a mensagem para o contato indicado é escrita e enviada à parte.
 - Marque precisa_humano quando: pedirem ligação, negociarem preço ou condições, reclamarem, ou o assunto sair do que
-  está aqui. Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar.
-- Tamanho: ${limite}. Português do Brasil, frases curtas, no máximo 1 emoji.
+  está aqui. Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar. Pedir um serviço que
+  não está na lista não é motivo para isso: responda e leve para o bate-papo.
+- Tamanho: ${limite}${apresentacao ? " (a apresentação é a exceção)" : ""}. Português do Brasil, frases curtas, no máximo 1 emoji.
 - Sem interesse: a sugestão é um agradecimento curto e cordial (1 ou 2 frases), sem pergunta, sem oferta, sem link,
   deixando a porta aberta (ex.: "Imagina, obrigado pelo retorno! Fico à disposição se precisarem no futuro.").
 - Se for descadastro ou resposta automática, deixe a sugestão vazia.`,
-    pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""}) · canal: ${canal}
+    pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""}) · canal: ${canal}${lead.origem === "whatsapp" ? " · chamou por conta própria" : ""}
 
 Histórico da conversa (mais antigo primeiro):
 ${formatarHistorico(historico)}
@@ -183,4 +199,60 @@ ${formatarHistorico(historico)}`,
     zodSchema: IndicadoSchema,
     effort: "low",
   }).then((r) => ({ assunto: r.assunto.trim(), mensagem: r.mensagem.trim() }));
+}
+
+export const TIPOS_DE_CONTATO = ["cliente", "pessoal", "incerto"];
+
+const ContatoNovoSchema = z.object({
+  tipo: z.enum(TIPOS_DE_CONTATO),
+  lead_id: z.number().int(),
+  empresa: z.string(),
+  nome_pessoa: z.string(),
+  resumo: z.string(),
+});
+
+const CONTATO_NOVO_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    tipo: {
+      type: "string",
+      enum: TIPOS_DE_CONTATO,
+      description: "cliente = quer falar sobre um serviço (site, loja virtual, sistema, app, automação, IA, redes sociais, orçamento) " +
+        "ou está respondendo a uma prospecção; pessoal = amigos, família, trabalho, parceiros, fornecedores, clientes atuais " +
+        "pedindo suporte, cobranças, promoções; incerto = ainda não dá para saber (só cumprimentos, sem assunto)",
+    },
+    lead_id: { type: "integer", description: "id da empresa da lista que a pessoa disse ser (pelo nome da empresa); 0 se nenhuma" },
+    empresa: { type: "string", description: "nome da empresa da pessoa, se ela disse; vazio se não" },
+    nome_pessoa: { type: "string", description: "primeiro nome da pessoa, se ela disse; vazio se não" },
+    resumo: { type: "string", description: "1 frase com o que a pessoa quer" },
+  },
+  required: ["tipo", "lead_id", "empresa", "nome_pessoa", "resumo"],
+  additionalProperties: false,
+};
+
+/**
+ * Alguém que nunca recebeu mensagem nossa escreveu no WhatsApp, que também é o número pessoal.
+ * Decide se é um possível cliente (aí a IA conversa) e se é uma das empresas já prospectadas
+ * (ex.: a dona da loja escrevendo do celular dela). Na dúvida, fica como "incerto".
+ */
+export async function avaliarContatoNovo({ mensagens, nomeNoWhatsapp, empresasContatadas = [], campanha }) {
+  const { empresa } = campanha;
+  return gerarJson({
+    system: `Este WhatsApp é de ${empresa.responsavel || "o dono"} da ${empresa.nome}, que faz sites, lojas virtuais, sistemas,
+apps e automações com IA. É também o número pessoal dele: amigos, família e parceiros escrevem aqui.
+Uma pessoa que não está nos contatos com quem ele já conversou mandou as mensagens abaixo. Decida se é um possível
+cliente da ${empresa.nome}. Só marque "cliente" quando a mensagem deixar claro que a pessoa quer falar sobre um
+serviço, um orçamento, ou que está respondendo a um contato da ${empresa.nome}. Na dúvida, "incerto".
+Se a pessoa disser de qual empresa é, e essa empresa estiver na lista das que a ${empresa.nome} contatou, informe o id.`,
+    pedido: `Nome no WhatsApp: ${nomeNoWhatsapp || "(sem nome)"}
+
+Empresas contatadas recentemente:
+${empresasContatadas.map((e) => `[${e.id}] ${e.nome}`).join("\n") || "(nenhuma)"}
+
+Mensagens da pessoa (mais antiga primeiro):
+${mensagens.join("\n")}`,
+    jsonSchema: CONTATO_NOVO_JSON_SCHEMA,
+    zodSchema: ContatoNovoSchema,
+    effort: "low",
+  });
 }

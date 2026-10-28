@@ -186,11 +186,11 @@ export async function garantirWebhook() {
   return true;
 }
 
-/** Envia um texto. `delay` mostra "digitando..." antes, como uma pessoa. */
+/** Envia um texto (para um número ou um contato @lid). `delay` mostra "digitando..." antes, como uma pessoa. */
 export async function enviarTexto(numero, texto) {
   const dados = await chamar("/message/sendText/:instancia", {
     method: "POST",
-    corpo: { number: String(numero).replace(/\D/g, ""), text: texto, delay: 1500 },
+    corpo: { number: String(numero).includes("@lid") ? String(numero) : String(numero).replace(/\D/g, ""), text: texto, delay: 1500 },
   });
   return dados?.key?.id ?? null;
 }
@@ -267,9 +267,12 @@ export function extrairMensagemEvolution(payload) {
   if (!texto && !audio && !vcards.length) return null;
   if (String(k.remoteJid ?? "").endsWith("@g.us")) return null;
   // Com o WhatsApp novo o remoteJid pode vir como @lid; o telefone vem em remoteJidAlt/senderPn.
+  // Às vezes não vem telefone nenhum: aí o contato fica sendo o próprio @lid (dá para responder por ele).
   const jid = [k.remoteJid, k.remoteJidAlt, k.senderPn].find((j) => /@s\.whatsapp\.net$/.test(String(j ?? "")));
-  if (!jid) return null;
-  const m = { id: String(k.id), de: jid.split("@")[0].split(":")[0], texto, nome: d.pushName ?? null };
+  const lid = String(k.remoteJid ?? "").endsWith("@lid") ? k.remoteJid : null;
+  if (!jid && !lid) return null;
+  const de = jid ? jid.split("@")[0].split(":")[0] : lid;
+  const m = { id: String(k.id), de, jid: k.remoteJid, texto, nome: d.pushName ?? null };
   if (audio) Object.assign(m, { audio: true, base64: msg.base64 ?? d.base64 ?? null, mimetype: msg.audioMessage?.mimetype ?? "audio/ogg" });
   if (vcards.length) m.vcards = vcards;
   return m;

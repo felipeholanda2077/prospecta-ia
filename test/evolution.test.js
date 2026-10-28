@@ -26,12 +26,17 @@ function servidorFalso(rotas) {
 test("extrairMensagemEvolution lê o evento messages.upsert", () => {
   const base = { event: "messages.upsert", instance: "fluxdeck", data: { key: { remoteJid: "5585988887777@s.whatsapp.net", fromMe: false, id: "E1" },
     pushName: "Ana", message: { conversation: "Tenho interesse" } } };
-  assert.deepEqual(evolution.extrairMensagemEvolution(base), { id: "E1", de: "5585988887777", texto: "Tenho interesse", nome: "Ana" });
+  assert.deepEqual(evolution.extrairMensagemEvolution(base),
+    { id: "E1", de: "5585988887777", jid: "5585988887777@s.whatsapp.net", texto: "Tenho interesse", nome: "Ana" });
   const estendida = { ...base, data: { ...base.data, message: { extendedTextMessage: { text: "Quanto custa?" } } } };
   assert.equal(evolution.extrairMensagemEvolution(estendida).texto, "Quanto custa?");
   // Com @lid, o telefone vem no remoteJidAlt.
   const lid = { ...base, data: { ...base.data, key: { ...base.data.key, remoteJid: "123@lid", remoteJidAlt: "5585911112222@s.whatsapp.net" } } };
   assert.equal(evolution.extrairMensagemEvolution(lid).de, "5585911112222");
+  // Sem telefone nenhum, o contato é o próprio @lid (dá para responder por ele).
+  const soLid = { ...base, data: { ...base.data, key: { ...base.data.key, remoteJid: "271703993262268@lid" } } };
+  assert.equal(evolution.extrairMensagemEvolution(soLid).de, "271703993262268@lid");
+  assert.equal(evolution.extrairMensagemEvolution({ ...base, data: { ...base.data, key: { ...base.data.key, remoteJid: "1203@newsletter" } } }), null);
   assert.equal(evolution.extrairMensagemEvolution({ ...base, data: { ...base.data, key: { ...base.data.key, fromMe: true } } }), null);
   assert.equal(evolution.extrairMensagemEvolution({ ...base, data: { ...base.data, key: { ...base.data.key, remoteJid: "1203@g.us" } } }), null);
   assert.equal(evolution.extrairMensagemEvolution({ ...base, event: "connection.update" }), null);

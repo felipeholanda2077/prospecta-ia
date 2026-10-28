@@ -391,3 +391,46 @@ test("funil: quantas empresas contatadas não responderam (a resposta automátic
   assert.equal(ind.naoResponderam, depois.nao_responderam);
   assert.equal(ind.naoResponderamNaSequencia + ind.naoResponderamSequenciaEncerrada, ind.naoResponderam);
 });
+
+test("contato novo no WhatsApp: conhecido fica de fora; cliente de empresa já contatada entra na conversa dela", async () => {
+  const { avaliarContato, leadDoContato } = await import("../src/respostas/contatoNovo.js");
+  const loja = await novoLead("Belieze Loja Roupa Feminina", "belieze@loja.com");
+  await enviada(loja, 1);
+  const msg = (id, texto, fromMe = false) => ({ key: { id, fromMe, remoteJid: "999@lid" }, messageTimestamp: 1, message: { conversation: texto } });
+  let avaliacoes = 0;
+  const avaliar = async ({ mensagens, empresasContatadas }) => {
+    avaliacoes++;
+    assert.ok(empresasContatadas.some((e) => e.id === loja.id));
+    return mensagens.some((t) => /site/.test(t))
+      ? { tipo: "cliente", lead_id: loja.id, empresa: "Belieze", nome_pessoa: "Patrícia", resumo: "quer site" }
+      : { tipo: "incerto", lead_id: 0, empresa: "", nome_pessoa: "", resumo: "" };
+  };
+  const registradas = [];
+  const opcoes = (conversa) => ({ esperar: 0, avaliar, buscar: async () => conversa, registrar: async (r) => registradas.push(r) });
+
+  // Conversa em que você já escreveu é de um conhecido: nem passa pela IA.
+  const amigo = { id: "A1", de: "888@lid", jid: "888@lid", texto: "bora?", nome: "Amigo" };
+  assert.equal((await avaliarContato(amigo, campanha, opcoes([msg("A0", "e aí", true), msg("A1", "bora?")]))).tipo, "conhecido");
+  assert.equal(await avaliarContato(amigo, campanha, opcoes([msg("A1", "bora?")])), null); // fica de fora por uns dias
+  assert.equal(avaliacoes, 0);
+
+  // Só "Oi" ainda não diz nada: a próxima mensagem é avaliada de novo.
+  const patricia = { id: "P1", de: "999@lid", jid: "999@lid", texto: "Oi", nome: "Patricia" };
+  assert.equal((await avaliarContato(patricia, campanha, opcoes([msg("P1", "Oi")]))).tipo, "incerto");
+  const conversa = [msg("P3", "Gostaria de falar sobre site"), msg("P2", "Sou a Patrícia da belieze"), msg("P1", "Oi")];
+  const r = await avaliarContato({ ...patricia, id: "P3" }, campanha, opcoes(conversa));
+  assert.equal(r.lead.id, loja.id);
+  assert.deepEqual(registradas, [{ lead: r.lead, origem_id: "P3", texto: "Oi\nSou a Patrícia da belieze\nGostaria de falar sobre site" }]);
+  assert.equal((await leadDoContato("999@lid")).id, loja.id);
+});
+
+test("contato novo que é cliente e não foi prospectado vira lead do WhatsApp", async () => {
+  const { avaliarContato } = await import("../src/respostas/contatoNovo.js");
+  const avaliar = async () => ({ tipo: "cliente", lead_id: 0, empresa: "", nome_pessoa: "Joana", resumo: "quer uma loja virtual" });
+  const r = await avaliarContato({ id: "J1", de: "5511977776666", jid: "5511977776666@s.whatsapp.net", texto: "Quanto custa uma loja virtual?", nome: "Joana Doces" },
+    campanha, { esperar: 0, avaliar, buscar: async () => [], registrar: async () => {} });
+  assert.equal(r.lead.nome, "Joana");
+  assert.equal(r.lead.origem, "whatsapp");
+  assert.equal(r.lead.status, "respondeu");
+  assert.equal(r.lead.whatsapp, "5511977776666");
+});

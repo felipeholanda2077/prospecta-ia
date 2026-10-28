@@ -4,6 +4,7 @@ import { classificarResposta, limparTextoResposta } from "../ia/resposta.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento } from "../agenda/calendly.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
+import { lerApresentacao } from "./apresentacao.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
@@ -83,6 +84,7 @@ export async function registrarResposta({
     c = await classificar({
       texto: limpo, assunto, lead, historico, campanha, canal,
       linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal),
+      apresentacao: await lerApresentacao(),
     });
   } catch (e) {
     c = { classificacao: "outro", resumo: forcarHumano ? "Mandou um áudio." : `Não foi possível classificar automaticamente: ${e.message}`,
