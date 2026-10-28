@@ -568,7 +568,7 @@ app.put("/api/config/automacao", async (req, res) => {
   const novo = {
     ativo: Boolean(b.ativo),
     respostaAutomatica: Boolean(b.respostaAutomatica),
-    metaDiaria: { email: inteiro(b.metaEmail, 0, 500, 100), whatsapp: inteiro(b.metaWhatsapp, 0, 300, 100) },
+    metaDiaria: { email: inteiro(b.metaEmail, 0, 500, AUTOMACAO_PADRAO.metaDiaria.email), whatsapp: inteiro(b.metaWhatsapp, 0, 300, AUTOMACAO_PADRAO.metaDiaria.whatsapp) },
     aquecimentoWhatsapp: b.aquecimentoWhatsapp !== false,
     aquecimentoInicial: inteiro(b.aquecimentoInicial, 5, 300, AUTOMACAO_PADRAO.aquecimentoInicial),
     aquecimentoPasso: inteiro(b.aquecimentoPasso, 0, 100, AUTOMACAO_PADRAO.aquecimentoPasso),

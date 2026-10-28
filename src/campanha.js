@@ -10,7 +10,7 @@ const PLACEHOLDER = /seu nome|seudominio|99999-9999/i;
 export const AUTOMACAO_PADRAO = {
   ativo: false, // busca, aprova e envia sozinho
   respostaAutomatica: false, // a IA responde as conversas sozinha
-  metaDiaria: { email: 100, whatsapp: 100 },
+  metaDiaria: { email: 100, whatsapp: 15 }, // empresas novas por dia em cada canal
   aquecimentoWhatsapp: true, // começa com `aquecimentoInicial`/dia e sobe `aquecimentoPasso` por dia útil
   aquecimentoInicial: 50,
   aquecimentoPasso: 15,
