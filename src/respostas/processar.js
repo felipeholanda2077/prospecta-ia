@@ -27,6 +27,33 @@ async function jaApresentou(leadId) {
   const desde = await db.lerEstado(chaveApresentacao(leadId));
   return Boolean(desde) && db.respostaDaConversaDesde(leadId, desde);
 }
+// Atendimento automático responde na hora: 3 respostas seguidas em até 25 s depois da nossa = robô.
+const RAPIDO_MS = 25_000;
+const RESPOSTAS_RAPIDAS = 3;
+const chavePausa = (leadId) => `ia_pausada:${leadId}`;
+
+/** A IA não responde mais esta conversa (robô do outro lado, ou você parou). Volta com "IA continua". */
+export const pausarIA = (leadId, motivo) => db.gravarEstado(chavePausa(leadId), motivo);
+export const iaPausada = (leadId) => db.lerEstado(chavePausa(leadId));
+const retomarIA = (leadId) => db.gravarEstado(chavePausa(leadId), "");
+
+/**
+ * Do outro lado é um robô? Olha as últimas respostas da IA: se cada uma foi respondida em segundos,
+ * sem pausa para ler, é atendimento automático. Retorna o motivo, ou null.
+ */
+export function roboPelaVelocidade(historico, agora = new Date()) {
+  const eventos = [...historico, { autor: "lead", quando: agora }].map((e) => ({ ...e, t: new Date(e.quando).getTime() }));
+  const rapidas = [];
+  for (let i = eventos.length - 1; i > 0 && rapidas.length < RESPOSTAS_RAPIDAS; i--) {
+    if (eventos[i].autor !== "lead" || eventos[i - 1].autor !== "nos") continue;
+    if (eventos[i - 1].tipo !== "resposta" || eventos[i].t - eventos[i - 1].t > RAPIDO_MS) return null;
+    rapidas.push(eventos[i].t - eventos[i - 1].t);
+  }
+  return rapidas.length >= RESPOSTAS_RAPIDAS
+    ? `parece um atendimento automático: respondeu ${RESPOSTAS_RAPIDAS} vezes seguidas em segundos`
+    : null;
+}
+
 export const AGRADECIMENTO_PADRAO = "Imagina, obrigado pelo retorno! Fico à disposição se precisarem no futuro. Um abraço!";
 
 /** Agenda uma mensagem da conversa para sair em alguns minutos, como uma pessoa responderia. */
@@ -101,6 +128,19 @@ export async function registrarResposta({
   if (origem_id && (await db.respostaJaRegistrada(origem_id))) return null;
 
   const limpo = limparTextoResposta(texto) || String(texto ?? "").slice(0, 2000);
+
+  // Robô do outro lado (ou conversa parada por você): registra sem gastar IA e sem responder.
+  const pausada = await iaPausada(lead.id);
+  const robo = pausada ? null : roboPelaVelocidade(await db.historicoConversa(lead.id));
+  if (pausada || robo) {
+    if (robo) await pararPorRobo(lead, robo);
+    const id = await db.criarResposta({ lead_id: lead.id, canal, origem_id, de, assunto, texto: limpo, classificacao: "outro",
+      resumo: `A IA não responde esta conversa: ${pausada || robo}.`, sugestao: null });
+    if (id) await db.atualizarResposta(id, { lida: true });
+    log(`🤖 ${lead.nome} escreveu, mas a IA está parada nesta conversa (${pausada || robo})`);
+    return id ? { id, classificacao: "outro", pausada: true } : null;
+  }
+
   let c;
   let apresentou = false;
   try {
@@ -138,6 +178,15 @@ export async function registrarResposta({
   if (jaEncerrada && !["interessado", "quer_informacoes", "descadastro"].includes(c.classificacao)) {
     await db.atualizarResposta(id, { lida: true });
     log(`💬 ${lead.nome} escreveu de novo (${c.classificacao}); está sem interesse, então nada é enviado`);
+    return { id, ...c };
+  }
+
+  // Robô do outro lado, ou nada a responder (só agradeceu/despediu): não responde e não gasta mais IA.
+  if (c.robo || c.encerrar) {
+    await db.atualizarResposta(id, { lida: true });
+    if (c.robo) await pararPorRobo(lead, "parece um atendimento automático (robô)");
+    else await db.cancelarPendentes(lead.id, "conversa encerrada");
+    log(`🤫 ${lead.nome}: ${c.robo ? "é um robô, a IA parou" : "nada a responder, a IA não responde"}`);
     return { id, ...c };
   }
 
@@ -189,6 +238,13 @@ export async function registrarResposta({
   return { id, ...c };
 }
 
+/** Do outro lado é um robô: para a conversa (nada mais sai) e a IA não lê as próximas mensagens. */
+async function pararPorRobo(lead, motivo) {
+  await pausarIA(lead.id, motivo);
+  await db.cancelarPendentes(lead.id, motivo);
+  await db.atualizarLead(lead.id, { observacao: `IA parou: ${motivo}` });
+}
+
 /**
  * Conversa que a IA tinha passado para você: ela lê tudo de novo (com a sua observação, se houver)
  * e continua sozinha, respondendo a última mensagem em 1 a 2 minutos.
@@ -197,6 +253,7 @@ export async function continuarComIA(respostaId, campanha, { nota = "", classifi
   const r = await db.buscarResposta(respostaId);
   if (!r) throw new Error("Resposta não encontrada");
   const lead = await db.buscarLead(r.lead_id);
+  await retomarIA(lead.id); // você mandou a IA continuar: sai da pausa
   const contexto = {
     texto: r.texto, assunto: r.assunto, lead, historico: await db.historicoConversa(lead.id), campanha, canal: r.canal,
     linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, r.canal), apresentacao: await lerApresentacao(),

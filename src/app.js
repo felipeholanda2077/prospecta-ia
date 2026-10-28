@@ -22,7 +22,7 @@ import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia }
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
-import { marcarApresentacaoEnviada, continuarComIA } from "./respostas/processar.js";
+import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada } from "./respostas/processar.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -477,6 +477,7 @@ app.get("/api/conversas/:leadId", async (req, res) => {
   res.json({
     lead: { ...dados, oportunidades: JSON.parse(dados.oportunidades || "[]") },
     andamento: conversa?.andamento ?? null,
+    iaPausada: (await iaPausada(lead.id)) || null,
     mensagens: await db.historicoConversa(lead.id),
     agendadas: await db.agendadasDaConversa(lead.id),
     // A sugestão da IA vai para a caixa de resposta quando ninguém respondeu ainda a última mensagem.
@@ -503,6 +504,15 @@ app.post("/api/respostas/:id/lida", async (req, res) => {
 });
 
 // Envia a próxima mensagem da conversa (a sugestão da IA, revisada por você).
+// Para a IA nesta conversa (ex.: do outro lado é um robô): nada mais sai e as mensagens não gastam IA.
+app.post("/api/leads/:id/pausar-ia", async (req, res) => {
+  const lead = await db.buscarLead(req.params.id);
+  if (!lead) return res.status(404).json({ erro: "Empresa não encontrada" });
+  await pausarIA(lead.id, String(req.body?.motivo || "você parou a IA nesta conversa").slice(0, 200));
+  await db.cancelarPendentes(lead.id, "IA parada nesta conversa");
+  res.json({ ok: true });
+});
+
 // Conversa que a IA passou para você: ela retoma e responde sozinha.
 app.post("/api/respostas/:id/ia-continua", async (req, res) => {
   res.json(await continuarComIA(req.params.id, await carregarCampanhaCompleta(), { nota: req.body?.nota }));

@@ -18,6 +18,8 @@ const ClassificacaoSchema = z.object({
   indicou_contato: z.boolean(),
   temperatura: z.enum(TEMPERATURAS),
   proximo_passo: z.string(),
+  robo: z.boolean(),
+  encerrar: z.boolean(),
 });
 
 const CLASSIFICACAO_JSON_SCHEMA = {
@@ -49,12 +51,23 @@ const CLASSIFICACAO_JSON_SCHEMA = {
       description: "true só quando a pessoa indicou OUTRA pessoa ou setor para tratar do assunto e passou o e-mail ou telefone dela " +
         "(ex.: \"fale com o comercial: x@empresa.com\"). false para assinaturas de e-mail e contatos da própria pessoa",
     },
+    robo: {
+      type: "boolean",
+      description: "true quando quem responde é um atendimento automático ou outra IA, e não uma pessoa: respostas genéricas " +
+        "que não respondem o que você perguntou, sempre agradecendo e se despedindo, \"em que posso ajudar?\" repetido, menus, " +
+        "o mesmo texto de novo, ou uma troca de gentilezas que não sai do lugar",
+    },
+    encerrar: {
+      type: "boolean",
+      description: "true quando não há nada a responder: a pessoa só agradeceu ou se despediu e você já tinha agradecido " +
+        "(responder viraria um vai e volta de obrigados), ou disse que vai repassar e você já agradeceu",
+    },
     sugestao_resposta: {
       type: "string",
-      description: "próxima mensagem da conversa; em sem_interesse, um agradecimento curto; vazio se for descadastro ou automatica",
+      description: "próxima mensagem da conversa; vazio se robo ou encerrar; em sem_interesse, um agradecimento curto; vazio se for descadastro ou automatica",
     },
   },
-  required: ["classificacao", "resumo", "sugestao_resposta", "precisa_humano", "motivo_humano", "indicou_contato", "temperatura", "proximo_passo"],
+  required: ["classificacao", "resumo", "sugestao_resposta", "precisa_humano", "motivo_humano", "indicou_contato", "temperatura", "proximo_passo", "robo", "encerrar"],
   additionalProperties: false,
 };
 
@@ -76,9 +89,9 @@ export function limparTextoResposta(texto) {
 /** Casos óbvios resolvidos sem gastar IA. Retorna null quando precisa da IA. */
 export function classificarPorRegra(texto, assunto = "") {
   if (PEDIDO_SAIR.test(texto) || NAO_QUERO.test(texto))
-    return { classificacao: "descadastro", resumo: "Pediu para não receber mais mensagens.", sugestao_resposta: "", precisa_humano: false, motivo_humano: "" };
+    return { classificacao: "descadastro", resumo: "Pediu para não receber mais mensagens.", sugestao_resposta: "", precisa_humano: false, motivo_humano: "", robo: false, encerrar: false };
   if (AUTOMATICA.test(assunto) || AUTOMATICA.test(texto.slice(0, 300)))
-    return { classificacao: "automatica", resumo: "Resposta automática.", sugestao_resposta: "", precisa_humano: false, motivo_humano: "" };
+    return { classificacao: "automatica", resumo: "Resposta automática.", sugestao_resposta: "", precisa_humano: false, motivo_humano: "", robo: false, encerrar: false };
   return null;
 }
 
@@ -140,6 +153,10 @@ ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com
   marcam pelo telefone ou WhatsApp e veio "98%" = 98% pelo WhatsApp), siga a conversa e avance um passo. Se não der
   mesmo para entender, faça uma pergunta leve, sem parecer que não entendeu nada.
 - Nunca pergunte de novo algo que a pessoa já respondeu no histórico.
+- Saiba parar: se a pessoa só agradeceu ou se despediu e você já tinha agradecido, ou disse que vai repassar para a
+  equipe e você já agradeceu, marque encerrar e deixe a sugestão vazia. Não entre em vai e volta de "obrigado".
+- Se quem responde parece um atendimento automático ou outra IA (não responde o que você perguntou, repete
+  cumprimentos, "em que posso ajudar?", menus, agradece e se despede toda vez), marque robo e deixe a sugestão vazia.
 - Marque precisa_humano só quando: pedirem ligação, negociarem preço ou condições, reclamarem, ou o assunto não tiver
   nada a ver com o seu trabalho (ex.: currículo, cobrança, fornecedor). Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar. Pedir um serviço que
   não está na lista não é motivo para isso: responda e leve para o bate-papo.

@@ -1799,7 +1799,8 @@ async function abrirConversa(id, { atualizar = false } = {}) {
     ${r && !encerrada ? `<div class="chat-escrever" data-resposta="${r.id}" data-canal="${r.canal}">
       <textarea id="chat-texto" aria-label="Mensagem para ${esc(d.lead.nome)}" placeholder="Escreva como Felipe, pelo ${canal}…">${esc(r.sugestao ?? "")}</textarea>
       <div class="linha">${r.sugestao ? `${ic("spark", "sm")}Sugestão da IA (revise antes de enviar) ·` : ""} Responde pelo ${canal}${r.de ? ` para ${esc(r.de)}` : ""}
-        <span class="espaco"></span>${r.precisa_humano ? `<button class="btn sm" data-ia-continua title="A IA lê a conversa de novo e responde sozinha">${ic("spark", "sm")}IA continua</button>` : ""}
+        <span class="espaco"></span>${d.iaPausada ? `<span>${ic("alert", "sm")}IA parada: ${esc(d.iaPausada)}</span>` : `<button class="btn sm" data-parar-ia="${d.lead.id}" title="A IA para de responder esta conversa">${ic("x", "sm")}Parar IA</button>`}
+        ${r.precisa_humano || d.iaPausada ? `<button class="btn sm" data-ia-continua title="A IA lê a conversa de novo e responde sozinha">${ic("spark", "sm")}IA continua</button>` : ""}
         <button class="btn primario sm" data-enviar-conversa>${ic("send", "sm")}Enviar</button></div>
     </div>` : encerrada ? `<div class="chat-escrever"><div class="linha">${ic("check", "sm")}Conversa encerrada: a empresa não tem interesse no momento e não recebe mais mensagens.</div></div>` : ""}`;
   const caixa = $("#chat-msgs");
@@ -1821,6 +1822,19 @@ function htmlAndamento(d) {
     `<span>${a.aguardando === "empresa" ? "Aguardando a empresa" : "A empresa está esperando você"}</span>`,
     d.resposta?.resumo ? `<span class="resumo-ultima" title="${esc(d.resposta.resumo)}">Última resposta: ${esc(d.resposta.resumo)}</span>` : "",
   ].filter(Boolean).join("");
+}
+
+async function pararIA(btn) {
+  if (!confirm("Parar a IA nesta conversa? Nada mais sai para esta empresa, e as mensagens dela não gastam IA. Dá para voltar com \"IA continua\".")) return;
+  btn.disabled = true;
+  try {
+    await post(`/api/leads/${btn.dataset.pararIa}/pausar-ia`, {});
+    avisar("A IA parou nesta conversa", "ok");
+    await carregarRespostas($("#view-lista"), { manterChat: true });
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+    btn.disabled = false;
+  }
 }
 
 // Conversa que a IA tinha passado para você: ela retoma sozinha (com uma dica sua, se quiser).
@@ -2987,6 +3001,7 @@ document.addEventListener("click", async (ev) => {
     else if ("voltarLista" in btn.dataset) $("#chat-app").classList.remove("com-conversa");
     else if ("enviarConversa" in btn.dataset) await enviarNaConversa(btn);
     else if ("iaContinua" in btn.dataset) await iaContinua(btn);
+    else if ("pararIa" in btn.dataset) await pararIA(btn);
     else if (btn.dataset.cancelarFila) {
       if (!confirm("Não enviar nenhuma das mensagens da fila para esta empresa?")) return;
       await post(`/api/leads/${btn.dataset.cancelarFila}/cancelar-fila`);

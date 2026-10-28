@@ -485,3 +485,45 @@ test("IA continua: conversa que tinha passado para você volta para a IA, com a 
   assert.equal(resp.mensagem_id, c.mensagemId);
   assert.deepEqual((await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id).map((m) => m.corpo), ["Que legal, 98% pelo WhatsApp!"]);
 });
+
+test("robô do outro lado: respondeu 3 vezes em segundos, a IA para e não gasta mais", async () => {
+  const { roboPelaVelocidade } = await import("../src/respostas/processar.js");
+  const t = (s) => new Date(Date.parse("2026-10-28T18:00:00Z") + s * 1000).toISOString();
+  const nos = (s) => ({ autor: "nos", tipo: "resposta", quando: t(s) });
+  const ela = (s) => ({ autor: "lead", tipo: "outro", quando: t(s) });
+  // Como a Odontoclinic: ~17 s depois de cada resposta nossa.
+  assert.ok(roboPelaVelocidade([nos(0), ela(16), nos(600), ela(617), nos(1200)], new Date(t(1218))));
+  // Pessoa de verdade: uma das respostas demorou.
+  assert.equal(roboPelaVelocidade([nos(0), ela(120), nos(600), ela(617), nos(1200)], new Date(t(1218))), null);
+  // Só a primeira mensagem (inicial) respondida rápido não conta.
+  assert.equal(roboPelaVelocidade([{ autor: "nos", tipo: "inicial", quando: t(0) }], new Date(t(5))), null);
+
+  const lead = await novoLead("Clinica Robo", "robo@clinica.com");
+  await enviada(lead, 1);
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6 } };
+  let chamadas = 0;
+  const robo = async () => {
+    chamadas++;
+    return { classificacao: "outro", resumo: "agradeceu de novo", sugestao_resposta: "", precisa_humano: false, motivo_humano: "",
+      indicou_contato: false, temperatura: "fria", proximo_passo: "", robo: true, encerrar: false };
+  };
+  await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB1", de: "5511911112222", texto: "Obrigado! 😊", campanha: camp, classificar: robo });
+  assert.equal((await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id).length, 0);
+  const r = await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB2", de: "5511911112222", texto: "Até mais!", campanha: camp, classificar: robo });
+  assert.equal(r.pausada, true);
+  assert.equal(chamadas, 1); // a segunda mensagem nem passou pela IA
+});
+
+test("só agradeceu depois do nosso obrigado: a IA não responde (sem vai e volta)", async () => {
+  const lead = await novoLead("Clinica Obrigado", "obrigado@clinica.com");
+  await enviada(lead, 1);
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6 } };
+  const encerra = async () => ({ classificacao: "outro", resumo: "agradeceu", sugestao_resposta: "", precisa_humano: false, motivo_humano: "",
+    indicou_contato: false, temperatura: "morna", proximo_passo: "", robo: false, encerrar: true });
+  const r = await registrarResposta({ lead, canal: "whatsapp", origem_id: "OB1", de: "5511933334444", texto: "Por nada! Tenha um ótimo dia", campanha: camp, classificar: encerra });
+  assert.equal(r.encerrar, true);
+  assert.equal((await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id).length, 0);
+  // Não ficou parada: se ela voltar com algo de verdade, a IA responde.
+  const { iaPausada } = await import("../src/respostas/processar.js");
+  assert.ok(!(await iaPausada(lead.id)));
+});
