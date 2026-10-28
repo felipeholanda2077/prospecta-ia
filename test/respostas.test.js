@@ -434,3 +434,22 @@ test("contato novo que é cliente e não foi prospectado vira lead do WhatsApp",
   assert.equal(r.lead.status, "respondeu");
   assert.equal(r.lead.whatsapp, "5511977776666");
 });
+
+test("quem demonstra interesse recebe a apresentação uma vez; depois a conversa segue normal", async () => {
+  const lead = await novoLead("Loja Apresentacao", "apresenta@loja.com");
+  await enviada(lead, 1);
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6 } };
+  const classificar = async () => ({ classificacao: "interessado", resumo: "quer site", sugestao_resposta: "Bora marcar?",
+    precisa_humano: false, motivo_humano: "", indicou_contato: false, temperatura: "quente", proximo_passo: "" });
+  const apresentar = async ({ apresentacao }) => {
+    assert.match(apresentacao, /Professional/);
+    return "Apresentação completa";
+  };
+  const corpos = async () => (await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id).map((m) => m.corpo);
+
+  await registrarResposta({ lead, canal: "whatsapp", origem_id: "AP1", de: "999@lid", texto: "Quero falar sobre site", campanha: camp, classificar, apresentar });
+  assert.deepEqual(await corpos(), ["Apresentação completa"]);
+  await registrarResposta({ lead: await db.buscarLead(lead.id), canal: "whatsapp", origem_id: "AP2", de: "999@lid",
+    texto: "Legal, e o prazo?", campanha: camp, classificar, apresentar });
+  assert.deepEqual(await corpos(), ["Bora marcar?"]);
+});

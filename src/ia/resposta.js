@@ -112,19 +112,14 @@ Como conduzir (tom humano, como ${quem} escrevendo do próprio celular, em prime
 - Responda primeiro, de forma direta e simpática, o que a empresa perguntou ou comentou. Use o nome da pessoa se ela disse.
 - Entregue no máximo UMA informação nova por mensagem; não despeje tudo de uma vez.
 - Se ainda não houver interesse claro, faça uma pergunta curta de descoberta (como fazem hoje, o que é prioridade).
-${apresentacao ? `- Quando a pessoa demonstrar interesse ou pedir informações (quer falar sobre site, sistema, redes sociais, preço,
-  planos, prazo, como funciona) e a apresentação ainda NÃO aparece no histórico, a próxima mensagem é a apresentação:
-  responda em uma frase o que ela disse (pelo nome, se ela disse) e conte, em tópicos curtos e com quebras de linha,
-  como funciona o processo, como são os planos e em quanto tempo fica pronto, tudo tirado da apresentação acima.
-  Termine dizendo que, se ela quiser saber mais, vocês marcam um bate-papo${linkAgendamento ? `, com este link para ela escolher o horário: ${linkAgendamento}` : ", com duas opções de horário em dias úteis"}.
-  Essa mensagem pode ter até ~1.100 caracteres. Não repita a apresentação se ela já foi enviada.
+${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com o que está na apresentação.
 - Valores: use só os da apresentação, como estão escritos. Orçamento exato, desconto ou condição especial: diga que
   isso vocês fecham no bate-papo, conforme o que ela precisa.
 - Se pedir algo que não está na apresentação nem no catálogo, não prometa: diga com sinceridade que vocês veem isso
   juntos no bate-papo.
 ` : `- Preço: não passe valor de cara. Se perguntarem, diga que depende do que eles precisam e convide para o bate-papo
   rápido, onde você mostra exemplos e passa o valor certo. Só se insistirem depois disso, diga o "a partir de" do catálogo.
-`}- Interesse claro ou pedido de mais detalhes${apresentacao ? " depois da apresentação" : ""}: convide para o bate-papo${linkAgendamento
+`}- Interesse claro ou pedido de mais detalhes: convide para o bate-papo${linkAgendamento
       ? ` e mande exatamente este link para a pessoa escolher o horário: ${linkAgendamento}`
       : " com duas opções de horário em dias úteis"}.
 - Se a pessoa já recebeu o link e disse que vai marcar, agradeça em uma frase, sem insistir.
@@ -139,7 +134,7 @@ ${apresentacao ? `- Quando a pessoa demonstrar interesse ou pedir informações 
 - Marque precisa_humano quando: pedirem ligação, negociarem preço ou condições, reclamarem, ou o assunto sair do que
   está aqui. Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar. Pedir um serviço que
   não está na lista não é motivo para isso: responda e leve para o bate-papo.
-- Tamanho: ${limite}${apresentacao ? " (a apresentação é a exceção)" : ""}. Português do Brasil, frases curtas, no máximo 1 emoji.
+- Tamanho: ${limite}. Português do Brasil, frases curtas, no máximo 1 emoji.
 - Sem interesse: a sugestão é um agradecimento curto e cordial (1 ou 2 frases), sem pergunta, sem oferta, sem link,
   deixando a porta aberta (ex.: "Imagina, obrigado pelo retorno! Fico à disposição se precisarem no futuro.").
 - Se for descadastro ou resposta automática, deixe a sugestão vazia.`,
@@ -154,6 +149,54 @@ ${texto}`,
     zodSchema: ClassificacaoSchema,
     effort: "low",
   });
+}
+
+const ApresentacaoSchema = z.object({ mensagem: z.string() });
+const APRESENTACAO_JSON_SCHEMA = {
+  type: "object",
+  properties: { mensagem: { type: "string", description: "a mensagem completa, pronta para enviar" } },
+  required: ["mensagem"],
+  additionalProperties: false,
+};
+
+/**
+ * Primeira resposta a quem demonstrou interesse: como funciona, os planos e o prazo (da apresentação
+ * editável no painel) e o convite para o bate-papo, se a pessoa quiser saber mais.
+ */
+export async function escreverApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", apresentacao, linkAgendamento = "" }) {
+  const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
+  const r = await gerarJson({
+    system: `${contextoEmpresa(campanha)}
+
+A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa${canal === "email" ? " (e-mail)" : " (WhatsApp)"}, como ${quem}, em primeira pessoa:
+1. Uma frase respondendo o que ela disse, pelo primeiro nome se ela disse, com o cumprimento certo (bom dia, boa tarde...).
+2. Uma apresentação em tópicos curtos, com quebras de linha, tirada SÓ da apresentação abaixo:
+   - como funciona (as etapas, resumidas);
+   - os planos: nome e uma linha de cada um, com os valores exatamente como estão escritos (não invente nem arredonde),
+     começando pelos que combinam com o que ela pediu;
+   - em quanto tempo fica pronto.
+3. Se ela pediu algo que não está na apresentação, uma frase sincera dizendo que isso vocês veem juntos no bate-papo.
+4. Feche dizendo que, se ela quiser saber mais, vocês marcam um bate-papo${linkAgendamento
+      ? ` e mande exatamente este link para ela escolher o horário: ${linkAgendamento}`
+      : " (ofereça duas opções de horário em dias úteis)"}.
+Até ~1.100 caracteres. Português do Brasil, simples e direto, no máximo 1 emoji.${canal === "email" ? "" : ` Negrito no WhatsApp é *assim* (um asterisco), nunca **assim**. Sem assinatura.`}
+Nunca mencione assistente, robô, IA respondendo, sistema ou "equipe" respondendo por ${quem}. Não repita o que já está no histórico.
+
+<apresentacao>
+${apresentacao}
+</apresentacao>`,
+    pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""})
+
+Histórico da conversa (mais antigo primeiro):
+${formatarHistorico(historico)}
+
+Última mensagem da pessoa:
+${texto}`,
+    jsonSchema: APRESENTACAO_JSON_SCHEMA,
+    zodSchema: ApresentacaoSchema,
+    effort: "low",
+  });
+  return r.mensagem.trim();
 }
 
 const IndicadoSchema = z.object({ assunto: z.string(), mensagem: z.string() });

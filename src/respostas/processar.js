@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { classificarResposta, limparTextoResposta } from "../ia/resposta.js";
+import { classificarResposta, limparTextoResposta, escreverApresentacao } from "../ia/resposta.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento } from "../agenda/calendly.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
@@ -14,6 +14,10 @@ const ESPERA_MAX_MS = 6 * 60 * 1000;
 const RESPONDE_SOZINHA = ["interessado", "quer_informacoes", "outro"];
 // Empresa que disse não: recebe só o agradecimento, e nada mais sai para ela.
 export const ENCERRADOS = ["sem_interesse", "descadastrado"];
+const QUER_SABER = ["interessado", "quer_informacoes"];
+const chaveApresentacao = (leadId) => `apresentacao_enviada:${leadId}`;
+/** A apresentação saiu (pela IA ou por você): nas próximas mensagens a conversa segue sem repeti-la. */
+export const marcarApresentacaoEnviada = (leadId) => db.gravarEstado(chaveApresentacao(leadId), new Date().toISOString());
 export const AGRADECIMENTO_PADRAO = "Imagina, obrigado pelo retorno! Fico à disposição se precisarem no futuro. Um abraço!";
 
 /** Agenda uma mensagem da conversa para sair em alguns minutos, como uma pessoa responderia. */
@@ -71,21 +75,28 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
 export async function registrarResposta({
   lead, canal, origem_id, de, assunto = null, texto, campanha, forcarHumano = null,
   contatosIndicados = [], nomeRemetente = null, // cartão de contato do WhatsApp, já lido
-  classificar = classificarResposta,
+  classificar = classificarResposta, apresentar = escreverApresentacao,
 }) {
   if (origem_id && (await db.respostaJaRegistrada(origem_id))) return null;
 
   const limpo = limparTextoResposta(texto) || String(texto ?? "").slice(0, 2000);
   let c;
+  let apresentou = false;
   try {
     // Ex.: áudio que não deu para transcrever: a sequência para e você responde.
     if (forcarHumano) throw new Error(forcarHumano);
     const historico = await db.historicoConversa(lead.id);
-    c = await classificar({
+    const contexto = {
       texto: limpo, assunto, lead, historico, campanha, canal,
       linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal),
       apresentacao: await lerApresentacao(),
-    });
+    };
+    c = await classificar(contexto);
+    // Primeira vez que mostra interesse: a resposta é a apresentação (processo, planos, prazo) com o convite.
+    if (QUER_SABER.includes(c.classificacao) && c.sugestao_resposta && !c.precisa_humano && !(await db.lerEstado(chaveApresentacao(lead.id)))) {
+      c = { ...c, sugestao_resposta: await apresentar(contexto) };
+      apresentou = true;
+    }
   } catch (e) {
     c = { classificacao: "outro", resumo: forcarHumano ? "Mandou um áudio." : `Não foi possível classificar automaticamente: ${e.message}`,
           sugestao_resposta: "", precisa_humano: true, motivo_humano: forcarHumano || "a IA não conseguiu ler esta resposta" };
@@ -142,7 +153,9 @@ export async function registrarResposta({
           `${c.resumo}\n\nResposta:\n${limpo}\n\nPróxima mensagem${campanha.automacao?.respostaAutomatica ? " (a IA vai enviar sozinha)" : " sugerida"}:\n${c.sugestao_resposta}\n\nContato: ${de}`
         ).catch((e) => log(`⚠️  Não foi possível enviar o aviso: ${e.message}`));
       }
-      await responderSozinha({ respostaId: id, lead, canal, de, assunto, origem_id, c, campanha });
+      if ((await responderSozinha({ respostaId: id, lead, canal, de, assunto, origem_id, c, campanha }))?.mensagemId && apresentou) {
+        await marcarApresentacaoEnviada(lead.id);
+      }
   }
 
   // Indicou outra pessoa (cartão de contato, ou e-mail/telefone escrito na mensagem): a IA escreve para ela.

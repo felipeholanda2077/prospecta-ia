@@ -21,6 +21,8 @@ import { testarIA } from "./ia/cliente.js";
 import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia } from "./conteudo/diario.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
+import { escreverApresentacao } from "./ia/resposta.js";
+import { marcarApresentacaoEnviada } from "./respostas/processar.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -501,6 +503,21 @@ app.post("/api/respostas/:id/lida", async (req, res) => {
 });
 
 // Envia a próxima mensagem da conversa (a sugestão da IA, revisada por você).
+// Escreve a apresentação (processo, planos, prazo e convite) para esta conversa, sem enviar: você revisa e envia
+// (já conta como apresentada, para a IA não mandar de novo).
+app.post("/api/respostas/:id/apresentacao", async (req, res) => {
+  const r = await db.buscarResposta(req.params.id);
+  if (!r) return res.status(404).json({ erro: "Resposta não encontrada" });
+  const campanha = await carregarCampanhaCompleta();
+  const lead = await db.buscarLead(r.lead_id);
+  const texto = await escreverApresentacao({
+    texto: r.texto, lead, historico: await db.historicoConversa(lead.id), campanha, canal: r.canal,
+    apresentacao: await lerApresentacao(), linkAgendamento: calendly.linkAgendamento(campanha.automacao?.calendly, lead, r.canal),
+  });
+  await marcarApresentacaoEnviada(lead.id);
+  res.json({ texto });
+});
+
 app.post("/api/respostas/:id/enviar", async (req, res) => {
   const r = await pipeline.responderConversa(req.params.id, req.body?.texto, await carregarCampanhaCompleta());
   if (r.manual) {
