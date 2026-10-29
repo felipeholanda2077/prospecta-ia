@@ -96,6 +96,18 @@ async function validadeDoToken(c) {
   return data?.expires_at ? new Date(data.expires_at * 1000).toISOString() : null;
 }
 
+/**
+ * O token da página do Facebook ligada à conta do Instagram, se o token for de uma pessoa que
+ * administra a página. Gerado a partir de um token de pessoa de longa duração, ele não vence.
+ */
+async function tokenDaPagina(c, igId) {
+  const { data } = await chamar(c, "GET", "me/accounts", { fields: "access_token,instagram_business_account{id}" }).catch(() => ({}));
+  return (Array.isArray(data) ? data : []).find((p) => String(p.instagram_business_account?.id) === String(igId))?.access_token ?? null;
+}
+
+// Token que vence em menos de 2 dias é o de curta duração (1 a 2 horas) que a Meta gera primeiro.
+const DURACAO_CURTA_MS = 2 * 24 * 3600_000;
+
 /** A conta pelo ID que a Meta mostra ao gerar o token (o jeito mais direto, quando você informa). */
 const PELO_ID = (id) => ["graph.facebook.com", "graph.instagram.com"].map((host) => ({
   nome: `pelo ID ${id} (${host})`,
@@ -121,10 +133,18 @@ export async function conectarInstagram(token, igId = "") {
     if (conta === null || conta === undefined) erros.push(`${jeito.nome}: nenhuma conta`);
     if (!conta) continue;
     const agora = new Date().toISOString();
-    const usado = conta.token || token;
+    // Achou a conta com o token da pessoa: fica com o da página, quando houver, que não vence.
+    const doFacebook = jeito.host === "graph.facebook.com";
+    const usado = conta.token || (doFacebook && (await tokenDaPagina({ host: jeito.host, token }, conta.id))) || token;
     const expiraEm = await validadeDoToken({ host: jeito.host, token: usado });
     await db.gravarConfig("instagram", { token: usado, host: jeito.host, igId: String(conta.id), usuario: conta.usuario, conectadoEm: agora, renovadoEm: agora, expiraEm });
-    return { conectado: true, usuario: conta.usuario, expiraEm };
+    const curto = doFacebook && expiraEm && new Date(expiraEm) - Date.now() < DURACAO_CURTA_MS;
+    return {
+      conectado: true,
+      usuario: conta.usuario,
+      expiraEm,
+      ...(curto ? { aviso: "Esse token é o de curta duração e vence em poucas horas. Estenda o token na Meta e conecte de novo com o token estendido: assim o sistema guarda o token da página, que não vence." } : {}),
+    };
   }
   // Cada tentativa com o motivo, para dar para ver o que a Meta respondeu.
   throw new Error(`Esse token não deu acesso a nenhuma conta profissional do Instagram. ${erros.length ? `Respostas da Meta: ${erros.join(" | ")}` : "Confira se a conta foi adicionada no app da Meta."}`);

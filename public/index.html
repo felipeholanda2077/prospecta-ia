@@ -2569,8 +2569,7 @@ async function carregarConteudo() {
     f.postarSozinho.checked = r.config.postarSozinho;
     f.horario.value = String(r.config.horario);
     $("#instagram-status").innerHTML = r.instagram.conectado
-      ? `<span class="pilula ok">${ic("check", "sm")}@${esc(r.instagram.usuario)}</span>${r.instagram.expiraEm
-        ? ` <span class="pilula">Token vence em ${new Date(r.instagram.expiraEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>` : ""}`
+      ? `<span class="pilula ok">${ic("check", "sm")}@${esc(r.instagram.usuario)}</span>${pilulaDoToken(r.instagram)}`
       : `<span class="pilula">Não conectado</span>`;
     $("#instagram-conectar").lastChild.textContent = r.instagram.conectado ? "Trocar token" : "Conectar Instagram";
     $("#instagram-desconectar").hidden = !r.instagram.conectado;
@@ -2664,13 +2663,23 @@ $("#lista-posts").addEventListener("click", async (ev) => {
   }
 });
 
+/** Validade do token: o de curta duração (vence em horas) precisa ser trocado pelo estendido. */
+function pilulaDoToken(insta) {
+  if (!insta.expiraEm) return insta.buscaEmpresas ? ` <span class="pilula ok">Token não vence</span>` : "";
+  const quando = new Date(insta.expiraEm);
+  const texto = quando.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+  return quando - Date.now() < 2 * 24 * 3600_000
+    ? ` <span class="pilula perigo">Token curto: vence ${texto}. Conecte com o token estendido</span>`
+    : ` <span class="pilula">Token vence em ${texto}</span>`;
+}
+
 $("#form-instagram").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const f = ev.target;
   try {
     const r = await post("/api/instagram/conectar", { token: f.token.value, igId: f.igId.value });
     f.reset();
-    avisar(`Instagram conectado: @${r.usuario}.`, "ok");
+    r.aviso ? avisar(`Instagram conectado: @${r.usuario}. ${r.aviso}`, "perigo", 15000) : avisar(`Instagram conectado: @${r.usuario}.`, "ok");
     await carregarConteudo();
   } catch (e) {
     avisar(e.message, "perigo", 8000);

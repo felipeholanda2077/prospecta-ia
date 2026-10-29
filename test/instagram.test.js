@@ -182,7 +182,7 @@ test("instagram: token do login unificado (apps novos da Meta) acha a conta do I
     assert.deepEqual(await conectarInstagram("EAAG token"), { conectado: true, usuario: "fluxdeck", expiraEm: null });
     const salvo = await db.lerConfig("instagram");
     assert.deepEqual([salvo.host, salvo.igId, salvo.token], ["graph.facebook.com", "17841400", "EAAGtoken"]);
-    assert.equal(pedidos.length, 3); // e confere a validade do token
+    assert.equal(pedidos.length, 4); // procura o token da página e confere a validade do token
 
     // Token de pessoa sem página ligada: acha a conta pelas permissões guardadas no token.
     pedidos.length = 0;
@@ -235,4 +235,38 @@ test("instagram: legenda respeita o limite de 2.200 caracteres sem perder as has
   const legenda = legendaDoPost({ conteudo: { ...conteudo, legenda: "a".repeat(5000) } });
   assert.ok(legenda.length <= 2200);
   assert.ok(legenda.endsWith("#empreendedorismo #fluxdeck"));
+});
+
+test("instagram: achou a conta pelo ID com o token da pessoa, guarda o da página; token curto vem com aviso", async () => {
+  const original = globalThis.fetch;
+  const daquiDuasHoras = Math.floor(Date.now() / 1000) + 2 * 3600;
+  globalThis.fetch = async (url, opcoes = {}) => {
+    const u = new URL(url);
+    const token = opcoes.headers?.Authorization?.replace("Bearer ", "");
+    if (u.pathname.endsWith("/17841445857841781")) return Response.json({ id: "17841445857841781", username: "fluxdeck_" });
+    if (u.pathname.endsWith("/me/accounts")) {
+      return Response.json({ data: [{ access_token: "EAAoutra", instagram_business_account: { id: "999" } }, { access_token: "EAApagina", instagram_business_account: { id: "17841445857841781" } }] });
+    }
+    if (u.pathname.endsWith("/debug_token")) return Response.json({ data: { expires_at: token === "EAApagina" ? 0 : daquiDuasHoras } });
+    return Response.json({ error: { message: "inesperado" } }, { status: 400 });
+  };
+  try {
+    const r = await conectarInstagram("EAApessoa", "17841445857841781");
+    assert.deepEqual([r.usuario, r.expiraEm, r.aviso], ["fluxdeck_", null, undefined]);
+    assert.equal((await db.lerConfig("instagram")).token, "EAApagina");
+
+    // Sem página ligada, fica o token da pessoa; se for o de curta duração, avisa.
+    globalThis.fetch = async (url) => {
+      const u = new URL(url);
+      if (u.pathname.endsWith("/17841445857841781")) return Response.json({ id: "17841445857841781", username: "fluxdeck_" });
+      if (u.pathname.endsWith("/me/accounts")) return Response.json({ data: [] });
+      if (u.pathname.endsWith("/debug_token")) return Response.json({ data: { expires_at: daquiDuasHoras } });
+      return Response.json({ error: { message: "inesperado" } }, { status: 400 });
+    };
+    const curto = await conectarInstagram("EAApessoa", "17841445857841781");
+    assert.match(curto.aviso, /curta duração/);
+    assert.equal((await db.lerConfig("instagram")).token, "EAApessoa");
+  } finally {
+    globalThis.fetch = original;
+  }
 });
