@@ -199,6 +199,17 @@ test("instagram: token do login unificado (apps novos da Meta) acha a conta do I
     assert.deepEqual(await conectarInstagram("EAApessoa"), { conectado: true, usuario: "fluxdeck.oficial", expiraEm: "2027-01-01T00:00:00.000Z" });
     assert.equal((await db.lerConfig("instagram")).igId, "17841499");
 
+    // Com o ID que a Meta mostra ao gerar o token, vai direto na conta.
+    pedidos.length = 0;
+    globalThis.fetch = async (url) => {
+      const u = new URL(url);
+      pedidos.push(`${u.host}${u.pathname}`);
+      if (u.host === "graph.facebook.com" && u.pathname.endsWith("/17841445857841781")) return Response.json({ id: "17841445857841781", username: "fluxdeck_" });
+      return Response.json({ data: {} });
+    };
+    assert.equal((await conectarInstagram("EAAconta", " 17841445857841781 ")).usuario, "fluxdeck_");
+    assert.match(pedidos[0], /graph\.facebook\.com\/v\d+\.0\/17841445857841781$/);
+
     // Token sem conta nenhuma: explica em vez de conectar.
     globalThis.fetch = async () => Response.json({ error: { message: "Invalid OAuth access token" } }, { status: 400 });
     await assert.rejects(conectarInstagram("EAAerrado"), /Respostas da Meta: como página: Invalid OAuth access token \| como conta do Instagram:/);

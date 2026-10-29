@@ -691,7 +691,7 @@ app.post("/api/conteudo/:id/testar-arquivos", async (req, res) => {
 
 app.post("/api/instagram/conectar", async (req, res) => {
   try {
-    res.json(await conectarInstagram(req.body?.token));
+    res.json(await conectarInstagram(req.body?.token, req.body?.igId));
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }

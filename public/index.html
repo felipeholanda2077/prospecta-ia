@@ -754,6 +754,9 @@
           <div class="cartao-corpo config-grade">
             <div class="campo" style="grid-column:1/-1"><label for="instagram-token">Token de acesso (developers.facebook.com → seu app → Casos de utilização → Instagram → Personalizar → Generate access tokens)</label>
               <input id="instagram-token" name="token" type="password" autocomplete="off" required></div>
+            <div class="campo"><label for="instagram-id">ID da conta do Instagram (opcional)</label>
+              <input id="instagram-id" name="igId" inputmode="numeric" autocomplete="off" placeholder="17841…">
+              <span class="muted" style="font-size:12.5px">Aparece na Meta ao lado do @ da conta, na hora de gerar o token.</span></div>
           </div>
           <div class="acoes"><button class="btn primario" type="submit" id="instagram-conectar"><span data-ic="check"></span>Conectar Instagram</button>
             <button class="btn fantasma" type="button" id="instagram-desconectar" hidden>Desconectar</button>
@@ -2634,7 +2637,7 @@ $("#form-instagram").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const f = ev.target;
   try {
-    const r = await post("/api/instagram/conectar", { token: f.token.value });
+    const r = await post("/api/instagram/conectar", { token: f.token.value, igId: f.igId.value });
     f.reset();
     avisar(`Instagram conectado: @${r.usuario}.`, "ok");
     await carregarConteudo();

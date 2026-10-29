@@ -89,11 +89,25 @@ async function validadeDoToken(c) {
   return data?.expires_at ? new Date(data.expires_at * 1000).toISOString() : null;
 }
 
+/** A conta pelo ID que a Meta mostra ao gerar o token (o jeito mais direto, quando você informa). */
+const PELO_ID = (id) => ["graph.facebook.com", "graph.instagram.com"].map((host) => ({
+  nome: `pelo ID ${id} (${host})`,
+  host,
+  achar: async (c) => {
+    const conta = await chamar(c, "GET", id, { fields: "id,username" });
+    return conta.username && { id: conta.id, usuario: conta.username };
+  },
+}));
+
 /** Confere o token, descobre a conta do Instagram e guarda a conexão. */
-export async function conectarInstagram(token) {
+export async function conectarInstagram(token, igId = "") {
   token = String(token ?? "").replace(/\s+/g, "");
+  igId = String(igId ?? "").replace(/\D/g, "");
   if (!token) throw new Error("Cole o token de acesso gerado no painel da Meta.");
-  const jeitos = /^IG/.test(token) ? [PELO_INSTAGRAM_LOGIN, ...PELO_FACEBOOK] : [...PELO_FACEBOOK, PELO_INSTAGRAM_LOGIN];
+  const jeitos = [
+    ...(igId ? PELO_ID(igId) : []),
+    ...(/^IG/.test(token) ? [PELO_INSTAGRAM_LOGIN, ...PELO_FACEBOOK] : [...PELO_FACEBOOK, PELO_INSTAGRAM_LOGIN]),
+  ];
   const erros = [];
   for (const jeito of jeitos) {
     const conta = await jeito.achar({ host: jeito.host, token }).catch((e) => (erros.push(`${jeito.nome}: ${e.message.replace(/^Instagram: /, "")}`), false));
