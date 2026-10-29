@@ -3,11 +3,14 @@ import * as db from "../db.js";
 import { gerarPost, PILARES } from "../ia/conteudo.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { lerBaseDeConteudo } from "./base.js";
+import { postarNoInstagram, MAX_TENTATIVAS } from "./instagram.js";
+import { lerConexao, renovarTokenSePreciso } from "../envio/instagram.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
 // Um post por dia, alternando Reels e carrossel, pronto às 18h (Brasília). Ajustável no painel.
-export const CONTEUDO_PADRAO = { ativo: true, horario: 18 };
+// Com o Instagram conectado, ele sai sozinho no perfil nesse horário.
+export const CONTEUDO_PADRAO = { ativo: true, horario: 18, postarSozinho: true };
 // O agendador do banco passa a cada 15 minutos; o post é criado na passagem logo antes do horário.
 const ANTECEDENCIA_MIN = 15;
 
@@ -56,21 +59,37 @@ export async function criarPostDeHoje(campanha, { formato, escrever = gerarPost,
 }
 
 /**
- * Chamado pelo agendador a cada 15 minutos: no horário escolhido, cria o post do dia
- * (se ainda não houver) e avisa por e-mail que ele está pronto para postar.
+ * Chamado pelo agendador a cada 15 minutos: um pouco antes do horário escolhido, cria o post
+ * do dia (se ainda não houver); no horário, publica no Instagram (se a conta estiver conectada).
  */
-export async function rodadaDeConteudo(campanha, { agora = new Date(), escrever = gerarPost } = {}) {
+export async function rodadaDeConteudo(campanha, { agora = new Date(), escrever = gerarPost, postar = postarNoInstagram } = {}) {
   const conf = await lerConfigConteudo();
   if (!conf.ativo) return { conteudo: "desligado" };
   if (!horaDoPost(conf.horario, agora)) return { conteudo: "antes do horário" };
-  const { dia } = agoraEmBrasilia(agora);
-  if ((await db.postsDoDia(dia)).some((p) => p.status !== "descartado")) return { conteudo: "post de hoje já criado" };
+  const { dia, minutos } = agoraEmBrasilia(agora);
+  const conectado = conf.postarSozinho && Boolean((await lerConexao())?.token);
+  const deHoje = (await db.postsDoDia(dia)).filter((p) => p.status !== "descartado");
+  if (!deHoje.length) return criarEAvisar(campanha, conf, { agora, escrever, conectado, dia });
+
+  // Um post por dia no perfil: o primeiro de hoje que ainda não saiu (os extras do botão ficam para você).
+  if (!conectado || minutos < conf.horario * 60) return { conteudo: "post de hoje já criado" };
+  if (deHoje.some((p) => p.status === "postado")) return { conteudo: "post de hoje já publicado" };
+  const pendente = deHoje.find((p) => (p.instagram_tentativas ?? 0) < MAX_TENTATIVAS);
+  if (!pendente) return { conteudo: "post de hoje não foi aceito pelo Instagram" };
+  await renovarTokenSePreciso(agora).catch((e) => log(`⚠️  ${e.message}`));
+  return { conteudo: "publicando", postId: pendente.id, ...(await postar(pendente.id, campanha)) };
+}
+
+async function criarEAvisar(campanha, conf, { agora, escrever, conectado, dia }) {
   // Dois agendadores ao mesmo tempo não criam dois posts.
   if (!(await db.travar(`post_do_dia_${dia}`, 10 * 60_000))) return { conteudo: "post de hoje sendo criado" };
   const post = await criarPostDeHoje(campanha, { agora, escrever });
+  const formato = post.formato === "reels" ? "Reels" : "carrossel";
   await enviarNotificacao(
     `Post do dia pronto: ${post.conteudo.gancho}`,
-    `O ${post.formato === "reels" ? "Reels" : "carrossel"} de hoje está pronto na página Conteúdo do painel (${config.painel.urlPublica}/#conteudo). Baixe, copie a legenda com as hashtags e poste às ${conf.horario}h.`
+    conectado
+      ? `O ${formato} de hoje está pronto e sai sozinho no Instagram às ${conf.horario}h. Se quiser trocar ou descartar antes, é na página Conteúdo do painel (${config.painel.urlPublica}/#conteudo).`
+      : `O ${formato} de hoje está pronto na página Conteúdo do painel (${config.painel.urlPublica}/#conteudo). Baixe, copie a legenda com as hashtags e poste às ${conf.horario}h.`
   ).catch((e) => log(`⚠️  Não foi possível avisar do post: ${e.message}`));
   return { conteudo: "criado", postId: post.id };
 }

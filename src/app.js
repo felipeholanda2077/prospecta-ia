@@ -20,6 +20,8 @@ import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
 import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia } from "./conteudo/diario.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
+import { postarNoInstagram, assinaturaDaMidia } from "./conteudo/instagram.js";
+import { statusDaConexao, conectarInstagram, desconectarInstagram } from "./envio/instagram.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
 import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada } from "./respostas/processar.js";
@@ -184,6 +186,15 @@ app.get("/api/cron/:tarefa", async (req, res) => {
   });
   const resultado = (await tarefa(await carregarCampanhaCompleta())) ?? {};
   res.json({ ...resultado, agendador: agendador.ativo ? { ...agendador, ...(await statusDoBanco()) } : agendador });
+});
+
+// Imagens e vídeos dos posts, para o Instagram baixar na hora de publicar (link assinado, sem login).
+app.get("/api/midia/:chave", async (req, res) => {
+  const { chave } = req.params;
+  if (!iguais(String(req.query.a ?? ""), assinaturaDaMidia(chave))) return res.sendStatus(403);
+  const midia = await db.lerMidia(chave);
+  if (!midia) return res.sendStatus(404);
+  res.set({ "Content-Type": midia.tipo, "Cache-Control": "private, max-age=3600" }).send(midia.dados);
 });
 
 // ---------- Login do painel ----------
@@ -628,13 +639,16 @@ app.get("/api/email/status", (req, res) => res.json(statusEmail()));
 
 app.get("/api/conteudo", async (req, res) => {
   const conf = await lerConfigConteudo();
-  res.json({ config: conf, base: await lerBaseDeConteudo(), hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14) });
+  res.json({
+    config: conf, base: await lerBaseDeConteudo(), hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14),
+    instagram: await statusDaConexao(),
+  });
 });
 
 app.put("/api/conteudo/config", async (req, res) => {
   const horario = Number.parseInt(req.body?.horario, 10);
   if (!(horario >= 6 && horario <= 23)) return res.status(400).json({ erro: "Escolha um horário entre 6h e 23h" });
-  await db.gravarConfig("conteudo", { ativo: req.body?.ativo !== false, horario });
+  await db.gravarConfig("conteudo", { ativo: req.body?.ativo !== false, horario, postarSozinho: req.body?.postarSozinho !== false });
   if (typeof req.body?.base === "string") await gravarBaseDeConteudo(req.body.base);
   res.json({ ok: true });
 });
@@ -652,6 +666,31 @@ app.post("/api/conteudo/:id/refazer", async (req, res) => {
   const novo = await criarPostDeHoje(await carregarCampanhaCompleta(), { formato: post.formato });
   await db.atualizarStatusPost(post.id, "descartado");
   res.json(novo);
+});
+
+// Publica agora no Instagram (também serve para tentar de novo depois de um erro).
+app.post("/api/conteudo/:id/instagram", async (req, res) => {
+  const post = await db.buscarPost(req.params.id);
+  if (!post) return res.status(404).json({ erro: "Post não encontrado" });
+  if (post.status === "descartado") return res.status(400).json({ erro: "Esse post foi descartado" });
+  await db.atualizarInstagramDoPost(post.id, { instagram_tentativas: 0 });
+  const r = await postarNoInstagram(post.id, await carregarCampanhaCompleta());
+  if (r.instagram === "desconectado") return res.status(400).json({ erro: "Conecte o Instagram primeiro" });
+  if (r.instagram === "erro") return res.status(502).json({ erro: r.erro });
+  res.json(r);
+});
+
+app.post("/api/instagram/conectar", async (req, res) => {
+  try {
+    res.json(await conectarInstagram(req.body?.token));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.post("/api/instagram/desconectar", async (req, res) => {
+  await desconectarInstagram();
+  res.json({ ok: true });
 });
 
 app.post("/api/conteudo/:id/status", async (req, res) => {

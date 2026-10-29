@@ -106,6 +106,20 @@ CREATE TABLE IF NOT EXISTS posts (
   postado_em timestamptz
 );
 CREATE INDEX IF NOT EXISTS idx_posts_dia ON posts(dia);
+-- Postagem automática no Instagram: o container é a mídia já criada lá e ainda não publicada.
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_container text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_id text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_link text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_erro text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_tentativas integer NOT NULL DEFAULT 0;
+
+-- Imagens e vídeos gerados para o Instagram buscar pelo link; apagados depois que o post sai.
+CREATE TABLE IF NOT EXISTS midias (
+  chave     text PRIMARY KEY,
+  tipo      text NOT NULL,                      -- image/jpeg | video/mp4
+  dados     text NOT NULL,                      -- arquivo em base64
+  criada_em timestamptz NOT NULL DEFAULT now()
+);
 
 CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
 CREATE INDEX IF NOT EXISTS idx_mensagens_status ON mensagens(status);
@@ -123,4 +137,5 @@ ALTER TABLE respostas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE estado ENABLE ROW LEVEL SECURITY;
 ALTER TABLE descadastros ENABLE ROW LEVEL SECURITY;
 ALTER TABLE posts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE midias ENABLE ROW LEVEL SECURITY;
 `;

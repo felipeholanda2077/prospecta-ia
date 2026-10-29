@@ -20,7 +20,7 @@
   "functions": {
     "api/index.js": {
       "maxDuration": 300,
-      "includeFiles": "config/**"
+      "includeFiles": "{config/**,public/post-desenho.js,node_modules/ffmpeg-static/ffmpeg,node_modules/@fontsource/inter/files/inter-latin-*-normal.woff2,node_modules/@fontsource/inter/files/inter-latin-ext-*-normal.woff2}"
     }
   },
   "crons": [

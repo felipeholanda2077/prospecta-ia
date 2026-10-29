@@ -18,6 +18,10 @@ export const config = {
     model: env.CLAUDE_MODEL || "claude-haiku-5-5",
   },
   googlePlacesApiKey: env.GOOGLE_PLACES_API_KEY || "",
+  // O token do Instagram é colado no painel (página Conteúdo) e fica no banco, porque é renovado sozinho.
+  instagram: {
+    apiVersion: env.INSTAGRAM_API_VERSION || "v26.0",
+  },
   smtp: {
     host: env.SMTP_HOST || "",
     port: Number(env.SMTP_PORT || 587),

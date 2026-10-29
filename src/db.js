@@ -138,6 +138,31 @@ export async function atualizarStatusPost(id, status) {
   await q("UPDATE posts SET status = $2, postado_em = CASE WHEN $2 = 'postado' THEN now() ELSE NULL END WHERE id = $1", [id, status]);
 }
 
+const CAMPOS_INSTAGRAM = ["instagram_container", "instagram_id", "instagram_link", "instagram_erro", "instagram_tentativas"];
+
+export async function atualizarInstagramDoPost(id, campos) {
+  const chaves = Object.keys(campos).filter((k) => CAMPOS_INSTAGRAM.includes(k));
+  if (!chaves.length) return;
+  await q(`UPDATE posts SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
+}
+
+export async function gravarMidia(chave, tipo, dados) {
+  await q(
+    "INSERT INTO midias (chave, tipo, dados) VALUES ($1, $2, $3) ON CONFLICT (chave) DO UPDATE SET tipo = excluded.tipo, dados = excluded.dados, criada_em = now()",
+    [chave, tipo, Buffer.from(dados).toString("base64")]
+  );
+}
+
+export async function lerMidia(chave) {
+  const m = await um("SELECT tipo, dados FROM midias WHERE chave = $1", [chave]);
+  return m && { tipo: m.tipo, dados: Buffer.from(m.dados, "base64") };
+}
+
+/** Apaga as mídias de um post (e as esquecidas há mais de 3 dias). */
+export async function apagarMidias(prefixo) {
+  await q("DELETE FROM midias WHERE starts_with(chave, $1) OR criada_em < now() - interval '3 days'", [prefixo]);
+}
+
 // ---------- Estado interno ----------
 
 export async function lerEstado(chave) {
