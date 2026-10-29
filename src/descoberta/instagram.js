@@ -148,13 +148,24 @@ export async function hashtagsRestantes(agora = new Date()) {
 async function perfisDaHashtag(conexao, tag) {
   const { data } = await chamar(conexao, "ig_hashtag_search", { user_id: conexao.igId, q: tag });
   const id = data?.[0]?.id;
-  if (!id) return [];
+  if (!id) return { perfis: [], lidos: 0 };
   const contagem = new Map();
+  const erros = [];
+  let lidos = 0;
   for (const lista of ["top_media", "recent_media"]) {
-    const posts = await chamar(conexao, `${id}/${lista}`, { user_id: conexao.igId, fields: "caption", limit: 50 }).catch(() => ({ data: [] }));
-    for (const p of posts.data ?? []) for (const u of perfisCitados(p.caption)) contagem.set(u, (contagem.get(u) ?? 0) + 1);
+    try {
+      const posts = await chamar(conexao, `${id}/${lista}`, { user_id: conexao.igId, fields: "caption", limit: 50 });
+      for (const p of posts.data ?? []) {
+        lidos++;
+        for (const u of perfisCitados(p.caption)) contagem.set(u, (contagem.get(u) ?? 0) + 1);
+      }
+    } catch (e) {
+      erros.push(e.message.replace(/^Instagram: /, ""));
+    }
   }
-  return [...contagem.entries()].sort((a, b) => b[1] - a[1]).map(([u]) => u);
+  // As duas listas recusadas: o erro sobe (costuma ser o recurso de conteúdo público não liberado).
+  if (erros.length === 2) throw new Error(erros[0]);
+  return { perfis: [...contagem.entries()].sort((a, b) => b[1] - a[1]).map(([u]) => u), lidos };
 }
 
 /** Empresa no mesmo formato das do Google Maps, com os dados do Instagram. */
@@ -192,9 +203,12 @@ export async function buscarEmpresasNoInstagram({ nicho = "", cidade = "", termo
   if (liberadas.length < tags.slice(0, 5).length) {
     avisos.push(`A Meta só deixa consultar ${LIMITE_HASHTAGS} hashtags diferentes por semana; algumas ficaram para depois.`);
   }
+  let postsLidos = 0;
   for (const tag of liberadas) {
     try {
-      perfis.push(...(await perfisDaHashtag(conexao, tag)));
+      const r = await perfisDaHashtag(conexao, tag);
+      perfis.push(...r.perfis);
+      postsLidos += r.lidos;
     } catch (e) {
       // Sem o recurso de conteúdo público liberado, a Meta recusa a busca por hashtag.
       avisos.push(`#${tag}: ${e.message.replace(/^Instagram: /, "")}`);
@@ -217,7 +231,9 @@ export async function buscarEmpresasNoInstagram({ nicho = "", cidade = "", termo
   if (!empresas.length && recusas.length) {
     avisos.push(`Os ${consultas} perfis citados nos posts não vieram como conta comercial. Exemplos da resposta da Meta: ${recusas.slice(0, 3).join(" | ")}`);
   }
-  if (!perfis.length && liberadas.length && !avisos.length) avisos.push("Os posts dessas hashtags não citam nenhum @perfil. Tente outras hashtags ou informe @perfis.");
+  if (!perfis.length && liberadas.length && !avisos.length) avisos.push(postsLidos
+    ? `Li ${postsLidos} posts dessas hashtags e nenhum cita um @perfil. Tente outras hashtags ou informe @perfis.`
+    : "A Meta não devolveu nenhum post dessas hashtags. Tente outras hashtags ou informe @perfis.");
   return { empresas, hashtags: liberadas, avisos };
 }
 
