@@ -15,6 +15,7 @@ import { enviarNotificacao, statusEmail, testarEmail } from "./envio/email.js";
 import { assinaturaValida, processarWebhookWhatsapp, processarWebhookUazap, processarWebhookEvolution } from "./respostas/whatsapp.js";
 import { rodapeDescadastro } from "./envio/email.js";
 import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
+import * as whatsappOficial from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
@@ -85,16 +86,15 @@ app.post("/descadastrar/:token", async (req, res) => {
 // ---------- Webhook do WhatsApp (público, validado pela assinatura da Meta) ----------
 
 // Verificação feita pela Meta ao cadastrar a URL do webhook.
-app.get("/webhooks/whatsapp", (req, res) => {
-  const ok =
-    req.query["hub.mode"] === "subscribe" &&
-    config.whatsapp.verifyToken &&
-    req.query["hub.verify_token"] === config.whatsapp.verifyToken;
+app.get("/webhooks/whatsapp", async (req, res) => {
+  const { verifyToken } = await whatsappOficial.obterConfig();
+  const ok = req.query["hub.mode"] === "subscribe" && verifyToken && req.query["hub.verify_token"] === verifyToken;
   ok ? res.send(req.query["hub.challenge"]) : res.sendStatus(403);
 });
 
 app.post("/webhooks/whatsapp", async (req, res) => {
-  if (!assinaturaValida(req.corpoBruto, req.get("x-hub-signature-256"), config.whatsapp.appSecret)) {
+  const { appSecret } = await whatsappOficial.obterConfig();
+  if (!assinaturaValida(req.corpoBruto, req.get("x-hub-signature-256"), appSecret)) {
     return res.sendStatus(401);
   }
   // Processa antes de responder: em ambiente serverless nada roda depois da resposta.
@@ -586,6 +586,7 @@ app.get("/api/config", async (req, res) => {
   const campanha = await carregarCampanhaCompleta();
   const u = await uazap.obterConfig();
   const ev = await evolution.obterConfig();
+  const wa = await whatsappOficial.obterConfig();
   res.json({
     empresa: Object.fromEntries(CAMPOS_EMPRESA.map((c) => [c, campanha.empresa[c] ?? ""])),
     uazap: {
@@ -598,6 +599,17 @@ app.get("/api/config", async (req, res) => {
       instancia: ev.instancia,
       apikeyDefinida: Boolean(ev.apikey),
       webhook: ev.segredoWebhook ? `${config.painel.urlPublica}/webhooks/evolution/•••` : null,
+    },
+    // O token de verificação não é segredo de terceiros: é gerado aqui e você cola na Meta.
+    oficial: {
+      ativo: wa.ativo,
+      phoneNumberId: wa.phoneNumberId,
+      tokenDefinido: Boolean(wa.token),
+      appSecretDefinido: Boolean(wa.appSecret),
+      template: wa.template,
+      idioma: wa.idioma,
+      webhook: `${config.painel.urlPublica}/webhooks/whatsapp`,
+      verifyToken: wa.verifyToken || null,
     },
   });
 });
@@ -823,6 +835,36 @@ app.post("/api/uazap/desconectar", async (req, res) => {
   try {
     await uazap.desconectar();
     res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// API oficial do WhatsApp (Cloud API da Meta): salvar confere o token e o número com a Meta.
+app.post("/api/whatsapp-oficial/config", async (req, res) => {
+  try {
+    const b = req.body ?? {};
+    await whatsappOficial.salvarConfig({
+      token: b.token, phoneNumberId: b.phoneNumberId, template: b.template, idioma: b.idioma, appSecret: b.appSecret, ativo: b.ativo,
+    });
+    res.json({ ok: true, verifyToken: (await whatsappOficial.obterConfig()).verifyToken, status: await whatsappOficial.statusOficial() });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.get("/api/whatsapp-oficial/status", async (req, res) => {
+  try {
+    res.json(await whatsappOficial.statusOficial());
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.put("/api/whatsapp-oficial/ativo", async (req, res) => {
+  try {
+    await whatsappOficial.definirAtivo(Boolean(req.body?.ativo));
+    res.json({ ok: true, modoWhatsapp: await pipeline.modoWhatsapp() });
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }

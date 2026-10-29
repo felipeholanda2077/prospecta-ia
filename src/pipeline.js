@@ -7,7 +7,7 @@ import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/op
 import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
 import { gerarSequencia } from "./ia/proposta.js";
 import { enviarEmail, explicarErroEmail, enviarNotificacao } from "./envio/email.js";
-import { enviarWhatsapp, enviarTextoWhatsappOficial, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
+import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { verificarAgendamentos, aplicarLinkAgendamento } from "./agenda/calendly.js";
@@ -60,14 +60,13 @@ async function integracaoWhatsapp() {
 }
 
 /**
- * Como o WhatsApp sai: pela UAZap ou pela Evolution API (número conectado no painel),
- * pela API oficial da Meta, ou manual (você envia pelo seu WhatsApp a partir do painel).
+ * Como o WhatsApp sai: pela API oficial da Meta (quando ligada em Configurações, ela tem
+ * prioridade), pela UAZap ou pela Evolution API (número conectado no painel), ou manual
+ * (você envia pelo seu WhatsApp a partir do painel).
  */
 export async function modoWhatsapp() {
-  const integracao = await integracaoWhatsapp();
-  if (integracao) return integracao;
-  if (config.whatsapp.ativo) return "oficial";
-  return "manual";
+  if (await oficialAtiva()) return "oficial";
+  return (await integracaoWhatsapp()) ?? "manual";
 }
 
 // Erros de envio que indicam o número desconectado (e não um problema com a mensagem).

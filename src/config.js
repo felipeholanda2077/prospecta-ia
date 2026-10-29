@@ -42,7 +42,7 @@ export const config = {
     phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID || "",
     template: env.WHATSAPP_TEMPLATE || "proposta_inicial",
     idioma: env.WHATSAPP_TEMPLATE_IDIOMA || "pt_BR",
-    apiVersion: env.WHATSAPP_API_VERSION || "v21.0",
+    apiVersion: env.WHATSAPP_API_VERSION || "v26.0",
     verifyToken: env.WHATSAPP_VERIFY_TOKEN || "",
     appSecret: env.WHATSAPP_APP_SECRET || "",
   },

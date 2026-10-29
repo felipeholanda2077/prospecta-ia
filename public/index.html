@@ -682,6 +682,35 @@
             <span class="muted" style="font-size:13px">Funciona no plano grátis: o sistema confere as reuniões a cada rodada. Nos planos pagos o aviso chega na hora.</span></div>
         </form>
 
+        <div class="cartao" id="cartao-oficial" style="margin-top:16px">
+          <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="message"></span><div class="titulos"><h3>WhatsApp oficial da Meta <span id="oficial-status"></span></h3>
+            <div class="meta">A API oficial (WhatsApp Cloud API): sem risco de bloqueio por usar o WhatsApp Web. Quando ligada, tem prioridade sobre a UAZap e a Evolution.</div></div></div>
+          <form class="cartao-corpo config-grade" id="form-oficial">
+            <div class="campo"><label for="oficial-numero">ID do número de telefone</label><input id="oficial-numero" name="phoneNumberId" inputmode="numeric" placeholder="Ex.: 123456789012345" required></div>
+            <div class="campo"><label for="oficial-token">Token de acesso (permanente)</label><input id="oficial-token" name="token" type="password" autocomplete="off"></div>
+            <div class="campo"><label for="oficial-template">Nome do template aprovado</label><input id="oficial-template" name="template" placeholder="proposta_inicial"></div>
+            <div class="campo"><label for="oficial-idioma">Idioma do template</label><input id="oficial-idioma" name="idioma" placeholder="pt_BR"></div>
+            <div class="campo" style="grid-column:1/-1"><label for="oficial-segredo">Chave secreta do app (App Secret), para receber as respostas</label><input id="oficial-segredo" name="appSecret" type="password" autocomplete="off"></div>
+            <label class="chave" style="grid-column:1/-1"><input type="checkbox" name="ativo" id="oficial-ativo"><div><b>Enviar o WhatsApp pela API oficial</b>
+              <span>Ligado, as etapas e as respostas saem por este número em vez da UAZap. O primeiro contato usa o template aprovado; as respostas às conversas saem como texto normal (a Meta só aceita até 24 h depois da última mensagem do cliente).</span></div></label>
+            <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <button class="btn primario" type="submit"><span data-ic="save"></span>Salvar e testar com a Meta</button>
+              <button class="btn fantasma" type="button" id="oficial-atualizar"><span data-ic="refresh"></span>Atualizar status</button>
+            </div>
+          </form>
+          <div class="cartao-corpo" style="border-top:1px solid var(--border);display:grid;gap:14px">
+            <div id="oficial-conexao"></div>
+            <div id="oficial-webhook"></div>
+            <details><summary class="muted" style="cursor:pointer;font-size:13px">Onde pegar cada dado na Meta</summary>
+              <ol class="muted" style="font-size:13px;margin:8px 0 0;padding-left:18px;display:grid;gap:6px">
+                <li><b>ID do número</b>: developers.facebook.com → seu app → WhatsApp → <b>Configuração da API</b> → "Identificação do número de telefone".</li>
+                <li><b>Token permanente</b>: business.facebook.com → Configurações do negócio → <b>Usuários do sistema</b> → gerar token com as permissões <code>whatsapp_business_messaging</code> e <code>whatsapp_business_management</code>, sem validade. (O token temporário da Configuração da API vence em 24 h.)</li>
+                <li><b>Template</b>: WhatsApp Manager → <b>Modelos de mensagem</b> → criar em português, com duas variáveis no corpo, por exemplo: <i>Olá, {{1}}! {{2}} Se não quiser mais receber, responda SAIR.</i> ({{1}} vira o nome da empresa e {{2}} a mensagem que a IA escreveu.)</li>
+                <li><b>App Secret</b>: no app da Meta → Configurações do app → <b>Básico</b> → "Chave secreta do app".</li>
+              </ol></details>
+          </div>
+        </div>
+
         <div class="cartao" id="cartao-uazap" style="margin-top:16px">
           <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="message"></span><div class="titulos"><h3>WhatsApp pela UAZap <span id="uazap-status"></span></h3>
             <div class="meta">Conecte um número de WhatsApp para enviar as etapas e receber as respostas aqui no painel.</div></div></div>
@@ -953,7 +982,7 @@ const VIEWS = {
   automacao: { grupo: "Sistema", nome: "Automação", icone: "zap", titulo: "Automação",
                sub: "Rode as etapas do funil manualmente quando quiser." },
   configuracoes: { grupo: "Sistema", nome: "Configurações", icone: "settings", titulo: "Configurações",
-               sub: "Perfil da sua empresa e conexão do WhatsApp pela UAZap ou pela Evolution API." },
+               sub: "Perfil da sua empresa e conexão do WhatsApp: API oficial da Meta, UAZap ou Evolution API." },
 };
 const NAV_INFERIOR = ["maps", "rascunho", "respostas", "leads"];
 
@@ -1040,7 +1069,7 @@ function desenharStatusLista() {
   $("#status-lista").innerHTML = [
     sessao.modoTeste ? `<span class="pilula atencao">${ic("alert", "sm")}Modo teste: os envios vão para você</span>` : "",
     sessao.automacao?.ativo ? `<span class="pilula ok">${ic("zap", "sm")}Funil automático ligado</span>` : `<span class="pilula">${ic("zap", "sm")}Funil automático desligado</span>`,
-    `<span class="pilula wa">${ic("message", "sm")}WhatsApp ${{ uazap: "pela UAZap", evolution: "pela Evolution API", oficial: "pela API oficial", manual: "manual, pelo seu número" }[sessao.modoWhatsapp]}</span>`,
+    `<span class="pilula wa">${ic("message", "sm")}WhatsApp ${{ uazap: "pela UAZap", evolution: "pela Evolution API", oficial: "oficial da Meta", manual: "manual, pelo seu número" }[sessao.modoWhatsapp]}</span>`,
     sessao.dentroDoHorario
       ? `<span class="pilula ok">${ic("clock", "sm")}Dentro do horário de envio</span>`
       : `<span class="pilula">${ic("clock", "sm")}Fora do horário: envios retomam às ${sessao.horario.inicio}h</span>`,
@@ -2293,6 +2322,7 @@ async function carregarConfiguracoes() {
       const el = $(`#form-empresa [name=${k}]`);
       if (el) el.value = v ?? "";
     }
+    mostrarConfigOficial(c.oficial);
     $("#uazap-url").value = c.uazap.url ?? "";
     $("#uazap-token").placeholder = c.uazap.tokenDefinido ? "•••••••• já salvo (preencha só para trocar)" : "Cole o token da instância";
     $("#uazap-token").required = !c.uazap.tokenDefinido;
@@ -2333,6 +2363,106 @@ $("#form-empresa").addEventListener("submit", async (ev) => {
   } finally {
     btn.disabled = false;
   }
+});
+
+const QUALIDADE_WA = { GREEN: ["qualidade alta", "ok"], YELLOW: ["qualidade média", "atencao"], RED: ["qualidade baixa", "perigo"] };
+const SITUACAO_TEMPLATE = {
+  APPROVED: ["aprovado", "ok"], PENDING: ["em análise na Meta", "atencao"], REJECTED: ["recusado pela Meta", "perigo"],
+  PAUSED: ["pausado pela Meta", "perigo"], DISABLED: ["desativado pela Meta", "perigo"],
+  NAO_ENCONTRADO: ["não encontrado na sua conta", "perigo"], IDIOMA_DIFERENTE: ["existe, mas em outro idioma", "atencao"],
+};
+
+/** Campos, webhook e chave liga/desliga do cartão da API oficial (o status da Meta vem à parte). */
+function mostrarConfigOficial(o) {
+  $("#oficial-numero").value = o.phoneNumberId ?? "";
+  $("#oficial-template").value = o.template ?? "";
+  $("#oficial-idioma").value = o.idioma ?? "";
+  $("#oficial-ativo").checked = Boolean(o.ativo);
+  $("#oficial-token").placeholder = o.tokenDefinido ? "•••••••• já salvo (preencha só para trocar)" : "Cole o token permanente";
+  $("#oficial-token").required = !o.tokenDefinido;
+  $("#oficial-segredo").placeholder = o.appSecretDefinido ? "•••••••• já salva (preencha só para trocar)" : "Cole a chave secreta do app";
+  $("#oficial-webhook").innerHTML = o.verifyToken
+    ? `<div class="alerta info">${ic("globe")}<div><b>Para receber as respostas</b>, no app da Meta vá em WhatsApp → Configuração → <b>Webhook</b>, clique em Editar e cole:
+        <div style="display:grid;gap:6px;margin:8px 0">
+          <div>URL de callback: <code>${esc(o.webhook)}</code> <button type="button" class="btn fantasma" data-copiar-oficial="${esc(o.webhook)}">${ic("copy")}Copiar</button></div>
+          <div>Token de verificação: <code>${esc(o.verifyToken)}</code> <button type="button" class="btn fantasma" data-copiar-oficial="${esc(o.verifyToken)}">${ic("copy")}Copiar</button></div>
+        </div>Depois, em "Campos do webhook", assine <b>messages</b>.${o.appSecretDefinido ? "" : " <b>Falta a chave secreta do app</b>: sem ela o sistema recusa as respostas, porque não consegue confirmar que vieram da Meta."}</div></div>`
+    : "";
+  if (o.tokenDefinido && o.phoneNumberId) carregarStatusOficial();
+  else {
+    $("#oficial-status").innerHTML = `<span class="pilula">Não configurado</span>`;
+    $("#oficial-conexao").innerHTML = "";
+  }
+}
+
+async function carregarStatusOficial(st) {
+  try {
+    mostrarStatusOficial(st ?? (await api("/api/whatsapp-oficial/status")));
+  } catch (e) {
+    $("#oficial-status").innerHTML = `<span class="pilula perigo">Com erro</span>`;
+    $("#oficial-conexao").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+function mostrarStatusOficial(st) {
+  if (!st.configurada) {
+    $("#oficial-status").innerHTML = `<span class="pilula">Não configurado</span>`;
+    $("#oficial-conexao").innerHTML = "";
+    return;
+  }
+  $("#oficial-status").innerHTML = st.ativo
+    ? `<span class="pilula ok">Enviando por aqui${st.numero ? ` · ${esc(st.numero)}` : ""}</span>`
+    : `<span class="pilula">Conectado, desligado${st.numero ? ` · ${esc(st.numero)}` : ""}</span>`;
+  const [qualidade, corQ] = QUALIDADE_WA[st.qualidade] ?? [null, ""];
+  const t = st.template;
+  const [situacao, corT] = t ? SITUACAO_TEMPLATE[t.status] ?? [t.status, ""] : [null, ""];
+  $("#oficial-conexao").innerHTML = `<div class="alerta ${corT === "perigo" ? "perigo" : "info"}">${ic(corT === "perigo" ? "alert" : "checkCircle")}<div>
+    Número <b>${esc(st.numero ?? "")}</b>${st.nome ? ` (${esc(st.nome)})` : ""} conectado à Meta${qualidade ? ` · <span class="pilula ${corQ}">${qualidade}</span>` : ""}.
+    ${t ? `<br>Template <code>${esc(t.nome)}</code> (${esc(t.idioma)}): <span class="pilula ${corT}">${esc(situacao)}</span>${t.idiomas?.length && t.status === "IDIOMA_DIFERENTE" ? ` · idiomas na Meta: ${esc(t.idiomas.join(", "))}` : ""}` : "<br>Não deu para conferir o template com este token; confira no WhatsApp Manager se ele está aprovado."}
+    ${st.ativo ? "" : "<br>Ligue <b>Enviar o WhatsApp pela API oficial</b> para as mensagens saírem por este número."}</div></div>`;
+}
+
+$("#form-oficial").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    const f = Object.fromEntries(new FormData(ev.target));
+    const r = await post("/api/whatsapp-oficial/config", { ...f, ativo: $("#oficial-ativo").checked });
+    mostrarConfigOficial((await api("/api/config")).oficial);
+    await carregarStatusOficial(r.status);
+    $("#oficial-token").value = "";
+    $("#oficial-segredo").value = "";
+    await atualizarSessao();
+    avisar("API oficial da Meta conferida e salva", "ok");
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// A chave liga/desliga salva na hora quando a conexão já existe (sem precisar colar o token de novo).
+$("#oficial-ativo").addEventListener("change", async (ev) => {
+  if ($("#oficial-token").required) return;
+  try {
+    await api("/api/whatsapp-oficial/ativo", { method: "PUT", body: JSON.stringify({ ativo: ev.target.checked }) });
+    await atualizarSessao();
+    await carregarStatusOficial();
+    avisar(ev.target.checked ? "WhatsApp passa a sair pela API oficial da Meta" : "API oficial desligada: o WhatsApp volta a sair pela UAZap", "ok");
+  } catch (e) {
+    ev.target.checked = !ev.target.checked;
+    avisar(e.message, "perigo");
+  }
+});
+
+$("#oficial-atualizar").addEventListener("click", () => carregarStatusOficial());
+
+$("#cartao-oficial").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-copiar-oficial]");
+  if (!b) return;
+  await navigator.clipboard.writeText(b.dataset.copiarOficial).catch(() => {});
+  avisar("Copiado", "ok", 1600);
 });
 
 $("#form-uazap").addEventListener("submit", async (ev) => {

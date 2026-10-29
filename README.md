@@ -152,17 +152,20 @@ O WhatsApp funciona de três jeitos:
 - **Áudios** — quando a empresa responde com áudio pela Evolution, o sistema transcreve e a IA responde por texto. Cadastre `GROQ_API_KEY` (plano grátis em console.groq.com) ou `OPENAI_API_KEY` na Vercel. Sem a chave, ou se o áudio não puder ser transcrito, a conversa fica marcada como "Precisa de você".
 - **Evolution API (alternativa à UAZap)** — em **Configurações → WhatsApp pela Evolution API**, cole a *Server URL*, o *nome da instância* e a *API key* e clique em **Salvar e configurar webhook**. Se a instância não existir, o sistema cria (use a API key global do servidor). Depois conecte com QR code ou código. Com a UAZap e a Evolution configuradas, o WhatsApp sai pela que estiver conectada; se as duas estiverem, pela UAZap.
 - **Manual (padrão)** — a IA escreve a mensagem, você revisa no painel e clica em **Abrir no WhatsApp**: abre a conversa no seu WhatsApp (Web ou celular) com o texto pronto. Você aperta enviar e confirma no painel. Não precisa de API nem de aprovação da Meta, e como é você quem envia, uma a uma, o risco de bloqueio do número é baixo. As respostas chegam no seu WhatsApp; marque no painel quem respondeu.
-- **Automático (API oficial da Meta)** — o envio sai direto do sistema ao aprovar. Exige a WhatsApp Cloud API.
+- **API oficial da Meta (WhatsApp Cloud API)** — configurada em **Configurações → WhatsApp oficial da Meta**. Quando ligada, tem prioridade sobre a UAZap e a Evolution.
 
 Bibliotecas não oficiais como open-wa, whatsapp-web.js ou Baileys não são usadas de propósito: disparo para números que não conhecem você por essas bibliotecas viola os termos do WhatsApp e o número costuma ser banido em poucos dias.
 
-Para ativar o modo automático:
+Para usar a API oficial:
 
-1. Crie um app no [Meta for Developers](https://developers.facebook.com/) com o produto WhatsApp e pegue o `WHATSAPP_TOKEN` e o `WHATSAPP_PHONE_NUMBER_ID`.
-2. Crie e aprove um template de categoria **Marketing** chamado `proposta_inicial` (ou o nome em `WHATSAPP_TEMPLATE`) com duas variáveis, por exemplo:
+1. Crie um app no [Meta for Developers](https://developers.facebook.com/) com o produto WhatsApp. Em WhatsApp → Configuração da API, copie o **ID do número de telefone**.
+2. Gere um **token permanente** em business.facebook.com → Usuários do sistema, com `whatsapp_business_messaging` e `whatsapp_business_management` (o token temporário da Configuração da API vence em 24 h).
+3. Crie e aprove um template chamado `proposta_inicial` (ou outro nome) com duas variáveis, por exemplo:
    > Olá, {{1}}! {{2}} Se preferir não receber mensagens, responda SAIR.
-3. Coloque `WHATSAPP_ATIVO=true`.
-4. Para receber as respostas: no app da Meta, em WhatsApp → Configuração → Webhook, cadastre a URL `https://SEU_DOMINIO/webhooks/whatsapp`, use o mesmo valor de `WHATSAPP_VERIFY_TOKEN` como token de verificação e assine o campo `messages`. Preencha `WHATSAPP_APP_SECRET` com a "chave secreta do app" (Configurações → Básico); sem ela o webhook recusa tudo, porque é assim que ele sabe que a mensagem veio mesmo da Meta.
+4. Em **Configurações → WhatsApp oficial da Meta**, preencha o ID do número, o token, o nome e o idioma do template e a **chave secreta do app** (Configurações do app → Básico), ligue **Enviar o WhatsApp pela API oficial** e clique em **Salvar e testar com a Meta**. O sistema confere o token e o número com a Meta antes de salvar e mostra se o template está aprovado.
+5. Para receber as respostas: o cartão mostra a **URL de callback** e o **token de verificação** gerado pelo sistema. Cole os dois no app da Meta em WhatsApp → Configuração → Webhook e assine o campo `messages`.
+
+As variáveis `WHATSAPP_*` do `.env` continuam funcionando e têm prioridade sobre o que foi salvo no painel.
 
 Atenção: a política da Meta exige que o contato tenha dado consentimento (opt-in) para receber mensagens de marketing da sua empresa. Para prospecção fria de quem nunca falou com você, use o **e-mail** como primeiro contato e deixe o WhatsApp para quem responder.
 
