@@ -496,9 +496,15 @@ export async function ultimaEnviadaNoCanal(canal) {
 
 /** Mensagens de prospecção enviadas hoje (respostas de conversa não contam). Sem canal = todos. */
 /** Mensagens de prospecção enviadas hoje; com `primeiroContato`, só as etapas 1 (empresas novas). */
-/** Quantas empresas conversam por este número de WhatsApp. */
+/** Quantas empresas conversam por este número de WhatsApp (as de antes de existirem vários números são do principal). */
 export async function conversasDoNumero(numero) {
-  return (await um(`SELECT count(*)::int AS n FROM leads WHERE numero_wa = $1`, [numero])).n;
+  return (await um(
+    `SELECT count(*)::int AS n FROM leads l
+      WHERE l.numero_wa = $1
+         OR ($1 = 'principal' AND l.numero_wa IS NULL AND EXISTS (
+              SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.canal = 'whatsapp' AND m.status = 'enviada'))`,
+    [numero]
+  )).n;
 }
 
 /** Enviadas hoje. Com `numero`, só as que saíram por esse número de WhatsApp (as antigas, sem número, contam no "principal"). */

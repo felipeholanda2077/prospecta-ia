@@ -75,6 +75,7 @@ test("vários números: as empresas novas se dividem e cada conversa fica no seu
     const [l1, l2] = await Promise.all(["Clínica 1", "Clínica 2"].map(async (n) => (await db.leadsPorStatus("contatado")).find((l) => l.nome === n)));
     assert.deepEqual([l1.numero_wa, l2.numero_wa], [um.id, dois.id]);
     assert.equal(await db.enviadasHoje("whatsapp", { primeiroContato: true, numero: dois.id }), 1);
+    assert.deepEqual([await db.conversasDoNumero(um.id), await db.conversasDoNumero(dois.id)], [1, 1]);
 
     // Os dois números já usaram a meta de hoje: a terceira empresa espera na fila.
     const r3 = await pipeline.enviarMensagem(await leadComMensagem("Clínica 3", "5511988880003"), campanha);
