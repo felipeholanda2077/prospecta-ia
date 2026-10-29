@@ -2,49 +2,86 @@ import crypto from "node:crypto";
 import { config } from "../config.js";
 import * as db from "../db.js";
 
-// Integração com a UAZap (uazapi): conecta um número de WhatsApp por QR code,
-// envia texto e recebe as respostas por webhook. Referência: https://docs.uazapi.com
+// Integração com a UAZap (uazapi): conecta números de WhatsApp por QR code, envia texto e
+// recebe as respostas por webhook. Cada número é uma instância da UAZap, com o próprio token
+// e o próprio webhook; a IA prospecta e conversa por todos. Referência: https://docs.uazapi.com
 
 const CHAVE = "uazap";
 const STATUS_VALIDO_MS = 60_000;
+// O número que já existia antes de dar para ter vários (e o das variáveis UAZAP_URL/UAZAP_TOKEN).
+export const PRINCIPAL = "principal";
 let cache = null;
 let cacheAte = 0;
-let conectado = { valor: false, ate: 0 };
+const conexoes = new Map(); // id do número → { valor, ate }
 
-/** Server URL + token da instância. Variáveis de ambiente têm prioridade sobre o que foi salvo no painel. */
-export async function obterConfig() {
+/** Formato antigo ({ url, token, segredoWebhook }) vira o número "principal" da lista. */
+function lista(salvo) {
+  if (Array.isArray(salvo?.numeros)) return salvo.numeros;
+  return salvo?.token ? [{ id: PRINCIPAL, nome: "Principal", url: salvo.url, token: salvo.token, segredoWebhook: salvo.segredoWebhook }] : [];
+}
+
+/** Os números configurados: [{ id, nome, url, token, segredoWebhook }]. UAZAP_URL/UAZAP_TOKEN valem para o principal. */
+export async function numeros() {
   if (Date.now() < cacheAte) return cache;
-  const salvo = (await db.lerConfig(CHAVE)) ?? {};
-  cache = {
-    url: (process.env.UAZAP_URL || salvo.url || "").replace(/\/+$/, ""),
-    token: process.env.UAZAP_TOKEN || salvo.token || "",
-    segredoWebhook: salvo.segredoWebhook || "",
-  };
+  const salvos = lista(await db.lerConfig(CHAVE));
+  if (process.env.UAZAP_URL && process.env.UAZAP_TOKEN && !salvos.some((n) => n.id === PRINCIPAL)) {
+    salvos.unshift({ id: PRINCIPAL, nome: "Principal", segredoWebhook: "" });
+  }
+  cache = salvos.map((n) => ({
+    ...n,
+    url: ((n.id === PRINCIPAL && process.env.UAZAP_URL) || n.url || "").replace(/\/+$/, ""),
+    token: (n.id === PRINCIPAL && process.env.UAZAP_TOKEN) || n.token || "",
+    segredoWebhook: n.segredoWebhook || "",
+  }));
   cacheAte = Date.now() + 30_000;
   return cache;
 }
 
-export async function configurada() {
-  const c = await obterConfig();
-  return Boolean(c.url && c.token);
+export async function numero(id) {
+  return (await numeros()).find((n) => n.id === id) ?? null;
 }
 
-/** Salva a conexão informada no painel e gera o segredo que protege a URL do webhook. */
-export async function salvarConfig({ url, token }) {
-  const atual = (await db.lerConfig(CHAVE)) ?? {};
+/** O primeiro número (para quem ainda pensa em um só, como a tela antiga). */
+export async function obterConfig() {
+  return (await numeros())[0] ?? { url: "", token: "", segredoWebhook: "" };
+}
+
+export async function configurada() {
+  return (await numeros()).some((n) => n.url && n.token);
+}
+
+/**
+ * Adiciona um número (sem `id`) ou atualiza um que já existe. Só salva depois de confirmar
+ * que a URL e o token funcionam; cada número ganha o próprio segredo para o webhook.
+ */
+export async function salvarNumero({ id, nome, url, token }) {
+  const todos = lista(await db.lerConfig(CHAVE));
+  const atual = id ? todos.find((n) => n.id === id) : null;
+  if (id && !atual) throw new Error("Número não encontrado");
   const novo = {
-    url: String(url ?? atual.url ?? "").trim().replace(/\/+$/, ""),
-    token: String(token || atual.token || "").trim(),
-    segredoWebhook: atual.segredoWebhook || crypto.randomBytes(18).toString("hex"),
+    id: atual?.id ?? (todos.length ? crypto.randomBytes(4).toString("hex") : PRINCIPAL),
+    nome: String(nome ?? "").trim().slice(0, 40) || atual?.nome || `Número ${todos.length + 1}`,
+    url: String(url ?? atual?.url ?? todos[0]?.url ?? "").trim().replace(/\/+$/, ""),
+    token: String(token || atual?.token || "").trim(),
+    segredoWebhook: atual?.segredoWebhook || crypto.randomBytes(18).toString("hex"),
   };
   if (!/^https:\/\/[^\s/]+/.test(novo.url)) throw new Error("Informe a Server URL da UAZap (ex.: https://suaempresa.uazapi.com)");
   if (!novo.token) throw new Error("Informe o token da instância");
-  // Só salva depois de confirmar que a URL e o token funcionam.
+  if (todos.some((n) => n.id !== novo.id && n.token === novo.token)) throw new Error("Esta instância (token) já está na lista");
   await chamarCom(novo, "/instance/status");
-  await db.gravarConfig(CHAVE, novo);
+  await db.gravarConfig(CHAVE, { numeros: atual ? todos.map((n) => (n.id === novo.id ? novo : n)) : [...todos, novo] });
   cacheAte = 0;
-  conectado.ate = 0;
+  conexoes.delete(novo.id);
   return novo;
+}
+
+/** Tira o número da lista (a instância continua existindo na UAZap). As conversas dele passam para os outros. */
+export async function removerNumero(id) {
+  const todos = lista(await db.lerConfig(CHAVE));
+  if (!todos.some((n) => n.id === id)) throw new Error("Número não encontrado");
+  await db.gravarConfig(CHAVE, { numeros: todos.filter((n) => n.id !== id) });
+  cacheAte = 0;
+  conexoes.delete(id);
 }
 
 async function chamarCom({ url, token }, caminho, { method = "GET", corpo } = {}) {
@@ -65,10 +102,11 @@ async function chamarCom({ url, token }, caminho, { method = "GET", corpo } = {}
   return dados;
 }
 
-async function chamar(caminho, opcoes) {
-  const c = await obterConfig();
-  if (!c.url || !c.token) throw new Error("UAZap não configurada: informe a Server URL e o token em Configurações");
-  return chamarCom(c, caminho, opcoes);
+/** Chama a UAZap pelo número `id` (sem id, pelo primeiro conectado, ou o primeiro da lista). */
+async function chamar(id, caminho, opcoes) {
+  const n = id ? await numero(id) : (await primeiroConectado()) ?? (await numeros())[0];
+  if (!n?.url || !n?.token) throw new Error("UAZap não configurada: adicione um número em Configurações");
+  return chamarCom(n, caminho, opcoes);
 }
 
 /** Converte a resposta de /instance/status e /instance/connect em algo simples para o painel. */
@@ -87,39 +125,74 @@ export function resumirStatus(dados) {
   };
 }
 
-export async function status() {
-  const st = resumirStatus(await chamar("/instance/status"));
-  conectado = { valor: st.conectado, ate: Date.now() + STATUS_VALIDO_MS };
+/** Status de um número (sem id, do primeiro da lista). */
+export async function status(id) {
+  const n = id ? await numero(id) : (await numeros())[0];
+  if (!n) throw new Error("UAZap não configurada: adicione um número em Configurações");
+  const st = resumirStatus(await chamarCom(n, "/instance/status"));
+  conexoes.set(n.id, { valor: st.conectado, ate: Date.now() + STATUS_VALIDO_MS });
   return st;
 }
 
-/** Status de conexão guardado por 1 minuto, para escolher por onde o WhatsApp sai sem consultar a cada envio. */
-export async function conectadoAgora() {
-  if (Date.now() < conectado.ate) return conectado.valor;
-  return status().then((s) => s.conectado, () => false);
+/** O status de todos os números, para o painel (um número com erro não derruba os outros). */
+export async function statusDeTodos() {
+  return Promise.all((await numeros()).map(async (n) => {
+    const st = await status(n.id).catch((e) => ({ estado: e.message, conectado: false }));
+    return { id: n.id, nome: n.nome, url: n.url, webhook: n.segredoWebhook ? `${config.painel.urlPublica}/webhooks/uazap/•••` : null, ...st };
+  }));
+}
+
+/**
+ * Status de conexão guardado por 1 minuto, para escolher por onde o WhatsApp sai sem consultar
+ * a cada envio. Com `id`, daquele número; sem, se algum número está conectado.
+ */
+export async function conectadoAgora(id) {
+  if (!id) {
+    for (const n of await numeros()) if (await conectadoAgora(n.id)) return true;
+    return false;
+  }
+  const c = conexoes.get(id);
+  if (c && Date.now() < c.ate) return c.valor;
+  return status(id).then((s) => s.conectado, () => {
+    conexoes.set(id, { valor: false, ate: Date.now() + STATUS_VALIDO_MS });
+    return false;
+  });
+}
+
+/** Os números conectados agora, na ordem da lista. */
+export async function conectados() {
+  const todos = await numeros();
+  const ok = await Promise.all(todos.map((n) => conectadoAgora(n.id)));
+  return todos.filter((_, i) => ok[i]);
+}
+
+async function primeiroConectado() {
+  return (await conectados())[0] ?? null;
 }
 
 /** Um envio falhou por queda da conexão: a próxima consulta pergunta de novo, sem usar o cache. */
-export function esquecerConexao() {
-  conectado = { valor: false, ate: 0 };
+export function esquecerConexao(id) {
+  if (id) conexoes.delete(id);
+  else conexoes.clear();
 }
 
 /** Inicia o pareamento: sem telefone devolve QR code; com telefone, código de pareamento. */
-export async function conectar(telefone) {
+export async function conectar(id, telefone) {
   const corpo = telefone ? { phone: String(telefone).replace(/\D/g, "") } : {};
-  return resumirStatus(await chamar("/instance/connect", { method: "POST", corpo }));
+  return resumirStatus(await chamar(id ?? PRINCIPAL, "/instance/connect", { method: "POST", corpo }));
 }
 
-export async function desconectar() {
-  await chamar("/instance/disconnect", { method: "POST", corpo: {} });
-  conectado.ate = 0;
+export async function desconectar(id) {
+  await chamar(id ?? PRINCIPAL, "/instance/disconnect", { method: "POST", corpo: {} });
+  conexoes.delete(id ?? PRINCIPAL);
 }
 
 /** Aponta o webhook da instância para este sistema (só mensagens recebidas de contatos). */
-export async function configurarWebhook() {
-  const { segredoWebhook } = await obterConfig();
-  const destino = `${config.painel.urlPublica}/webhooks/uazap/${segredoWebhook}`;
-  await chamar("/webhook", {
+export async function configurarWebhook(id) {
+  const n = id ? await numero(id) : (await numeros())[0];
+  if (!n) throw new Error("Número não encontrado");
+  const destino = `${config.painel.urlPublica}/webhooks/uazap/${n.segredoWebhook}`;
+  await chamarCom(n, "/webhook", {
     method: "POST",
     corpo: {
       enabled: true,
@@ -132,11 +205,11 @@ export async function configurarWebhook() {
   return destino;
 }
 
-/** Envia um texto. `delay` mostra "digitando..." antes, como uma pessoa. */
-export async function enviarTexto(numero, texto) {
-  const dados = await chamar("/send/text", {
+/** Envia um texto pelo número `numeroId`. `delay` mostra "digitando..." antes, como uma pessoa. */
+export async function enviarTexto(destino, texto, { numeroId } = {}) {
+  const dados = await chamar(numeroId, "/send/text", {
     method: "POST",
-    corpo: { number: String(numero).replace(/\D/g, ""), text: texto, delay: 1500 },
+    corpo: { number: String(destino).replace(/\D/g, ""), text: texto, delay: 1500 },
   });
   return dados.messageid ?? dados.id ?? null;
 }
@@ -146,10 +219,10 @@ export async function enviarTexto(numero, texto) {
  * já que muita empresa usa WhatsApp Business no número fixo).
  * Retorna [{ consulta, existe, numero }], com o número no formato que o WhatsApp usa.
  */
-export async function verificarNumeros(numeros) {
-  const lista = [...new Set(numeros.map((n) => String(n).replace(/\D/g, "")).filter(Boolean))];
-  if (!lista.length) return [];
-  const dados = await chamar("/chat/check", { method: "POST", corpo: { numbers: lista } });
+export async function verificarNumeros(lista) {
+  const unicos = [...new Set(lista.map((n) => String(n).replace(/\D/g, "")).filter(Boolean))];
+  if (!unicos.length) return [];
+  const dados = await chamar(null, "/chat/check", { method: "POST", corpo: { numbers: unicos } });
   return (Array.isArray(dados) ? dados : []).map((r) => ({
     consulta: String(r.query ?? ""),
     existe: Boolean(r.isInWhatsapp),
@@ -157,14 +230,19 @@ export async function verificarNumeros(numeros) {
   }));
 }
 
-/** Confere o webhook recebido: segredo na URL e token da instância no corpo. */
+/**
+ * Confere o webhook recebido: o segredo na URL diz qual número recebeu, e o token no corpo
+ * tem que ser o da instância dele. Retorna o número (ou null se não for válido).
+ */
 export async function webhookValido(segredo, payload) {
-  const c = await obterConfig();
-  if (!c.segredoWebhook || !segredo) return false;
+  if (!segredo) return null;
   const a = Buffer.from(String(segredo));
-  const b = Buffer.from(c.segredoWebhook);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return false;
-  return !payload?.token || payload.token === c.token;
+  for (const n of await numeros()) {
+    const b = Buffer.from(n.segredoWebhook);
+    if (!n.segredoWebhook || a.length !== b.length || !crypto.timingSafeEqual(a, b)) continue;
+    return !payload?.token || payload.token === n.token ? n : null;
+  }
+  return null;
 }
 
 /**

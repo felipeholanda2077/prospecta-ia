@@ -95,6 +95,9 @@ ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS em_resposta_a text;
 -- Quando a mensagem foi reservada para envio (status 'enviando'), para nenhuma sair duas vezes.
 ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS reservada_em timestamptz;
 -- tipo: inicial (etapa 1) | sequencia (etapas 2 e 3) | followup (versão antiga) | resposta (enviada na conversa)
+-- Vários números de WhatsApp (UAZap): o número que cuida da conversa com a empresa e o que enviou cada mensagem.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS numero_wa text;
+ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS numero_wa text;
 
 -- Posts de conteúdo para o Instagram da empresa: a IA cria um por dia (Reels ou carrossel).
 CREATE TABLE IF NOT EXISTS posts (

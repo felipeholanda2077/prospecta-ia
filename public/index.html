@@ -594,10 +594,10 @@
               <span>Responde em alguns minutos, em tom humano, uma informação por vez, até a pessoa marcar no Calendly. Passa para você se pedirem ligação, negociarem ou reclamarem.</span></div></label>
             <div class="config-grade">
               <div class="campo"><label for="auto-meta-email">E-mails por dia</label><input id="auto-meta-email" name="metaEmail" type="number" min="0" max="500"></div>
-              <div class="campo"><label for="auto-meta-wa">WhatsApp por dia</label><input id="auto-meta-wa" name="metaWhatsapp" type="number" min="0" max="300"></div>
+              <div class="campo"><label for="auto-meta-wa">WhatsApp por dia (por número)</label><input id="auto-meta-wa" name="metaWhatsapp" type="number" min="0" max="300"></div>
             </div>
-            <label class="chave"><input type="checkbox" name="aquecimentoWhatsapp"><div><b>Aquecer o número de WhatsApp</b>
-              <span>Começa com poucas empresas novas por dia e sobe a cada dia útil até a meta. Reduz bastante o risco de bloqueio do número.</span></div></label>
+            <label class="chave"><input type="checkbox" name="aquecimentoWhatsapp"><div><b>Aquecer os números de WhatsApp</b>
+              <span>Cada número começa com poucas empresas novas por dia e sobe a cada dia útil até a meta. Número novo aquece do zero. Reduz bastante o risco de bloqueio.</span></div></label>
             <div class="config-grade">
               <div class="campo"><label for="auto-aq-inicial">Aquecimento: começar com (empresas novas por dia)</label><input id="auto-aq-inicial" name="aquecimentoInicial" type="number" min="5" max="300"></div>
               <div class="campo"><label for="auto-aq-passo">Aquecimento: aumentar por dia útil</label><input id="auto-aq-passo" name="aquecimentoPasso" type="number" min="0" max="100"></div>
@@ -712,26 +712,22 @@
         </div>
 
         <div class="cartao" id="cartao-uazap" style="margin-top:16px">
-          <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="message"></span><div class="titulos"><h3>WhatsApp pela UAZap <span id="uazap-status"></span></h3>
-            <div class="meta">Conecte um número de WhatsApp para enviar as etapas e receber as respostas aqui no painel.</div></div></div>
-          <form class="cartao-corpo config-grade" id="form-uazap">
+          <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="message"></span><div class="titulos"><h3>Números de WhatsApp pela UAZap <span id="uazap-status"></span></h3>
+            <div class="meta">A IA prospecta e conversa por todos os números conectados. Cada empresa fica sempre no mesmo número; as novas vão para o número com mais folga no dia, e a meta diária vale por número.</div></div></div>
+          <div class="cartao-corpo" id="uazap-numeros" style="display:grid;gap:12px"></div>
+          <form class="cartao-corpo config-grade" id="form-uazap" style="border-top:1px solid var(--border)">
+            <input type="hidden" name="id" id="uazap-id">
+            <h4 style="grid-column:1/-1;margin:0" id="uazap-form-titulo">Adicionar número</h4>
+            <div class="campo"><label for="uazap-nome">Nome (para você reconhecer)</label><input id="uazap-nome" name="nome" placeholder="Ex.: IA 2 · Comercial" maxlength="40"></div>
             <div class="campo"><label for="uazap-url">Server URL</label><input id="uazap-url" name="url" placeholder="https://suaempresa.uazapi.com" required></div>
-            <div class="campo"><label for="uazap-token">Token da instância</label><input id="uazap-token" name="token" type="password" autocomplete="off"></div>
+            <div class="campo" style="grid-column:1/-1"><label for="uazap-token">Token da instância (cada número é uma instância na UAZap)</label><input id="uazap-token" name="token" type="password" autocomplete="off" required placeholder="Cole o token da instância"></div>
             <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-              <button class="btn primario" type="submit"><span data-ic="save"></span>Salvar e configurar webhook</button>
-              <span class="muted" id="uazap-webhook" style="font-size:13px"></span>
+              <button class="btn primario" type="submit" id="uazap-salvar"><span data-ic="save"></span>Adicionar e configurar webhook</button>
+              <button class="btn fantasma" type="button" id="uazap-cancelar" hidden><span data-ic="x"></span>Cancelar edição</button>
             </div>
           </form>
-          <div class="cartao-corpo" style="border-top:1px solid var(--border);display:grid;gap:14px">
-            <div style="display:flex;flex-wrap:wrap;gap:8px">
-              <button class="btn" data-uazap="qr"><span data-ic="grid"></span>Conectar com QR code</button>
-              <button class="btn" data-uazap="codigo"><span data-ic="phone"></span>Conectar com código</button>
-              <button class="btn fantasma" data-uazap="status"><span data-ic="refresh"></span>Atualizar status</button>
-              <button class="btn perigo" data-uazap="desconectar"><span data-ic="x"></span>Desconectar</button>
-            </div>
-            <div id="uazap-conexao"></div>
-            <div class="alerta info"><span data-ic="alert"></span><div>A UAZap usa o WhatsApp Web, que não é a API oficial. Para reduzir o risco de bloqueio do número,
-              o sistema envia com intervalo, só em horário comercial, e para de mandar mensagens para quem pede para sair.</div></div>
+          <div class="cartao-corpo" style="border-top:1px solid var(--border)">
+            <div class="alerta info"><span data-ic="alert"></span><div>A UAZap usa o WhatsApp Web, que não é a API oficial. Para reduzir o risco de bloqueio, cada número aquece aos poucos, o sistema envia com intervalo, só em horário comercial, e para de mandar mensagens para quem pede para sair.</div></div>
           </div>
         </div>
 
@@ -1024,7 +1020,7 @@ function irParaHash() {
   if (viewAtual === "conteudo") carregarConteudo();
   else pararPreviasReels();
   if (viewAtual === "automacao") carregarAutomacao();
-  else { pararPollingWa("uazap"); pararPollingWa("evolution"); }
+  else Object.keys(pollingWa).forEach(pararPollingWa);
   if (!$("#view-lista").hidden) carregarLista();
   window.scrollTo({ top: 0 });
 }
@@ -1069,7 +1065,7 @@ function desenharStatusLista() {
   $("#status-lista").innerHTML = [
     sessao.modoTeste ? `<span class="pilula atencao">${ic("alert", "sm")}Modo teste: os envios vão para você</span>` : "",
     sessao.automacao?.ativo ? `<span class="pilula ok">${ic("zap", "sm")}Funil automático ligado</span>` : `<span class="pilula">${ic("zap", "sm")}Funil automático desligado</span>`,
-    `<span class="pilula wa">${ic("message", "sm")}WhatsApp ${{ uazap: "pela UAZap", evolution: "pela Evolution API", oficial: "oficial da Meta", manual: "manual, pelo seu número" }[sessao.modoWhatsapp]}</span>`,
+    `<span class="pilula wa">${ic("message", "sm")}WhatsApp ${{ uazap: sessao.numerosWhatsapp > 1 ? `pela UAZap · ${sessao.numerosWhatsapp} números` : "pela UAZap", evolution: "pela Evolution API", oficial: "oficial da Meta", manual: "manual, pelo seu número" }[sessao.modoWhatsapp]}</span>`,
     sessao.dentroDoHorario
       ? `<span class="pilula ok">${ic("clock", "sm")}Dentro do horário de envio</span>`
       : `<span class="pilula">${ic("clock", "sm")}Fora do horário: envios retomam às ${sessao.horario.inicio}h</span>`,
@@ -1895,7 +1891,7 @@ async function abrirConversa(id, { atualizar = false } = {}) {
     <div class="chat-msgs" id="chat-msgs">${msgs}</div>
     ${r && !encerrada ? `<div class="chat-escrever" data-resposta="${r.id}" data-canal="${r.canal}">
       <textarea id="chat-texto" aria-label="Mensagem para ${esc(d.lead.nome)}" placeholder="Escreva como Felipe, pelo ${canal}…">${esc(r.sugestao ?? "")}</textarea>
-      <div class="linha">${r.sugestao ? `${ic("spark", "sm")}Sugestão da IA (revise antes de enviar) ·` : ""} Responde pelo ${canal}${r.de ? ` para ${esc(r.de)}` : ""}
+      <div class="linha">${r.sugestao ? `${ic("spark", "sm")}Sugestão da IA (revise antes de enviar) ·` : ""} Responde pelo ${canal}${r.de ? ` para ${esc(r.de)}` : ""}${r.canal !== "email" && d.numeroWhatsapp ? ` · pelo número ${esc(d.numeroWhatsapp)}` : ""}
         <span class="espaco"></span>${d.iaPausada ? `<span>${ic("alert", "sm")}IA parada: ${esc(d.iaPausada)}</span>` : `<button class="btn sm" data-parar-ia="${d.lead.id}" title="A IA para de responder esta conversa">${ic("x", "sm")}Parar IA</button>`}
         ${r.precisa_humano || d.iaPausada ? `<button class="btn sm" data-ia-continua title="A IA lê a conversa de novo e responde sozinha">${ic("spark", "sm")}IA continua</button>` : ""}
         <button class="btn primario sm" data-enviar-conversa>${ic("send", "sm")}Enviar</button></div>
@@ -2186,7 +2182,7 @@ function mostrarStatusWa(p, st) {
 function iniciarPollingWa(p) {
   pararPollingWa(p);
   pollingWa[p] = setInterval(async () => {
-    try { mostrarStatusWa(p, await api(`/api/${p}/status`)); } catch { pararPollingWa(p); }
+    try { mostrarStatusWa(p, await api(`${rotaWa(p)}/status`)); } catch { pararPollingWa(p); }
   }, 3000);
 }
 
@@ -2323,16 +2319,8 @@ async function carregarConfiguracoes() {
       if (el) el.value = v ?? "";
     }
     mostrarConfigOficial(c.oficial);
-    $("#uazap-url").value = c.uazap.url ?? "";
-    $("#uazap-token").placeholder = c.uazap.tokenDefinido ? "•••••••• já salvo (preencha só para trocar)" : "Cole o token da instância";
-    $("#uazap-token").required = !c.uazap.tokenDefinido;
-    $("#uazap-webhook").textContent = c.uazap.webhook ? `Webhook: ${c.uazap.webhook}` : "";
-    if (c.uazap.url && c.uazap.tokenDefinido) {
-      mostrarStatusWa("uazap", await api("/api/uazap/status").catch((e) => ({ estado: e.message })));
-    } else {
-      $("#uazap-status").innerHTML = `<span class="pilula">Não configurado</span>`;
-      $("#uazap-conexao").innerHTML = "";
-    }
+    limparFormUazap(c.uazap.url);
+    carregarNumerosUazap();
     $("#evolution-url").value = c.evolution.url ?? "";
     $("#evolution-instancia").value = c.evolution.instancia ?? "";
     $("#evolution-apikey").placeholder = c.evolution.apikeyDefinida ? "•••••••• já salva (preencha só para trocar)" : "Cole a API key";
@@ -2465,18 +2453,77 @@ $("#cartao-oficial").addEventListener("click", async (ev) => {
   avisar("Copiado", "ok", 1600);
 });
 
+let numerosUazap = [];
+
+/** Lista de números da UAZap, cada um com status, QR code e quanto já saiu hoje. */
+async function carregarNumerosUazap() {
+  const alvo = $("#uazap-numeros");
+  try {
+    numerosUazap = await api("/api/uazap/numeros");
+  } catch (e) {
+    alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+    return;
+  }
+  const conectados = numerosUazap.filter((n) => n.conectado).length;
+  $("#uazap-status").innerHTML = numerosUazap.length
+    ? `<span class="pilula ${conectados ? "ok" : "perigo"}">${conectados} de ${numerosUazap.length} conectado${numerosUazap.length > 1 ? "s" : ""}</span>`
+    : `<span class="pilula">Nenhum número</span>`;
+  alvo.innerHTML = numerosUazap.length ? numerosUazap.map((n) => {
+    const p = `uazap-${n.id}`;
+    const botao = (acao, icone, texto, classe = "") => `<button class="btn sm ${classe}" data-wa-acao="${acao}" data-wa-p="${p}">${ic(icone, "sm")}${texto}</button>`;
+    return `<div class="numero-wa" style="border:1px solid var(--border);border-radius:12px;padding:14px;display:grid;gap:10px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><b>${esc(n.nome)}</b><span id="${p}-status"></span>
+        <span class="muted" style="font-size:13px">Hoje: ${n.hoje} de ${n.limite} empresas novas · ${n.conversas} conversa${n.conversas === 1 ? "" : "s"}</span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
+        ${botao("qr", "grid", "QR code")}${botao("codigo", "phone", "Código")}${botao("status", "refresh", "Atualizar", "fantasma")}
+        ${botao("editar", "settings", "Editar", "fantasma")}${botao("desconectar", "x", "Desconectar", "fantasma")}${botao("remover", "ban", "Remover", "perigo")}
+      </div>
+      <div id="${p}-conexao"></div></div>`;
+  }).join("") : `<div class="muted">Nenhum número ainda. Adicione o primeiro abaixo com a Server URL e o token da instância da UAZap.</div>`;
+  for (const n of numerosUazap) mostrarStatusWa(`uazap-${n.id}`, n);
+}
+
+function limparFormUazap(url) {
+  $("#uazap-id").value = "";
+  $("#uazap-nome").value = "";
+  if (url !== undefined) $("#uazap-url").value = url ?? "";
+  $("#uazap-token").value = "";
+  $("#uazap-token").required = true;
+  $("#uazap-token").placeholder = "Cole o token da instância";
+  $("#uazap-form-titulo").textContent = "Adicionar número";
+  $("#uazap-salvar").lastChild.textContent = "Adicionar e configurar webhook";
+  $("#uazap-cancelar").hidden = true;
+}
+
+function editarNumeroUazap(id) {
+  const n = numerosUazap.find((x) => x.id === id);
+  if (!n) return;
+  $("#uazap-id").value = n.id;
+  $("#uazap-nome").value = n.nome;
+  $("#uazap-url").value = n.url;
+  $("#uazap-token").value = "";
+  $("#uazap-token").required = false;
+  $("#uazap-token").placeholder = "•••••••• já salvo (preencha só para trocar)";
+  $("#uazap-form-titulo").textContent = `Editar "${n.nome}"`;
+  $("#uazap-salvar").lastChild.textContent = "Salvar e configurar webhook";
+  $("#uazap-cancelar").hidden = false;
+  $("#form-uazap").scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+$("#uazap-cancelar").addEventListener("click", () => limparFormUazap());
+
 $("#form-uazap").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const btn = ev.submitter;
   btn.disabled = true;
+  const id = $("#uazap-id").value;
   try {
-    const r = await post("/api/uazap/config", { url: $("#uazap-url").value, token: $("#uazap-token").value });
-    $("#uazap-token").value = "";
-    $("#uazap-token").required = false;
-    $("#uazap-webhook").textContent = `Webhook: ${r.webhook}`;
-    mostrarStatusWa("uazap", r.status);
+    const dados = { nome: $("#uazap-nome").value, url: $("#uazap-url").value, token: $("#uazap-token").value };
+    await api(id ? `/api/uazap/numeros/${id}` : "/api/uazap/numeros", { method: id ? "PUT" : "POST", body: JSON.stringify(dados) });
+    limparFormUazap($("#uazap-url").value);
+    await carregarNumerosUazap();
     await atualizarSessao();
-    avisar("UAZap configurada e webhook apontado para o sistema", "ok");
+    avisar(id ? "Número atualizado e webhook apontado para o sistema" : "Número adicionado. Agora clique em QR code nele e leia com o celular.", "ok", 8000);
   } catch (e) {
     avisar(e.message, "perigo");
   } finally {
@@ -2506,25 +2553,36 @@ $("#form-evolution").addEventListener("submit", async (ev) => {
 });
 
 /** Botões de conexão do cartão da UAZap ou da Evolution (p). */
-async function acaoWa(p, btn) {
-  const acao = btn.dataset[p];
+// "evolution" ou "uazap-<id do número>": onde ficam as rotas de cada conexão.
+const rotaWa = (p) => (p.startsWith("uazap-") ? `/api/uazap/numeros/${encodeURIComponent(p.slice(6))}` : `/api/${p}`);
+
+/** Botões de conexão de um número da UAZap (p = "uazap-<id>") ou do cartão da Evolution. */
+async function acaoWa(p, btn, acao = btn.dataset[p]) {
   btn.disabled = true;
   try {
     if (acao === "qr") {
-      mostrarStatusWa(p, await post(`/api/${p}/conectar`));
+      mostrarStatusWa(p, await post(`${rotaWa(p)}/conectar`));
       iniciarPollingWa(p);
     } else if (acao === "codigo") {
       const telefone = prompt("Número do WhatsApp que vai conectar (com DDI e DDD, só números):", "55");
       if (telefone) {
-        mostrarStatusWa(p, await post(`/api/${p}/conectar`, { telefone }));
+        mostrarStatusWa(p, await post(`${rotaWa(p)}/conectar`, { telefone }));
         iniciarPollingWa(p);
       }
     } else if (acao === "status") {
-      mostrarStatusWa(p, await api(`/api/${p}/status`));
-    } else if (acao === "desconectar" && confirm("Desconectar o WhatsApp deste sistema?")) {
-      await post(`/api/${p}/desconectar`);
-      mostrarStatusWa(p, await api(`/api/${p}/status`));
+      mostrarStatusWa(p, await api(`${rotaWa(p)}/status`));
+    } else if (acao === "desconectar" && confirm("Desconectar este WhatsApp do sistema?")) {
+      await post(`${rotaWa(p)}/desconectar`);
+      mostrarStatusWa(p, await api(`${rotaWa(p)}/status`));
       await atualizarSessao();
+    } else if (acao === "editar") {
+      editarNumeroUazap(p.slice(6));
+    } else if (acao === "remover" && confirm("Tirar este número da lista? As conversas dele passam a sair pelos outros números (a instância continua na UAZap).")) {
+      await api(rotaWa(p), { method: "DELETE" });
+      pararPollingWa(p);
+      await carregarNumerosUazap();
+      await atualizarSessao();
+      avisar("Número removido da lista", "ok");
     }
   } catch (e) {
     avisar(e.message, "perigo");
@@ -2977,7 +3035,7 @@ document.addEventListener("click", async (ev) => {
     else if (btn.dataset.maps === "processar") await processarCapturadas(btn);
     else if (btn.dataset.seqAcao) await acaoSequencia(btn);
     else if (btn.dataset.acao) await acaoMensagem(btn);
-    else if (btn.dataset.uazap) await acaoWa("uazap", btn);
+    else if (btn.dataset.waAcao) await acaoWa(btn.dataset.waP, btn, btn.dataset.waAcao);
     else if (btn.dataset.evolution) await acaoWa("evolution", btn);
     else if (btn.dataset.cron === "gerar") await gerarChaveCron(btn);
     else if (btn.dataset.cron === "banco") await ligarAgendadorDoBanco(btn);

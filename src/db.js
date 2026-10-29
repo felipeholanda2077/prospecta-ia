@@ -218,6 +218,7 @@ export async function descadastrar(contato, motivo = "pedido do contato") {
 const COLUNAS_LEAD = new Set([
   "nome", "nicho", "cidade", "endereco", "telefone", "whatsapp", "whatsapp_status", "email", "site", "maps_url",
   "avaliacao", "total_avaliacoes", "analise", "oportunidades", "status", "observacao", "instagram", "instagram_dados",
+  "numero_wa",
 ]);
 
 /** Insere a empresa se ainda não existir. Retorna true se for nova. */
@@ -325,7 +326,7 @@ export async function descadastrarLead(lead, motivo = "pedido do contato") {
 
 // ---------- Mensagens ----------
 
-const COLUNAS_MENSAGEM = new Set(["assunto", "corpo", "status", "erro", "enviada_em", "message_id", "agendada_para"]);
+const COLUNAS_MENSAGEM = new Set(["assunto", "corpo", "status", "erro", "enviada_em", "message_id", "agendada_para", "numero_wa"]);
 
 /** Evita contatar o mesmo e-mail/telefone duas vezes, mesmo vindo de empresas diferentes. */
 export async function contatoJaUsado(destino, status = ["rascunho", "aprovada", "enviada"]) {
@@ -366,7 +367,7 @@ export async function cancelarPendentes(leadId, motivo) {
 
 const SELECT_MENSAGEM = `
   SELECT m.*, l.nome AS empresa, l.nicho, l.cidade, l.site, l.maps_url, l.token, l.oportunidades, l.whatsapp_status,
-         l.avaliacao, l.total_avaliacoes, l.status AS status_lead
+         l.avaliacao, l.total_avaliacoes, l.status AS status_lead, l.numero_wa AS numero_wa_lead
     FROM mensagens m JOIN leads l ON l.id = m.lead_id`;
 
 export async function mensagensPorStatus(status, limite = 1000) {
@@ -495,14 +496,21 @@ export async function ultimaEnviadaNoCanal(canal) {
 
 /** Mensagens de prospecção enviadas hoje (respostas de conversa não contam). Sem canal = todos. */
 /** Mensagens de prospecção enviadas hoje; com `primeiroContato`, só as etapas 1 (empresas novas). */
-export async function enviadasHoje(canal = null, { primeiroContato = false } = {}) {
+/** Quantas empresas conversam por este número de WhatsApp. */
+export async function conversasDoNumero(numero) {
+  return (await um(`SELECT count(*)::int AS n FROM leads WHERE numero_wa = $1`, [numero])).n;
+}
+
+/** Enviadas hoje. Com `numero`, só as que saíram por esse número de WhatsApp (as antigas, sem número, contam no "principal"). */
+export async function enviadasHoje(canal = null, { primeiroContato = false, numero = null } = {}) {
   return (
     await um(
       `SELECT count(*)::int AS n FROM mensagens
         WHERE status = 'enviada' AND tipo <> 'resposta' AND ($2::text IS NULL OR canal = $2::text)
           AND ($3::boolean IS FALSE OR etapa <= 1)
+          AND ($4::text IS NULL OR COALESCE(numero_wa, 'principal') = $4::text)
           AND (enviada_em AT TIME ZONE $1::text)::date = (now() AT TIME ZONE $1::text)::date`,
-      [config.timezone, canal, primeiroContato]
+      [config.timezone, canal, primeiroContato, numero]
     )
   ).n;
 }

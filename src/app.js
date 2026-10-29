@@ -108,12 +108,13 @@ app.post("/webhooks/whatsapp", async (req, res) => {
 
 // Webhook da UAZap: o segredo na URL e o token da instância no corpo provam a origem.
 app.post("/webhooks/uazap/:segredo", async (req, res) => {
-  if (!(await uazap.webhookValido(req.params.segredo, req.body))) return res.sendStatus(401);
+  const numero = await uazap.webhookValido(req.params.segredo, req.body);
+  if (!numero) return res.sendStatus(401);
   // A UAZap espera resposta rápida; a classificação com IA continua depois (waitUntil na Vercel).
   res.sendStatus(200);
   waitUntil(
     carregarCampanhaCompleta()
-      .then((campanha) => processarWebhookUazap(req.body, campanha))
+      .then((campanha) => processarWebhookUazap(req.body, campanha, numero.id))
       .catch((e) => console.error("Erro no webhook da UAZap:", e))
   );
 });
@@ -271,6 +272,7 @@ app.get("/api/sessao", async (req, res) => {
   res.json({
     empresa: campanha.empresa.nome,
     modoWhatsapp: modo,
+    numerosWhatsapp: modo === "uazap" ? (await uazap.conectados()).length : null,
     automacao: { ativo: campanha.automacao.ativo, respostaAutomatica: campanha.automacao.respostaAutomatica },
     whatsappAutomatico: modo !== "manual",
     whatsappDesconectado: await pipeline.whatsappDesconectado(modo),
@@ -512,6 +514,7 @@ app.get("/api/conversas/:leadId", async (req, res) => {
     andamento: conversa?.andamento ?? null,
     interessado: conversa?.interessado ?? false,
     iaPausada: (await iaPausada(lead.id)) || null,
+    numeroWhatsapp: lead.numero_wa ? (await uazap.numero(lead.numero_wa))?.nome ?? null : null,
     mensagens: await db.historicoConversa(lead.id),
     agendadas: await db.agendadasDaConversa(lead.id),
     // A sugestão da IA vai para a caixa de resposta quando ninguém respondeu ainda a última mensagem.
@@ -584,15 +587,14 @@ app.get("/api/leads/:id/conversa", async (req, res) => {
 
 app.get("/api/config", async (req, res) => {
   const campanha = await carregarCampanhaCompleta();
-  const u = await uazap.obterConfig();
+  const numerosUazap = await uazap.numeros();
   const ev = await evolution.obterConfig();
   const wa = await whatsappOficial.obterConfig();
   res.json({
     empresa: Object.fromEntries(CAMPOS_EMPRESA.map((c) => [c, campanha.empresa[c] ?? ""])),
     uazap: {
-      url: u.url,
-      tokenDefinido: Boolean(u.token),
-      webhook: u.segredoWebhook ? `${config.painel.urlPublica}/webhooks/uazap/•••` : null,
+      url: numerosUazap[0]?.url ?? "",
+      numeros: numerosUazap.map((n) => ({ id: n.id, nome: n.nome, url: n.url, tokenDefinido: Boolean(n.token) })),
     },
     evolution: {
       url: ev.url,
@@ -804,41 +806,50 @@ app.put("/api/config/empresa", async (req, res) => {
   res.json({ ok: true });
 });
 
-// UAZap: salvar a conexão já aponta o webhook da instância para este sistema.
-app.post("/api/uazap/config", async (req, res) => {
+// UAZap: vários números, cada um uma instância. Salvar já aponta o webhook da instância para este sistema.
+const respostaDoNumero = async (id) => ({ ok: true, id, status: await uazap.status(id) });
+const comErro = (fn) => async (req, res) => {
   try {
-    await uazap.salvarConfig({ url: req.body?.url, token: req.body?.token });
-    const webhook = await uazap.configurarWebhook();
-    res.json({ ok: true, webhook: webhook.replace(/[^/]+$/, "•••"), status: await uazap.status() });
+    res.json(await fn(req));
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
-});
+};
 
-app.get("/api/uazap/status", async (req, res) => {
-  try {
-    res.json(await uazap.status());
-  } catch (e) {
-    res.status(400).json({ erro: e.message });
-  }
-});
+// Todos os números com status, empresas novas de hoje e limite de cada um.
+app.get("/api/uazap/numeros", comErro(async () => {
+  const campanha = await carregarCampanhaCompleta();
+  return Promise.all((await uazap.statusDeTodos()).map(async (n) => ({
+    ...n,
+    hoje: await db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id }),
+    limite: await pipeline.limiteDoNumero(campanha, n.id),
+    conversas: await db.conversasDoNumero(n.id),
+  })));
+}));
 
-app.post("/api/uazap/conectar", async (req, res) => {
-  try {
-    res.json(await uazap.conectar(req.body?.telefone));
-  } catch (e) {
-    res.status(400).json({ erro: e.message });
-  }
-});
+app.post("/api/uazap/numeros", comErro(async (req) => {
+  const n = await uazap.salvarNumero({ nome: req.body?.nome, url: req.body?.url, token: req.body?.token });
+  await uazap.configurarWebhook(n.id);
+  return respostaDoNumero(n.id);
+}));
 
-app.post("/api/uazap/desconectar", async (req, res) => {
-  try {
-    await uazap.desconectar();
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(400).json({ erro: e.message });
-  }
-});
+app.put("/api/uazap/numeros/:id", comErro(async (req) => {
+  const n = await uazap.salvarNumero({ id: req.params.id, nome: req.body?.nome, url: req.body?.url, token: req.body?.token });
+  await uazap.configurarWebhook(n.id);
+  return respostaDoNumero(n.id);
+}));
+
+app.delete("/api/uazap/numeros/:id", comErro(async (req) => {
+  await uazap.removerNumero(req.params.id);
+  return { ok: true };
+}));
+
+app.get("/api/uazap/numeros/:id/status", comErro((req) => uazap.status(req.params.id)));
+app.post("/api/uazap/numeros/:id/conectar", comErro((req) => uazap.conectar(req.params.id, req.body?.telefone)));
+app.post("/api/uazap/numeros/:id/desconectar", comErro(async (req) => {
+  await uazap.desconectar(req.params.id);
+  return { ok: true };
+}));
 
 // API oficial do WhatsApp (Cloud API da Meta): salvar confere o token e o número com a Meta.
 app.post("/api/whatsapp-oficial/config", async (req, res) => {

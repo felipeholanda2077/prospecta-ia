@@ -97,9 +97,10 @@ test("extrairMensagemUazap lê o evento de mensagem recebida", () => {
 
 test("webhook da UAZap só é aceito com o segredo certo e o token da instância", async () => {
   await db.gravarConfig("uazap", { url: "https://x.uazapi.com", token: "TOKEN-INST", segredoWebhook: "segredo123" });
-  assert.equal(await webhookValido("segredo123", { token: "TOKEN-INST" }), true);
-  assert.equal(await webhookValido("errado", { token: "TOKEN-INST" }), false);
-  assert.equal(await webhookValido("segredo123", { token: "OUTRO" }), false);
+  // Configuração antiga (um número só) vira o número "principal".
+  assert.equal((await webhookValido("segredo123", { token: "TOKEN-INST" }))?.id, "principal");
+  assert.equal(await webhookValido("errado", { token: "TOKEN-INST" }), null);
+  assert.equal(await webhookValido("segredo123", { token: "OUTRO" }), null);
   assert.equal(resumirStatus({ instance: { status: "connecting", qrcode: "data:image/png;base64,AAA" }, status: { connected: false } }).qrcode,
                "data:image/png;base64,AAA");
   assert.equal(resumirStatus({ instance: { status: "connected" }, status: { connected: true, loggedIn: true, jid: "5585999990000:12@s.whatsapp.net" } }).numero,

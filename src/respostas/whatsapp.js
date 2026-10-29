@@ -63,9 +63,9 @@ export async function processarWebhookWhatsapp(payload, campanha) {
   return registradas;
 }
 
-/** Respostas que chegam pelo webhook da UAZap. */
-export function processarWebhookUazap(payload, campanha) {
-  return registrarMensagemWhatsappWeb(extrairMensagemUazap(payload), campanha);
+/** Respostas que chegam pelo webhook da UAZap; `numeroId` é o número que recebeu a mensagem. */
+export function processarWebhookUazap(payload, campanha, numeroId = null) {
+  return registrarMensagemWhatsappWeb(extrairMensagemUazap(payload), campanha, null, { numeroId });
 }
 
 /**
@@ -90,10 +90,15 @@ export async function textoDoAudio(m, baixar) {
   }
 }
 
-async function registrarMensagemWhatsappWeb(m, campanha, baixar = null, { avaliarNovo = null, ...opcoesNovo } = {}) {
+async function registrarMensagemWhatsappWeb(m, campanha, baixar = null, { avaliarNovo = null, numeroId = null, ...opcoesNovo } = {}) {
   if (!m) return 0;
   const original = await mensagemOriginalWhatsapp(m.de);
   const lead = original ? await db.buscarLead(original.lead_id) : await leadDoContato(m.de);
+  // A resposta da IA sai pelo mesmo número em que a empresa escreveu.
+  if (lead && numeroId && lead.numero_wa !== numeroId) {
+    await db.atualizarLead(lead.id, { numero_wa: numeroId });
+    lead.numero_wa = numeroId;
+  }
   if (!lead) {
     // Conversa que não veio de uma prospecção nossa: só entra se a IA vir que é cliente.
     if (!avaliarNovo || !m.texto) return 0;
