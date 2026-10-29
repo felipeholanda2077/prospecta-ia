@@ -13,7 +13,10 @@ export const lerConexao = () => db.lerConfig("instagram");
 /** O que o painel pode ver da conexão. */
 export async function statusDaConexao() {
   const c = await lerConexao();
-  return c?.token ? { conectado: true, usuario: c.usuario, conectadoEm: c.conectadoEm, expiraEm: c.expiraEm ?? null } : { conectado: false };
+  // A busca de empresas (hashtags e perfis de outras contas) só existe no token do Facebook.
+  return c?.token
+    ? { conectado: true, usuario: c.usuario, conectadoEm: c.conectadoEm, expiraEm: c.expiraEm ?? null, buscaEmpresas: c.host === "graph.facebook.com" }
+    : { conectado: false };
 }
 
 async function chamar({ host, token }, metodo, caminho, params = {}) {

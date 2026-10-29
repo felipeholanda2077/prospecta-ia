@@ -213,20 +213,21 @@ export async function descadastrar(contato, motivo = "pedido do contato") {
 
 const COLUNAS_LEAD = new Set([
   "nome", "nicho", "cidade", "endereco", "telefone", "whatsapp", "whatsapp_status", "email", "site", "maps_url",
-  "avaliacao", "total_avaliacoes", "analise", "oportunidades", "status", "observacao",
+  "avaliacao", "total_avaliacoes", "analise", "oportunidades", "status", "observacao", "instagram", "instagram_dados",
 ]);
 
 /** Insere a empresa se ainda não existir. Retorna true se for nova. */
 export async function inserirLead(lead) {
   const linhas = await q(
     `INSERT INTO leads (place_id, nome, nicho, cidade, endereco, telefone, site, maps_url,
-                        avaliacao, total_avaliacoes, origem, token)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                        avaliacao, total_avaliacoes, origem, token, email, instagram, instagram_dados)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      ON CONFLICT (place_id) DO NOTHING RETURNING id`,
     [
       lead.place_id, lead.nome, lead.nicho, lead.cidade, lead.endereco, lead.telefone, lead.site,
       lead.maps_url, lead.avaliacao, lead.total_avaliacoes, lead.origem ?? "campanha",
-      crypto.randomBytes(16).toString("hex"),
+      crypto.randomBytes(16).toString("hex"), lead.email ?? null, lead.instagram ?? null,
+      lead.instagram_dados ? JSON.stringify(lead.instagram_dados) : null,
     ]
   );
   return linhas.length > 0;
@@ -274,6 +275,23 @@ export async function placeIdsCapturados(ids) {
   if (!ids.length) return new Set();
   const linhas = await q(`SELECT place_id FROM leads WHERE place_id IN (${marcadores(ids.length)})`, ids);
   return new Set(linhas.map((l) => l.place_id));
+}
+
+/** Quais destes @ do Instagram já viraram empresa (pelo Instagram ou pelo link do perfil no Google). */
+export async function instagramsCapturados(usuarios) {
+  if (!usuarios.length) return new Set();
+  const linhas = await q(
+    `SELECT instagram, site, place_id FROM leads
+      WHERE instagram IN (${marcadores(usuarios.length)}) OR site ~* 'instagram\\.com/'`,
+    usuarios
+  );
+  const achados = new Set();
+  for (const l of linhas) {
+    if (l.instagram) achados.add(l.instagram.toLowerCase());
+    const doLink = String(l.site ?? "").match(/instagram\.com\/([a-z0-9._]{2,30})/i)?.[1];
+    if (doLink) achados.add(doLink.toLowerCase());
+  }
+  return new Set(usuarios.filter((u) => achados.has(u)));
 }
 
 /** Marca todos os contatos do lead como descadastrados e cancela o que ainda não foi enviado. */

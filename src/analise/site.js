@@ -68,6 +68,12 @@ export function extrairWhatsapp(html) {
   return m ? normalizarTelefoneBR(m[1]) : null;
 }
 
+/** O link do perfil do Instagram que o site aponta (ex.: o ícone no rodapé). */
+export function extrairInstagram(html) {
+  const m = html.match(/instagram\.com\/([a-z0-9._]{2,30})/i);
+  return m && !/^(p|reel|reels|explore|accounts|stories|tv)$/i.test(m[1]) ? `https://www.instagram.com/${m[1]}/` : null;
+}
+
 /**
  * Auditoria simples da presença digital a partir do HTML da página inicial.
  * Função pura para facilitar testes.
@@ -186,6 +192,7 @@ export async function analisarSite(url) {
       ...analisarHtml(pagina.html, pagina.urlFinal),
       emails: extrairEmails(pagina.html, pagina.urlFinal),
       whatsapp: extrairWhatsapp(pagina.html),
+      linkInstagram: extrairInstagram(pagina.html),
     };
 
     if (!resultado.emails.length) {

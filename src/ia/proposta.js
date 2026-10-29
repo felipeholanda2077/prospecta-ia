@@ -107,13 +107,24 @@ Regras gerais:
 - Não escreva rodapé de descadastro; ele é adicionado automaticamente.`;
 }
 
+/** O Instagram da empresa, guardado na análise, numa linha para a IA. */
+function linhaDoInstagram(lead) {
+  let insta = null;
+  try {
+    insta = JSON.parse(lead.analise ?? "{}").instagram;
+  } catch {}
+  if (!insta?.usuario) return "";
+  const partes = [insta.seguidores != null && `${insta.seguidores} seguidores`, insta.posts != null && `${insta.posts} posts`].filter(Boolean);
+  return `\n- Instagram: @${insta.usuario}${partes.length ? ` (${partes.join(", ")})` : ""}`;
+}
+
 function montarPedido(lead, oportunidades) {
   return `Dados da empresa prospectada:
 - Nome: ${lead.nome}
 - Segmento: ${lead.nicho ?? "não informado"}
 - Cidade: ${lead.cidade ?? "não informada"}
 - Site: ${lead.site ?? "não possui"}
-- Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "sem dados"}
+- Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "sem dados"}${linhaDoInstagram(lead)}
 
 Oportunidades encontradas na análise (da mais para a menos relevante):
 ${oportunidades.map((o) => `- [${o.servico}] ${o.motivo}`).join("\n")}

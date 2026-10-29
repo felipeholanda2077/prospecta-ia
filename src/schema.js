@@ -78,6 +78,9 @@ CREATE TABLE IF NOT EXISTS descadastros (
 ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS etapa integer NOT NULL DEFAULT 1;
 -- De onde veio o número de WhatsApp: verificado (UAZap confirmou) | site (link wa.me) | celular | fixo (pode não ter)
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS whatsapp_status text;
+-- Instagram da empresa (o @) e os dados públicos do perfil (seguidores, posts, bio), em JSON.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS instagram text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS instagram_dados text;
 -- Resposta automática: qual mensagem a IA mandou e se a conversa precisa de você.
 ALTER TABLE respostas ADD COLUMN IF NOT EXISTS mensagem_id integer;
 ALTER TABLE respostas ADD COLUMN IF NOT EXISTS precisa_humano text;

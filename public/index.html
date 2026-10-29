@@ -211,7 +211,7 @@
   .wa-hora { display: block; text-align: right; font-size: 11px; opacity: .6; margin-top: 2px; }
 
   /* ---------- Google Maps ---------- */
-  .busca { display: grid; grid-template-columns: 1.4fr 1.4fr .8fr auto; gap: 12px; align-items: end; }
+  .busca { display: grid; grid-template-columns: .9fr 1.4fr 1.4fr .8fr auto; gap: 12px; align-items: end; }
   .resultados-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 26px 0 14px; }
   .resultados-cab h2 { font-size: 17px; }
   .resultados-cab .espaco { flex: 1; }
@@ -557,13 +557,18 @@
       <!-- Google Maps -->
       <section id="view-maps" hidden>
         <form class="cartao cartao-corpo busca" id="form-maps">
+          <div class="campo"><label for="onde">Onde buscar</label>
+            <select id="onde"><option value="maps">Google Maps</option><option value="instagram">Instagram</option></select></div>
           <div class="campo"><label for="nicho">Segmento</label>
             <div class="com-icone"><span data-ic="search"></span><input id="nicho" list="nichos" placeholder="Ex.: pet shop, clínica odontológica" required></div></div>
           <div class="campo"><label for="cidade">Cidade</label>
             <div class="com-icone"><span data-ic="pin"></span><input id="cidade" list="cidades" placeholder="Ex.: Fortaleza - CE" required></div></div>
           <div class="campo"><label for="quantidade">Quantidade</label>
             <select id="quantidade"><option value="20">20 empresas</option><option value="40">40 empresas</option><option value="60">60 empresas</option></select></div>
-          <button class="btn primario" type="submit"><span data-ic="search"></span>Buscar no Google Maps</button>
+          <button class="btn primario" type="submit" id="buscar-btn"><span data-ic="search"></span>Buscar no Google Maps</button>
+          <div class="campo" id="campo-termos" style="grid-column:1/-1" hidden><label for="termos">Hashtags ou @perfis (opcional)</label>
+            <input id="termos" placeholder="Ex.: #petshopfortaleza #banhoetosa @petconcorrente">
+            <span class="muted" style="font-size:12.5px">Sem nada aqui, busca pela hashtag do segmento + cidade (ex.: #petshopfortaleza). Os perfis comerciais citados nos posts viram empresas, com o WhatsApp e o e-mail da bio. A Meta deixa consultar 30 hashtags diferentes por semana.</span></div>
         </form>
         <datalist id="nichos"></datalist><datalist id="cidades"></datalist>
         <div id="pos-captura"></div>
@@ -583,6 +588,8 @@
           <div class="cartao-corpo" style="display:grid;gap:18px">
             <label class="chave"><input type="checkbox" name="ativo"><div><b>Modo automático</b>
               <span>A cada 10 minutos: busca empresas no Google Maps, analisa, a IA escreve a sequência e ela já sai aprovada. Uma empresa nova por vez, com intervalo entre elas. Envios só de segunda a sexta, das 9h às 18h.</span></div></label>
+            <label class="chave"><input type="checkbox" name="buscarNoInstagram"><div><b>Buscar empresas também no Instagram</b>
+              <span>Com o Instagram conectado em Conteúdo, a busca automática procura o mesmo segmento e cidade pela hashtag (ex.: #petshopfortaleza) e pega os perfis comerciais com WhatsApp ou e-mail na bio.</span></div></label>
             <label class="chave"><input type="checkbox" name="respostaAutomatica"><div><b>IA responde as conversas sozinha</b>
               <span>Responde em alguns minutos, em tom humano, uma informação por vez, até a pessoa marcar no Calendly. Passa para você se pedirem ligação, negociarem ou reclamarem.</span></div></label>
             <div class="config-grade">
@@ -752,7 +759,7 @@
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="camera"></span><div class="titulos"><h3>Instagram <span id="instagram-status"></span></h3>
             <div class="meta">Conecte a conta profissional do Instagram (comercial ou de criador de conteúdo) para os posts saírem sozinhos: o carrossel com as imagens ou o Reels com o vídeo, já com a legenda e as hashtags.</div></div></div>
           <div class="cartao-corpo config-grade">
-            <div class="campo" style="grid-column:1/-1"><label for="instagram-token">Token de acesso (developers.facebook.com/tools/explorer → app FluxDeck → token de usuário com as permissões do Instagram e da página)</label>
+            <div class="campo" style="grid-column:1/-1"><label for="instagram-token">Token de acesso (developers.facebook.com/tools/explorer → app FluxDeck → token de usuário com pages_show_list, pages_read_engagement, instagram_basic, instagram_content_publish, instagram_manage_insights e business_management)</label>
               <input id="instagram-token" name="token" type="password" autocomplete="off" required></div>
             <div class="campo"><label for="instagram-id">ID da conta do Instagram (opcional)</label>
               <input id="instagram-id" name="igId" inputmode="numeric" autocomplete="off" placeholder="17841…">
@@ -837,13 +844,14 @@ let stats = null;
 let viewAtual = "rascunho";
 let resultadosMaps = [];
 let buscaMaps = {};
+let avisosBusca = [];
 const selecionadas = new Set();
 
 // Leituras, login, busca no Maps e etapas do funil podem ser repetidas sem risco
 // (as etapas continuam de onde pararam). Aprovar, enviar e salvar não: repetir
 // poderia enviar duas vezes, então essas ficam para você tentar de novo.
 const podeRepetir = (metodo, caminho) =>
-  metodo === "GET" || caminho.startsWith("/api/etapas/") || ["/api/maps/buscar", "/api/login"].includes(caminho);
+  metodo === "GET" || caminho.startsWith("/api/etapas/") || ["/api/maps/buscar", "/api/instagram/buscar", "/api/login"].includes(caminho);
 const TEMPO_MAXIMO_MS = 320_000; // um pouco acima do limite de 5 minutos da Vercel
 const esperarMs = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -927,8 +935,8 @@ function aplicarTema(t) {
 
 // ===================== Navegação =====================
 const VIEWS = {
-  maps:      { grupo: "Prospecção", nome: "Buscar no Maps", curto: "Buscar", icone: "pin", titulo: "Buscar no Google Maps",
-               sub: "Encontre empresas por segmento e cidade e escolha quem prospectar." },
+  maps:      { grupo: "Prospecção", nome: "Buscar empresas", curto: "Buscar", icone: "pin", titulo: "Buscar empresas",
+               sub: "Encontre empresas por segmento e cidade, no Google Maps ou no Instagram, e escolha quem prospectar." },
   rascunho:  { grupo: "Prospecção", nome: "Aprovar mensagens", curto: "Aprovar", icone: "checkCircle", titulo: "Aprovar mensagens",
                sub: "Revise a sequência que a IA escreveu. Nada é enviado sem a sua aprovação.", contador: () => stats?.sequenciasPendentes },
   aprovada:  { grupo: "Prospecção", nome: "Fila de envio", icone: "clock", titulo: "Fila de envio",
@@ -1071,10 +1079,17 @@ async function carregarStats() {
 }
 
 // ===================== Google Maps =====================
+$("#onde").addEventListener("change", () => {
+  const insta = $("#onde").value === "instagram";
+  $("#campo-termos").hidden = !insta;
+  $("#buscar-btn").innerHTML = `${ic("search")}Buscar no ${insta ? "Instagram" : "Google Maps"}`;
+});
+
 $("#form-maps").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const btn = ev.submitter;
   buscaMaps = { nicho: $("#nicho").value.trim(), cidade: $("#cidade").value.trim() };
+  const onde = $("#onde").value;
   filtroMaps = "todas";
   btn.disabled = true;
   selecionadas.clear();
@@ -1083,7 +1098,13 @@ $("#form-maps").addEventListener("submit", async (ev) => {
   $("#resultado-maps").innerHTML = `<div class="resultados-cab"><h2>Buscando "${esc(buscaMaps.nicho)}" em ${esc(buscaMaps.cidade)}…</h2></div>
     <div class="grade">${'<div class="esqueleto"></div>'.repeat(6)}</div>`;
   try {
-    resultadosMaps = await post("/api/maps/buscar", { ...buscaMaps, quantidade: $("#quantidade").value });
+    avisosBusca = [];
+    if (onde === "instagram") {
+      const r = await post("/api/instagram/buscar", { ...buscaMaps, termos: $("#termos").value, quantidade: $("#quantidade").value });
+      resultadosMaps = r.empresas;
+      avisosBusca = r.avisos ?? [];
+    } else resultadosMaps = await post("/api/maps/buscar", { ...buscaMaps, quantidade: $("#quantidade").value });
+    buscaMaps.onde = onde;
     desenharMaps();
   } catch (e) {
     $("#resultado-maps").innerHTML = `<div class="alerta perigo" style="margin-top:18px">${ic("alert")}<div>${esc(e.message)}</div></div>`;
@@ -1109,9 +1130,14 @@ function cartaoEmpresaMaps(e, i) {
       ${e.telefone ? `<span class="pilula ${e.celular ? "wa" : ""}">${ic(e.celular ? "message" : "phone", "sm")}${esc(e.telefone)}</span>` : `<span class="pilula">Sem telefone</span>`}
       ${!semSite(e) ? `<span class="pilula acc">${ic("globe", "sm")}Tem site</span>` : `<span class="pilula atencao">${ic("globe", "sm")}${e.site ? "Só rede social" : "Sem site"}</span>`}
       ${e.avaliacao ? `<span class="pilula">${ic("star", "sm")}${String(e.avaliacao).replace(".", ",")} · ${e.total_avaliacoes ?? 0}</span>` : ""}
+      ${e.instagram_dados?.seguidores != null ? `<span class="pilula">${ic("camera", "sm")}${Number(e.instagram_dados.seguidores).toLocaleString("pt-BR")} seguidores</span>` : ""}
+      ${e.email ? `<span class="pilula">${ic("mail", "sm")}${esc(e.email)}</span>` : ""}
     </div>
+    ${e.instagram_dados?.bio ? `<p class="muted" style="margin:0;font-size:13px;white-space:pre-line">${esc(e.instagram_dados.bio.slice(0, 160))}</p>` : ""}
     <div class="links">
-      ${e.site ? `<a href="${esc(e.site)}" target="_blank" rel="noopener">${ic("globe", "sm")}${esc(e.site.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a>` : ""}
+      ${e.site && !e.instagram ? `<a href="${esc(e.site)}" target="_blank" rel="noopener">${ic("globe", "sm")}${esc(e.site.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a>` : ""}
+      ${e.instagram && !semSite(e) ? `<a href="${esc(e.site)}" target="_blank" rel="noopener">${ic("globe", "sm")}${esc(e.site.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a>` : ""}
+      ${e.instagram ? `<a href="https://www.instagram.com/${esc(e.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(e.instagram)}</a>` : ""}
       ${e.maps_url ? `<a href="${esc(e.maps_url)}" target="_blank" rel="noopener">${ic("external", "sm")}Ver no Maps</a>` : ""}
     </div>
   </article>`;
@@ -1121,8 +1147,12 @@ function cartaoEmpresaMaps(e, i) {
 let filtroMaps = "todas";
 
 function desenharMaps() {
+  const alertas = avisosBusca.map((a) => `<div class="alerta" style="margin-top:12px">${ic("alert")}<div>${esc(a)}</div></div>`).join("");
   if (!resultadosMaps.length) {
-    $("#resultado-maps").innerHTML = `<div style="margin-top:18px">${vazio("search", "Nenhuma empresa encontrada", "Tente outro segmento ou uma cidade vizinha.")}</div>`;
+    const dica = buscaMaps.onde === "instagram"
+      ? "Tente outras hashtags (ex.: #banhoetosafortaleza) ou informe @perfis de empresas e concorrentes."
+      : "Tente outro segmento ou uma cidade vizinha.";
+    $("#resultado-maps").innerHTML = `${alertas}<div style="margin-top:18px">${vazio("search", "Nenhuma empresa encontrada", dica)}</div>`;
     return;
   }
   const novas = resultadosMaps.filter((e) => !e.jaCapturado);
@@ -1134,9 +1164,9 @@ function desenharMaps() {
     .filter(([e]) => filtroMaps === "todas" || (filtroMaps === "sem") === semSite(e));
   const filtros = [["todas", "Todas"], ["sem", "Sem site"], ["com", "Com site"]]
     .map(([v, t]) => `<button class="filtro" data-filtro-maps="${v}" aria-pressed="${v === filtroMaps}">${t} · ${total[v]}</button>`).join("");
-  $("#resultado-maps").innerHTML = `
+  $("#resultado-maps").innerHTML = `${alertas}
     <div class="resultados-cab">
-      <h2>${resultadosMaps.length} empresas encontradas</h2>
+      <h2>${resultadosMaps.length} empresas encontradas${buscaMaps.onde === "instagram" ? " no Instagram" : ""}</h2>
       <span class="pilula acc">${novas.length} ${novas.length === 1 ? "nova" : "novas"}</span>
       ${novasSemSite ? `<span class="pilula atencao">${ic("star", "sm")}${novasSemSite} sem site</span>` : ""}
       <span class="espaco"></span>
@@ -1171,7 +1201,7 @@ async function capturarSelecionadas(btn) {
   if (!escolhidas.length) return avisar("Selecione ao menos uma empresa");
   btn.disabled = true;
   try {
-    const r = await post("/api/maps/capturar", { empresas: escolhidas, ...buscaMaps });
+    const r = await post(`/api/${buscaMaps.onde === "instagram" ? "instagram" : "maps"}/capturar`, { empresas: escolhidas, ...buscaMaps });
     for (const e of escolhidas) e.jaCapturado = true;
     selecionadas.clear();
     atualizarSelecao();
@@ -1956,13 +1986,14 @@ function cardLead(l) {
       <span class="avatar">${inicial(l.nome)}</span>
       <div class="titulos">
         <h3>${esc(l.nome)}</h3>
-        <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}</div>
+        <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}${l.origem === "instagram" ? `<span class="pilula">${ic("camera", "sm")}Instagram</span>` : ""}</div>
         <div class="meta" style="margin-top:8px">
           ${l.nicho ? `<span>${ic("building", "sm")}${esc(l.nicho)}${l.cidade ? ` · ${esc(l.cidade)}` : ""}</span>` : ""}
           ${l.email ? `<span>${ic("mail", "sm")}${esc(l.email)}</span>` : ""}
           ${l.whatsapp ? `<span>${ic("message", "sm")}${esc(l.whatsapp)}${{ fixo: " (fixo)", verificado: " ✓", site: " (do site)" }[l.whatsapp_status] ?? ""}</span>` : ""}
           ${l.site ? `<a href="${esc(l.site)}" target="_blank" rel="noopener">${ic("globe", "sm")}Site</a>` : ""}
           ${l.maps_url ? `<a href="${esc(l.maps_url)}" target="_blank" rel="noopener">${ic("external", "sm")}Maps</a>` : ""}
+          ${l.instagram ? `<a href="https://www.instagram.com/${esc(l.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(l.instagram)}</a>` : ""}
         </div>
         ${l.observacao ? `<p class="muted" style="margin:10px 0 0;font-size:13.5px">${esc(l.observacao)}</p>` : ""}
       </div>
@@ -2659,6 +2690,7 @@ async function carregarAutomacao() {
     const f = $("#form-automacao");
     f.ativo.checked = a.ativo;
     f.respostaAutomatica.checked = a.respostaAutomatica;
+    f.buscarNoInstagram.checked = a.buscarNoInstagram !== false;
     f.aquecimentoWhatsapp.checked = a.aquecimentoWhatsapp;
     f.aquecimentoInicial.value = a.aquecimentoInicial;
     f.aquecimentoPasso.value = a.aquecimentoPasso;
@@ -2693,6 +2725,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
   try {
     await api("/api/config/automacao", { method: "PUT", body: JSON.stringify({
       ativo: f.ativo.checked, respostaAutomatica: f.respostaAutomatica.checked, aquecimentoWhatsapp: f.aquecimentoWhatsapp.checked,
+      buscarNoInstagram: f.buscarNoInstagram.checked,
       metaEmail: f.metaEmail.value, metaWhatsapp: f.metaWhatsapp.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
       aquecimentoInicial: f.aquecimentoInicial.value, aquecimentoPasso: f.aquecimentoPasso.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,

@@ -1,6 +1,7 @@
 import { config } from "./config.js";
 import * as db from "./db.js";
 import { buscarEmpresas } from "./descoberta/googlePlaces.js";
+import { buscaNoInstagram, buscarEmpresasNoInstagram, instagramDaEmpresa } from "./descoberta/instagram.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
@@ -240,6 +241,7 @@ export async function descobrirProxima(campanha, { tentativas = 3 } = {}) {
   const combinacoes = combinacoesDeBusca(campanha);
   if (!combinacoes.length) return { novas: 0, motivo: "nenhuma busca configurada" };
   let indice = Number((await db.lerEstado("busca_rotacao")) ?? 0);
+  const inicio = indice;
   let novas = 0;
   const feitas = [];
   for (let t = 0; t < Math.min(tentativas, combinacoes.length) && !novas; t++) {
@@ -256,7 +258,26 @@ export async function descobrirProxima(campanha, { tentativas = 3 } = {}) {
     }
   }
   await db.gravarEstado("busca_rotacao", indice % combinacoes.length);
-  return { novas, buscas: feitas };
+  const instagram = await descobrirNoInstagram(campanha, combinacoes[inicio % combinacoes.length]);
+  return { novas: novas + (instagram?.novas ?? 0), buscas: feitas, ...(instagram ? { instagram } : {}) };
+}
+
+/**
+ * Com o Instagram conectado pela página do Facebook, a busca automática também procura no
+ * Instagram o mesmo segmento e cidade (pela hashtag, ex.: #petshopfortaleza).
+ */
+export async function descobrirNoInstagram(campanha, { nicho, cidade }, { quantidade = 10 } = {}) {
+  if (campanha.automacao?.buscarNoInstagram === false) return null;
+  if (!(await buscaNoInstagram()).conexao) return null;
+  try {
+    const { empresas, hashtags, avisos } = await buscarEmpresasNoInstagram({ nicho, cidade, quantidade });
+    const novas = (await capturarDoInstagram(empresas, nicho, cidade)).novas;
+    log(`📸 Busca automática no Instagram ${hashtags.map((t) => `#${t}`).join(" ") || "(sem hashtag livre)"}: ${novas} novas${avisos.length ? ` · ${avisos.join(" · ")}` : ""}`);
+    return { novas, hashtags, avisos };
+  } catch (e) {
+    log(`⚠️  Falha na busca automática no Instagram "${nicho} em ${cidade}": ${e.message}`);
+    return { novas: 0, erro: e.message };
+  }
 }
 
 /**
@@ -287,6 +308,49 @@ export async function buscarNoMaps(nicho, cidade, quantidade = 20) {
       semSite: semSiteProprio(e.site),
     }))
   );
+}
+
+/** Busca no Instagram pelo painel, sem salvar: mostra os perfis comerciais para você escolher. */
+export async function buscarNoInstagram(nicho, cidade, termos = "", quantidade = 20) {
+  const r = await buscarEmpresasNoInstagram({ nicho, cidade, termos, quantidade: Math.min(Number(quantidade) || 20, 40) });
+  const capturados = await db.instagramsCapturados(r.empresas.map((e) => e.instagram));
+  log(`📸 Busca no painel no Instagram "${nicho} em ${cidade}": ${r.empresas.length} perfis`);
+  return {
+    ...r,
+    empresas: ordenarPorPrioridade(
+      r.empresas.map((e) => ({ ...e, jaCapturado: capturados.has(e.instagram), celular: ehCelularBR(e.telefone), semSite: semSiteProprio(e.site) }))
+    ),
+  };
+}
+
+/** Salva como leads os perfis do Instagram escolhidos (ou achados pela busca automática). */
+export async function capturarDoInstagram(empresas, nicho, cidade) {
+  const validas = empresas.filter((e) => /^[a-z0-9._]{2,30}$/.test(String(e?.instagram ?? "")) && e?.nome);
+  const capturados = await db.instagramsCapturados(validas.map((e) => e.instagram));
+  let novas = 0;
+  for (const e of validas) {
+    if (capturados.has(e.instagram)) continue;
+    const dados = e.instagram_dados ?? {};
+    const lead = {
+      place_id: `ig:${e.instagram}`,
+      nome: String(e.nome).slice(0, 120),
+      endereco: null,
+      telefone: e.telefone ? String(e.telefone) : null,
+      email: e.email ? String(e.email) : null,
+      site: e.site ? String(e.site) : `https://www.instagram.com/${e.instagram}/`,
+      maps_url: null,
+      avaliacao: null,
+      total_avaliacoes: null,
+      instagram: e.instagram,
+      instagram_dados: { seguidores: dados.seguidores ?? null, posts: dados.posts ?? null, ultimoPost: dados.ultimoPost ?? null, bio: String(dados.bio ?? "").slice(0, 300) },
+      nicho,
+      cidade,
+      origem: "instagram",
+    };
+    if (await db.inserirLead(lead)) novas++;
+  }
+  if (novas) log(`📸 ${novas} empresas capturadas do Instagram`);
+  return { novas };
 }
 
 /** Salva como leads as empresas escolhidas no painel. */
@@ -350,24 +414,35 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
 
   for (const lead of leads) {
     if (semTempo(ate)) break;
-    const analise = await analisarSite(lead.site);
+    let analise = await analisarSite(lead.site);
+    // O perfil do Instagram (o do Google, o do site ou o capturado por lá): bio com WhatsApp e
+    // e-mail, e o site de verdade quando o Google só tem o link do Instagram.
+    const insta = await instagramDaEmpresa(lead, analise).catch(() => null);
+    if (insta && !analise.temSite && insta.site && !semSiteProprio(insta.site)) analise = await analisarSite(insta.site);
+    if (insta) {
+      analise.instagram = { usuario: insta.usuario, seguidores: insta.seguidores, posts: insta.posts, ultimoPost: insta.ultimoPost };
+      analise.whatsapp ??= insta.contatos.whatsapp;
+    }
     let oportunidades = identificarOportunidades(analise, lead.nicho);
     // Empresa com site bom não é descartada: a abordagem muda para automação e sistema.
     if (!oportunidades.length) oportunidades = oportunidadesParaSiteBom(lead.nicho);
-    const email = analise.emails?.[0] ?? null;
-    const { whatsapp, whatsapp_status } = await descobrirWhatsapp(lead, analise);
+    const email = analise.emails?.[0] ?? insta?.contatos.email ?? lead.email ?? null;
+    const telefone = lead.telefone ?? insta?.contatos.telefone ?? null;
+    const { whatsapp, whatsapp_status } = await descobrirWhatsapp({ ...lead, telefone }, analise);
 
     let status = "analisado";
     let observacao = null;
     if (!email && !whatsapp) {
       observacao = whatsapp_status === "sem_whatsapp"
         ? "sem e-mail no site e o telefone não tem WhatsApp"
-        : "sem e-mail no site e sem telefone no Google";
+        : lead.origem === "instagram" ? "sem e-mail nem WhatsApp na bio do Instagram" : "sem e-mail no site e sem telefone no Google";
       status = "descartado";
     } else if (!oportunidades.length) [status, observacao] = ["descartado", "nenhuma oportunidade clara"];
 
     await db.atualizarLead(lead.id, {
       email,
+      telefone,
+      ...(insta ? { instagram: insta.usuario, instagram_dados: JSON.stringify({ ...analise.instagram, bio: insta.bio }) } : {}),
       whatsapp,
       whatsapp_status,
       analise: JSON.stringify(analise),

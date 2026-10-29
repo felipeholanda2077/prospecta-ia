@@ -18,6 +18,7 @@ export const AUTOMACAO_PADRAO = {
   intervaloEmpresasMax: 12,
   maxRespostasIA: 6, // depois disso a conversa passa para você
   calendly: "",
+  buscarNoInstagram: true, // com o Instagram conectado pela página do Facebook, busca lá também
   buscas: null, // null = usa as do campanha.json
 };
 

@@ -28,7 +28,10 @@ export function identificarOportunidades(analise, nicho = "") {
   const anoAtual = new Date().getFullYear();
 
   if (!analise?.temSite) {
-    if (analise?.apenasRedeSocial) {
+    const insta = analise?.instagram;
+    if (insta?.seguidores) {
+      add("site", `a empresa atende pelo Instagram (@${insta.usuario}, ${insta.seguidores.toLocaleString("pt-BR")} seguidores), mas não tem um site próprio`, 10);
+    } else if (analise?.apenasRedeSocial) {
       add("site", "a empresa usa apenas rede social como site, sem um endereço próprio", 10);
     } else {
       add("site", "a empresa não tem site cadastrado no Google", 10);

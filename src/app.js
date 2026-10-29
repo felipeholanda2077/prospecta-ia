@@ -310,6 +310,23 @@ app.post("/api/maps/buscar", async (req, res) => {
   }
 });
 
+// Busca no Instagram pelo painel (perfis comerciais das hashtags ou os @ informados), sem salvar.
+app.post("/api/instagram/buscar", async (req, res) => {
+  const { nicho, cidade, termos, quantidade } = req.body ?? {};
+  if (!nicho?.trim() || !cidade?.trim()) return res.status(400).json({ erro: "Informe o segmento e a cidade" });
+  try {
+    res.json(await pipeline.buscarNoInstagram(nicho.trim(), cidade.trim(), String(termos ?? ""), quantidade));
+  } catch (e) {
+    res.status(502).json({ erro: e.message });
+  }
+});
+
+app.post("/api/instagram/capturar", async (req, res) => {
+  const { empresas, nicho, cidade } = req.body ?? {};
+  if (!Array.isArray(empresas) || !empresas.length) return res.status(400).json({ erro: "Selecione ao menos uma empresa" });
+  res.json(await pipeline.capturarDoInstagram(empresas.slice(0, 100), String(nicho ?? ""), String(cidade ?? "")));
+});
+
 app.post("/api/maps/capturar", async (req, res) => {
   const { empresas, nicho, cidade } = req.body ?? {};
   if (!Array.isArray(empresas) || !empresas.length) return res.status(400).json({ erro: "Selecione ao menos uma empresa" });
@@ -626,6 +643,7 @@ app.put("/api/config/automacao", async (req, res) => {
     intervaloEmpresasMax: Math.max(intervaloMin, inteiro(b.intervaloEmpresasMax, 1, 120, AUTOMACAO_PADRAO.intervaloEmpresasMax)),
     maxRespostasIA: inteiro(b.maxRespostasIA, 1, 20, AUTOMACAO_PADRAO.maxRespostasIA),
     calendly: calendlyLink,
+    buscarNoInstagram: b.buscarNoInstagram !== false,
     buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,
   };
   await db.gravarConfig("automacao", novo);
