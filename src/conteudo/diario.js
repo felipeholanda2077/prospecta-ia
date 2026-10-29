@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { gerarPost, PILARES } from "../ia/conteudo.js";
+import { gerarPost, PILARES, ESTRUTURAS } from "../ia/conteudo.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { lerBaseDeConteudo } from "./base.js";
 import { postarNoInstagram, MAX_TENTATIVAS } from "./instagram.js";
@@ -57,6 +57,17 @@ export function pilarDoDia(dia, tentativa = 0) {
 }
 
 /**
+ * Estrutura do roteiro do post, em rodízio próprio, separado da linha editorial.
+ */
+export function estruturaDoPost(dia, n = 0) {
+  const nomes = Object.keys(ESTRUTURAS);
+  const diaDoAno = Math.floor((Date.parse(`${dia}T12:00:00Z`) - Date.parse(`${dia.slice(0, 4)}-01-01T12:00:00Z`)) / 864e5);
+  // Nunca repete a estrutura do post anterior, e o deslocamento a cada ciclo completo faz o
+  // assunto e a estrutura não se repetirem juntos (40 posts seguidos, 40 combinações diferentes).
+  return nomes[(diaDoAno + n * 2 + 5 + Math.floor(diaDoAno / nomes.length) * 2) % nomes.length];
+}
+
+/**
  * Cria um post para hoje. `formato` fixo serve para "gerar outro" no lugar de um post; `horario`
  * é o horário do dia em que ele sai (sem horário, entra no próximo horário vago).
  */
@@ -66,10 +77,14 @@ export async function criarPostDeHoje(campanha, { formato, horario = null, escre
   const deHoje = await db.postsDoDia(dia);
   const escolhido = formato ?? proximoFormato(recentes[0]);
   const pilar = pilarDoDia(dia, deHoje.length);
+  const estrutura = estruturaDoPost(dia, deHoje.length);
   const base = await lerBaseDeConteudo();
-  const conteudo = await escrever({ campanha, formato: escolhido, pilar, base, recentes: recentes.map((p) => p.tema) });
+  const conteudo = await escrever({
+    campanha, formato: escolhido, pilar, estrutura, base,
+    recentes: recentes.slice(0, 20).map((p) => ({ tema: p.tema, gancho: p.conteudo?.gancho ?? "" })),
+  });
   const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo, horario });
-  log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}): ${conteudo.tema}`);
+  log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}, ${estrutura}): ${conteudo.tema}`);
   return db.buscarPost(id);
 }
 

@@ -12,7 +12,7 @@ const temReserva = (modelo) => !/haiku/i.test(modelo);
  * Chama o Claude pedindo uma resposta em JSON no formato de `jsonSchema`
  * e valida o resultado com o schema Zod `zodSchema`.
  */
-export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort = "medium" }) {
+export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort = "medium", modelo = config.claude.model }) {
   if (!client && config.naVercel && !process.env.ANTHROPIC_API_KEY) {
     throw new Error("ANTHROPIC_API_KEY não configurada nas variáveis de ambiente da Vercel");
   }
@@ -21,7 +21,6 @@ export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort 
   } catch (e) {
     throw new Error(`Chave da IA não configurada (ANTHROPIC_API_KEY): ${e.message}`);
   }
-  const modelo = config.claude.model;
   const resposta = await client.beta.messages.create({
     model: modelo,
     max_tokens: 16000,

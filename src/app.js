@@ -21,6 +21,7 @@ import { testarIA } from "./ia/cliente.js";
 import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia, normalizarHorarios } from "./conteudo/diario.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
+import { narracaoDisponivel } from "./conteudo/narracao.js";
 import { statusDaConexao, conectarInstagram, desconectarInstagram } from "./envio/instagram.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
@@ -659,7 +660,7 @@ app.get("/api/conteudo", async (req, res) => {
   const conf = await lerConfigConteudo();
   res.json({
     config: conf, base: await lerBaseDeConteudo(), hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14),
-    instagram: await statusDaConexao(),
+    instagram: await statusDaConexao(), narracao: narracaoDisponivel(),
   });
 });
 
@@ -697,6 +698,14 @@ app.post("/api/conteudo/:id/instagram", async (req, res) => {
   if (r.instagram === "desconectado") return res.status(400).json({ erro: "Conecte o Instagram primeiro" });
   if (r.instagram === "erro") return res.status(502).json({ erro: r.erro });
   res.json(r);
+});
+
+// O Reels em MP4, com a trilha e a voz, para baixar pelo painel (o mesmo vídeo que vai para o Instagram).
+app.get("/api/conteudo/:id/video", async (req, res) => {
+  const post = await db.buscarPost(req.params.id);
+  if (!post || post.formato !== "reels") return res.status(404).json({ erro: "Reels não encontrado" });
+  const [video] = await gerarArquivos(post, (await carregarCampanhaCompleta()).empresa.nome);
+  res.set({ "Content-Type": "video/mp4", "Content-Disposition": `attachment; filename="fluxdeck-${post.dia}-reels.mp4"` }).send(video.dados);
 });
 
 // Diagnóstico: gera os arquivos do post no servidor (sem publicar) e diz o tamanho e o tempo.

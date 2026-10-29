@@ -17,6 +17,11 @@ export const config = {
     // para escrever as mensagens e classificar as respostas. Troque em CLAUDE_MODEL se quiser.
     model: env.CLAUDE_MODEL || "claude-haiku-5-5",
   },
+  // Os posts do Instagram pedem mais criatividade que as mensagens: um modelo mais forte, só para eles
+  // (são 2 por dia, o custo é pequeno). Troque em CONTEUDO_MODEL se quiser.
+  conteudo: {
+    model: env.CONTEUDO_MODEL || "claude-sonnet-5-5",
+  },
   googlePlacesApiKey: env.GOOGLE_PLACES_API_KEY || "",
   // O token do Instagram é colado no painel (página Conteúdo) e fica no banco, porque é renovado sozinho.
   instagram: {

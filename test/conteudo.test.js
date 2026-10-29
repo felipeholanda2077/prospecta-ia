@@ -9,8 +9,8 @@ const { PILARES } = await import("../src/ia/conteudo.js");
 
 const campanha = { empresa: { nome: "FluxDeck", diferenciais: [] }, servicos: [] };
 const escritos = [];
-const escrever = async ({ formato, pilar, recentes }) => {
-  escritos.push({ formato, pilar, recentes });
+const escrever = async ({ formato, pilar, estrutura, recentes }) => {
+  escritos.push({ formato, pilar, estrutura, recentes });
   return { tema: `Tema ${escritos.length}`, gancho: "3 sinais de que seu site espanta clientes", slides: [], legenda: "Legenda",
     hashtags: ["empreendedorismo"], hashtags_extras: [], audio: "", narracao: "" };
 };
@@ -25,6 +25,15 @@ test("post do dia: horário em Brasília, rodízio de linhas editoriais e format
   assert.equal(diario.proximoFormato(null), "reels");
   assert.equal(diario.proximoFormato({ formato: "reels" }), "carrossel");
   assert.equal(diario.proximoFormato({ formato: "carrossel" }), "reels");
+  // Estrutura do roteiro: muda a cada post do dia e de um dia para o outro, sem coincidir sempre com o assunto.
+  assert.notEqual(diario.estruturaDoPost("2026-10-27", 0), diario.estruturaDoPost("2026-10-27", 1));
+  assert.notEqual(diario.estruturaDoPost("2026-10-27", 0), diario.estruturaDoPost("2026-10-28", 0));
+  const combinacoes = new Set();
+  for (let d = 1; d <= 20; d++) for (const n of [0, 1]) {
+    const dia = `2026-11-${String(d).padStart(2, "0")}`;
+    combinacoes.add(`${diario.pilarDoDia(dia, n)}:${diario.estruturaDoPost(dia, n)}`);
+  }
+  assert.ok(combinacoes.size >= 30, `só ${combinacoes.size} combinações em 40 posts`);
 });
 
 test("post do dia: criado uma vez só no horário, e o dia seguinte troca o formato", async () => {
@@ -40,7 +49,9 @@ test("post do dia: criado uma vez só no horário, e o dia seguinte troca o form
   await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-10-28T20:45:00Z"), escrever });
   assert.equal(escritos.length, 2);
   assert.notEqual(escritos[0].formato, escritos[1].formato);
-  assert.deepEqual(escritos[1].recentes, ["Tema 1"]); // a IA sabe o que já foi postado
+  assert.notEqual(escritos[0].estrutura, escritos[1].estrutura); // o jeito de contar também muda
+  assert.deepEqual(escritos[1].recentes.map((r) => r.tema), ["Tema 1"]); // a IA sabe o que já foi postado
+  assert.equal(escritos[1].recentes[0].gancho, "3 sinais de que seu site espanta clientes");
 
   const [ultimo] = await db.postsRecentes(1);
   assert.equal(ultimo.dia, "2026-10-28");

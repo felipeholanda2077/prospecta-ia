@@ -7,7 +7,7 @@
 <title>FluxDeck · Prospecção com IA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235b4cf0'/%3E%3Cstop offset='1' stop-color='%2306b6d4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M10 10h12M10 16h9M10 22h5' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   /* ---------- Tokens ---------- */
@@ -741,6 +741,7 @@
               <span>Inclusive sábado e domingo. O post fica pronto 15 minutos antes do horário e você recebe um aviso por e-mail.</span></div></label>
             <label class="chave"><input type="checkbox" name="postarSozinho"><div><b>Postar sozinho no Instagram</b>
               <span>Em cada horário abaixo, um post é publicado no perfil conectado. Um post criado pelos botões entra no próximo horário vago do dia.</span></div></label>
+            <div id="conteudo-voz"></div>
             <div class="campo"><span class="rotulo">Horários dos posts (até 4 por dia)</span>
               <div class="filtros" id="conteudo-horarios" role="group" aria-label="Horários dos posts" style="margin:0;flex-wrap:wrap"></div></div>
             <div class="campo"><label for="conteudo-base">Base de conteúdo (tirada do site fluxdeck.vercel.app)</label>
@@ -2407,6 +2408,9 @@ async function acaoWa(p, btn) {
 // O desenho fica em /post-desenho.js: o servidor usa o mesmo arquivo para postar sozinho no Instagram.
 let TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels;
 const desenhoPronto = import("/post-desenho.js").then((m) => ({ TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels } = m));
+const NOMES_ESTRUTURA = { lista: "Lista", pare_de: "Pare de", pov: "POV", pergunta: "Pergunta", mito_verdade: "Mito x verdade",
+  antes_depois: "Antes x depois", passo_a_passo: "Passo a passo", segredo: "O que ninguém conta", comparacao: "X vs Y" };
+const NOMES_TRILHA = { energica: "trilha enérgica", tensa: "trilha tensa", inspiradora: "trilha inspiradora", groove: "trilha groove" };
 const NOMES_PILAR = { erro: "Erros comuns", dica: "Dica prática", mito: "Mito x verdade", teste: "Teste rápido",
                       tendencia: "Tendência", bastidores: "Bastidores", transformacao: "Antes x depois",
                       portfolio: "Projeto do portfólio", faq: "Pergunta frequente" };
@@ -2415,7 +2419,7 @@ let estadoConteudo = { instagram: { conectado: false }, config: {}, hoje: "" };
 let previasReels = [];
 let quadroPrevias = null;
 
-const fontesProntas = () => Promise.all(["800 90px Inter", "600 44px Inter", "700 40px Inter"].map((f) => document.fonts.load(f))).catch(() => {});
+const fontesProntas = () => Promise.all(["900 90px Inter", "800 90px Inter", "600 44px Inter", "500 44px Inter"].map((f) => document.fonts.load(f))).catch(() => {});
 
 function criarCanvas([w, h]) {
   const c = document.createElement("canvas");
@@ -2449,39 +2453,11 @@ async function baixarCarrossel(post) {
   }
 }
 
-/** Grava o Reels em tempo real (o tempo do vídeo) e devolve o arquivo. MP4 quando o navegador grava MP4. */
-async function gravarReels(post, aoAvancar) {
-  await fontesProntas();
-  const tipos = ["video/mp4;codecs=avc1.42E01E", "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"];
-  const tipo = window.MediaRecorder && tipos.find((t) => MediaRecorder.isTypeSupported(t));
-  if (!tipo) throw new Error("Este navegador não grava vídeo. Use o Chrome ou o Safari atualizados.");
-  const c = criarCanvas(TAMANHOS_POST.reels);
-  const ctx = c.getContext("2d");
-  desenharQuadroReels(ctx, post, 0, sessao?.empresa);
-  // As prévias da página param durante a gravação, para o vídeo sair liso.
-  pararPreviasReels();
-  const gravador = new MediaRecorder(c.captureStream(30), { mimeType: tipo, videoBitsPerSecond: 8_000_000 });
-  const partes = [];
-  gravador.ondataavailable = (e) => e.data.size && partes.push(e.data);
-  const parou = new Promise((r) => (gravador.onstop = r));
-  const duracao = duracaoReels(post);
-  gravador.start(250);
-  const inicio = performance.now();
-  await new Promise((pronto) => {
-    const quadro = () => {
-      const t = (performance.now() - inicio) / 1000;
-      desenharQuadroReels(ctx, post, Math.min(t, duracao), sessao?.empresa);
-      aoAvancar?.(Math.min(1, t / duracao));
-      if (t >= duracao + 0.3) return pronto();
-      requestAnimationFrame(quadro);
-    };
-    requestAnimationFrame(quadro);
-  });
-  gravador.stop();
-  await parou;
-  if (viewAtual === "conteudo") animarPreviasReels();
-  const mime = tipo.split(";")[0];
-  return { blob: new Blob(partes, { type: mime }), extensao: mime === "video/mp4" ? ".mp4" : ".webm" };
+/** O Reels em MP4, gerado no servidor: o mesmo vídeo que vai para o Instagram, com a trilha e a voz. */
+async function baixarReels(post) {
+  const resp = await fetch(`/api/conteudo/${post.id}/video`, { credentials: "same-origin", signal: AbortSignal.timeout(TEMPO_MAXIMO_MS) });
+  if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).erro ?? `O servidor respondeu ${resp.status}`);
+  return resp.blob();
 }
 
 /** Prévia animada dos Reels na página (só enquanto a página de Conteúdo está aberta). */
@@ -2527,7 +2503,8 @@ function cardPost(post, hoje) {
   return `<article class="cartao" data-post="${post.id}">
     <div class="cartao-cab"><span class="kpi-ic">${ic(reels ? "video" : "image")}</span>
       <div class="titulos"><h3>${esc(c.gancho)} ${situacao}</h3>
-        <div class="meta">${quando} · ${reels ? "Reels" : `Carrossel com ${telasDoPost(post).length} imagens`} · ${esc(NOMES_PILAR[post.pilar] ?? post.pilar)}</div></div></div>
+        <div class="meta">${[quando, reels ? "Reels" : `Carrossel com ${telasDoPost(post).length} imagens`, NOMES_PILAR[post.pilar] ?? post.pilar,
+          NOMES_ESTRUTURA[c.estrutura], reels && NOMES_TRILHA[c.trilha], reels && (estadoConteudo.narracao ? "com voz" : "sem voz")].filter(Boolean).map(esc).join(" · ")}</div></div></div>
     <div class="cartao-corpo post-corpo">
       <div class="post-previa">${previa}
         ${reels ? `<span class="post-progresso" data-progresso></span>` : `<span class="muted" style="font-size:12.5px">Arraste para ver todas as imagens</span>`}</div>
@@ -2538,8 +2515,7 @@ function cardPost(post, hoje) {
           <div class="tags">${c.hashtags.map((t) => `<button type="button" class="tag" data-copiar-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div></div>
         ${c.hashtags_extras?.length ? `<div class="campo"><span class="rotulo">Outras hashtags para trocar (clique para copiar)</span>
           <div class="tags">${c.hashtags_extras.map((t) => `<button type="button" class="tag extra" data-copiar-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div></div>` : ""}
-        ${reels && c.audio ? `<div class="alerta info">${ic("video")}<div><b>Áudio:</b> ${esc(c.audio)}. Escolha um áudio em alta na biblioteca do Instagram na hora de postar: ajuda muito no alcance.</div></div>` : ""}
-        ${reels && c.narracao ? `<details><summary class="rotulo" style="cursor:pointer">Texto para narrar com a sua voz (opcional)</summary><p style="white-space:pre-wrap;margin:8px 0 0">${esc(c.narracao)}</p></details>` : ""}
+        ${reels && c.narracao ? `<details><summary class="rotulo" style="cursor:pointer">Narração do vídeo</summary><p style="white-space:pre-wrap;margin:8px 0 0">${esc(c.narracao)}</p></details>` : ""}
       </div>
     </div>
     <div class="acoes">
@@ -2576,6 +2552,9 @@ async function carregarConteudo() {
     $("#instagram-desconectar").hidden = !r.instagram.conectado;
     if (!f.base.matches(":focus")) f.base.value = r.base;
     $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
+    $("#conteudo-voz").innerHTML = r.narracao
+      ? `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha, efeitos sonoros e <b>voz narrando</b> (${esc(r.narracao)}).</div></div>`
+      : `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha e efeitos sonoros. Para ter também a <b>voz narrando</b>, cadastre <code>OPENAI_API_KEY</code> (ou <code>ELEVENLABS_API_KEY</code>) nas variáveis de ambiente da Vercel.</div></div>`;
     postsCarregados = r.posts;
     $("#lista-posts").innerHTML = r.posts.length
       ? r.posts.map((p) => cardPost(p, r.hoje)).join("")
@@ -2645,10 +2624,9 @@ $("#lista-posts").addEventListener("click", async (ev) => {
       avisar("Imagens baixadas. No Instagram, escolha todas na ordem para montar o carrossel.", "ok", 6000);
     } else if (acao === "baixar") {
       const progresso = $("[data-progresso]", card);
-      progresso.textContent = "Gerando o vídeo… mantenha esta aba aberta.";
-      const { blob, extensao } = await gravarReels(p, (x) => (progresso.textContent = `Gerando o vídeo… ${Math.round(x * 100)}% (mantenha esta aba aberta)`));
-      baixarArquivo(blob, nomeDoArquivo(p, extensao));
-      progresso.textContent = extensao === ".mp4" ? "Vídeo baixado (MP4)." : "Vídeo baixado em WebM: para MP4, use o Chrome ou o Safari atualizados.";
+      progresso.textContent = "Gerando o vídeo com a trilha e a voz… (cerca de 1 minuto)";
+      baixarArquivo(await baixarReels(p), nomeDoArquivo(p, ".mp4"));
+      progresso.textContent = "Vídeo baixado (MP4, com som).";
     } else if (acao === "instagram") {
       if (!confirm("Publicar este post agora no perfil do Instagram?")) return;
       btn.lastChild.textContent = p.formato === "reels" ? "Gerando o vídeo e publicando… (até 2 min)" : "Publicando…";
