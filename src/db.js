@@ -294,15 +294,22 @@ export async function instagramsCapturados(usuarios) {
   return new Set(usuarios.filter((u) => achados.has(u)));
 }
 
-/** Os @ do Instagram das empresas já capturadas num segmento e cidade (ponto de partida da busca lá). */
+/**
+ * Ponto de partida da busca no Instagram: os @ das empresas já capturadas num segmento e cidade
+ * e os DDDs dos telefones delas (para reconhecer as da mesma região).
+ */
 export async function instagramsDaBusca(nicho, cidade, limite = 10) {
   const linhas = await q(
-    `SELECT instagram, site FROM leads
-      WHERE lower(nicho) = lower($1) AND lower(cidade) = lower($2) AND (instagram IS NOT NULL OR site ~* 'instagram\\.com/')
-      ORDER BY id DESC LIMIT $3`,
-    [nicho, cidade, limite]
+    `SELECT instagram, site, telefone FROM leads WHERE lower(nicho) = lower($1) AND lower(cidade) = lower($2) ORDER BY id DESC LIMIT 300`,
+    [nicho, cidade]
   );
-  return [...new Set(linhas.map((l) => l.instagram || String(l.site).match(/instagram\.com\/([a-z0-9._]{2,30})/i)?.[1]?.toLowerCase()).filter(Boolean))];
+  const usuarios = linhas
+    .map((l) => l.instagram || String(l.site ?? "").match(/instagram\.com\/([a-z0-9._]{2,30})/i)?.[1]?.toLowerCase())
+    .filter((u) => u && !["p", "reel", "reels", "stories", "explore"].includes(u));
+  const ddds = linhas
+    .map((l) => String(l.telefone ?? "").replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "").slice(0, 2))
+    .filter((d) => /^[1-9][1-9]$/.test(d));
+  return { usuarios: [...new Set(usuarios)].slice(0, limite), ddds: [...new Set(ddds)] };
 }
 
 /** Marca todos os contatos do lead como descadastrados e cancela o que ainda não foi enviado. */

@@ -220,8 +220,16 @@ export async function buscarEmpresasNoInstagram({ nicho = "", cidade = "", termo
   // forem da cidade (no nome ou na bio). As empresas já capturadas da mesma busca servem de ponto
   // de partida (já são da região), mas não voltam como resultado.
   const local = semAcento(String(cidade ?? "").split(/\s+-\s+|,|\//)[0]).toLowerCase().trim();
-  const daCidade = (perfil) => !local || semAcento(`${perfil.nome} ${perfil.bio}`).toLowerCase().includes(local);
-  const sementes = nicho && cidade ? await db.instagramsDaBusca(nicho, cidade) : [];
+  const { usuarios: sementes, ddds } = nicho && cidade ? await db.instagramsDaBusca(nicho, cidade) : { usuarios: [], ddds: [] };
+  // Da cidade: o nome da cidade no nome ou na bio, ou um telefone com o DDD das empresas de lá.
+  const daCidade = (perfil) => {
+    if (!local) return true;
+    if (semAcento(`${perfil.nome} ${perfil.bio}`).toLowerCase().includes(local)) return true;
+    const { telefone, whatsapp } = contatosDoPerfil(perfil.bio, perfil.site);
+    const ddd = (telefone ?? "").replace(/\D/g, "").slice(2, 4) || (whatsapp ?? "").slice(2, 4);
+    return Boolean(ddd) && ddds.includes(ddd);
+  };
+  const conta = { partida: 0, citados: 0, foraDaCidade: 0 };
   const fila = [
     ...perfis.map((usuario) => ({ usuario, de: "busca" })),
     ...sementes.map((usuario) => ({ usuario, de: "semente" })),
@@ -240,12 +248,20 @@ export async function buscarEmpresasNoInstagram({ nicho = "", cidade = "", termo
     vistos.add(usuario);
     const perfil = await perfilDoInstagram(conexao, usuario, recusas);
     if (!perfil) continue;
+    if (de === "semente") conta.partida++;
+    if (de === "citado") conta.citados++;
     if (de === "busca" || (de === "citado" && daCidade(perfil))) empresas.push(empresaDoPerfil(perfil));
+    else if (de === "citado") conta.foraDaCidade++;
     for (const citado of perfil.citados) if (!vistos.has(citado)) fila.push({ usuario: citado, de: "citado" });
   }
   // Nenhum perfil aceito: mostra o que a Meta respondeu, para dar para saber se é permissão.
-  if (!empresas.length && recusas.length) {
-    avisos.push(`Os ${consultas} perfis citados nos posts não vieram como conta comercial. Exemplos da resposta da Meta: ${recusas.slice(0, 3).join(" | ")}`);
+  if (!empresas.length && (sementes.length || recusas.length)) {
+    avisos.push([
+      `Consultei ${consultas} perfis no Instagram`,
+      sementes.length && `${conta.partida} das ${sementes.length} empresas já capturadas da região serviram de ponto de partida`,
+      `${conta.citados} perfis comerciais citados nos posts delas, ${conta.foraDaCidade} de fora da cidade`,
+      recusas.length && `${recusas.length} não vieram como conta comercial (ex.: ${recusas.slice(0, 2).join(" | ")})`,
+    ].filter(Boolean).join("; ") + ". Informe @perfis de empresas da região para ampliar a busca.");
   }
   if (!empresas.length && !perfis.length && !sementes.length && liberadas.length && !avisos.length) avisos.push(postsLidos
     ? `Li ${postsLidos} posts dessas hashtags e nenhum cita um @perfil. Informe @perfis de empresas da região: a busca segue quem elas citam nos posts.`
