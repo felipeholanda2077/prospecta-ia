@@ -1,11 +1,11 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
 
-// Publicação no Instagram pela API oficial da Meta. Funciona com os dois tipos de token:
-// o do "Instagram Login" (começa com IG, usa graph.instagram.com) e o do Facebook Login
-// (página do Facebook ligada à conta profissional do Instagram, usa graph.facebook.com).
+// Publicação no Instagram pela API oficial da Meta. Aceita os tokens dos três jeitos que a Meta
+// oferece: o do "Instagram Login" (começa com IG, usa graph.instagram.com), o do login unificado
+// (apps novos; a conta do Instagram direto, em graph.facebook.com) e o do Facebook Login
+// (página do Facebook ligada à conta profissional do Instagram, também em graph.facebook.com).
 const VERSAO = config.instagram.apiVersion;
-const hostDoToken = (token) => (/^IG/.test(token) ? "graph.instagram.com" : "graph.facebook.com");
 
 /** Conta conectada (com o token) ou null. O token nunca sai do servidor. */
 export const lerConexao = () => db.lerConfig("instagram");
@@ -33,22 +33,45 @@ async function chamar({ host, token }, metodo, caminho, params = {}) {
   return corpo;
 }
 
+// Jeitos de achar a conta do Instagram a partir do token, do mais comum ao menos comum para cada tipo.
+const PELO_INSTAGRAM_LOGIN = {
+  host: "graph.instagram.com",
+  achar: async (c) => {
+    const eu = await chamar(c, "GET", "me", { fields: "user_id,username" });
+    return eu.user_id && { id: eu.user_id, usuario: eu.username };
+  },
+};
+const PELO_FACEBOOK = [
+  // Token de página: a conta ligada à página.
+  async (c) => (await chamar(c, "GET", "me", { fields: "instagram_business_account{id,username}" })).instagram_business_account,
+  // Login unificado: o token já é da conta do Instagram (só ela tem media_count; página e pessoa dão erro).
+  async (c) => {
+    const eu = await chamar(c, "GET", "me", { fields: "id,username,media_count" });
+    return eu.username && { id: eu.id, username: eu.username };
+  },
+  // Token de pessoa ou de usuário do sistema: as páginas que ele administra.
+  async (c) => (await chamar(c, "GET", "me/accounts", { fields: "instagram_business_account{id,username}" }))
+    .data?.find((p) => p.instagram_business_account)?.instagram_business_account,
+].map((achar) => ({ host: "graph.facebook.com", achar: async (c) => { const ig = await achar(c); return ig && { id: ig.id, usuario: ig.username }; } }));
+
 /** Confere o token, descobre a conta do Instagram e guarda a conexão. */
 export async function conectarInstagram(token) {
-  token = String(token ?? "").trim();
+  token = String(token ?? "").replace(/\s+/g, "");
   if (!token) throw new Error("Cole o token de acesso gerado no painel da Meta.");
-  const host = hostDoToken(token);
-  let conta;
-  if (host === "graph.instagram.com") {
-    const eu = await chamar({ host, token }, "GET", "me", { fields: "user_id,username" });
-    conta = { id: eu.user_id, usuario: eu.username };
-  } else {
-    // Token de página traz a conta direto; token de usuário lista as páginas dele.
-    const daPagina = await chamar({ host, token }, "GET", "me", { fields: "instagram_business_account{id,username}" }).catch(() => null);
-    const ig = daPagina?.instagram_business_account
-      ?? (await chamar({ host, token }, "GET", "me/accounts", { fields: "instagram_business_account{id,username}" })).data?.find((p) => p.instagram_business_account)?.instagram_business_account;
-    if (!ig) throw new Error("Esse token não tem nenhuma página do Facebook ligada a uma conta profissional do Instagram.");
-    conta = { id: ig.id, usuario: ig.username };
+  const jeitos = /^IG/.test(token) ? [PELO_INSTAGRAM_LOGIN, ...PELO_FACEBOOK] : [...PELO_FACEBOOK, PELO_INSTAGRAM_LOGIN];
+  let conta = null;
+  let host;
+  let erro;
+  for (const jeito of jeitos) {
+    conta = await jeito.achar({ host: jeito.host, token }).catch((e) => ((erro ??= e), null));
+    if (conta) {
+      host = jeito.host;
+      break;
+    }
+  }
+  if (!conta) {
+    throw new Error(erro ? `${erro.message}. Confira se o token foi gerado para a conta profissional do Instagram.`
+      : "Esse token não dá acesso a nenhuma conta profissional do Instagram. Confira se a conta foi adicionada no app da Meta.");
   }
   const agora = new Date().toISOString();
   await db.gravarConfig("instagram", { token, host, igId: String(conta.id), usuario: conta.usuario, conectadoEm: agora, renovadoEm: agora });

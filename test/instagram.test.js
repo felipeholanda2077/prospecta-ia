@@ -166,6 +166,33 @@ test("instagram: conectar confere o token na Meta e o painel nunca recebe o toke
   await assert.rejects(conectarInstagram(""), /Cole o token/);
 });
 
+test("instagram: token do login unificado (apps novos da Meta) acha a conta do Instagram direto", async () => {
+  const original = globalThis.fetch;
+  const pedidos = [];
+  globalThis.fetch = async (url) => {
+    const u = new URL(url);
+    pedidos.push(`${u.host}${u.pathname}?${u.searchParams.get("fields")}`);
+    if (u.host !== "graph.facebook.com") return Response.json({ error: { message: "Invalid OAuth access token" } }, { status: 400 });
+    if (u.searchParams.get("fields").startsWith("instagram_business_account")) {
+      return Response.json({ error: { message: "(#100) Tried accessing nonexisting field (instagram_business_account)" } }, { status: 400 });
+    }
+    return Response.json({ id: "17841400", username: "fluxdeck", media_count: 12 });
+  };
+  try {
+    assert.deepEqual(await conectarInstagram("EAAG token"), { conectado: true, usuario: "fluxdeck" });
+    const salvo = await db.lerConfig("instagram");
+    assert.deepEqual([salvo.host, salvo.igId, salvo.token], ["graph.facebook.com", "17841400", "EAAGtoken"]);
+    assert.equal(pedidos.length, 2);
+
+    // Token sem conta nenhuma: explica em vez de conectar.
+    globalThis.fetch = async () => Response.json({ error: { message: "Invalid OAuth access token" } }, { status: 400 });
+    await assert.rejects(conectarInstagram("EAAerrado"), /Invalid OAuth access token\. Confira/);
+  } finally {
+    globalThis.fetch = original;
+    await db.gravarConfig("instagram", {});
+  }
+});
+
 test("instagram: legenda respeita o limite de 2.200 caracteres sem perder as hashtags", () => {
   const legenda = legendaDoPost({ conteudo: { ...conteudo, legenda: "a".repeat(5000) } });
   assert.ok(legenda.length <= 2200);
