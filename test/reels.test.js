@@ -25,6 +25,9 @@ test("reels: todos os tipos de cena desenham no carrossel e em vários instantes
   const ctx = createCanvas(1080, 1920).getContext("2d");
   const total = desenho.duracaoReels(post);
   for (let t = 0; t <= total; t += 0.37) desenho.desenharQuadroReels(ctx, post, t);
+  // No contraste, o rótulo escrito pela IA sai do texto (o cartão já mostra).
+  const rotulado = { id: 1, conteudo: { slides: [{ visual: "capa", titulo: "C" }, { visual: "contraste", titulo: "Antes: você some", texto: "Depois: entregas" }, { visual: "cta", titulo: "F" }] } };
+  assert.deepEqual([desenho.telasDoPost(rotulado)[1].titulo, desenho.telasDoPost(rotulado)[1].texto], ["Você some", "Entregas"]);
   // Post antigo (sem tipo de cena): capa, itens numerados e a chamada no fim.
   const antigo = { id: 1, conteudo: { gancho: "G", slides: [{ titulo: "A" }, { titulo: "B" }, { titulo: "C" }] } };
   assert.deepEqual(desenho.telasDoPost(antigo).map((t) => t.visual), ["capa", "lista", "cta"]);

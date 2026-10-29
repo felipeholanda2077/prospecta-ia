@@ -62,7 +62,7 @@ const POST_JSON_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          visual: { type: "string", enum: VISUAIS, description: "capa (só a 1ª tela), impacto (frase curta e forte, 2 a 5 palavras, letras gigantes), lista (item numerado), contraste (titulo = errado/antes/mito, texto = certo/depois/verdade), pergunta, texto (frase + explicação), cta (só a última tela)" },
+          visual: { type: "string", enum: VISUAIS, description: "capa (só a 1ª tela), impacto (frase curta e forte, 2 a 5 palavras, letras gigantes), lista (item numerado), contraste (titulo = errado/antes/mito, texto = certo/depois/verdade, sem escrever \"Antes:\" ou \"Mito:\": o rótulo já aparece no cartão), pergunta, texto (frase + explicação), cta (só a última tela). Misture tipos: no máximo 3 telas seguidas do mesmo tipo" },
           titulo: { type: "string", description: "frase grande da tela, no máximo 9 palavras (impacto: até 5)" },
           texto: { type: "string", description: "complemento curto, no máximo 20 palavras (pode ficar vazio na capa e no impacto)" },
           destaque: { type: "string", description: "uma ou duas palavras do título que aparecem coloridas (copiadas exatamente do título)" },

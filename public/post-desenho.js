@@ -248,12 +248,15 @@ const semEmoji = (t) => String(t ?? "").replace(/[\p{Extended_Pictographic}\u{FE
 
 const VISUAIS = new Set(["capa", "impacto", "lista", "contraste", "pergunta", "texto", "cta"]);
 
+// No contraste o cartão já tem o rótulo (ANTES, MITO...): tira o mesmo rótulo do começo do texto.
+const semRotulo = (t) => t.replace(/^(antes|depois|mito|verdade|errado|certo|sim|n[aã]o)\s*[:\-–]\s*/i, "").replace(/^\p{Ll}/u, (l) => l.toUpperCase());
+
 export const telasDoPost = (post) => {
   const c = post.conteudo;
   const fonte = c.slides?.length ? c.slides : [{ titulo: c.gancho, texto: "", destaque: "" }];
   return fonte.map((s, i) => ({
-    titulo: semEmoji(s.titulo) || (i === 0 ? semEmoji(c.gancho) : ""),
-    texto: semEmoji(s.texto),
+    titulo: (s.visual === "contraste" ? semRotulo : String)(semEmoji(s.titulo)) || (i === 0 ? semEmoji(c.gancho) : ""),
+    texto: (s.visual === "contraste" ? semRotulo : String)(semEmoji(s.texto)),
     destaque: semEmoji(s.destaque),
     fala: String(s.fala ?? "").trim(),
     // Posts antigos não têm o tipo: capa, itens numerados e a chamada no fim.
