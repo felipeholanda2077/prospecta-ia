@@ -5,7 +5,7 @@ import { createCanvas } from "@napi-rs/canvas";
 const desenho = await import("../public/post-desenho.js");
 const { gerarTrilha, wav, CLIMAS, TAXA } = await import("../src/conteudo/trilha.js");
 const { duracoesDoVideo } = await import("../src/conteudo/arquivos.js");
-const { faixaDaVoz, narracaoDisponivel, TAXA_VOZ } = await import("../src/conteudo/narracao.js");
+const { faixaDaVoz, narracaoDisponivel, narrarCenas, TAXA_VOZ } = await import("../src/conteudo/narracao.js");
 
 desenho.usarCanvas((w, h) => createCanvas(w, h));
 
@@ -84,4 +84,36 @@ test("reels: as falas entram na faixa da voz no começo de cada cena", () => {
   assert.equal(narracaoDisponivel(), "OpenAI");
   if (antes === undefined) delete process.env.OPENAI_API_KEY;
   else process.env.OPENAI_API_KEY = antes;
+});
+
+test("reels: o Gemini narra cena por cena, tira o cabeçalho WAV e espera quando passa do limite", async () => {
+  const chaves = ["OPENAI_API_KEY", "ELEVENLABS_API_KEY", "GEMINI_API_KEY"];
+  const antes = Object.fromEntries(chaves.map((k) => [k, process.env[k]]));
+  const fetchAntes = globalThis.fetch;
+  chaves.forEach((k) => delete process.env[k]);
+  process.env.GEMINI_API_KEY = "teste";
+  assert.equal(narracaoDisponivel(), "Gemini");
+  // 1 segundo de áudio, embrulhado num WAV como o Gemini pode devolver.
+  const audio = wav([new Float32Array(TAXA_VOZ).fill(0.25)], TAXA_VOZ).toString("base64");
+  const pedidos = [];
+  let recusou = false;
+  globalThis.fetch = async (url, opcoes) => {
+    pedidos.push(JSON.parse(opcoes.body));
+    if (!recusou) {
+      recusou = true;
+      return new Response("Resource exhausted", { status: 429, headers: { "retry-after": "0.01" } });
+    }
+    return Response.json({ steps: [{ type: "model_output", content: [{ type: "audio", data: audio }] }] });
+  };
+  try {
+    const falas = await narrarCenas(post);
+    assert.equal(falas.length, slides.length);
+    assert.equal(falas[2], null); // a cena sem fala não vira pedido
+    assert.equal(pedidos.length, slides.filter((s) => s.fala).length + 1);
+    assert.equal(pedidos[0].input[0].content[0].text, "Para tudo.");
+    for (const f of falas.filter(Boolean)) assert.ok(Math.abs(f.duracao - 1) < 0.01);
+  } finally {
+    globalThis.fetch = fetchAntes;
+    chaves.forEach((k) => (antes[k] === undefined ? delete process.env[k] : (process.env[k] = antes[k])));
+  }
 });

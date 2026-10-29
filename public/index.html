@@ -2554,7 +2554,7 @@ async function carregarConteudo() {
     $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
     $("#conteudo-voz").innerHTML = r.narracao
       ? `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha, efeitos sonoros e <b>voz narrando</b> (${esc(r.narracao)}).</div></div>`
-      : `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha e efeitos sonoros. Para ter também a <b>voz narrando</b>, cadastre <code>OPENAI_API_KEY</code> (ou <code>ELEVENLABS_API_KEY</code>) nas variáveis de ambiente da Vercel.</div></div>`;
+      : `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha e efeitos sonoros. Para ter também a <b>voz narrando</b>, cadastre <code>GEMINI_API_KEY</code>, <code>OPENAI_API_KEY</code> ou <code>ELEVENLABS_API_KEY</code> nas variáveis de ambiente da Vercel.</div></div>`;
     postsCarregados = r.posts;
     $("#lista-posts").innerHTML = r.posts.length
       ? r.posts.map((p) => cardPost(p, r.hoje)).join("")
