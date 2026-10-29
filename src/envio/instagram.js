@@ -35,6 +35,7 @@ async function chamar({ host, token }, metodo, caminho, params = {}) {
 
 // Jeitos de achar a conta do Instagram a partir do token, do mais comum ao menos comum para cada tipo.
 const PELO_INSTAGRAM_LOGIN = {
+  nome: "login do Instagram",
   host: "graph.instagram.com",
   achar: async (c) => {
     const eu = await chamar(c, "GET", "me", { fields: "user_id,username" });
@@ -42,40 +43,44 @@ const PELO_INSTAGRAM_LOGIN = {
   },
 };
 const PELO_FACEBOOK = [
-  // Token de página: a conta ligada à página.
-  async (c) => (await chamar(c, "GET", "me", { fields: "instagram_business_account{id,username}" })).instagram_business_account,
-  // Login unificado: o token já é da conta do Instagram (só ela tem media_count; página e pessoa dão erro).
-  async (c) => {
-    const eu = await chamar(c, "GET", "me", { fields: "id,username,media_count" });
-    return eu.username && { id: eu.id, username: eu.username };
+  {
+    // Token de página: a conta ligada à página.
+    nome: "como página",
+    achar: async (c) => (await chamar(c, "GET", "me", { fields: "instagram_business_account{id,username}" })).instagram_business_account,
   },
-  // Token de pessoa ou de usuário do sistema: as páginas que ele administra.
-  async (c) => (await chamar(c, "GET", "me/accounts", { fields: "instagram_business_account{id,username}" }))
-    .data?.find((p) => p.instagram_business_account)?.instagram_business_account,
-].map((achar) => ({ host: "graph.facebook.com", achar: async (c) => { const ig = await achar(c); return ig && { id: ig.id, usuario: ig.username }; } }));
+  {
+    // Login unificado: o /me já é a conta do Instagram (página e pessoa ficam de fora pelo tipo).
+    nome: "como conta do Instagram",
+    achar: async (c) => {
+      const eu = await chamar(c, "GET", "me", { fields: "id,username", metadata: 1 });
+      return eu.username && !["page", "user"].includes(eu.metadata?.type) && { id: eu.id, username: eu.username };
+    },
+  },
+  {
+    // Token de pessoa ou de usuário do sistema: as páginas que ele administra.
+    nome: "pelas páginas",
+    achar: async (c) => (await chamar(c, "GET", "me/accounts", { fields: "instagram_business_account{id,username}" }))
+      .data?.find((p) => p.instagram_business_account)?.instagram_business_account,
+  },
+].map(({ nome, achar }) => ({
+  nome, host: "graph.facebook.com", achar: async (c) => { const ig = await achar(c); return ig && { id: ig.id, usuario: ig.username }; },
+}));
 
 /** Confere o token, descobre a conta do Instagram e guarda a conexão. */
 export async function conectarInstagram(token) {
   token = String(token ?? "").replace(/\s+/g, "");
   if (!token) throw new Error("Cole o token de acesso gerado no painel da Meta.");
   const jeitos = /^IG/.test(token) ? [PELO_INSTAGRAM_LOGIN, ...PELO_FACEBOOK] : [...PELO_FACEBOOK, PELO_INSTAGRAM_LOGIN];
-  let conta = null;
-  let host;
-  let erro;
+  const erros = [];
   for (const jeito of jeitos) {
-    conta = await jeito.achar({ host: jeito.host, token }).catch((e) => ((erro ??= e), null));
-    if (conta) {
-      host = jeito.host;
-      break;
-    }
+    const conta = await jeito.achar({ host: jeito.host, token }).catch((e) => (erros.push(`${jeito.nome}: ${e.message.replace(/^Instagram: /, "")}`), null));
+    if (!conta) continue;
+    const agora = new Date().toISOString();
+    await db.gravarConfig("instagram", { token, host: jeito.host, igId: String(conta.id), usuario: conta.usuario, conectadoEm: agora, renovadoEm: agora });
+    return { conectado: true, usuario: conta.usuario };
   }
-  if (!conta) {
-    throw new Error(erro ? `${erro.message}. Confira se o token foi gerado para a conta profissional do Instagram.`
-      : "Esse token não dá acesso a nenhuma conta profissional do Instagram. Confira se a conta foi adicionada no app da Meta.");
-  }
-  const agora = new Date().toISOString();
-  await db.gravarConfig("instagram", { token, host, igId: String(conta.id), usuario: conta.usuario, conectadoEm: agora, renovadoEm: agora });
-  return { conectado: true, usuario: conta.usuario };
+  // Cada tentativa com o motivo, para dar para ver o que a Meta respondeu.
+  throw new Error(`Esse token não deu acesso a nenhuma conta profissional do Instagram. ${erros.length ? `Respostas da Meta: ${erros.join(" | ")}` : "Confira se a conta foi adicionada no app da Meta."}`);
 }
 
 export const desconectarInstagram = () => db.gravarConfig("instagram", {});

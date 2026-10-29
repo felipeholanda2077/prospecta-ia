@@ -176,7 +176,7 @@ test("instagram: token do login unificado (apps novos da Meta) acha a conta do I
     if (u.searchParams.get("fields").startsWith("instagram_business_account")) {
       return Response.json({ error: { message: "(#100) Tried accessing nonexisting field (instagram_business_account)" } }, { status: 400 });
     }
-    return Response.json({ id: "17841400", username: "fluxdeck", media_count: 12 });
+    return Response.json({ id: "17841400", username: "fluxdeck", metadata: { type: "instagram_user" } });
   };
   try {
     assert.deepEqual(await conectarInstagram("EAAG token"), { conectado: true, usuario: "fluxdeck" });
@@ -186,7 +186,7 @@ test("instagram: token do login unificado (apps novos da Meta) acha a conta do I
 
     // Token sem conta nenhuma: explica em vez de conectar.
     globalThis.fetch = async () => Response.json({ error: { message: "Invalid OAuth access token" } }, { status: 400 });
-    await assert.rejects(conectarInstagram("EAAerrado"), /Invalid OAuth access token\. Confira/);
+    await assert.rejects(conectarInstagram("EAAerrado"), /Respostas da Meta: como página: Invalid OAuth access token \| como conta do Instagram:/);
   } finally {
     globalThis.fetch = original;
     await db.gravarConfig("instagram", {});
