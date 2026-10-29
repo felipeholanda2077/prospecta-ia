@@ -13,7 +13,7 @@ export const lerConexao = () => db.lerConfig("instagram");
 /** O que o painel pode ver da conexão. */
 export async function statusDaConexao() {
   const c = await lerConexao();
-  return c?.token ? { conectado: true, usuario: c.usuario, conectadoEm: c.conectadoEm } : { conectado: false };
+  return c?.token ? { conectado: true, usuario: c.usuario, conectadoEm: c.conectadoEm, expiraEm: c.expiraEm ?? null } : { conectado: false };
 }
 
 async function chamar({ host, token }, metodo, caminho, params = {}) {
@@ -62,9 +62,32 @@ const PELO_FACEBOOK = [
     achar: async (c) => (await chamar(c, "GET", "me/accounts", { fields: "instagram_business_account{id,username}" }))
       .data?.find((p) => p.instagram_business_account)?.instagram_business_account,
   },
+  {
+    // Login unificado com token de pessoa: a Meta guarda no próprio token as contas que foram autorizadas.
+    nome: "pelas contas autorizadas no token",
+    achar: async (c) => {
+      const { data } = await chamar(c, "GET", "debug_token", { input_token: c.token });
+      const ids = [...new Set((data?.granular_scopes ?? []).filter((x) => /^instagram/.test(x.scope)).flatMap((x) => x.target_ids ?? []))];
+      for (const id of ids) {
+        // O id pode ser da conta do Instagram ou da página ligada a ela.
+        const conta = await chamar(c, "GET", id, { fields: "id,username,ig_id" }).catch(() => null);
+        if (conta?.username) return conta;
+        const daPagina = await chamar(c, "GET", id, { fields: "instagram_business_account{id,username}" }).catch(() => null);
+        if (daPagina?.instagram_business_account) return daPagina.instagram_business_account;
+      }
+      return null;
+    },
+  },
 ].map(({ nome, achar }) => ({
   nome, host: "graph.facebook.com", achar: async (c) => { const ig = await achar(c); return ig && { id: ig.id, usuario: ig.username }; },
 }));
+
+/** Quando o token do Facebook vence (ISO), ou null se não vence ou não deu para saber. */
+async function validadeDoToken(c) {
+  if (c.host !== "graph.facebook.com") return null;
+  const { data } = await chamar(c, "GET", "debug_token", { input_token: c.token }).catch(() => ({}));
+  return data?.expires_at ? new Date(data.expires_at * 1000).toISOString() : null;
+}
 
 /** Confere o token, descobre a conta do Instagram e guarda a conexão. */
 export async function conectarInstagram(token) {
@@ -73,11 +96,13 @@ export async function conectarInstagram(token) {
   const jeitos = /^IG/.test(token) ? [PELO_INSTAGRAM_LOGIN, ...PELO_FACEBOOK] : [...PELO_FACEBOOK, PELO_INSTAGRAM_LOGIN];
   const erros = [];
   for (const jeito of jeitos) {
-    const conta = await jeito.achar({ host: jeito.host, token }).catch((e) => (erros.push(`${jeito.nome}: ${e.message.replace(/^Instagram: /, "")}`), null));
+    const conta = await jeito.achar({ host: jeito.host, token }).catch((e) => (erros.push(`${jeito.nome}: ${e.message.replace(/^Instagram: /, "")}`), false));
+    if (conta === null || conta === undefined) erros.push(`${jeito.nome}: nenhuma conta`);
     if (!conta) continue;
     const agora = new Date().toISOString();
-    await db.gravarConfig("instagram", { token, host: jeito.host, igId: String(conta.id), usuario: conta.usuario, conectadoEm: agora, renovadoEm: agora });
-    return { conectado: true, usuario: conta.usuario };
+    const expiraEm = await validadeDoToken({ host: jeito.host, token });
+    await db.gravarConfig("instagram", { token, host: jeito.host, igId: String(conta.id), usuario: conta.usuario, conectadoEm: agora, renovadoEm: agora, expiraEm });
+    return { conectado: true, usuario: conta.usuario, expiraEm };
   }
   // Cada tentativa com o motivo, para dar para ver o que a Meta respondeu.
   throw new Error(`Esse token não deu acesso a nenhuma conta profissional do Instagram. ${erros.length ? `Respostas da Meta: ${erros.join(" | ")}` : "Confira se a conta foi adicionada no app da Meta."}`);

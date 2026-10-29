@@ -2535,7 +2535,9 @@ async function carregarConteudo() {
     f.postarSozinho.checked = r.config.postarSozinho;
     f.horario.value = String(r.config.horario);
     $("#instagram-status").innerHTML = r.instagram.conectado
-      ? `<span class="pilula ok">${ic("check", "sm")}@${esc(r.instagram.usuario)}</span>` : `<span class="pilula">Não conectado</span>`;
+      ? `<span class="pilula ok">${ic("check", "sm")}@${esc(r.instagram.usuario)}</span>${r.instagram.expiraEm
+        ? ` <span class="pilula">Token vence em ${new Date(r.instagram.expiraEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>` : ""}`
+      : `<span class="pilula">Não conectado</span>`;
     $("#instagram-conectar").lastChild.textContent = r.instagram.conectado ? "Trocar token" : "Conectar Instagram";
     $("#instagram-desconectar").hidden = !r.instagram.conectado;
     if (!f.base.matches(":focus")) f.base.value = r.base;

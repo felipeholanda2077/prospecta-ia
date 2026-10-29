@@ -148,7 +148,7 @@ test("instagram: conectar confere o token na Meta e o painel nunca recebe o toke
   };
   try {
     const r = await conectarInstagram("  IGtoken123 \n");
-    assert.deepEqual(r, { conectado: true, usuario: "fluxdeck" });
+    assert.deepEqual(r, { conectado: true, usuario: "fluxdeck", expiraEm: null });
     assert.match(pedidos[0].url, /^https:\/\/graph\.instagram\.com\/v\d+\.0\/me\?fields=user_id%2Cusername$/);
     assert.equal(pedidos[0].auth, "Bearer IGtoken123");
     const status = await statusDaConexao();
@@ -179,10 +179,25 @@ test("instagram: token do login unificado (apps novos da Meta) acha a conta do I
     return Response.json({ id: "17841400", username: "fluxdeck", metadata: { type: "instagram_user" } });
   };
   try {
-    assert.deepEqual(await conectarInstagram("EAAG token"), { conectado: true, usuario: "fluxdeck" });
+    assert.deepEqual(await conectarInstagram("EAAG token"), { conectado: true, usuario: "fluxdeck", expiraEm: null });
     const salvo = await db.lerConfig("instagram");
     assert.deepEqual([salvo.host, salvo.igId, salvo.token], ["graph.facebook.com", "17841400", "EAAGtoken"]);
-    assert.equal(pedidos.length, 2);
+    assert.equal(pedidos.length, 3); // e confere a validade do token
+
+    // Token de pessoa sem página ligada: acha a conta pelas permissões guardadas no token.
+    pedidos.length = 0;
+    globalThis.fetch = async (url) => {
+      const u = new URL(url);
+      pedidos.push(u.pathname);
+      if (u.pathname.endsWith("/me/accounts")) return Response.json({ data: [] });
+      if (u.pathname.endsWith("/debug_token")) {
+        return Response.json({ data: { expires_at: 1798761600, granular_scopes: [{ scope: "business_management" }, { scope: "instagram_content_publish", target_ids: ["17841499"] }] } });
+      }
+      if (u.pathname.endsWith("/17841499")) return Response.json({ id: "17841499", username: "fluxdeck.oficial", ig_id: 55 });
+      return Response.json({ error: { message: "(#12) username field is deprecated" } }, { status: 400 });
+    };
+    assert.deepEqual(await conectarInstagram("EAApessoa"), { conectado: true, usuario: "fluxdeck.oficial", expiraEm: "2027-01-01T00:00:00.000Z" });
+    assert.equal((await db.lerConfig("instagram")).igId, "17841499");
 
     // Token sem conta nenhuma: explica em vez de conectar.
     globalThis.fetch = async () => Response.json({ error: { message: "Invalid OAuth access token" } }, { status: 400 });
