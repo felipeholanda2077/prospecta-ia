@@ -199,6 +199,18 @@ test("instagram: token do login unificado (apps novos da Meta) acha a conta do I
     assert.deepEqual(await conectarInstagram("EAApessoa"), { conectado: true, usuario: "fluxdeck.oficial", expiraEm: "2027-01-01T00:00:00.000Z" });
     assert.equal((await db.lerConfig("instagram")).igId, "17841499");
 
+    // Token de pessoa com a página ligada ao Instagram: guarda o token da página.
+    globalThis.fetch = async (url) => {
+      const u = new URL(url);
+      if (u.pathname.endsWith("/me/accounts")) {
+        return Response.json({ data: [{ access_token: "EAApagina", instagram_business_account: { id: "1784", username: "fluxdeck_" } }] });
+      }
+      if (u.pathname.endsWith("/debug_token")) return Response.json({ data: { expires_at: 0 } });
+      return Response.json({ error: { message: "(#100) Tried accessing nonexisting field" } }, { status: 400 });
+    };
+    assert.deepEqual(await conectarInstagram("EAAexplorer"), { conectado: true, usuario: "fluxdeck_", expiraEm: null });
+    assert.equal((await db.lerConfig("instagram")).token, "EAApagina");
+
     // Com o ID que a Meta mostra ao gerar o token, vai direto na conta.
     pedidos.length = 0;
     globalThis.fetch = async (url) => {

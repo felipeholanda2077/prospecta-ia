@@ -57,10 +57,14 @@ const PELO_FACEBOOK = [
     },
   },
   {
-    // Token de pessoa ou de usuário do sistema: as páginas que ele administra.
+    // Token de pessoa ou de usuário do sistema: as páginas que ele administra. Fica com o token da
+    // página, que não vence quando o token da pessoa é de longa duração.
     nome: "pelas páginas",
-    achar: async (c) => (await chamar(c, "GET", "me/accounts", { fields: "instagram_business_account{id,username}" }))
-      .data?.find((p) => p.instagram_business_account)?.instagram_business_account,
+    achar: async (c) => {
+      const pagina = (await chamar(c, "GET", "me/accounts", { fields: "access_token,instagram_business_account{id,username}" }))
+        .data?.find((p) => p.instagram_business_account);
+      return pagina && { ...pagina.instagram_business_account, token: pagina.access_token };
+    },
   },
   {
     // Login unificado com token de pessoa: a Meta guarda no próprio token as contas que foram autorizadas.
@@ -79,7 +83,7 @@ const PELO_FACEBOOK = [
     },
   },
 ].map(({ nome, achar }) => ({
-  nome, host: "graph.facebook.com", achar: async (c) => { const ig = await achar(c); return ig && { id: ig.id, usuario: ig.username }; },
+  nome, host: "graph.facebook.com", achar: async (c) => { const ig = await achar(c); return ig && { id: ig.id, usuario: ig.username, token: ig.token }; },
 }));
 
 /** Quando o token do Facebook vence (ISO), ou null se não vence ou não deu para saber. */
@@ -114,8 +118,9 @@ export async function conectarInstagram(token, igId = "") {
     if (conta === null || conta === undefined) erros.push(`${jeito.nome}: nenhuma conta`);
     if (!conta) continue;
     const agora = new Date().toISOString();
-    const expiraEm = await validadeDoToken({ host: jeito.host, token });
-    await db.gravarConfig("instagram", { token, host: jeito.host, igId: String(conta.id), usuario: conta.usuario, conectadoEm: agora, renovadoEm: agora, expiraEm });
+    const usado = conta.token || token;
+    const expiraEm = await validadeDoToken({ host: jeito.host, token: usado });
+    await db.gravarConfig("instagram", { token: usado, host: jeito.host, igId: String(conta.id), usuario: conta.usuario, conectadoEm: agora, renovadoEm: agora, expiraEm });
     return { conectado: true, usuario: conta.usuario, expiraEm };
   }
   // Cada tentativa com o motivo, para dar para ver o que a Meta respondeu.
