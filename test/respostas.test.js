@@ -334,7 +334,7 @@ test("sem interesse: encerra a empresa, agradece uma vez e não manda mais nada"
 test("conversas: uma por empresa, com avaliação da IA, última mensagem e funil", async () => {
   const { avaliarConversa, indicadoresDasConversas } = await import("../src/respostas/andamento.js");
   const lead = await novoLead("Conversa", "conversa@clinica.com");
-  await enviada(lead, 0);
+  await enviada(lead, 0.005); // alguns minutos antes da resposta (no mesmo milissegundo a ordem fica no sorteio)
   await db.criarResposta({ lead_id: lead.id, canal: "email", origem_id: "<conv-1@x>", de: lead.email, texto: "Quanto custa?",
                            classificacao: "quer_informacoes", resumo: "Perguntou o preço", temperatura: "quente", proximo_passo: "mandar o link do Calendly" });
   const c = (await db.conversas()).find((x) => x.id === lead.id);

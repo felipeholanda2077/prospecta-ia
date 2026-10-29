@@ -20,7 +20,7 @@ import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
 import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia } from "./conteudo/diario.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
-import { postarNoInstagram, assinaturaDaMidia } from "./conteudo/instagram.js";
+import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { statusDaConexao, conectarInstagram, desconectarInstagram } from "./envio/instagram.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
@@ -678,6 +678,15 @@ app.post("/api/conteudo/:id/instagram", async (req, res) => {
   if (r.instagram === "desconectado") return res.status(400).json({ erro: "Conecte o Instagram primeiro" });
   if (r.instagram === "erro") return res.status(502).json({ erro: r.erro });
   res.json(r);
+});
+
+// Diagnóstico: gera os arquivos do post no servidor (sem publicar) e diz o tamanho e o tempo.
+app.post("/api/conteudo/:id/testar-arquivos", async (req, res) => {
+  const post = await db.buscarPost(req.params.id);
+  if (!post) return res.status(404).json({ erro: "Post não encontrado" });
+  const inicio = Date.now();
+  const arquivos = await gerarArquivos(post, (await carregarCampanhaCompleta()).empresa.nome);
+  res.json({ ms: Date.now() - inicio, arquivos: arquivos.map((a) => ({ chave: a.chave, tipo: a.tipo, bytes: a.dados.length })) });
 });
 
 app.post("/api/instagram/conectar", async (req, res) => {

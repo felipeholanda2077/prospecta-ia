@@ -24,7 +24,7 @@ export function legendaDoPost(post) {
 }
 
 /** Os arquivos do post: as telas em JPEG (carrossel) ou o vídeo em MP4 (Reels). */
-async function gerarArquivos(post, empresa) {
+export async function gerarArquivos(post, empresa) {
   // Carregado só aqui: o canvas e o ffmpeg são pesados e o resto do sistema não precisa deles.
   const { imagensDoCarrossel, videoDoReels } = await import("./arquivos.js");
   if (post.formato === "reels") return [{ chave: `post-${post.id}-reels.mp4`, tipo: "video/mp4", dados: await videoDoReels(post, empresa) }];
