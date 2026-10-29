@@ -294,6 +294,17 @@ export async function instagramsCapturados(usuarios) {
   return new Set(usuarios.filter((u) => achados.has(u)));
 }
 
+/** Os @ do Instagram das empresas já capturadas num segmento e cidade (ponto de partida da busca lá). */
+export async function instagramsDaBusca(nicho, cidade, limite = 10) {
+  const linhas = await q(
+    `SELECT instagram, site FROM leads
+      WHERE lower(nicho) = lower($1) AND lower(cidade) = lower($2) AND (instagram IS NOT NULL OR site ~* 'instagram\\.com/')
+      ORDER BY id DESC LIMIT $3`,
+    [nicho, cidade, limite]
+  );
+  return [...new Set(linhas.map((l) => l.instagram || String(l.site).match(/instagram\.com\/([a-z0-9._]{2,30})/i)?.[1]?.toLowerCase()).filter(Boolean))];
+}
+
 /** Marca todos os contatos do lead como descadastrados e cancela o que ainda não foi enviado. */
 export async function descadastrarLead(lead, motivo = "pedido do contato") {
   for (const contato of [lead.email, lead.whatsapp, lead.telefone]) await descadastrar(contato, motivo);

@@ -22,7 +22,11 @@ const PERFIS = {
   vetcenter: {
     username: "vetcenter", name: "Vet Center", followers_count: 900, media_count: 50,
     biography: "Clínica veterinária", website: "https://wa.me/5585988887777",
+    media: { data: [{ timestamp: "2026-10-25T12:00:00+0000", caption: "Parceria com @lojalocal e @marcanacional 💚" }] },
   },
+  // Citadas nos posts da @vetcenter: só a da cidade entra.
+  lojalocal: { username: "lojalocal", name: "Loja Local", biography: "Rações e acessórios em Fortaleza", followers_count: 300, media_count: 20 },
+  marcanacional: { username: "marcanacional", name: "Marca Nacional", biography: "Entregamos no Brasil todo", followers_count: 90000, media_count: 900 },
 };
 
 /** Meta de mentira: hashtag → posts com @perfis citados; business discovery só para os perfis comerciais. */
@@ -96,8 +100,8 @@ test("instagram (captação): busca pela hashtag, fica com os perfis comerciais 
     assert.deepEqual(r.hashtags, ["petshopfortaleza"]);
     assert.equal(pedidos[0].searchParams.get("q"), "petshopfortaleza");
     assert.equal(pedidos[0].searchParams.get("user_id"), "17841");
-    // @maria.silva não é conta comercial: fica de fora.
-    assert.deepEqual(r.empresas.map((e) => e.instagram).sort(), ["petlegal", "vetcenter"]);
+    // @maria.silva não é conta comercial: fica de fora. Dos citados pela @vetcenter, só o da cidade.
+    assert.deepEqual(r.empresas.map((e) => e.instagram).sort(), ["lojalocal", "petlegal", "vetcenter"]);
     const pet = r.empresas.find((e) => e.instagram === "petlegal");
     assert.equal(pet.place_id, "ig:petlegal");
     assert.equal(pet.nome, "Pet Legal Fortaleza");
@@ -108,7 +112,7 @@ test("instagram (captação): busca pela hashtag, fica com os perfis comerciais 
 
     // Uma empresa do Maps com o link do Instagram no Google já conta como capturada.
     await db.inserirLead({ place_id: "maps-vet", nome: "Vet Center", site: "https://www.instagram.com/vetcenter/", origem: "maps" });
-    assert.deepEqual(await pipeline.capturarDoInstagram(r.empresas, "pet shop", "Fortaleza - CE"), { novas: 1 });
+    assert.deepEqual(await pipeline.capturarDoInstagram(r.empresas, "pet shop", "Fortaleza - CE"), { novas: 2 });
     assert.deepEqual(await pipeline.capturarDoInstagram(r.empresas, "pet shop", "Fortaleza - CE"), { novas: 0 });
     const nova = await pipeline.buscarNoInstagram("pet shop", "Fortaleza - CE");
     assert.equal(nova.empresas.every((e) => e.jaCapturado), true);
@@ -144,6 +148,20 @@ test("instagram (captação): @perfis informados no painel e erro da hashtag sem
     const r = await buscarEmpresasNoInstagram({ nicho: "pet shop", cidade: "Fortaleza - CE", termos: "#banhoetosa @PetLegal" });
     assert.deepEqual(r.empresas.map((e) => e.instagram), ["petlegal"]);
     assert.match(r.avisos.join(" "), /#banhoetosa: Application does not have permission/);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("instagram (captação): as empresas já capturadas da busca são o ponto de partida, sem voltar como resultado", async () => {
+  await conectar();
+  await db.inserirLead({ place_id: "maps-semente", nome: "Vet Center", site: "https://www.instagram.com/vetcenter/", nicho: "veterinária", cidade: "Fortaleza - CE", origem: "maps" });
+  const original = globalThis.fetch;
+  const meta = metaFalsa();
+  globalThis.fetch = async (url) => (String(url).includes("ig_hashtag_search") ? Response.json({ data: [] }) : meta(url));
+  try {
+    const r = await buscarEmpresasNoInstagram({ nicho: "veterinária", cidade: "Fortaleza - CE" });
+    assert.deepEqual(r.empresas.map((e) => e.instagram), ["lojalocal"]);
   } finally {
     globalThis.fetch = original;
   }

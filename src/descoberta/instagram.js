@@ -90,7 +90,7 @@ const linkDoPerfil = (usuario) => `https://www.instagram.com/${usuario}/`;
 export async function perfilDoInstagram(conexao, usuario, recusas = null) {
   usuario = String(usuario ?? "").replace(/^@/, "").toLowerCase();
   if (!/^[a-z0-9._]{2,30}$/.test(usuario)) return null;
-  const campos = "username,name,biography,website,followers_count,media_count,profile_picture_url,media.limit(1){timestamp}";
+  const campos = "username,name,biography,website,followers_count,media_count,profile_picture_url,media.limit(12){timestamp,caption}";
   try {
     const { business_discovery: p } = await chamar(conexao, conexao.igId, { fields: `business_discovery.username(${usuario}){${campos}}` });
     if (!p?.username) return null;
@@ -103,6 +103,8 @@ export async function perfilDoInstagram(conexao, usuario, recusas = null) {
       posts: p.media_count ?? null,
       ultimoPost: p.media?.data?.[0]?.timestamp ?? null,
       foto: p.profile_picture_url ?? null,
+      // Quem a empresa cita nos posts recentes (parceiros, fornecedores, clientes): a próxima leva da busca.
+      citados: perfisCitados((p.media?.data ?? []).map((m) => m.caption ?? "").join("\n")).filter((u) => u !== p.username.toLowerCase()),
     };
   } catch (e) {
     // (#110) / (#100): a conta não é comercial, é privada ou não existe. Os outros erros sobem.
@@ -214,25 +216,39 @@ export async function buscarEmpresasNoInstagram({ nicho = "", cidade = "", termo
       avisos.push(`#${tag}: ${e.message.replace(/^Instagram: /, "")}`);
     }
   }
+  // Em cadeia: de cada perfil, segue os @ citados nos posts dele. Os achados assim só entram se
+  // forem da cidade (no nome ou na bio). As empresas já capturadas da mesma busca servem de ponto
+  // de partida (já são da região), mas não voltam como resultado.
+  const local = semAcento(String(cidade ?? "").split(/\s+-\s+|,|\//)[0]).toLowerCase().trim();
+  const daCidade = (perfil) => !local || semAcento(`${perfil.nome} ${perfil.bio}`).toLowerCase().includes(local);
+  const sementes = nicho && cidade ? await db.instagramsDaBusca(nicho, cidade) : [];
+  const fila = [
+    ...perfis.map((usuario) => ({ usuario, de: "busca" })),
+    ...sementes.map((usuario) => ({ usuario, de: "semente" })),
+  ];
   const empresas = [];
   const vistos = new Set([String(conexao.usuario ?? "").toLowerCase()]);
   // Cada perfil é uma consulta à Meta: para quando passar de 3 por empresa pedida.
   let consultas = 0;
+  const limite = quantidade * 3 + sementes.length;
   const recusas = [];
-  for (const usuario of perfis) {
-    if (empresas.length >= quantidade || consultas >= quantidade * 3) break;
+  for (let i = 0; i < fila.length; i++) {
+    const { usuario, de } = fila[i];
+    if (empresas.length >= quantidade || consultas >= limite) break;
     if (vistos.has(usuario)) continue;
     consultas++;
     vistos.add(usuario);
     const perfil = await perfilDoInstagram(conexao, usuario, recusas);
-    if (perfil) empresas.push(empresaDoPerfil(perfil));
+    if (!perfil) continue;
+    if (de === "busca" || (de === "citado" && daCidade(perfil))) empresas.push(empresaDoPerfil(perfil));
+    for (const citado of perfil.citados) if (!vistos.has(citado)) fila.push({ usuario: citado, de: "citado" });
   }
   // Nenhum perfil aceito: mostra o que a Meta respondeu, para dar para saber se é permissão.
   if (!empresas.length && recusas.length) {
     avisos.push(`Os ${consultas} perfis citados nos posts não vieram como conta comercial. Exemplos da resposta da Meta: ${recusas.slice(0, 3).join(" | ")}`);
   }
-  if (!perfis.length && liberadas.length && !avisos.length) avisos.push(postsLidos
-    ? `Li ${postsLidos} posts dessas hashtags e nenhum cita um @perfil. Tente outras hashtags ou informe @perfis.`
+  if (!empresas.length && !perfis.length && !sementes.length && liberadas.length && !avisos.length) avisos.push(postsLidos
+    ? `Li ${postsLidos} posts dessas hashtags e nenhum cita um @perfil. Informe @perfis de empresas da região: a busca segue quem elas citam nos posts.`
     : "A Meta não devolveu nenhum post dessas hashtags. Tente outras hashtags ou informe @perfis.");
   return { empresas, hashtags: liberadas, avisos };
 }
