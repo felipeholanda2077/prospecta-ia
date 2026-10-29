@@ -87,7 +87,7 @@ export function usuarioDoLink(url) {
 const linkDoPerfil = (usuario) => `https://www.instagram.com/${usuario}/`;
 
 /** Os dados públicos de um perfil comercial do Instagram. Perfil pessoal ou que não existe: null. */
-export async function perfilDoInstagram(conexao, usuario) {
+export async function perfilDoInstagram(conexao, usuario, recusas = null) {
   usuario = String(usuario ?? "").replace(/^@/, "").toLowerCase();
   if (!/^[a-z0-9._]{2,30}$/.test(usuario)) return null;
   const campos = "username,name,biography,website,followers_count,media_count,profile_picture_url,media.limit(1){timestamp}";
@@ -106,7 +106,10 @@ export async function perfilDoInstagram(conexao, usuario) {
     };
   } catch (e) {
     // (#110) / (#100): a conta não é comercial, é privada ou não existe. Os outros erros sobem.
-    if ([100, 110].includes(e.codigo)) return null;
+    if ([100, 110].includes(e.codigo)) {
+      recusas?.push(`@${usuario}: ${e.message.replace(/^Instagram: /, "")}`);
+      return null;
+    }
     throw e;
   }
 }
@@ -201,14 +204,20 @@ export async function buscarEmpresasNoInstagram({ nicho = "", cidade = "", termo
   const vistos = new Set([String(conexao.usuario ?? "").toLowerCase()]);
   // Cada perfil é uma consulta à Meta: para quando passar de 3 por empresa pedida.
   let consultas = 0;
+  const recusas = [];
   for (const usuario of perfis) {
     if (empresas.length >= quantidade || consultas >= quantidade * 3) break;
     if (vistos.has(usuario)) continue;
     consultas++;
     vistos.add(usuario);
-    const perfil = await perfilDoInstagram(conexao, usuario);
+    const perfil = await perfilDoInstagram(conexao, usuario, recusas);
     if (perfil) empresas.push(empresaDoPerfil(perfil));
   }
+  // Nenhum perfil aceito: mostra o que a Meta respondeu, para dar para saber se é permissão.
+  if (!empresas.length && recusas.length) {
+    avisos.push(`Os ${consultas} perfis citados nos posts não vieram como conta comercial. Exemplos da resposta da Meta: ${recusas.slice(0, 3).join(" | ")}`);
+  }
+  if (!perfis.length && liberadas.length && !avisos.length) avisos.push("Os posts dessas hashtags não citam nenhum @perfil. Tente outras hashtags ou informe @perfis.");
   return { empresas, hashtags: liberadas, avisos };
 }
 
