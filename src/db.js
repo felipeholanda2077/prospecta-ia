@@ -112,12 +112,16 @@ export async function devolverErrosDeConexaoWhatsapp() {
 
 const lerPost = (p) => p && { ...p, dia: p.dia instanceof Date ? p.dia.toISOString().slice(0, 10) : String(p.dia).slice(0, 10), conteudo: JSON.parse(p.conteudo) };
 
-export async function criarPost({ dia, formato, pilar, tema, conteudo }) {
+export async function criarPost({ dia, formato, pilar, tema, conteudo, horario = null }) {
   const r = await um(
-    "INSERT INTO posts (dia, formato, pilar, tema, conteudo) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-    [dia, formato, pilar, tema, JSON.stringify(conteudo)]
+    "INSERT INTO posts (dia, formato, pilar, tema, conteudo, horario) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+    [dia, formato, pilar, tema, JSON.stringify(conteudo), horario]
   );
   return r.id;
+}
+
+export async function definirHorarioDoPost(id, horario) {
+  await q("UPDATE posts SET horario = $2 WHERE id = $1", [id, horario]);
 }
 
 export async function buscarPost(id) {

@@ -112,6 +112,8 @@ CREATE INDEX IF NOT EXISTS idx_posts_dia ON posts(dia);
 -- Postagem automática no Instagram: o container é a mídia já criada lá e ainda não publicada.
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_container text;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_id text;
+-- Horário do dia em que o post sai (12, 18...); null = criado pelo botão, entra no próximo horário vago.
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS horario integer;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_link text;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_erro text;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_tentativas integer NOT NULL DEFAULT 0;

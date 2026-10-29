@@ -88,7 +88,7 @@ test("instagram: Reels ainda processando continua na próxima rodada sem criar o
 });
 
 test("instagram: erro fica no post, conta as tentativas e a rodada desiste depois do limite", async () => {
-  await db.gravarConfig("conteudo", { ativo: true, horario: 18, postarSozinho: true });
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [18], postarSozinho: true });
   const id = await criarPost("2026-11-04");
   const api = apiFalsa({ falhar: "Media download has failed" });
   const r = await postarNoInstagram(id, campanha, { api, arquivos: arquivosFalsos, esperaMs: 0 });
@@ -101,12 +101,12 @@ test("instagram: erro fica no post, conta as tentativas e a rodada desiste depoi
   await db.atualizarInstagramDoPost(id, { instagram_tentativas: MAX_TENTATIVAS });
   await db.gravarConfig("instagram", { token: "IGtoken", host: "graph.instagram.com", igId: "1", renovadoEm: new Date().toISOString() });
   const rodada = await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-11-04T21:00:00Z"), postar: () => assert.fail("não tenta de novo") });
-  assert.equal(rodada.conteudo, "post de hoje não foi aceito pelo Instagram");
+  assert.equal(rodada.conteudo, "post das 18h não foi aceito pelo Instagram");
   await db.gravarConfig("instagram", {});
 });
 
-test("instagram: a rodada cria o post antes do horário e publica no horário, uma vez por dia", async () => {
-  await db.gravarConfig("conteudo", { ativo: true, horario: 18, postarSozinho: true });
+test("instagram: a rodada cria o post antes do horário e publica no horário, uma vez por horário", async () => {
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [18], postarSozinho: true });
   await db.gravarConfig("instagram", { token: "IGtoken", host: "graph.instagram.com", igId: "1", renovadoEm: new Date().toISOString() });
   const escrever = async () => conteudo;
   const postados = [];
@@ -123,17 +123,17 @@ test("instagram: a rodada cria o post antes do horário e publica no horário, u
   assert.equal(publicado.instagram, "postado");
   assert.deepEqual(postados, [criado.postId]);
 
-  // Um extra criado pelo botão no mesmo dia não vai para o perfil sozinho.
+  // Um extra criado pelo botão, sem horário vago no dia, não vai para o perfil sozinho.
   await diario.criarPostDeHoje(campanha, { agora: new Date("2026-11-05T21:10:00Z"), escrever });
   const depois = await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-11-05T21:15:00Z"), escrever, postar });
-  assert.equal(depois.conteudo, "post de hoje já publicado");
+  assert.equal(depois.conteudo, "post das 18h já publicado");
   assert.equal(postados.length, 1);
 
   // Com "postar sozinho" desligado, o post só fica pronto.
-  await db.gravarConfig("conteudo", { ativo: true, horario: 18, postarSozinho: false });
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [18], postarSozinho: false });
   await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-11-06T20:45:00Z"), escrever, postar });
   const r = await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-11-06T21:00:00Z"), escrever, postar });
-  assert.equal(r.conteudo, "post de hoje já criado");
+  assert.equal(r.conteudo, "post das 18h já criado");
   assert.equal(postados.length, 1);
   await db.gravarConfig("instagram", {});
 });
@@ -269,4 +269,47 @@ test("instagram: achou a conta pelo ID com o token da pessoa, guarda o da págin
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("instagram: dois posts por dia, às 12h e às 18h, alternando o formato", async () => {
+  await db.gravarConfig("conteudo", {});
+  assert.deepEqual((await diario.lerConfigConteudo()).horarios, [12, 18]);
+  // A configuração antiga, de um horário só, passa para os dois horários.
+  await db.gravarConfig("conteudo", { ativo: true, horario: 18, postarSozinho: true });
+  assert.deepEqual((await diario.lerConfigConteudo()).horarios, [12, 18]);
+  await db.gravarConfig("instagram", { token: "IGtoken", host: "graph.instagram.com", igId: "1", renovadoEm: new Date().toISOString() });
+  const escrever = async () => conteudo;
+  const postados = [];
+  const postar = async (id) => {
+    postados.push(id);
+    await db.atualizarStatusPost(id, "postado");
+    return { instagram: "postado" };
+  };
+  const rodar = (hora) => diario.rodadaDeConteudo(campanha, { agora: new Date(`2026-11-10T${hora}:00-03:00`), escrever, postar });
+
+  assert.equal((await rodar("11:30")).conteudo, "antes do horário");
+  const meioDia = await rodar("11:45");
+  assert.deepEqual([meioDia.conteudo, meioDia.horario], ["criado", 12]);
+  assert.equal((await rodar("12:00")).instagram, "postado");
+  assert.equal((await rodar("12:15")).conteudo, "post das 12h já publicado");
+  const tarde = await rodar("17:45");
+  assert.deepEqual([tarde.conteudo, tarde.horario], ["criado", 18]);
+  assert.equal((await rodar("18:00")).instagram, "postado");
+  assert.equal((await rodar("18:15")).conteudo, "post das 18h já publicado");
+  assert.deepEqual(postados, [meioDia.postId, tarde.postId]);
+  const [p12, p18] = [await db.buscarPost(meioDia.postId), await db.buscarPost(tarde.postId)];
+  assert.notEqual(p12.formato, p18.formato);
+  assert.deepEqual([p12.horario, p18.horario], [12, 18]);
+
+  // Um post criado pelo botão de manhã ocupa o horário das 12h (não cria outro).
+  const extra = await diario.criarPostDeHoje(campanha, { agora: new Date("2026-11-11T09:00:00-03:00"), escrever });
+  const r11 = await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-11-11T12:00:00-03:00"), escrever, postar });
+  assert.deepEqual([r11.horario, r11.postId], [12, extra.id]);
+
+  // Sistema parado no horário: até 2 horas depois ainda cria; depois disso pula para o próximo.
+  const atrasado = await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-11-12T13:30:00-03:00"), escrever, postar });
+  assert.deepEqual([atrasado.conteudo, atrasado.horario], ["criado", 12]);
+  const pulou = await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-11-13T15:00:00-03:00"), escrever, postar });
+  assert.equal(pulou.conteudo, "nada a fazer");
+  await db.gravarConfig("instagram", {});
 });

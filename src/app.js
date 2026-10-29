@@ -18,7 +18,7 @@ import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
-import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia } from "./conteudo/diario.js";
+import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia, normalizarHorarios } from "./conteudo/diario.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { statusDaConexao, conectarInstagram, desconectarInstagram } from "./envio/instagram.js";
@@ -664,9 +664,10 @@ app.get("/api/conteudo", async (req, res) => {
 });
 
 app.put("/api/conteudo/config", async (req, res) => {
-  const horario = Number.parseInt(req.body?.horario, 10);
-  if (!(horario >= 6 && horario <= 23)) return res.status(400).json({ erro: "Escolha um horário entre 6h e 23h" });
-  await db.gravarConfig("conteudo", { ativo: req.body?.ativo !== false, horario, postarSozinho: req.body?.postarSozinho !== false });
+  const horarios = normalizarHorarios(req.body?.horarios ?? req.body?.horario);
+  if (!horarios.length) return res.status(400).json({ erro: "Escolha ao menos um horário entre 6h e 23h" });
+  if (horarios.length > 4) return res.status(400).json({ erro: "Escolha no máximo 4 horários por dia" });
+  await db.gravarConfig("conteudo", { ativo: req.body?.ativo !== false, horarios, postarSozinho: req.body?.postarSozinho !== false });
   if (typeof req.body?.base === "string") await gravarBaseDeConteudo(req.body.base);
   res.json({ ok: true });
 });
@@ -681,7 +682,7 @@ app.post("/api/conteudo/gerar", async (req, res) => {
 app.post("/api/conteudo/:id/refazer", async (req, res) => {
   const post = await db.buscarPost(req.params.id);
   if (!post) return res.status(404).json({ erro: "Post não encontrado" });
-  const novo = await criarPostDeHoje(await carregarCampanhaCompleta(), { formato: post.formato });
+  const novo = await criarPostDeHoje(await carregarCampanhaCompleta(), { formato: post.formato, horario: post.horario });
   await db.atualizarStatusPost(post.id, "descartado");
   res.json(novo);
 });

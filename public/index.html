@@ -734,17 +734,15 @@
       <!-- Conteúdo para o Instagram -->
       <section id="view-conteudo" hidden>
         <form class="cartao" id="form-conteudo" style="margin-bottom:16px">
-          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="spark"></span><div class="titulos"><h3>Post do dia <span id="conteudo-status"></span></h3>
-            <div class="meta">Todo dia a IA cria um post sobre a FluxDeck, com base no conteúdo do site, alternando Reels e carrossel, com legenda e hashtags. Com o Instagram conectado, ele sai sozinho no perfil.</div></div></div>
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="spark"></span><div class="titulos"><h3>Posts do dia <span id="conteudo-status"></span></h3>
+            <div class="meta">Em cada horário escolhido a IA cria um post sobre a FluxDeck, com base no conteúdo do site, alternando Reels e carrossel, com legenda e hashtags. Com o Instagram conectado, ele sai sozinho no perfil.</div></div></div>
           <div class="cartao-corpo" style="display:grid;gap:18px">
-            <label class="chave"><input type="checkbox" name="ativo"><div><b>Criar o post do dia sozinho</b>
-              <span>Inclusive sábado e domingo. Você recebe um aviso por e-mail quando ele fica pronto.</span></div></label>
+            <label class="chave"><input type="checkbox" name="ativo"><div><b>Criar os posts do dia sozinho</b>
+              <span>Inclusive sábado e domingo. O post fica pronto 15 minutos antes do horário e você recebe um aviso por e-mail.</span></div></label>
             <label class="chave"><input type="checkbox" name="postarSozinho"><div><b>Postar sozinho no Instagram</b>
-              <span>No horário abaixo, o post do dia é publicado no perfil conectado. Os posts extras, criados pelos botões, ficam para você decidir.</span></div></label>
-            <div class="config-grade">
-              <div class="campo"><label for="conteudo-horario">Horário em que o post fica pronto</label>
-                <select id="conteudo-horario" name="horario"></select></div>
-            </div>
+              <span>Em cada horário abaixo, um post é publicado no perfil conectado. Um post criado pelos botões entra no próximo horário vago do dia.</span></div></label>
+            <div class="campo"><span class="rotulo">Horários dos posts (até 4 por dia)</span>
+              <div class="filtros" id="conteudo-horarios" role="group" aria-label="Horários dos posts" style="margin:0"></div></div>
             <div class="campo"><label for="conteudo-base">Base de conteúdo (tirada do site fluxdeck.vercel.app)</label>
               <textarea id="conteudo-base" name="base" style="min-height:220px"></textarea>
               <span class="muted" style="font-size:12.5px">A IA cria os posts só com o que está aqui: serviços, portfólio, diferenciais e o jeito de trabalhar. Quando o site mudar, atualize este texto e salve.</span></div>
@@ -2508,6 +2506,9 @@ function pararPreviasReels() {
 
 const legendaCompleta = (post) => `${post.conteudo.legenda}\n\n${post.conteudo.hashtags.map((t) => `#${t}`).join(" ")}`;
 
+/** "12h e 18h", "9h, 12h e 18h". */
+const listaDeHoras = (horas) => horas.map((h) => `${h}h`).join(", ").replace(/, ([^,]*)$/, " e $1");
+
 function cardPost(post, hoje) {
   const c = post.conteudo;
   const reels = post.formato === "reels";
@@ -2517,12 +2518,11 @@ function cardPost(post, hoje) {
     : `<div class="post-thumbs">${telasDoPost(post).map((_, i) => `<canvas data-tela="${post.id}:${i}" width="1080" height="1350" aria-label="Tela ${i + 1}"></canvas>`).join("")}</div>`;
   const { instagram, config: conf } = estadoConteudo;
   const noInstagram = Boolean(post.instagram_id);
-  const vaiSairSozinho = instagram.conectado && conf.ativo && conf.postarSozinho && post.dia === hoje
-    && !postsCarregados.some((x) => x.dia === hoje && x.id < post.id);
+  const vaiSairSozinho = instagram.conectado && conf.ativo && conf.postarSozinho && post.dia === hoje && post.horario != null;
   const situacao = noInstagram ? `<span class="pilula ok">${ic("check", "sm")}No Instagram</span>`
     : post.status === "postado" ? `<span class="pilula ok">${ic("check", "sm")}Postado</span>`
     : post.instagram_container ? `<span class="pilula acc">Publicando no Instagram…</span>`
-    : vaiSairSozinho && !post.instagram_erro ? `<span class="pilula acc">${ic("clock", "sm")}Sai às ${conf.horario}h no Instagram</span>`
+    : vaiSairSozinho && !post.instagram_erro ? `<span class="pilula acc">${ic("clock", "sm")}Sai às ${post.horario}h no Instagram</span>`
     : `<span class="pilula acc">Pronto para postar</span>`;
   return `<article class="cartao" data-post="${post.id}">
     <div class="cartao-cab"><span class="kpi-ic">${ic(reels ? "video" : "image")}</span>
@@ -2558,8 +2558,9 @@ function cardPost(post, hoje) {
 
 async function carregarConteudo() {
   const f = $("#form-conteudo");
-  if (!f.horario.options.length) {
-    f.horario.innerHTML = Array.from({ length: 18 }, (_, i) => i + 6).map((h) => `<option value="${h}">${h}h</option>`).join("");
+  if (!$("#conteudo-horarios").children.length) {
+    $("#conteudo-horarios").innerHTML = Array.from({ length: 18 }, (_, i) => i + 6)
+      .map((h) => `<button type="button" class="filtro" data-hora="${h}" aria-pressed="false">${h}h</button>`).join("");
   }
   try {
     const r = await api("/api/conteudo");
@@ -2567,18 +2568,18 @@ async function carregarConteudo() {
     estadoConteudo = r;
     f.ativo.checked = r.config.ativo;
     f.postarSozinho.checked = r.config.postarSozinho;
-    f.horario.value = String(r.config.horario);
+    $$("#conteudo-horarios [data-hora]").forEach((b) => b.setAttribute("aria-pressed", String(r.config.horarios.includes(Number(b.dataset.hora)))));
     $("#instagram-status").innerHTML = r.instagram.conectado
       ? `<span class="pilula ok">${ic("check", "sm")}@${esc(r.instagram.usuario)}</span>${pilulaDoToken(r.instagram)}`
       : `<span class="pilula">Não conectado</span>`;
     $("#instagram-conectar").lastChild.textContent = r.instagram.conectado ? "Trocar token" : "Conectar Instagram";
     $("#instagram-desconectar").hidden = !r.instagram.conectado;
     if (!f.base.matches(":focus")) f.base.value = r.base;
-    $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${r.config.horario}h</span>` : `<span class="pilula">Desligado</span>`;
+    $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
     postsCarregados = r.posts;
     $("#lista-posts").innerHTML = r.posts.length
       ? r.posts.map((p) => cardPost(p, r.hoje)).join("")
-      : `<div class="cartao cartao-corpo muted">Ainda não há posts. O primeiro fica pronto hoje às ${r.config.horario}h, ou crie um agora pelos botões acima.</div>`;
+      : `<div class="cartao cartao-corpo muted">Ainda não há posts. O primeiro fica pronto hoje às ${listaDeHoras(r.config.horarios)}, ou crie um agora pelos botões acima.</div>`;
     await fontesProntas();
     $$("canvas[data-tela]").forEach((c) => {
       const [id, i] = c.dataset.tela.split(":");
@@ -2590,13 +2591,20 @@ async function carregarConteudo() {
   }
 }
 
+$("#conteudo-horarios").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-hora]");
+  if (b) b.setAttribute("aria-pressed", String(b.getAttribute("aria-pressed") !== "true"));
+});
+
 $("#form-conteudo").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const f = ev.target;
+  const horarios = $$("#conteudo-horarios [aria-pressed=true]").map((b) => Number(b.dataset.hora));
   try {
-    await api("/api/conteudo/config", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, horario: f.horario.value, postarSozinho: f.postarSozinho.checked, base: f.base.value }) });
+    await api("/api/conteudo/config", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, horarios, postarSozinho: f.postarSozinho.checked, base: f.base.value }) });
     const sozinho = f.postarSozinho.checked && estadoConteudo.instagram.conectado;
-    avisar(!f.ativo.checked ? "Post do dia desligado." : sozinho ? `Pronto: todo dia às ${f.horario.value}h um post novo sai no Instagram.` : `Pronto: todo dia às ${f.horario.value}h um post novo fica pronto aqui.`, "ok");
+    const quando = listaDeHoras(horarios);
+    avisar(!f.ativo.checked ? "Posts do dia desligados." : sozinho ? `Pronto: todo dia às ${quando} um post novo sai no Instagram.` : `Pronto: todo dia às ${quando} um post novo fica pronto aqui.`, "ok");
     carregarConteudo();
   } catch (e) {
     avisar(e.message, "perigo");

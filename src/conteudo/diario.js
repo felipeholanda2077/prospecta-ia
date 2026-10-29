@@ -8,14 +8,27 @@ import { lerConexao, renovarTokenSePreciso } from "../envio/instagram.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
-// Um post por dia, alternando Reels e carrossel, pronto às 18h (Brasília). Ajustável no painel.
-// Com o Instagram conectado, ele sai sozinho no perfil nesse horário.
-export const CONTEUDO_PADRAO = { ativo: true, horario: 18, postarSozinho: true };
+// Dois posts por dia, às 12h e às 18h (Brasília), alternando Reels e carrossel. Ajustável no painel.
+// Com o Instagram conectado, cada um sai sozinho no perfil no seu horário.
+export const CONTEUDO_PADRAO = { ativo: true, horarios: [12, 18], postarSozinho: true };
 // O agendador do banco passa a cada 15 minutos; o post é criado na passagem logo antes do horário.
 const ANTECEDENCIA_MIN = 15;
+// Se o sistema estava parado no horário, o post ainda é criado até 2 horas depois; mais que isso, pula.
+const ATRASO_MAXIMO_MIN = 120;
+
+/** Horários válidos (6h às 23h), sem repetir e em ordem. */
+export function normalizarHorarios(lista) {
+  const horas = (Array.isArray(lista) ? lista : String(lista ?? "").split(/[^\d]+/))
+    .map((h) => Number.parseInt(h, 10))
+    .filter((h) => h >= 6 && h <= 23);
+  return [...new Set(horas)].sort((a, b) => a - b);
+}
 
 export async function lerConfigConteudo() {
-  return { ...CONTEUDO_PADRAO, ...((await db.lerConfig("conteudo")) ?? {}) };
+  // A configuração antiga tinha um horário só (`horario`); ela passou para os horários do padrão.
+  const { horario, ...salvo } = (await db.lerConfig("conteudo")) ?? {};
+  const horarios = normalizarHorarios(salvo.horarios);
+  return { ...CONTEUDO_PADRAO, ...salvo, horarios: horarios.length ? horarios : CONTEUDO_PADRAO.horarios };
 }
 
 /** Dia (AAAA-MM-DD) e minutos desde a meia-noite, no fuso de Brasília. */
@@ -28,10 +41,10 @@ export function agoraEmBrasilia(agora = new Date()) {
   return { dia: `${p.year}-${p.month}-${p.day}`, minutos: Number(p.hour) * 60 + Number(p.minute) };
 }
 
-/** Já passou da hora de criar o post de hoje? */
+/** Já passou da hora de criar o post deste horário? */
 export const horaDoPost = (horario, agora = new Date()) => agoraEmBrasilia(agora).minutos >= horario * 60 - ANTECEDENCIA_MIN;
 
-/** Reels num dia, carrossel no outro: o contrário do último post. */
+/** Reels num post, carrossel no seguinte: o contrário do último post. */
 export function proximoFormato(ultimo) {
   return ultimo?.formato === "reels" ? "carrossel" : "reels";
 }
@@ -43,53 +56,76 @@ export function pilarDoDia(dia, tentativa = 0) {
   return nomes[(diaDoAno + tentativa) % nomes.length];
 }
 
-/** Cria um post para hoje. `formato` fixo serve para "gerar outro" no lugar de um post. */
-export async function criarPostDeHoje(campanha, { formato, escrever = gerarPost, agora = new Date() } = {}) {
+/**
+ * Cria um post para hoje. `formato` fixo serve para "gerar outro" no lugar de um post; `horario`
+ * é o horário do dia em que ele sai (sem horário, entra no próximo horário vago).
+ */
+export async function criarPostDeHoje(campanha, { formato, horario = null, escrever = gerarPost, agora = new Date() } = {}) {
   const { dia } = agoraEmBrasilia(agora);
   const recentes = await db.postsRecentes(30);
   const deHoje = await db.postsDoDia(dia);
-  const ultimoAntesDeHoje = recentes.find((p) => p.dia < dia);
-  const escolhido = formato ?? deHoje.find((p) => p.status !== "descartado")?.formato ?? proximoFormato(ultimoAntesDeHoje);
+  const escolhido = formato ?? proximoFormato(recentes[0]);
   const pilar = pilarDoDia(dia, deHoje.length);
   const base = await lerBaseDeConteudo();
   const conteudo = await escrever({ campanha, formato: escolhido, pilar, base, recentes: recentes.map((p) => p.tema) });
-  const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo });
-  log(`🎬 Post do dia criado (${escolhido}, ${pilar}): ${conteudo.tema}`);
+  const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo, horario });
+  log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}): ${conteudo.tema}`);
   return db.buscarPost(id);
 }
 
 /**
- * Chamado pelo agendador a cada 15 minutos: um pouco antes do horário escolhido, cria o post
- * do dia (se ainda não houver); no horário, publica no Instagram (se a conta estiver conectada).
+ * Chamado pelo agendador a cada 15 minutos. Para cada horário do dia: um pouco antes, cria o post
+ * desse horário (se ainda não houver); no horário, publica no Instagram (se a conta estiver
+ * conectada). Faz uma coisa por vez: o que sobrar fica para a passagem seguinte.
  */
 export async function rodadaDeConteudo(campanha, { agora = new Date(), escrever = gerarPost, postar = postarNoInstagram } = {}) {
   const conf = await lerConfigConteudo();
   if (!conf.ativo) return { conteudo: "desligado" };
-  if (!horaDoPost(conf.horario, agora)) return { conteudo: "antes do horário" };
   const { dia, minutos } = agoraEmBrasilia(agora);
+  const chegaram = conf.horarios.filter((h) => horaDoPost(h, agora));
+  if (!chegaram.length) return { conteudo: "antes do horário" };
   const conectado = conf.postarSozinho && Boolean((await lerConexao())?.token);
   const deHoje = (await db.postsDoDia(dia)).filter((p) => p.status !== "descartado");
-  if (!deHoje.length) return criarEAvisar(campanha, conf, { agora, escrever, conectado, dia });
 
-  // Um post por dia no perfil: o primeiro de hoje que ainda não saiu (os extras do botão ficam para você).
-  if (!conectado || minutos < conf.horario * 60) return { conteudo: "post de hoje já criado" };
-  if (deHoje.some((p) => p.status === "postado")) return { conteudo: "post de hoje já publicado" };
-  const pendente = deHoje.find((p) => (p.instagram_tentativas ?? 0) < MAX_TENTATIVAS);
-  if (!pendente) return { conteudo: "post de hoje não foi aceito pelo Instagram" };
-  await renovarTokenSePreciso(agora).catch((e) => log(`⚠️  ${e.message}`));
-  return { conteudo: "publicando", postId: pendente.id, ...(await postar(pendente.id, campanha)) };
+  // Posts de hoje criados pelo botão (sem horário) ocupam o primeiro horário vago.
+  for (const h of chegaram) {
+    if (deHoje.some((p) => p.horario === h)) continue;
+    const solto = deHoje.find((p) => p.horario == null);
+    if (!solto) break;
+    await db.definirHorarioDoPost(solto.id, h);
+    solto.horario = h;
+  }
+
+  let situacao = null;
+  for (const h of chegaram) {
+    const post = deHoje.find((p) => p.horario === h);
+    // Só o horário da vez ganha post novo: um horário que já passou sem post (sistema desligado,
+    // por exemplo) não vira post atrasado.
+    if (!post) {
+      if (h === chegaram.at(-1) && minutos <= h * 60 + ATRASO_MAXIMO_MIN) return criarEAvisar(campanha, conf, { agora, escrever, conectado, dia, horario: h });
+      continue;
+    }
+    if (post.status === "postado") situacao = `post das ${h}h já publicado`;
+    else if (!conectado || minutos < h * 60) situacao = `post das ${h}h já criado`;
+    else if ((post.instagram_tentativas ?? 0) >= MAX_TENTATIVAS) situacao = `post das ${h}h não foi aceito pelo Instagram`;
+    else {
+      await renovarTokenSePreciso(agora).catch((e) => log(`⚠️  ${e.message}`));
+      return { conteudo: "publicando", horario: h, postId: post.id, ...(await postar(post.id, campanha)) };
+    }
+  }
+  return { conteudo: situacao ?? "nada a fazer" };
 }
 
-async function criarEAvisar(campanha, conf, { agora, escrever, conectado, dia }) {
+async function criarEAvisar(campanha, conf, { agora, escrever, conectado, dia, horario }) {
   // Dois agendadores ao mesmo tempo não criam dois posts.
-  if (!(await db.travar(`post_do_dia_${dia}`, 10 * 60_000))) return { conteudo: "post de hoje sendo criado" };
-  const post = await criarPostDeHoje(campanha, { agora, escrever });
+  if (!(await db.travar(`post_do_dia_${dia}_${horario}`, 10 * 60_000))) return { conteudo: "post sendo criado" };
+  const post = await criarPostDeHoje(campanha, { agora, escrever, horario });
   const formato = post.formato === "reels" ? "Reels" : "carrossel";
   await enviarNotificacao(
-    `Post do dia pronto: ${post.conteudo.gancho}`,
+    `Post das ${horario}h pronto: ${post.conteudo.gancho}`,
     conectado
-      ? `O ${formato} de hoje está pronto e sai sozinho no Instagram às ${conf.horario}h. Se quiser trocar ou descartar antes, é na página Conteúdo do painel (${config.painel.urlPublica}/#conteudo).`
-      : `O ${formato} de hoje está pronto na página Conteúdo do painel (${config.painel.urlPublica}/#conteudo). Baixe, copie a legenda com as hashtags e poste às ${conf.horario}h.`
+      ? `O ${formato} das ${horario}h está pronto e sai sozinho no Instagram nesse horário. Se quiser trocar ou descartar antes, é na página Conteúdo do painel (${config.painel.urlPublica}/#conteudo).`
+      : `O ${formato} das ${horario}h está pronto na página Conteúdo do painel (${config.painel.urlPublica}/#conteudo). Baixe, copie a legenda com as hashtags e poste às ${horario}h.`
   ).catch((e) => log(`⚠️  Não foi possível avisar do post: ${e.message}`));
-  return { conteudo: "criado", postId: post.id };
+  return { conteudo: "criado", horario, postId: post.id };
 }

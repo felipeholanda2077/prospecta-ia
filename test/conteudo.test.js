@@ -28,13 +28,14 @@ test("post do dia: horário em Brasília, rodízio de linhas editoriais e format
 });
 
 test("post do dia: criado uma vez só no horário, e o dia seguinte troca o formato", async () => {
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [18] });
   const antes = await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-10-27T15:00:00Z"), escrever });
   assert.equal(antes.conteudo, "antes do horário");
 
   const criado = await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-10-27T20:45:00Z"), escrever });
   assert.equal(criado.conteudo, "criado");
   const repetido = await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-10-27T21:00:00Z"), escrever });
-  assert.equal(repetido.conteudo, "post de hoje já criado");
+  assert.equal(repetido.conteudo, "post das 18h já criado");
 
   await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-10-28T20:45:00Z"), escrever });
   assert.equal(escritos.length, 2);
@@ -49,10 +50,10 @@ test("post do dia: criado uma vez só no horário, e o dia seguinte troca o form
 });
 
 test("post do dia: desligado em Conteúdo, nada é criado", async () => {
-  await db.gravarConfig("conteudo", { ativo: false, horario: 18 });
+  await db.gravarConfig("conteudo", { ativo: false, horarios: [18] });
   const r = await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-10-29T21:00:00Z"), escrever });
   assert.equal(r.conteudo, "desligado");
-  await db.gravarConfig("conteudo", { ativo: true, horario: 18 });
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [18] });
 });
 
 test("post do dia: a IA recebe a base de conteúdo do site (editável no painel)", async () => {
