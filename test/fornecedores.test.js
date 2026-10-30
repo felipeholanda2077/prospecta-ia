@@ -36,6 +36,10 @@ test("fornecedores: só confirma quando o próprio site comprova, e curso ou blo
   assert.deepEqual(forn.veredito(site, { tipo: "fornecedor", faz_dropshipping: "sim", trecho }), { confirmacao: "confirmado", evidencia: trecho });
   // A IA "citou" algo que não está no site: não confirma.
   assert.equal(forn.veredito(site, { tipo: "fornecedor", faz_dropshipping: "sim", trecho: "Dropshipping com 10 mil produtos" }).confirmacao, "possivel");
+  // A citação existe mas não traz a palavra: a prova vira o trecho do site que traz.
+  const semPalavra = forn.veredito(site, { tipo: "plataforma", faz_dropshipping: "sim", trecho: "Somos distribuidores" });
+  assert.equal(semPalavra.confirmacao, "confirmado");
+  assert.match(semPalavra.evidencia, /dropshipping/);
   // O site nem fala em dropshipping: a palavra da IA não basta.
   const atacado = pagina("Vendemos no atacado para lojistas.");
   assert.equal(forn.veredito(atacado, { tipo: "fornecedor", faz_dropshipping: "sim", trecho: "Vendemos no atacado para lojistas." }).confirmacao, "possivel");

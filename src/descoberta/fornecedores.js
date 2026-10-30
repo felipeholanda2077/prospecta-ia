@@ -182,7 +182,8 @@ export function veredito(site, ia) {
   const menciona = MENCIONA_DROP.test(texto);
   const citado = ia?.trecho && normalizado(texto).includes(normalizado(ia.trecho)) ? ia.trecho : null;
   if (ia && ["conteudo", "outro", "loja_comum"].includes(ia.tipo) && !(ia.tipo === "loja_comum" && ia.faz_dropshipping === "sim")) return { descartar: true };
-  if (menciona && ia?.faz_dropshipping === "sim" && citado && MENCIONA_DROP.test(citado)) return { confirmacao: "confirmado", evidencia: citado };
+  // A citação tem que existir no site. Se ela não trouxer a palavra, a prova é o trecho do próprio site que traz.
+  if (menciona && ia?.faz_dropshipping === "sim" && citado) return { confirmacao: "confirmado", evidencia: MENCIONA_DROP.test(citado) ? citado : trechosDoDrop(texto, 1)[0] };
   if (menciona) return { confirmacao: "possivel", evidencia: citado ?? trechosDoDrop(texto, 1)[0] };
   return { confirmacao: "possivel", evidencia: citado ?? null };
 }
