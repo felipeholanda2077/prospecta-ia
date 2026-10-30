@@ -2,6 +2,7 @@
 // chave cadastrada nas variáveis de ambiente). Sem chave, o Reels sai só com a trilha e os efeitos.
 // Os três devolvem PCM de 16 bits, mono, 24 kHz: dá para medir a duração sem decodificar.
 import { telasDoPost } from "../../public/post-desenho.js";
+import * as db from "../db.js";
 
 export const TAXA_VOZ = 24000;
 
@@ -90,6 +91,20 @@ async function falarCena(p, texto, post) {
 
 const provedor = () => PROVEDORES.find((p) => process.env[p.chave]);
 
+/** A chave do Gemini colada no painel vale no lugar da variável de ambiente. */
+export async function carregarChaveDaVoz() {
+  const salva = (await db.lerConfig("voz"))?.gemini;
+  if (salva) process.env.GEMINI_API_KEY = salva;
+}
+
+/** Guarda a chave do Gemini e testa com uma frase curta. Retorna { ok } ou { ok: false, erro }. */
+export async function salvarChaveDoGemini(chave) {
+  await db.gravarConfig("voz", { gemini: String(chave).trim() });
+  await carregarChaveDaVoz();
+  return falarCena(PROVEDORES.find((p) => p.chave === "GEMINI_API_KEY"), "Teste de voz.", { id: 1 })
+    .then(() => ({ ok: true }), (e) => ({ ok: false, erro: e.message }));
+}
+
 /** Qual serviço narra os Reels (o nome), ou null se nenhuma chave estiver cadastrada. */
 export const narracaoDisponivel = () => provedor()?.nome ?? null;
 
@@ -98,6 +113,7 @@ export const narracaoDisponivel = () => provedor()?.nome ?? null;
  * para cena sem fala), ou null quando não há serviço de voz configurado.
  */
 export async function narrarCenas(post) {
+  await carregarChaveDaVoz();
   const p = provedor();
   if (!p || post.formato !== "reels") return null;
   const narrar = async (tela) => {

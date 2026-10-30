@@ -175,10 +175,10 @@ export async function renovarTokenSePreciso(agora = new Date()) {
  * Cria a mídia no Instagram, ainda sem publicar, a partir dos links dos arquivos.
  * Reels: um vídeo. Carrossel: de 2 a 10 imagens (uma só vira post de imagem). Retorna o id do container.
  */
-export async function criarContainer(conexao, { formato, urls, legenda }) {
+export async function criarContainer(conexao, { formato, urls, capaUrl = null, legenda }) {
   const midia = `${conexao.igId}/media`;
   if (formato === "reels") {
-    return (await chamar(conexao, "POST", midia, { media_type: "REELS", video_url: urls[0], caption: legenda, share_to_feed: true })).id;
+    return (await chamar(conexao, "POST", midia, { media_type: "REELS", video_url: urls[0], caption: legenda, share_to_feed: true, ...(capaUrl ? { cover_url: capaUrl } : {}) })).id;
   }
   if (urls.length === 1) return (await chamar(conexao, "POST", midia, { image_url: urls[0], caption: legenda })).id;
   const filhos = [];

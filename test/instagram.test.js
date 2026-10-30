@@ -7,7 +7,7 @@ process.env.URL_PUBLICA = "https://painel.exemplo.com";
 const db = await import("../src/db.js");
 const diario = await import("../src/conteudo/diario.js");
 const { postarNoInstagram, assinaturaDaMidia, legendaDoPost, MAX_TENTATIVAS } = await import("../src/conteudo/instagram.js");
-const { conectarInstagram, statusDaConexao, renovarTokenSePreciso } = await import("../src/envio/instagram.js");
+const { conectarInstagram, statusDaConexao, renovarTokenSePreciso, criarContainer } = await import("../src/envio/instagram.js");
 
 const campanha = { empresa: { nome: "FluxDeck", diferenciais: [] }, servicos: [] };
 const conteudo = {
@@ -41,6 +41,34 @@ function apiFalsa({ status = ["FINISHED"], falhar = null } = {}) {
 const arquivosFalsos = async (post) => post.formato === "reels"
   ? [{ chave: `post-${post.id}-reels.mp4`, tipo: "video/mp4", dados: Buffer.from("video") }]
   : [1, 2].map((i) => ({ chave: `post-${post.id}-${i}.jpg`, tipo: "image/jpeg", dados: Buffer.from(`img${i}`) }));
+
+test("instagram: o Reels vai com a capa, por link assinado, e ela não entra como mídia", async () => {
+  const id = await criarPost("2026-11-01", "reels");
+  const api = apiFalsa();
+  const arquivos = async (post) => [
+    { chave: `post-${post.id}-reels.mp4`, tipo: "video/mp4", dados: Buffer.from("video") },
+    { chave: `post-${post.id}-capa.jpg`, tipo: "image/jpeg", dados: Buffer.from("capa"), capa: true },
+  ];
+  assert.equal((await postarNoInstagram(id, campanha, { api, arquivos, esperaMs: 0 })).instagram, "postado");
+  const [, dados] = api.chamadas[0];
+  assert.equal(dados.urls.length, 1);
+  assert.match(dados.urls[0], /reels\.mp4\?a=/);
+  assert.equal(dados.capaUrl, `https://painel.exemplo.com/api/midia/post-${id}-capa.jpg?a=${assinaturaDaMidia(`post-${id}-capa.jpg`)}`);
+
+  // Na API, a capa vai como cover_url; sem capa, o campo nem aparece.
+  const original = globalThis.fetch;
+  const corpos = [];
+  globalThis.fetch = async (url, o) => (corpos.push(JSON.parse(o.body)), new Response(JSON.stringify({ id: "c1" })));
+  try {
+    const conexao = { token: "t", host: "graph.facebook.com", igId: "17841" };
+    await criarContainer(conexao, { formato: "reels", urls: ["https://v"], capaUrl: "https://c", legenda: "x" });
+    await criarContainer(conexao, { formato: "reels", urls: ["https://v"], legenda: "x" });
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.equal(corpos[0].cover_url, "https://c");
+  assert.equal("cover_url" in corpos[1], false);
+});
 
 test("instagram: carrossel publicado com as imagens por link assinado e a legenda com hashtags", async () => {
   const id = await criarPost("2026-11-02");

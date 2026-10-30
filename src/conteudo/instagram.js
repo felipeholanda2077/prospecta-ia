@@ -25,11 +25,16 @@ export function legendaDoPost(post) {
   return `${post.conteudo.legenda.slice(0, 2190 - tags.length - aviso.length).trim()}${aviso}\n\n${tags}`;
 }
 
-/** Os arquivos do post: as telas em JPEG (carrossel) ou o vídeo em MP4 (Reels). */
+/** Os arquivos do post: as telas em JPEG (carrossel; a capa é a primeira) ou o vídeo em MP4 e a capa em JPEG (Reels). */
 export async function gerarArquivos(post, empresa) {
   // Carregado só aqui: o canvas e o ffmpeg são pesados e o resto do sistema não precisa deles.
-  const { imagensDoCarrossel, videoDoReels } = await import("./arquivos.js");
-  if (post.formato === "reels") return [{ chave: `post-${post.id}-reels.mp4`, tipo: "video/mp4", dados: await videoDoReels(post, empresa) }];
+  const { imagensDoCarrossel, videoDoReels, capaDoReels } = await import("./arquivos.js");
+  if (post.formato === "reels") {
+    return [
+      { chave: `post-${post.id}-reels.mp4`, tipo: "video/mp4", dados: await videoDoReels(post, empresa) },
+      { chave: `post-${post.id}-capa.jpg`, tipo: "image/jpeg", dados: await capaDoReels(post, empresa), capa: true },
+    ];
+  }
   return (await imagensDoCarrossel(post, empresa)).map((dados, i) => ({ chave: `post-${post.id}-${i + 1}.jpg`, tipo: "image/jpeg", dados }));
 }
 
@@ -51,7 +56,10 @@ export async function postarNoInstagram(postId, campanha, {
     if (!container) {
       const gerados = await arquivos(post, campanha.empresa.nome);
       for (const a of gerados) await db.gravarMidia(a.chave, a.tipo, a.dados);
-      container = await api.criarContainer(conexao, { formato: post.formato, urls: gerados.map((a) => linkDaMidia(a.chave)), legenda: legendaDoPost(post) });
+      const capa = gerados.find((a) => a.capa);
+      container = await api.criarContainer(conexao, {
+        formato: post.formato, urls: gerados.filter((a) => !a.capa).map((a) => linkDaMidia(a.chave)), capaUrl: capa && linkDaMidia(capa.chave), legenda: legendaDoPost(post),
+      });
       await db.atualizarInstagramDoPost(post.id, { instagram_container: container, instagram_erro: null });
     }
     for (let i = 1; ; i++) {

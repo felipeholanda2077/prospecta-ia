@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createCanvas, GlobalFonts, loadImage } from "@napi-rs/canvas";
 import ffmpeg from "ffmpeg-static";
 import {
-  usarCanvas, TAMANHOS_POST, telasDoPost, duracoesDasCenas, desenharTelaCarrossel, desenharQuadroReels, carregarFotosDoPost, APRESENTADOR, LOGO,
+  usarCanvas, TAMANHOS_POST, telasDoPost, duracoesDasCenas, desenharTelaCarrossel, desenharQuadroReels, desenharCapaReels, carregarFotosDoPost, APRESENTADOR, LOGO,
 } from "../../public/post-desenho.js";
 import * as db from "../db.js";
 import { gerarTrilha, wav, TAXA } from "./trilha.js";
@@ -47,6 +47,16 @@ export async function imagensDoCarrossel(post, empresa) {
     desenharTelaCarrossel(c.getContext("2d"), post, i, empresa);
     return c.encode("jpeg", 92);
   }));
+}
+
+/** A capa do Reels em JPEG, que vai junto com o vídeo. */
+export async function capaDoReels(post, empresa) {
+  preparar();
+  await carregarFotosDoPost(post, carregarFoto);
+  const [w, h] = TAMANHOS_POST.reels;
+  const c = createCanvas(w, h);
+  desenharCapaReels(c.getContext("2d"), post, empresa);
+  return c.encode("jpeg", 92);
 }
 
 const QUADROS_POR_SEGUNDO = 30;
@@ -171,7 +181,9 @@ async function gravar(post, empresa, { pasta, duracoes, duracao, kbps, audio, co
     const total = Math.ceil(duracao * QUADROS_POR_SEGUNDO);
     const cenasComVideo = new Set(comClipe.map((x) => x.i));
     for (let i = 0; i <= total; i++) {
-      desenharQuadroReels(ctx, post, Math.min(i / QUADROS_POR_SEGUNDO, duracao), empresa, { duracoes, cenasComVideo });
+      // O primeiro quadro é a capa: é ele que aparece onde não dá para escolher a capa do vídeo.
+      if (i === 0) desenharCapaReels(ctx, post, empresa, { duracoes, cenasComVideo });
+      else desenharQuadroReels(ctx, post, Math.min(i / QUADROS_POR_SEGUNDO, duracao), empresa, { duracoes, cenasComVideo });
       // Respeita o ritmo do ffmpeg: sem isso os quadros se acumulam na memória.
       if (!processo.stdin.write(c.data())) await new Promise((r) => processo.stdin.once("drain", r));
     }

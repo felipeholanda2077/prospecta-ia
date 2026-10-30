@@ -1127,9 +1127,12 @@
             <label class="chave"><input type="checkbox" name="apresentador"><div><b>Felipe nos vídeos</b>
               <span>Em um Reels sim, um não, a sua foto aparece no vídeo com o nome, e as falas são escritas em primeira pessoa.</span></div></label>
             <div id="conteudo-voz"></div>
+            <div class="campo"><label for="conteudo-gemini">Chave do Gemini, para a voz dos Reels</label>
+              <input id="conteudo-gemini" name="gemini" type="password" autocomplete="off" placeholder="Cole a chave do Google AI Studio">
+              <span class="muted" style="font-size:12.5px">Fica só no servidor. Ao salvar, o sistema testa a chave com uma frase curta e avisa se o Gemini aceitou.</span></div>
             <div class="campo"><label for="conteudo-pexels">Chave do Pexels, para fotos profissionais (grátis, opcional) <span id="conteudo-pexels-status"></span></label>
               <input id="conteudo-pexels" name="pexels" type="password" autocomplete="off">
-              <span class="muted" style="font-size:12.5px">Crie em pexels.com/api. Sem ela, as fotos vêm do Wikimedia Commons: reais e grátis, mas nem sempre tão bonitas.</span></div>
+              <span class="muted" style="font-size:12.5px">Se o Pexels não liberar a chave, nada para: as fotos vêm do Wikimedia Commons, reais e grátis, mas nem sempre tão bonitas.</span></div>
             <div class="campo"><span class="rotulo">Horários dos posts (até 4 por dia)</span>
               <div class="filtros" id="conteudo-horarios" role="group" aria-label="Horários dos posts" style="margin:0;flex-wrap:wrap"></div></div>
             <div class="campo"><label for="conteudo-base">Base de conteúdo (tirada do site fluxdeck.vercel.app)</label>
@@ -3838,7 +3841,7 @@ async function carregarConteudo() {
     $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
     $("#conteudo-voz").innerHTML = r.narracao
       ? `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha, efeitos sonoros e <b>voz narrando</b> (${esc(r.narracao)}).</div></div>`
-      : `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha e efeitos sonoros. Para ter também a <b>voz narrando</b>, cadastre <code>GEMINI_API_KEY</code>, <code>OPENAI_API_KEY</code> ou <code>ELEVENLABS_API_KEY</code> nas variáveis de ambiente da Vercel.</div></div>`;
+      : `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha e efeitos sonoros. Para ter também a <b>voz narrando</b>, cole a chave do Gemini aqui embaixo.</div></div>`;
     postsCarregados = r.posts;
     $("#lista-posts").innerHTML = r.posts.length
       ? r.posts.map((p) => cardPost(p, r.hoje)).join("")
@@ -4006,10 +4009,12 @@ $("#form-conteudo").addEventListener("submit", async (ev) => {
   const f = ev.target;
   const horarios = $$("#conteudo-horarios [aria-pressed=true]").map((b) => Number(b.dataset.hora));
   try {
-    await api("/api/conteudo/config", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, horarios, postarSozinho: f.postarSozinho.checked, apresentador: f.apresentador.checked, pexels: f.pexels.value, base: f.base.value }) });
+    const { voz } = await api("/api/conteudo/config", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, horarios, postarSozinho: f.postarSozinho.checked, apresentador: f.apresentador.checked, gemini: f.gemini.value, pexels: f.pexels.value, base: f.base.value }) });
     const sozinho = f.postarSozinho.checked && estadoConteudo.instagram.conectado;
     const quando = listaDeHoras(horarios);
     avisar(!f.ativo.checked ? "Posts do dia desligados." : sozinho ? `Pronto: todo dia às ${quando} um post novo sai no Instagram.` : `Pronto: todo dia às ${quando} um post novo fica pronto aqui.`, "ok");
+    f.gemini.value = "";
+    if (voz) voz.ok ? avisar("O Gemini aceitou a chave: os próximos Reels saem com voz.", "ok", 8000) : avisar(`O Gemini recusou a chave: ${voz.erro}`, "perigo", 15000);
     carregarConteudo();
   } catch (e) {
     avisar(e.message, "perigo");

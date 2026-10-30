@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createCanvas } from "@napi-rs/canvas";
 
+process.env.DB_PATH = ":memory:";
 const desenho = await import("../public/post-desenho.js");
 const { gerarTrilha, wav, CLIMAS, TAXA } = await import("../src/conteudo/trilha.js");
 const { duracoesDoVideo } = await import("../src/conteudo/arquivos.js");
@@ -116,4 +117,23 @@ test("reels: o Gemini narra cena por cena, tira o cabeçalho WAV e espera quando
     globalThis.fetch = fetchAntes;
     chaves.forEach((k) => (antes[k] === undefined ? delete process.env[k] : (process.env[k] = antes[k])));
   }
+});
+
+test("reels: a capa traz o gancho, e não o fundo vazio do começo da animação", () => {
+  const post = { id: 7, formato: "reels", conteudo: { gancho: "Seu site espanta clientes?", arte: "cor", trilha: "tensa", estrutura: "lista", hashtags: [], legenda: "", slides: [
+    { visual: "capa", titulo: "Seu site espanta clientes?", texto: "", destaque: "clientes" }, { visual: "cta", titulo: "Fim", texto: "", destaque: "" }] } };
+  const [w, h] = desenho.TAMANHOS_POST.reels;
+  // Conta os pixels da faixa do gancho que fogem da cor do fundo: é o texto.
+  const textoNaFaixa = (desenhar) => {
+    const c = createCanvas(w, h);
+    const ctx = c.getContext("2d");
+    desenhar(ctx);
+    const { data } = ctx.getImageData(0, 650, w, 450);
+    let diferentes = 0;
+    for (let i = 0; i < data.length; i += 4) if (Math.abs(data[i] - data[0]) + Math.abs(data[i + 1] - data[1]) + Math.abs(data[i + 2] - data[2]) > 120) diferentes++;
+    return diferentes;
+  };
+  assert.equal(textoNaFaixa((ctx) => desenho.desenharQuadroReels(ctx, post, 0, "FluxDeck")), 0); // o primeiro quadro da animação está vazio
+  assert.ok(textoNaFaixa((ctx) => desenho.desenharCapaReels(ctx, post, "FluxDeck")) > 20_000);
+  assert.ok(desenho.TEMPO_DA_CAPA < Math.min(desenho.duracoesDasCenas(post)[0], 1.8) - 0.18); // a capa ainda está na primeira cena
 });

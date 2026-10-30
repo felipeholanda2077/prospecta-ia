@@ -24,7 +24,7 @@ import { postarNoLinkedin, textoDoPost } from "./conteudo/linkedin.js";
 import * as linkedin from "./envio/linkedin.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
-import { narracaoDisponivel } from "./conteudo/narracao.js";
+import { narracaoDisponivel, carregarChaveDaVoz, salvarChaveDoGemini } from "./conteudo/narracao.js";
 import { lerChavePexels, salvarChavePexels } from "./conteudo/fotos.js";
 import { lerConfigAvatar, salvarConfigAvatar, testarAvatar } from "./conteudo/avatar.js";
 import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados } from "./conteudo/insights.js";
@@ -773,6 +773,7 @@ app.get("/api/email/status", (req, res) => res.json(statusEmail()));
 
 app.get("/api/conteudo", async (req, res) => {
   const conf = await lerConfigConteudo();
+  await carregarChaveDaVoz();
   res.json({
     config: conf, base: await lerBaseDeConteudo(), hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14),
     instagram: await statusDaConexao(), linkedin: await linkedin.statusDaConexao(), narracao: narracaoDisponivel(), pexels: Boolean(await lerChavePexels()),
@@ -786,7 +787,9 @@ app.put("/api/conteudo/config", async (req, res) => {
   await db.gravarConfig("conteudo", { ativo: req.body?.ativo !== false, horarios, postarSozinho: req.body?.postarSozinho !== false, apresentador: req.body?.apresentador !== false });
   if (String(req.body?.pexels ?? "").trim()) await salvarChavePexels(req.body.pexels);
   if (typeof req.body?.base === "string") await gravarBaseDeConteudo(req.body.base);
-  res.json({ ok: true });
+  // A chave nova da voz é testada na hora: o painel mostra se o Gemini aceitou.
+  const voz = String(req.body?.gemini ?? "").trim() ? await salvarChaveDoGemini(req.body.gemini) : null;
+  res.json({ ok: true, voz });
 });
 
 // Cria agora um post para hoje (além do que já existir).
