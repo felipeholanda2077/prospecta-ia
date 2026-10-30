@@ -162,6 +162,18 @@ function fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo }) {
     return null;
   }
   fundo(ctx, w, h, t, tema);
+  // No fundo escuro, a foto entra num cartão só na tela que pediu uma.
+  if (noTopo && fotos.get(telas[i].foto?.chave)) {
+    const y = reels ? 240 : 190;
+    const alt = reels ? 520 : 360;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(60, y, w - 120, alt, 36);
+    ctx.clip();
+    fotoCobrindo(ctx, foto, 60, y, w - 120, alt, zoom);
+    ctx.restore();
+    return y + alt + 34;
+  }
   return null;
 }
 
