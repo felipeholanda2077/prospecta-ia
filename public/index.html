@@ -1173,7 +1173,7 @@ $("#form-maps").addEventListener("submit", async (ev) => {
         abertasHaDias: $("#cnpj-abertura").value, incluirMei: $("#cnpj-mei").checked,
       });
       resultadosMaps = r.empresas;
-      avisosBusca = [`Atividade (CNAE): ${r.cnaes.map((c) => `${c.codigo} · ${c.descricao.toLowerCase()}`).join("; ")}. ${r.total.toLocaleString("pt-BR")} empresas com esse filtro na cidade; aqui vêm as que você ainda não capturou.`];
+      avisosBusca = [`Atividade (CNAE): ${r.cnaes.map((c) => `${c.codigo} · ${c.descricao.toLowerCase()}`).join("; ")}. ${r.total.toLocaleString("pt-BR")} empresas com esse filtro na cidade; aqui vêm as que você ainda não capturou.`, ...(r.avisos ?? [])];
     } else resultadosMaps = await post("/api/maps/buscar", { ...buscaMaps, quantidade: $("#quantidade").value });
     buscaMaps.onde = onde;
     desenharMaps();

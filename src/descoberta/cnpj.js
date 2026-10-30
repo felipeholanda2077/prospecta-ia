@@ -6,12 +6,14 @@ import { gerarJson } from "../ia/cliente.js";
 // Empresas pelos dados abertos do CNPJ (Receita Federal), sem chave e sem custo:
 // - a Casa dos Dados acha os CNPJs por atividade (CNAE) e cidade, até 20 por consulta (as próximas
 //   vêm pedindo de novo sem os que já vieram);
-// - a Minha Receita traz o telefone e o e-mail cadastrados de cada CNPJ; o que ela ainda não tem
+// - a Minha Receita (ou a BrasilAPI, com os mesmos dados) traz o telefone e o e-mail de cada CNPJ; o que ela ainda não tem
 //   (CNPJ aberto este mês) vem da API aberta da CNPJá, que aceita 5 consultas por minuto;
 // - a lista de atividades (CNAE) do IBGE fica em config/cnae.json (a API do IBGE recusa acessos de fora
 //   do Brasil, como o servidor da Vercel), para a IA achar a do segmento digitado.
 const PESQUISA = "https://api.casadosdados.com.br/v5/public/cnpj/pesquisa";
 const CONSULTA = "https://minhareceita.org";
+// Mesmos dados e formato da Minha Receita, para quando ela recusar o acesso (ex.: pelo servidor da Vercel).
+const CONSULTA_ESPELHO = "https://brasilapi.com.br/api/cnpj/v1";
 const CONSULTA_RESERVA = "https://open.cnpja.com/office";
 // Uma consulta à CNPJá a cada 12 s, somando todas as execuções (o limite dela é 5 por minuto).
 const RITMO_RESERVA_MS = 12_000;
@@ -72,7 +74,7 @@ async function buscar(fonte, url, opcoes) {
 const CnaeSchema = z.object({ codigos: z.array(z.string()) });
 const CNAE_JSON_SCHEMA = {
   type: "object",
-  properties: { codigos: { type: "array", items: { type: "string" }, description: "de 1 a 3 códigos de 7 dígitos, do mais para o menos fiel ao segmento" } },
+  properties: { codigos: { type: "array", items: { type: "string" }, description: "1 ou 2 códigos de 7 dígitos, do mais para o menos fiel ao segmento" } },
   required: ["codigos"],
   additionalProperties: false,
 };
@@ -82,7 +84,10 @@ async function escolherComIA({ nicho, lista }) {
   return gerarJson({
     system: `Você conhece a tabela CNAE do Brasil. Escolha as atividades (subclasses) que uma empresa desse segmento declara
 como atividade principal no CNPJ. É o negócio que atende o cliente final do segmento: nada de fábrica, atacado,
-representante comercial ou fornecedor do segmento, a não ser que o próprio segmento seja isso. Use só códigos da lista.`,
+representante comercial, laboratório ou fornecedor do segmento, a não ser que o próprio segmento seja isso.
+Na maioria das vezes é UMA atividade. Só inclua uma segunda se ela for o mesmo tipo de negócio com outro nome na
+tabela (ex.: barbearia e salão estão em "cabeleireiros"; loja de roupas pode ser vestuário ou roupas íntimas).
+Use só códigos da lista.`,
     pedido: `Segmento: ${nicho}\n\nAtividades (código: descrição):\n${lista.map((a) => `${a.codigo}: ${a.descricao.slice(0, 90)}`).join("\n")}`,
     jsonSchema: CNAE_JSON_SCHEMA,
     zodSchema: CnaeSchema,
@@ -90,7 +95,7 @@ representante comercial ou fornecedor do segmento, a não ser que o próprio seg
   });
 }
 
-const chaveCnae = (nicho) => `cnae_do_segmento:${String(nicho).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()}`;
+const chaveCnae = (nicho) => `cnae_do_segmento_v2:${String(nicho).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()}`;
 
 /**
  * As atividades (CNAE) do segmento: as que você informou, ou as que a IA escolheu (guardadas
@@ -108,7 +113,7 @@ export async function cnaesDoSegmento(nicho, { cnae = "", escolher = escolherCom
   const salvo = await db.lerEstado(chaveCnae(nicho));
   if (salvo) return JSON.parse(salvo);
   const { codigos } = await escolher({ nicho, lista });
-  const achados = [...new Set(codigos.map((c) => String(c).replace(/\D/g, "")))].filter((c) => porCodigo.has(c)).slice(0, 3).map((c) => porCodigo.get(c));
+  const achados = [...new Set(codigos.map((c) => String(c).replace(/\D/g, "")))].filter((c) => porCodigo.has(c)).slice(0, 2).map((c) => porCodigo.get(c));
   if (!achados.length) throw new Error(`não achei a atividade (CNAE) de "${nicho}"; informe o código do CNAE`);
   await db.gravarEstado(chaveCnae(nicho), JSON.stringify(achados));
   return achados;
@@ -134,9 +139,15 @@ async function pesquisar({ cnaes, municipio, uf, incluirMei, abertasHaDias, excl
   return { total: d.total ?? 0, cnpjs: d.cnpjs ?? [] };
 }
 
-/** O cadastro completo de um CNPJ (telefone, e-mail, endereço, abertura), pela Minha Receita. */
+/**
+ * O cadastro completo de um CNPJ (telefone, e-mail, endereço, abertura), pela Minha Receita; se ela
+ * recusar o acesso (não o "não encontrado"), pela BrasilAPI.
+ */
 export async function dadosDoCnpj(cnpj) {
-  const r = await buscar("Minha Receita", `${CONSULTA}/${String(cnpj).replace(/\D/g, "")}`);
+  const numero = String(cnpj).replace(/\D/g, "");
+  let r = await buscar("Minha Receita", `${CONSULTA}/${numero}`).catch(() => null);
+  if (!r || (!r.ok && r.status !== 404)) r = await buscar("BrasilAPI", `${CONSULTA_ESPELHO}/${numero}`);
+  if (r.status === 404) throw Object.assign(new Error("CNPJ ainda não está na base"), { naoEncontrado: true });
   if (!r.ok) throw new Error(`a consulta do CNPJ respondeu ${r.status}`);
   const d = await r.json();
   const endereco = [[d.descricao_tipo_de_logradouro, d.logradouro].filter(Boolean).join(" "), d.numero, d.bairro, d.municipio && `${d.municipio} - ${d.uf}`]
@@ -177,13 +188,19 @@ export async function dadosDoCnpjNaReserva(cnpj) {
   };
 }
 
-/** Telefone e e-mail do CNPJ: pela Minha Receita e, se ela não tiver, pela reserva (quando for a vez). */
+/**
+ * Telefone e e-mail do CNPJ: pela Minha Receita e, se ela não tiver, pela reserva (quando for a vez).
+ * `erros` traz as falhas de acesso (não o "ainda não está na base"), para o painel mostrar.
+ */
 export async function contatoDoCnpj(cnpj, { consultar = dadosDoCnpj, reserva = dadosDoCnpjNaReserva } = {}) {
-  const dados = await consultar(cnpj).catch(() => null);
+  const erros = [];
+  const falhou = (e) => (e.naoEncontrado || erros.push(e.message), null);
+  const dados = await consultar(cnpj).catch(falhou);
   if (dados?.telefones.length) return dados;
-  const daReserva = await reserva(cnpj).catch(() => null);
-  if (daReserva?.semVez) return dados ? { ...dados, incompleto: true } : { incompleto: true, telefones: [] };
-  return daReserva?.telefones?.length || daReserva?.email ? { ...dados, ...daReserva } : dados;
+  const daReserva = await reserva(cnpj).catch(falhou);
+  if (daReserva?.semVez) return { ...(dados ?? { telefones: [] }), incompleto: true, erros };
+  if (daReserva?.telefones?.length || daReserva?.email) return { ...dados, ...daReserva };
+  return { ...(dados ?? { telefones: [] }), erros };
 }
 
 /**
@@ -214,8 +231,10 @@ export async function buscarEmpresasPorCnpj({
   }
 
   const empresas = [];
+  const avisos = new Set();
   for (const c of achados.slice(0, quantidade)) {
-    const dados = await contato(c.cnpj).catch(() => null);
+    const dados = await contato(c.cnpj).catch((e) => ({ erros: [e.message], telefones: [] }));
+    for (const erro of dados?.erros ?? []) avisos.add(erro);
     if (pausa) await esperar(pausa);
     empresas.push({
       cnpj: c.cnpj,
@@ -249,5 +268,5 @@ export async function buscarEmpresasPorCnpj({
     e.contador = contador;
     e.semContato = !e.telefone && !e.email && !e.contatoPendente;
   }
-  return { empresas, cnaes, total };
+  return { empresas, cnaes, total, avisos: [...avisos].map((a) => `Contato do cadastro: ${a}`) };
 }
