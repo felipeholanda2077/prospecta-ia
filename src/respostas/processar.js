@@ -98,7 +98,7 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
   }
 
   const { mensagemId, espera } = await agendarResposta({ respostaId, lead, canal, de, assunto, origem_id, corpo: c.sugestao_resposta });
-  log(`🤖 IA respondeu ${lead.nome} (${canal}); sai em ~${Math.round(espera / 60000)} min, em horário comercial`);
+  log(`🤖 IA respondeu ${lead.nome} (${canal}); sai em ~${Math.round(espera / 60000)} min${canal === "instagram" ? "" : ", em horário comercial"}`);
   return { mensagemId };
 }
 

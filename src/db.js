@@ -128,6 +128,11 @@ export async function buscarPost(id) {
   return lerPost(await um("SELECT * FROM posts WHERE id = $1", [id]));
 }
 
+/** O post publicado no Instagram com este id de mídia. */
+export async function postPeloInstagram(midiaId) {
+  return lerPost(await um("SELECT * FROM posts WHERE instagram_id = $1 LIMIT 1", [String(midiaId)]));
+}
+
 /** Posts mais recentes, do mais novo para o mais antigo (sem os descartados). */
 export async function postsRecentes(limite = 20) {
   return (await q("SELECT * FROM posts WHERE status <> 'descartado' ORDER BY dia DESC, id DESC LIMIT $1", [limite])).map(lerPost);
@@ -542,14 +547,23 @@ export async function atualizarResposta(id, campos) {
   await q(`UPDATE respostas SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
 }
 
-/** Quem escreveu no WhatsApp por conta própria e é cliente em potencial vira um lead já em conversa. */
-export async function criarLeadDeContato({ nome, whatsapp = null, observacao = null }) {
+/**
+ * Quem escreveu por conta própria (no WhatsApp, ou no direct do Instagram) e é cliente em potencial
+ * vira um lead já em conversa.
+ */
+export async function criarLeadDeContato({ nome, whatsapp = null, instagram = null, origem = "whatsapp", observacao = null }) {
   const linha = await um(
-    `INSERT INTO leads (nome, whatsapp, telefone, origem, status, observacao, token)
-     VALUES ($1, $2, $2, 'whatsapp', 'respondeu', $3, $4) RETURNING id`,
-    [nome, whatsapp, observacao, crypto.randomBytes(16).toString("hex")]
+    `INSERT INTO leads (nome, whatsapp, telefone, instagram, origem, status, observacao, token)
+     VALUES ($1, $2, $2, $3, $4, 'respondeu', $5, $6) RETURNING id`,
+    [nome, whatsapp, instagram, origem, observacao, crypto.randomBytes(16).toString("hex")]
   );
   return linha.id;
+}
+
+/** A empresa (a mais recente) com este @ do Instagram. */
+export async function leadPeloInstagram(usuario) {
+  if (!usuario) return null;
+  return um("SELECT * FROM leads WHERE lower(instagram) = lower($1) ORDER BY id DESC LIMIT 1", [String(usuario).replace(/^@/, "")]);
 }
 
 /** Empresas que receberam mensagem nossa nos últimos dias (para reconhecer quem responde de outro número). */

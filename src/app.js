@@ -23,7 +23,8 @@ import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia, 
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { narracaoDisponivel } from "./conteudo/narracao.js";
-import { statusDaConexao, conectarInstagram, desconectarInstagram } from "./envio/instagram.js";
+import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect } from "./envio/instagram.js";
+import { processarWebhookInstagram } from "./respostas/instagram.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
 import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada } from "./respostas/processar.js";
@@ -130,6 +131,27 @@ app.post("/webhooks/evolution/:segredo", async (req, res) => {
   );
 });
 
+// ---------- Webhook do Instagram (público, validado pela assinatura da Meta) ----------
+
+// Verificação feita pela Meta ao cadastrar a URL do webhook no app (produto Instagram).
+app.get("/webhooks/instagram", async (req, res) => {
+  const { verifyToken } = await configDoDirect();
+  const ok = req.query["hub.mode"] === "subscribe" && verifyToken && req.query["hub.verify_token"] === verifyToken;
+  ok ? res.send(req.query["hub.challenge"]) : res.sendStatus(403);
+});
+
+// Mensagens do direct e comentários nos posts. A Meta espera resposta rápida: a IA trabalha depois (waitUntil).
+app.post("/webhooks/instagram", async (req, res) => {
+  const { appSecret } = await configDoDirect();
+  if (!assinaturaValida(req.corpoBruto, req.get("x-hub-signature-256"), appSecret)) return res.sendStatus(401);
+  res.sendStatus(200);
+  waitUntil(
+    carregarCampanhaCompleta()
+      .then((campanha) => processarWebhookInstagram(req.body, campanha))
+      .catch((e) => console.error("Erro no webhook do Instagram:", e))
+  );
+});
+
 // ---------- Webhook do Calendly (público, validado pela assinatura) ----------
 
 app.post("/webhooks/calendly", async (req, res) => {
@@ -155,6 +177,8 @@ const TAREFAS_CRON = {
   novas: (c) => pipeline.enviar(c, { somenteNovas: true, distribuir: Boolean(c.automacao?.ativo) }),
   // A cada 15 minutos: no horário escolhido em Conteúdo, cria o post do dia para o Instagram.
   conteudo: (c) => rodadaDeConteudo(c),
+  // A cada 2 minutos, a qualquer hora: as respostas da IA no direct do Instagram.
+  instagram: (c) => pipeline.enviarInstagram(c),
 };
 
 const resumoChave = (v) => crypto.createHash("sha256").update(`prospecta-cron:${v}`).digest("hex");
@@ -180,7 +204,7 @@ app.get("/api/cron/:tarefa", async (req, res) => {
   if (!tarefa) return res.sendStatus(404);
   const recebido = String(req.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!(await chaveDoCronValida(recebido))) return res.sendStatus(401);
-  if (!["novas", "conteudo"].includes(req.params.tarefa)) await db.gravarEstado("ultima_rodada", new Date().toISOString());
+  if (!["novas", "conteudo", "instagram"].includes(req.params.tarefa)) await db.gravarEstado("ultima_rodada", new Date().toISOString());
   // Se o agendador do banco ainda não estiver ligado, liga (na primeira rodada que chegar).
   const agendador = await garantirAgendamentoNoBanco().catch((e) => {
     console.error("⚠️  Agendador do banco:", e.message);
@@ -742,6 +766,30 @@ app.post("/api/instagram/conectar", async (req, res) => {
 app.post("/api/instagram/desconectar", async (req, res) => {
   await desconectarInstagram();
   res.json({ ok: true });
+});
+
+/** O que o painel mostra do direct: o que está ligado, o webhook e se o token consegue ler o direct. */
+async function painelDoDirect({ conferir = false } = {}) {
+  const c = await configDoDirect();
+  return {
+    respostas: c.respostas, comentarios: c.comentarios, appSecretDefinido: Boolean(c.appSecret), verifyToken: c.verifyToken,
+    webhook: `${config.painel.urlPublica}/webhooks/instagram`,
+    ultimoEvento: (await db.lerEstado("instagram_webhook_ultimo")) || null,
+    ...(conferir ? { status: await statusDoDirect() } : {}),
+  };
+}
+
+app.get("/api/instagram/direct", async (req, res) => res.json(await painelDoDirect({ conferir: req.query.conferir === "1" })));
+
+app.put("/api/instagram/direct", async (req, res) => {
+  const { respostas, comentarios, appSecret } = req.body ?? {};
+  await salvarConfigDoDirect({ respostas, comentarios, appSecret });
+  // Ligou alguma coisa: pede para a Meta mandar os eventos da conta (se o token permitir; senão o painel explica).
+  let assinatura = null;
+  if (respostas || comentarios) {
+    assinatura = await assinarWebhookDoDirect().then(() => ({ ok: true }), (e) => ({ ok: false, erro: e.message.replace(/^Instagram: /, "") }));
+  }
+  res.json({ ...(await painelDoDirect({ conferir: true })), assinatura });
 });
 
 app.post("/api/conteudo/:id/status", async (req, res) => {

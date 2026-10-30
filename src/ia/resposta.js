@@ -103,6 +103,20 @@ export function formatarHistorico(historico) {
     .join("\n\n");
 }
 
+// Quem chamou por conta própria, e por onde (a IA não trata como resposta a uma prospecção).
+const ORIGEM_PROPRIA = {
+  whatsapp: " · chamou por conta própria",
+  instagram_direct: " · chamou por conta própria no direct do Instagram (pode ser só uma pessoa, não uma empresa)",
+};
+
+/** Como formatar a mensagem em cada canal. */
+const FORMATO_DO_CANAL = {
+  email: "",
+  whatsapp: " Negrito no WhatsApp é *assim* (um asterisco), nunca **assim**. Sem assinatura.",
+  instagram: " O direct do Instagram não tem negrito: escreva sem asteriscos. Sem assinatura.",
+};
+const NOME_DO_CANAL = { email: "e-mail", whatsapp: "WhatsApp", instagram: "direct do Instagram" };
+
 /**
  * Classifica a resposta de um lead e sugere o próximo passo da conversa.
  * A sugestão avança aos poucos: responde o que foi perguntado e entrega uma informação nova por vez.
@@ -111,7 +125,7 @@ export async function classificarResposta({ texto, assunto, lead, historico, cam
   const porRegra = classificarPorRegra(String(texto ?? "").replace(/^\[áudio\]\s*/, ""), assunto);
   if (porRegra) return porRegra;
 
-  const limite = canal === "whatsapp" ? "no máximo 3 frases curtas (até ~400 caracteres), sem assinatura" : "até 100 palavras, com assinatura curta";
+  const limite = canal === "email" ? "até 100 palavras, com assinatura curta" : "no máximo 3 frases curtas (até ~400 caracteres), sem assinatura";
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   return gerarJson({
     system: `${contextoEmpresa(campanha, { semValores: Boolean(apresentacao) })}
@@ -164,7 +178,7 @@ ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com
 - Sem interesse: a sugestão é um agradecimento curto e cordial (1 ou 2 frases), sem pergunta, sem oferta, sem link,
   deixando a porta aberta (ex.: "Imagina, obrigado pelo retorno! Fico à disposição se precisarem no futuro.").
 - Se for descadastro ou resposta automática, deixe a sugestão vazia.`,
-    pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""}) · canal: ${canal}${lead.origem === "whatsapp" ? " · chamou por conta própria" : ""}
+    pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""}) · canal: ${canal}${ORIGEM_PROPRIA[lead.origem] ?? ""}
 
 Histórico da conversa (mais antigo primeiro):
 ${formatarHistorico(historico)}
@@ -196,7 +210,7 @@ export async function escreverApresentacao({ texto, lead, historico, campanha, c
   const r = await gerarJson({
     system: `${contextoEmpresa(campanha, { semValores: true })}
 
-A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa${canal === "email" ? " (e-mail)" : " (WhatsApp)"}, como ${quem}, em primeira pessoa:
+A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa (${NOME_DO_CANAL[canal] ?? "WhatsApp"}), como ${quem}, em primeira pessoa:
 1. Uma frase respondendo o que ela disse, pelo primeiro nome se ela disse, com o cumprimento certo (bom dia, boa tarde...).
 2. Uma apresentação em tópicos curtos, com quebras de linha, tirada SÓ da apresentação abaixo:
    - como funciona (as etapas, resumidas);
@@ -209,7 +223,7 @@ A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa${canal ==
       : " (ofereça duas opções de horário em dias úteis)"}.
 Promoção com data (ex.: só em novembro): hoje é ${hoje()}. Se ainda não começou, conte como novidade que vem aí; se
 já acabou, não cite.
-Até ~1.200 caracteres. Português do Brasil, simples e direto, no máximo 1 emoji.${canal === "email" ? "" : ` Negrito no WhatsApp é *assim* (um asterisco), nunca **assim**. Sem assinatura.`}
+Até ~1.200 caracteres. Português do Brasil, simples e direto, no máximo 1 emoji.${FORMATO_DO_CANAL[canal] ?? FORMATO_DO_CANAL.whatsapp}
 Nunca mencione assistente, robô, IA respondendo, sistema ou "equipe" respondendo por ${quem}. Não repita o que já está no histórico.
 
 <apresentacao>
@@ -328,4 +342,65 @@ ${mensagens.join("\n")}`,
     zodSchema: ContatoNovoSchema,
     effort: "low",
   });
+}
+
+const DirectDoComentarioSchema = z.object({
+  responder: z.boolean(),
+  resumo: z.string(),
+  mensagem: z.string(),
+  resposta_publica: z.string(),
+});
+
+const DIRECT_DO_COMENTARIO_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    responder: {
+      type: "boolean",
+      description: "true se o comentário pede o que o post prometeu no direct (ex.: comentou a palavra da chamada), faz uma pergunta " +
+        "sobre o assunto ou os serviços, ou mostra interesse. false para elogio solto, emoji, marcar amigo, spam, propaganda, crítica ou " +
+        "comentário sem relação",
+    },
+    resumo: { type: "string", description: "1 frase com o que a pessoa quer" },
+    mensagem: { type: "string", description: "a mensagem privada para o direct da pessoa; vazia se responder for false" },
+    resposta_publica: { type: "string", description: "resposta curta embaixo do comentário, até 10 palavras (ex.: avisando que mandou no direct); vazia se responder for false" },
+  },
+  required: ["responder", "resumo", "mensagem", "resposta_publica"],
+  additionalProperties: false,
+};
+
+/**
+ * Alguém comentou num post do Instagram. Decide se vale mandar direct e escreve a mensagem privada
+ * (entrega o que o post prometeu, com o conteúdo do próprio post, e puxa conversa) e a resposta pública.
+ */
+export async function escreverDirectDoComentario({ comentario, usuario, post, campanha }) {
+  const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
+  const c = post?.conteudo;
+  const telas = (c?.slides ?? []).map((t, i) => `${i + 1}. [${t.visual ?? "texto"}] ${t.titulo}${t.texto ? ` — ${t.texto}` : ""}`).join("\n");
+  const r = await gerarJson({
+    system: `${contextoEmpresa(campanha, { semValores: true })}
+
+Você cuida do Instagram da ${campanha.empresa.nome}. Uma pessoa comentou num post. Decida se vale mandar uma mensagem privada
+no direct dela e, se valer, escreva essa mensagem e uma resposta pública curta para o comentário.
+
+A mensagem privada, como ${quem}, em primeira pessoa:
+- Se o post prometia algo no direct ("comenta X que eu te mando..."), entregue isso AGORA, na própria mensagem, usando só o
+  conteúdo do post (ex.: o checklist ou os passos em linhas curtas). Nunca diga que mandou PDF, link, material ou arquivo: não há anexo.
+- Se a pessoa perguntou algo, responda de forma direta e simpática.
+- Termine com UMA pergunta leve que puxe conversa sobre o negócio dela (ex.: se ela quer que você dê uma olhada no site ou no perfil dela).
+- Não use o @ como nome. Sem preço. Nunca mencione assistente, robô, IA, sistema ou "equipe" respondendo por ${quem}.
+- Até 600 caracteres, Português do Brasil, frases curtas, no máximo 1 emoji, sem asteriscos (o direct não tem negrito).
+A resposta pública: curta e natural, variando (ex.: "Te mandei no direct! 📩", "Acabei de te chamar lá no direct 😉").`,
+    pedido: `Post${post ? ` (tema: ${post.tema})` : " (não foi possível identificar qual)"}:
+${c ? `Gancho: ${c.gancho}
+Telas:
+${telas}
+Legenda: ${c.legenda}` : "(sem o conteúdo do post)"}
+
+Comentário de @${usuario || "alguém"}:
+${comentario}`,
+    jsonSchema: DIRECT_DO_COMENTARIO_JSON_SCHEMA,
+    zodSchema: DirectDoComentarioSchema,
+    effort: "low",
+  });
+  return { ...r, mensagem: r.mensagem.trim(), resposta_publica: r.resposta_publica.trim() };
 }

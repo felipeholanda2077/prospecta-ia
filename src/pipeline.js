@@ -8,6 +8,7 @@ import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
 import { gerarSequencia } from "./ia/proposta.js";
 import { enviarEmail, explicarErroEmail, enviarNotificacao } from "./envio/email.js";
 import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
+import { enviarDirect } from "./envio/instagram.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { verificarAgendamentos, aplicarLinkAgendamento } from "./agenda/calendly.js";
@@ -647,7 +648,8 @@ export async function enviarMensagem(m, campanha) {
     await db.atualizarMensagem(m.id, { status: "rejeitada", erro: bloqueio });
     return { enviada: false, motivo: bloqueio };
   }
-  if (!dentroDoHorario(campanha.limites)) {
+  // O direct do Instagram responde a qualquer hora: a Meta só aceita até 24 h depois da mensagem da pessoa.
+  if (m.canal !== "instagram" && !dentroDoHorario(campanha.limites)) {
     return { enviada: false, naFila: true, motivo: "fora do horário comercial; sai no próximo horário de envio" };
   }
   if (m.canal === "whatsapp" && (await whatsappDesconectado(modo))) {
@@ -687,6 +689,8 @@ export async function enviarMensagem(m, campanha) {
         token: m.token,
         respondendoA: await threadDoEmail(m),
       });
+    } else if (m.canal === "instagram") {
+      messageId = await enviarDirect({ para: m.destino, comentarioId: m.em_resposta_a, texto: m.corpo });
     } else if (INTEGRACOES_WHATSAPP[modo]) {
       if (config.modoTeste.email && !config.modoTeste.whatsapp) throw new Error("modo teste ativo sem MODO_TESTE_WHATSAPP; WhatsApp não enviado");
       messageId = await INTEGRACOES_WHATSAPP[modo].enviarTexto(config.modoTeste.whatsapp || m.destino, m.corpo + rodape, { numeroId });
@@ -841,7 +845,7 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   const vagasDaRodada = { ...vagas };
   const todas = ordenarFilaDeEnvio(await db.filaDeEnvio(400));
   const daConversa = (m) => m.tipo === "resposta" || m.etapa > 1;
-  const enviaveis = todas.filter((m) => m.canal === "email" || !semWhatsapp);
+  const enviaveis = todas.filter((m) => m.canal !== "whatsapp" || !semWhatsapp);
   // Da empresa nova da vez (a de mais potencial com vaga hoje) saem juntos o e-mail e o WhatsApp.
   const novas = enviaveis.filter((m) => !daConversa(m) && vagas[m.canal] > 0);
   const empresaDaVez = novas[0]?.lead_id;
@@ -849,7 +853,7 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
     ...(somenteNovas ? [] : enviaveis.filter(daConversa)),
     ...novas.filter((m) => m.lead_id === empresaDaVez),
   ];
-  const naFila = { email: 0, whatsapp: 0 };
+  const naFila = { email: 0, whatsapp: 0, instagram: 0 };
   for (const m of todas) naFila[m.canal]++;
   if (!fila.length) {
     if (!somenteNovas) log("📭 Nada para enviar agora");
@@ -860,7 +864,7 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   let enviadas = 0;
   let enviouEmpresaNova = false;
   let proximaEmpresaNova = null;
-  const porCanal = { email: 0, whatsapp: 0 };
+  const porCanal = { email: 0, whatsapp: 0, instagram: 0 };
   for (const [i, m] of fila.entries()) {
     const novaDaVez = !daConversa(m);
     // A vez da empresa nova é reservada no banco: com dois agendadores rodando juntos, só um
@@ -891,6 +895,17 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   if (enviouEmpresaNova) log(`⏱️  Próxima empresa nova a partir de ${new Date(proximaEmpresaNova).toLocaleTimeString("pt-BR", { timeZone: config.timezone })}`);
   log(`📨 ${enviadas} mensagens enviadas (e-mail: ${porCanal.email}, WhatsApp: ${porCanal.whatsapp})`);
   return { enviadas, porCanal, naFila, vagas: vagasDaRodada, proximaEmpresaNova };
+}
+
+/**
+ * Respostas do direct do Instagram que já chegaram na hora marcada, a qualquer hora e dia
+ * (chamado a cada 2 minutos pelo agendador do banco).
+ */
+export async function enviarInstagram(campanha) {
+  const fila = (await db.filaDeEnvio(400)).filter((m) => m.canal === "instagram");
+  let enviadas = 0;
+  for (const m of fila) if ((await enviarMensagem(m, campanha)).enviada) enviadas++;
+  return { enviadas, naFila: fila.length - enviadas };
 }
 
 // ---------- Rotinas ----------

@@ -169,6 +169,25 @@ As variáveis `WHATSAPP_*` do `.env` continuam funcionando e têm prioridade sob
 
 Atenção: a política da Meta exige que o contato tenha dado consentimento (opt-in) para receber mensagens de marketing da sua empresa. Para prospecção fria de quem nunca falou com você, use o **e-mail** como primeiro contato e deixe o WhatsApp para quem responder.
 
+## Direct do Instagram
+
+Com o Instagram conectado em **Conteúdo**, a IA também conversa pelo direct da conta, pela API oficial da Meta:
+
+- **Responde quem chama no direct**, a qualquer hora, alguns minutos depois, como nas conversas do WhatsApp (apresenta a empresa, tira dúvidas e leva para o agendamento). Quem chama vira um lead com o nome e o @ do perfil; se o @ for de uma empresa já prospectada, a conversa entra nela.
+- **Chama no direct quem comenta nos posts**: a IA lê cada comentário e, se a pessoa pediu o que o post prometeu ("Comenta SITE que eu te mando..."), perguntou algo ou mostrou interesse, manda a mensagem privada com o conteúdo prometido e responde o comentário avisando. Elogio solto, emoji e marcação de amigo ficam sem direct.
+- As conversas aparecem em **Respostas**, junto com as do WhatsApp e do e-mail.
+
+Limites da Meta: só dá para responder quem escreveu primeiro (até 24 h depois da última mensagem da pessoa) e mandar uma mensagem privada por comentário (até 7 dias depois). Não existe direct para quem nunca falou com a conta; a prospecção continua pelo WhatsApp e pelo e-mail.
+
+Para ligar:
+1. Gere o token como para os posts, acrescentando `instagram_manage_messages`, `instagram_manage_comments` e `pages_manage_metadata`, e conecte de novo em **Conteúdo → Instagram**.
+2. No app da Meta → Webhooks → **Instagram**, cole a URL de callback e o token de verificação que aparecem no cartão **Direct do Instagram** e assine `messages` e `comments`.
+3. No cartão, cole a **chave secreta do app**, ligue o que a IA deve fazer e clique em **Salvar e testar**.
+4. Peça na **Análise do app** o acesso avançado a `instagram_manage_messages` e `instagram_manage_comments`. Até a Meta aprovar, só funciona com contas que têm função no app (bom para testar).
+5. No Instagram → Configurações → Mensagens → Ferramentas conectadas, ative **Permitir acesso às mensagens**.
+
+As respostas do direct saem pelo agendador do banco a cada 2 minutos, todos os dias.
+
 ## Rodar num servidor (Docker)
 
 Para o modo automático ele precisa ficar ligado o tempo todo, então o ideal é uma VPS. Com Docker instalado no servidor:

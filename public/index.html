@@ -190,6 +190,8 @@
   .alerta .ic { margin-top: 1px; }
   .alerta.perigo { background: var(--danger-soft); color: var(--danger); }
   .alerta.info { background: var(--accent-soft); color: var(--accent-text); }
+  .alerta.ok { background: var(--ok-soft); color: var(--ok); }
+  .alerta.atencao { background: var(--warn-soft); color: var(--warn); }
 
   /* ---------- Editor + prévia ---------- */
   .editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; padding: 18px 20px 20px; }
@@ -793,6 +795,33 @@
             <button class="btn fantasma" type="button" id="instagram-desconectar" hidden>Desconectar</button>
             <span class="muted" style="font-size:13px">O token fica só no servidor e é renovado sozinho toda semana, para não vencer.</span></div>
         </form>
+        <div class="cartao" id="cartao-direct" style="margin-bottom:16px">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="message"></span><div class="titulos"><h3>Direct do Instagram <span id="direct-status"></span></h3>
+            <div class="meta">A IA responde quem chama no direct e manda uma mensagem privada para quem comenta nos posts (ex.: comentou SITE, recebe no direct o que o post prometeu). As conversas aparecem em Respostas, junto com as do WhatsApp e do e-mail.</div></div></div>
+          <form class="cartao-corpo config-grade" id="form-direct">
+            <label class="chave" style="grid-column:1/-1"><input type="checkbox" name="respostas"><div><b>A IA responde os directs</b>
+              <span>Responde a qualquer hora, alguns minutos depois, como nas conversas do WhatsApp. A Meta só deixa responder até 24 horas depois da última mensagem da pessoa.</span></div></label>
+            <label class="chave" style="grid-column:1/-1"><input type="checkbox" name="comentarios"><div><b>Mandar direct para quem comentar nos posts</b>
+              <span>A IA lê cada comentário: se a pessoa pediu o que o post prometeu, perguntou algo ou mostrou interesse, manda a mensagem privada e responde o comentário avisando. Elogio solto, emoji e marcação de amigo ficam sem direct.</span></div></label>
+            <div class="campo" style="grid-column:1/-1"><label for="direct-segredo">Chave secreta do app da Meta (App Secret), para receber os directs e os comentários</label><input id="direct-segredo" name="appSecret" type="password" autocomplete="off"></div>
+            <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+              <button class="btn primario" type="submit"><span data-ic="save"></span>Salvar e testar</button>
+              <button class="btn fantasma" type="button" id="direct-conferir"><span data-ic="refresh"></span>Conferir permissão</button>
+            </div>
+          </form>
+          <div class="cartao-corpo" style="border-top:1px solid var(--border);display:grid;gap:14px">
+            <div id="direct-conexao"></div>
+            <div id="direct-webhook"></div>
+            <details><summary class="muted" style="cursor:pointer;font-size:13px">O que fazer na Meta para liberar o direct</summary>
+              <ol class="muted" style="font-size:13px;margin:8px 0 0;padding-left:18px;display:grid;gap:6px">
+                <li><b>Token novo</b>: gere o token como antes, acrescentando as permissões <code>instagram_manage_messages</code>, <code>instagram_manage_comments</code> e <code>pages_manage_metadata</code>, e conecte de novo no cartão Instagram acima.</li>
+                <li><b>Webhook</b>: no app da Meta → Webhooks → escolha <b>Instagram</b> → cole a URL de callback e o token de verificação abaixo → assine os campos <b>messages</b> e <b>comments</b>.</li>
+                <li><b>App Secret</b>: no app da Meta → Configurações do app → <b>Básico</b> → "Chave secreta do app".</li>
+                <li><b>Aprovação da Meta</b>: no app → <b>Análise do app</b> → peça o acesso avançado a <code>instagram_manage_messages</code> e <code>instagram_manage_comments</code> (a Meta pode pedir a verificação da empresa). Até aprovar, a IA só conversa com contas que têm função no app, o que já serve para testar.</li>
+                <li>No celular, no Instagram → Configurações → Mensagens → <b>Ferramentas conectadas</b> → ative <b>Permitir acesso às mensagens</b>.</li>
+              </ol></details>
+          </div>
+        </div>
         <div id="lista-posts" class="lista"></div>
       </section>
 
@@ -1351,7 +1380,11 @@ async function executarEtapa(btn) {
 }
 
 // ===================== Mensagens =====================
-const CANAL = { email: "E-mail", whatsapp: "WhatsApp" };
+const CANAL = { email: "E-mail", whatsapp: "WhatsApp", instagram: "Instagram" };
+const ICONE_CANAL = { email: "mail", whatsapp: "message", instagram: "camera" };
+const icCanal = (canal) => ICONE_CANAL[canal] ?? "message";
+// Como a conversa aparece na caixa de resposta ("Responde pelo ...").
+const NOME_CANAL = { email: "e-mail", whatsapp: "WhatsApp", instagram: "direct do Instagram" };
 
 function vazio(icone, titulo, texto, acao = "") {
   return `<div class="cartao vazio"><div class="ic-grande">${ic(icone, "lg")}</div><h3>${titulo}</h3><p>${texto}</p>${acao}</div>`;
@@ -1389,11 +1422,11 @@ function cabecalhoMensagem(m) {
     <span class="avatar">${inicial(m.empresa)}</span>
     <div class="titulos">
       <h3>${esc(m.empresa)}
-        <span class="pilula ${m.canal === "whatsapp" ? "wa" : "acc"}">${ic(m.canal === "whatsapp" ? "message" : "mail", "sm")}${CANAL[m.canal]}</span>
+        <span class="pilula ${m.canal === "email" ? "acc" : "wa"}">${ic(icCanal(m.canal), "sm")}${CANAL[m.canal]}</span>
         ${etiquetaEtapa(m)}
       </h3>
       <div class="meta">
-        <span>${ic(m.canal === "whatsapp" ? "phone" : "mail", "sm")}${esc(m.destino)}</span>
+        <span>${ic(m.canal === "whatsapp" ? "phone" : icCanal(m.canal), "sm")}${esc(m.canal === "instagram" ? "direct do Instagram" : m.destino)}</span>
         ${m.nicho ? `<span>${ic("building", "sm")}${esc(m.nicho)}${m.cidade ? ` · ${esc(m.cidade)}` : ""}</span>` : ""}
         ${m.site ? `<a href="${esc(m.site)}" target="_blank" rel="noopener">${ic("globe", "sm")}Site</a>` : ""}
         ${m.maps_url ? `<a href="${esc(m.maps_url)}" target="_blank" rel="noopener">${ic("pin", "sm")}Google Maps</a>` : ""}
@@ -1508,7 +1541,7 @@ function etapaDaFila(m, aberta) {
     : `<button class="btn ok principal-acao" data-acao="aprovar">${ic("send")}Tentar enviar agora</button>`;
   return `<details class="etapa-fila" data-id="${m.id}" data-link="${esc(m.linkWhatsapp ?? "")}" ${aberta ? "open" : ""}>
     <summary>
-      <span class="pilula ${m.canal === "whatsapp" ? "wa" : "acc"}">${ic(m.canal === "whatsapp" ? "message" : "mail", "sm")}${CANAL[m.canal]}</span>
+      <span class="pilula ${m.canal === "email" ? "acc" : "wa"}">${ic(icCanal(m.canal), "sm")}${CANAL[m.canal]}</span>
       <span class="titulo-etapa">${nomeDaEtapa(m)}${m.canal === "email" ? `<span class="muted" style="font-weight:400">· ${esc(m.destino)}</span>` : ""}</span>
       <span class="quando">${ic("clock", "sm")} ${esc(quandoSai(m).replace(" (em horário comercial)", ""))}</span>
       <span class="trecho">${esc(comLink(m.corpo).replace(/\s+/g, " "))}</span>
@@ -1543,7 +1576,7 @@ function cardFilaEmpresa(ms) {
       <div class="titulos">
         <h3>${esc(m.empresa)}</h3>
         <div class="meta">
-          ${contatos.map(([canal, destino]) => `<span>${ic(canal === "whatsapp" ? "phone" : "mail", "sm")}${esc(destino)}</span>`).join("")}
+          ${contatos.map(([canal, destino]) => `<span>${ic(canal === "whatsapp" ? "phone" : icCanal(canal), "sm")}${esc(canal === "instagram" ? "direct do Instagram" : destino)}</span>`).join("")}
           ${m.nicho ? `<span>${ic("building", "sm")}${esc(m.nicho)}${m.cidade ? ` · ${esc(m.cidade)}` : ""}</span>` : ""}
           ${m.site ? `<a href="${esc(m.site)}" target="_blank" rel="noopener">${ic("globe", "sm")}Site</a>` : ""}
           ${m.maps_url ? `<a href="${esc(m.maps_url)}" target="_blank" rel="noopener">${ic("pin", "sm")}Google Maps</a>` : ""}
@@ -1696,7 +1729,7 @@ function cardResposta(r) {
         <h3>${esc(r.empresa)} <span class="pilula ${cor}">${ic(icone, "sm")}${rotulo}</span>${r.lida ? "" : `<span class="pilula acc">Nova</span>`}
           ${r.mensagem_id ? `<span class="pilula acc">${ic("spark", "sm")}Respondida pela IA</span>` : ""}
           ${r.precisa_humano ? `<span class="pilula perigo">${ic("alert", "sm")}Precisa de você</span>` : ""}</h3>
-        <div class="meta"><span>${ic(r.canal === "whatsapp" ? "message" : "mail", "sm")}${esc(r.de)}</span><span>${ic("clock", "sm")}${dataHora(r.recebida_em)}</span></div>
+        <div class="meta"><span>${ic(icCanal(r.canal), "sm")}${esc(r.canal === "instagram" ? "direct do Instagram" : r.de)}</span><span>${ic("clock", "sm")}${dataHora(r.recebida_em)}</span></div>
       </div>
     </div>
     <div class="cartao-corpo" style="display:grid;gap:12px">
@@ -1780,7 +1813,7 @@ function itemConversa(c) {
   return `<button class="chat-item${c.interessado ? " interessado" : ""}" data-conversa-id="${c.id}" aria-current="${c.id === conversaAberta}">
     ${avatarConversa(c.nome, c.interessado)}
     <span class="meio"><span class="nome">${esc(c.nome)}</span>
-      <span class="previa">${u ? ic(u.canal === "email" ? "mail" : "message", "sm") : ""} ${esc(previa)}</span>
+      <span class="previa">${u ? ic(icCanal(u.canal), "sm") : ""} ${esc(previa)}</span>
       <span>${c.interessado ? `${pilulaInteresse()} ` : ""}${pilulaChance(c.andamento)}${c.andamento.precisaDeVoce ? ` <span class="pilula perigo">${ic("alert", "sm")}Você</span>` : ""}</span></span>
     <span class="lado"><span>${horaCurta(u?.quando)}</span>${c.nao_lidas ? `<span class="badge-nl">${c.nao_lidas}</span>` : ""}</span>
   </button>`;
@@ -1837,9 +1870,10 @@ function bolhasDaConversa(d) {
     const dia = new Date(m.quando).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
     if (dia !== diaAnterior) partes.push(`<div class="dia">${new Date(m.quando).toDateString() === new Date().toDateString() ? "Hoje" : dia}</div>`);
     diaAnterior = dia;
-    const outroContato = m.contato && !contatoPrincipal.some((c) => String(c).toLowerCase() === String(m.contato).toLowerCase());
+    // No Instagram o contato é o id da pessoa na Meta, que não diz nada: não aparece.
+    const outroContato = m.canal !== "instagram" && m.contato && !contatoPrincipal.some((c) => String(c).toLowerCase() === String(m.contato).toLowerCase());
     const detalhes = [
-      ic(m.canal === "email" ? "mail" : "message", "sm"),
+      ic(icCanal(m.canal), "sm"),
       m.autor === "nos" ? (m.etapa >= 1 ? `etapa ${m.etapa}` : "resposta") : (ROTULOS_RESPOSTA[m.tipo]?.[0] ?? ""),
       outroContato ? `${m.autor === "nos" ? "para" : "de"} ${esc(m.contato)}` : "",
       new Date(m.quando).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) + (m.autor === "nos" ? " ✓✓" : ""),
@@ -1877,21 +1911,21 @@ async function abrirConversa(id, { atualizar = false } = {}) {
   }
 
   const r = d.resposta;
-  const canal = r?.canal === "email" ? "e-mail" : "WhatsApp";
+  const canal = NOME_CANAL[r?.canal] ?? "WhatsApp";
   const encerrada = a?.chance === "encerrada";
   painel.innerHTML = `
     <div class="chat-topo">
       <button class="btn fantasma sm so-celular" data-voltar-lista aria-label="Voltar para as conversas">${ic("arrowLeft", "sm")}</button>
       ${avatarConversa(d.lead.nome, d.interessado)}
       <div class="titulos"><h3>${esc(d.lead.nome)}${d.interessado ? ` ${pilulaInteresse()}` : ""}</h3>
-        <div class="meta">${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}</div></div>
+        <div class="meta">${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}${d.lead.instagram ? `<a href="https://www.instagram.com/${esc(d.lead.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(d.lead.instagram)}</a>` : ""}</div></div>
       ${a ? pilulaChance(a) : ""}
     </div>
     <div class="chat-andamento" id="chat-andamento">${a ? htmlAndamento(d) : ""}</div>
     <div class="chat-msgs" id="chat-msgs">${msgs}</div>
     ${r && !encerrada ? `<div class="chat-escrever" data-resposta="${r.id}" data-canal="${r.canal}">
       <textarea id="chat-texto" aria-label="Mensagem para ${esc(d.lead.nome)}" placeholder="Escreva como Felipe, pelo ${canal}…">${esc(r.sugestao ?? "")}</textarea>
-      <div class="linha">${r.sugestao ? `${ic("spark", "sm")}Sugestão da IA (revise antes de enviar) ·` : ""} Responde pelo ${canal}${r.de ? ` para ${esc(r.de)}` : ""}${r.canal !== "email" && d.numeroWhatsapp ? ` · pelo número ${esc(d.numeroWhatsapp)}` : ""}
+      <div class="linha">${r.sugestao ? `${ic("spark", "sm")}Sugestão da IA (revise antes de enviar) ·` : ""} Responde pelo ${canal}${r.de && r.canal !== "instagram" ? ` para ${esc(r.de)}` : ""}${r.canal === "whatsapp" && d.numeroWhatsapp ? ` · pelo número ${esc(d.numeroWhatsapp)}` : ""}${r.canal === "instagram" ? " (até 24 h depois da última mensagem da pessoa)" : ""}
         <span class="espaco"></span>${d.iaPausada ? `<span>${ic("alert", "sm")}IA parada: ${esc(d.iaPausada)}</span>` : `<button class="btn sm" data-parar-ia="${d.lead.id}" title="A IA para de responder esta conversa">${ic("x", "sm")}Parar IA</button>`}
         ${r.precisa_humano || d.iaPausada ? `<button class="btn sm" data-ia-continua title="A IA lê a conversa de novo e responde sozinha">${ic("spark", "sm")}IA continua</button>` : ""}
         <button class="btn primario sm" data-enviar-conversa>${ic("send", "sm")}Enviar</button></div>
@@ -1992,7 +2026,7 @@ const FILTROS_LEADS = [
 let filtroLeads = FILTROS_LEADS[0][0];
 
 // Abas de canal nas listas de mensagens (aprovar, fila, enviadas, com erro). Lembrada neste navegador.
-const CANAIS = [["todos", "Todos", "grid"], ["email", "E-mail", "mail"], ["whatsapp", "WhatsApp", "message"]];
+const CANAIS = [["todos", "Todos", "grid"], ["email", "E-mail", "mail"], ["whatsapp", "WhatsApp", "message"], ["instagram", "Instagram", "camera"]];
 let filtroCanal = (() => { try { return localStorage.getItem("filtroCanal") || "todos"; } catch { return "todos"; } })();
 
 /** Abas Todos / E-mail / WhatsApp com a quantidade de cada uma. `itens` são mensagens, sequências ou empresas. */
@@ -2010,7 +2044,7 @@ function cardLead(l) {
       <span class="avatar">${inicial(l.nome)}</span>
       <div class="titulos">
         <h3>${esc(l.nome)}</h3>
-        <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}${l.origem === "instagram" ? `<span class="pilula">${ic("camera", "sm")}Instagram</span>` : ""}</div>
+        <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}${l.origem === "instagram" ? `<span class="pilula">${ic("camera", "sm")}Instagram</span>` : ""}${l.origem === "instagram_direct" ? `<span class="pilula">${ic("camera", "sm")}Chamou no direct</span>` : ""}</div>
         <div class="meta" style="margin-top:8px">
           ${l.nicho ? `<span>${ic("building", "sm")}${esc(l.nicho)}${l.cidade ? ` · ${esc(l.cidade)}` : ""}</span>` : ""}
           ${l.email ? `<span>${ic("mail", "sm")}${esc(l.email)}</span>` : ""}
@@ -2738,6 +2772,7 @@ async function carregarConteudo() {
       : `<span class="pilula">Não conectado</span>`;
     $("#instagram-conectar").lastChild.textContent = r.instagram.conectado ? "Trocar token" : "Conectar Instagram";
     $("#instagram-desconectar").hidden = !r.instagram.conectado;
+    carregarDirect({ conferir: r.instagram.conectado });
     if (!f.base.matches(":focus")) f.base.value = r.base;
     $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
     $("#conteudo-voz").innerHTML = r.narracao
@@ -2757,6 +2792,66 @@ async function carregarConteudo() {
     avisar(e.message, "perigo");
   }
 }
+
+function mostrarDirect(d) {
+  const f = $("#form-direct");
+  f.respostas.checked = d.respostas;
+  f.comentarios.checked = d.comentarios;
+  $("#direct-segredo").placeholder = d.appSecretDefinido ? "•••••••• já salva (preencha só para trocar)" : "Cole a chave secreta do app";
+  const ligado = d.respostas || d.comentarios;
+  const st = d.status;
+  $("#direct-status").innerHTML = !ligado ? `<span class="pilula">Desligado</span>`
+    : st && !st.conectado ? `<span class="pilula perigo">Instagram desconectado</span>`
+    : st && !st.permissao ? `<span class="pilula atencao">Falta permissão</span>`
+    : !d.appSecretDefinido ? `<span class="pilula atencao">Falta a chave secreta</span>`
+    : `<span class="pilula ok">${ic("check", "sm")}Ligado</span>`;
+  $("#direct-conexao").innerHTML = !st ? ""
+    : !st.conectado ? `<div class="alerta perigo">${ic("alert")}<div>Conecte o Instagram no cartão acima primeiro.</div></div>`
+    : st.permissao ? `<div class="alerta ok">${ic("check")}<div>O token de @${esc(st.usuario)} consegue ler e responder o direct.${d.ultimoEvento ? ` Último evento recebido da Meta: ${dataHora(d.ultimoEvento)}.` : " Nenhum evento da Meta chegou ainda: confira o webhook abaixo."}</div></div>`
+    : `<div class="alerta atencao">${ic("alert")}<div><b>O token ainda não consegue usar o direct.</b> ${esc(st.erro ?? "")}</div></div>`;
+  $("#direct-webhook").innerHTML = `<div class="alerta info">${ic("globe")}<div><b>Webhook do Instagram</b>, no app da Meta → Webhooks → Instagram:
+      <div style="display:grid;gap:6px;margin:8px 0">
+        <div>URL de callback: <code>${esc(d.webhook)}</code> <button type="button" class="btn fantasma" data-copiar-direct="${esc(d.webhook)}">${ic("copy")}Copiar</button></div>
+        <div>Token de verificação: <code>${esc(d.verifyToken)}</code> <button type="button" class="btn fantasma" data-copiar-direct="${esc(d.verifyToken)}">${ic("copy")}Copiar</button></div>
+      </div>Assine os campos <b>messages</b> e <b>comments</b>.${d.appSecretDefinido ? "" : " <b>Falta a chave secreta do app</b>: sem ela o sistema recusa os eventos, porque não consegue confirmar que vieram da Meta."}</div></div>`;
+}
+
+async function carregarDirect({ conferir = false } = {}) {
+  try {
+    mostrarDirect(await api(`/api/instagram/direct${conferir ? "?conferir=1" : ""}`));
+  } catch (e) {
+    $("#direct-conexao").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+$("#form-direct").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const btn = $("button[type=submit]", f);
+  btn.disabled = true;
+  try {
+    const d = await api("/api/instagram/direct", { method: "PUT", body: JSON.stringify({ respostas: f.respostas.checked, comentarios: f.comentarios.checked, appSecret: f.appSecret.value }) });
+    f.appSecret.value = "";
+    mostrarDirect(d);
+    const ligado = d.respostas || d.comentarios;
+    if (!ligado) avisar("Direct desligado: a IA não responde mais pelo Instagram.", "ok");
+    else if (d.status?.permissao && d.appSecretDefinido) avisar("Pronto: a IA cuida do direct do Instagram.", "ok");
+    else avisar("Salvo. Falta liberar na Meta: veja o aviso no cartão.", "info", 7000);
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#direct-conferir").addEventListener("click", () => carregarDirect({ conferir: true }));
+
+$("#cartao-direct").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-copiar-direct]");
+  if (!b) return;
+  await navigator.clipboard.writeText(b.dataset.copiarDirect).catch(() => {});
+  avisar("Copiado", "ok", 1600);
+});
 
 $("#conteudo-horarios").addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-hora]");

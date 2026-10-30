@@ -16,6 +16,8 @@ const JOBS = [
   { nome: "prospecta-ia-empresas-novas", agenda: "* 12-20 * * 1-5", tarefa: "novas" },
   // A cada 15 minutos, todos os dias: cria o post de conteúdo do dia no horário escolhido.
   { nome: "prospecta-ia-conteudo", agenda: "*/15 * * * *", tarefa: "conteudo" },
+  // A cada 2 minutos, todos os dias: as respostas da IA no direct do Instagram (a Meta só aceita até 24 h depois).
+  { nome: "prospecta-ia-instagram", agenda: "*/2 * * * *", tarefa: "instagram" },
 ];
 
 export const resumoDaChave = (chave) => crypto.createHash("sha256").update(`prospecta-banco:${chave}`).digest("hex");
@@ -58,7 +60,7 @@ export async function garantirAgendamentoNoBanco({ forcar = false } = {}) {
   }
   await db.gravarConfig("cron_banco", { resumo: resumoDaChave(chave), criado: new Date().toISOString() });
   configurado = true;
-  console.log("⏰ Agendador do banco (pg_cron) ligado: rodada a cada 10 minutos, empresas novas a cada minuto e o post do dia");
+  console.log("⏰ Agendador do banco (pg_cron) ligado: rodada a cada 10 minutos, empresas novas a cada minuto, o post do dia e o direct do Instagram");
   return { ativo: true, ligadoAgora: true };
 }
 

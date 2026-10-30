@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { config } from "../config.js";
 import * as db from "../db.js";
 
@@ -31,7 +32,7 @@ async function chamar({ host, token }, metodo, caminho, params = {}) {
   const corpo = await r.json().catch(() => ({}));
   if (!r.ok || corpo.error) {
     const e = corpo.error ?? {};
-    throw new Error(`Instagram: ${e.error_user_msg || e.message || `respondeu ${r.status}`}`);
+    throw Object.assign(new Error(`Instagram: ${e.error_user_msg || e.message || `respondeu ${r.status}`}`), { codigo: e.code, subcodigo: e.error_subcode });
   }
   return corpo;
 }
@@ -196,4 +197,159 @@ export async function publicarContainer(conexao, id) {
   const { id: midiaId } = await chamar(conexao, "POST", `${conexao.igId}/media_publish`, { creation_id: id });
   const { permalink } = await chamar(conexao, "GET", midiaId, { fields: "permalink" }).catch(() => ({}));
   return { id: midiaId, link: permalink ?? null };
+}
+
+// ---------- Direct ----------
+// A API oficial só deixa responder quem escreveu primeiro (até 24 h depois da última mensagem da pessoa)
+// e mandar UMA mensagem privada para quem comentou num post (até 7 dias depois do comentário).
+
+const CHAVE_DIRECT = "instagram_direct";
+// O direct aceita até 1.000 bytes por mensagem: texto maior sai em partes, quebrado nos parágrafos.
+const MAX_BYTES_DIRECT = 950;
+
+/** O que a IA faz sozinha no direct e as chaves do webhook. O token de verificação é criado na primeira leitura. */
+export async function configDoDirect() {
+  let c = (await db.lerConfig(CHAVE_DIRECT)) ?? {};
+  if (!c.verifyToken) {
+    c = { ...c, verifyToken: crypto.randomBytes(16).toString("hex") };
+    await db.gravarConfig(CHAVE_DIRECT, c);
+  }
+  return { respostas: Boolean(c.respostas), comentarios: Boolean(c.comentarios), appSecret: c.appSecret ?? "", verifyToken: c.verifyToken };
+}
+
+/** Salva só o que veio: a chave secreta vazia mantém a que já estava salva. */
+export async function salvarConfigDoDirect({ respostas, comentarios, appSecret } = {}) {
+  const atual = await configDoDirect();
+  const segredo = String(appSecret ?? "").trim();
+  await db.gravarConfig(CHAVE_DIRECT, {
+    ...atual,
+    ...(respostas !== undefined ? { respostas: Boolean(respostas) } : {}),
+    ...(comentarios !== undefined ? { comentarios: Boolean(comentarios) } : {}),
+    ...(segredo ? { appSecret: segredo } : {}),
+  });
+  return configDoDirect();
+}
+
+/** Divide o texto em partes que cabem num direct, sem cortar no meio de uma frase quando dá. */
+export function partesDoDirect(texto, max = MAX_BYTES_DIRECT) {
+  const cabe = (t) => Buffer.byteLength(t) <= max;
+  const partes = [];
+  let atual = "";
+  const juntar = (pedaco, sep) => {
+    const junto = atual ? `${atual}${sep}${pedaco}` : pedaco;
+    if (cabe(junto)) return (atual = junto);
+    if (atual) partes.push(atual);
+    atual = pedaco;
+  };
+  for (const paragrafo of String(texto ?? "").trim().split(/\n{2,}/)) {
+    if (cabe(paragrafo)) { juntar(paragrafo, "\n\n"); continue; }
+    let sep = "\n\n"; // a primeira frase do parágrafo fica separada do parágrafo anterior
+    for (const frase of paragrafo.split(/(?<=[.!?])\s+|\n/)) {
+      let resto = frase;
+      // Frase sozinha maior que o limite (raro): corta nas palavras.
+      while (!cabe(resto)) {
+        let corte = resto.length;
+        while (!cabe(resto.slice(0, corte))) corte = resto.lastIndexOf(" ", corte - 1) > 0 ? resto.lastIndexOf(" ", corte - 1) : corte - 1;
+        juntar(resto.slice(0, corte).trim(), sep);
+        resto = resto.slice(corte).trim();
+        sep = " ";
+      }
+      if (resto) juntar(resto, sep);
+      sep = " ";
+    }
+  }
+  if (atual) partes.push(atual);
+  return partes;
+}
+
+// Pela conta do Instagram (Instagram Login) ou pela página ligada a ela (token do Facebook).
+const caminhoDasMensagens = (c) => (c.host === "graph.instagram.com" ? `${c.igId}/messages` : "me/messages");
+
+/** Explica os erros mais comuns do direct em português. */
+function explicarErroDoDirect(e) {
+  if (e.subcodigo === 2534022 || /outside of allowed window/i.test(e.message)) {
+    return new Error("A Meta só deixa responder no direct até 24 horas depois da última mensagem da pessoa.");
+  }
+  if ([3, 10, 200, 230].includes(e.codigo) || /permission|capability/i.test(e.message)) {
+    return new Error("O Instagram recusou o envio por falta de permissão: gere o token com instagram_manage_messages e confira se o app já foi aprovado pela Meta para mensagens.");
+  }
+  if (e.codigo === 100 && /comment/i.test(e.message)) return new Error("Esse comentário já recebeu a mensagem privada, ou passou de 7 dias.");
+  return e;
+}
+
+/**
+ * Manda um direct. Com `comentarioId` vai como mensagem privada ao comentário (só uma é permitida,
+ * então texto longo vai só a primeira parte). Retorna o id da primeira mensagem.
+ */
+export async function enviarDirect({ para, comentarioId = null, texto }) {
+  const c = await lerConexao();
+  if (!c?.token) throw new Error("Instagram desconectado: conecte a conta em Conteúdo");
+  const partes = partesDoDirect(texto);
+  if (!partes.length) throw new Error("Mensagem vazia");
+  let primeiro = null;
+  for (const [i, parte] of (comentarioId ? partes.slice(0, 1) : partes).entries()) {
+    const recipient = comentarioId && i === 0 ? { comment_id: comentarioId } : { id: para };
+    const r = await chamar(c, "POST", caminhoDasMensagens(c), { recipient, message: { text: parte } }).catch((e) => {
+      throw explicarErroDoDirect(e);
+    });
+    primeiro ??= r.message_id ?? null;
+  }
+  return primeiro;
+}
+
+/** Nome e @ de quem escreveu no direct (a Meta só mostra de quem já falou com a conta). */
+export async function perfilDoContato(id) {
+  const c = await lerConexao();
+  if (!c?.token) return null;
+  const p = await chamar(c, "GET", id, { fields: "name,username" }).catch(() => null);
+  return p && { nome: p.name ?? "", usuario: p.username ?? "" };
+}
+
+/** Resposta pública ao comentário (ex.: "Te mandei no direct!"). */
+export async function responderComentario(comentarioId, texto) {
+  const c = await lerConexao();
+  if (!c?.token) throw new Error("Instagram desconectado");
+  return (await chamar(c, "POST", `${comentarioId}/replies`, { message: texto })).id;
+}
+
+/** Baixa um anexo do direct (ex.: áudio, para transcrever). */
+export async function baixarAnexo(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`não foi possível baixar o anexo (${r.status})`);
+  return { audio: Buffer.from(await r.arrayBuffer()), mimetype: r.headers.get("content-type") || "audio/mp4" };
+}
+
+/**
+ * O token consegue ler o direct? Lê a última conversa: sem a permissão de mensagens (ou sem a
+ * aprovação da Meta), a Meta recusa e o painel mostra o motivo.
+ */
+export async function statusDoDirect() {
+  const c = await lerConexao();
+  if (!c?.token) return { conectado: false };
+  try {
+    await chamar(c, "GET", "me/conversations", { platform: "instagram", limit: 1 });
+    return { conectado: true, usuario: c.usuario, permissao: true };
+  } catch (e) {
+    return { conectado: true, usuario: c.usuario, permissao: false, erro: explicarErroDoDirect(e).message.replace(/^Instagram: /, "") };
+  }
+}
+
+/**
+ * Pede para a Meta mandar os eventos desta conta para o webhook do app. Pelo Instagram Login é a
+ * própria conta que assina; pelo Facebook, a página ligada a ela (qualquer campo serve).
+ */
+export async function assinarWebhookDoDirect() {
+  const c = await lerConexao();
+  if (!c?.token) throw new Error("Instagram desconectado");
+  const campos = c.host === "graph.instagram.com" ? ["messages,comments"] : ["messages", "feed"];
+  let ultimoErro;
+  for (const subscribed_fields of campos) {
+    try {
+      await chamar(c, "POST", "me/subscribed_apps", { subscribed_fields });
+      return true;
+    } catch (e) {
+      ultimoErro = e;
+    }
+  }
+  throw ultimoErro;
 }
