@@ -211,7 +211,7 @@ export async function registrarResposta({
       break;
     default:
       await db.cancelarPendentes(lead.id, "lead respondeu");
-      if (lead.status !== "agendado") await db.atualizarLead(lead.id, { status: "respondeu" });
+      if (!["agendado", "fechado"].includes(lead.status)) await db.atualizarLead(lead.id, { status: "respondeu" });
       if (c.classificacao === "interessado" || c.classificacao === "quer_informacoes") {
         await enviarNotificacao(
           `${lead.nome} respondeu (${c.classificacao.replace("_", " ")})`,

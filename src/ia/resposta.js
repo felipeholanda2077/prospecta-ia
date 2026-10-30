@@ -179,7 +179,7 @@ ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com
 - Sem interesse: a sugestão é um agradecimento curto e cordial (1 ou 2 frases), sem pergunta, sem oferta, sem link,
   deixando a porta aberta (ex.: "Imagina, obrigado pelo retorno! Fico à disposição se precisarem no futuro.").
 - Se for descadastro ou resposta automática, deixe a sugestão vazia.`,
-    pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""}) · canal: ${canal}${ORIGEM_PROPRIA[lead.origem] ?? ""}
+    pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""}) · canal: ${canal}${ORIGEM_PROPRIA[lead.origem] ?? ""}${lead.status === "fechado" ? " · JÁ É CLIENTE, fechou contrato: não venda nada; marque precisa_humano (motivo: \"cliente com contrato\") e escreva uma sugestão curta para revisar" : ""}
 
 Histórico da conversa (mais antigo primeiro):
 ${formatarHistorico(historico)}

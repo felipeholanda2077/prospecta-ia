@@ -170,6 +170,16 @@ As variáveis `WHATSAPP_*` do `.env` continuam funcionando e têm prioridade sob
 
 Atenção: a política da Meta exige que o contato tenha dado consentimento (opt-in) para receber mensagens de marketing da sua empresa. Para prospecção fria de quem nunca falou com você, use o **e-mail** como primeiro contato e deixe o WhatsApp para quem responder.
 
+## Contratos
+
+A página **Contratos** do painel guarda o modelo e o contrato de cada cliente:
+
+- **Modelo:** o texto de onde nasce cada contrato, editável (com prévia ao lado). O original fica em `config/contrato-modelo.md`, sem dados pessoais, porque o repositório é público. Mudar o modelo não altera os contratos já criados.
+- **Seus dados:** nome, CPF, marca, e-mail, chave PIX e foro padrão. Ficam só no banco e entram sozinhos em todos os contratos, inclusive nos já criados.
+- **Quando o cliente aceita:** o botão **Cliente aceitou: gerar contrato** (na conversa ou na lista de empresas) abre o formulário já com os dados da empresa. Ao gerar, a empresa passa a **Cliente fechado**, as mensagens de prospecção na fila são canceladas e, se o cliente escrever, a IA não vende nada e passa a conversa para você. O **Novo contrato** cria um contrato para quem não veio de uma conversa.
+- **Pagamento por contrato:** por mês (valor × meses) ou entrada e saldo. O valor total, por extenso, a tabela de parcelas e a cláusula de rescisão saem de acordo.
+- **Cada contrato** pode ser editado à vontade, com situação (rascunho, enviado, assinado, cancelado) e **Baixar PDF**, pronto para assinar pelo gov.br.
+
 ## Formulário do site
 
 O sistema tem um formulário de contato pronto, com link próprio: `https://SEU-SISTEMA/contato`. Quem preenche (nome, empresa, WhatsApp, e-mail, do que precisa e uma mensagem, com o aceite de contato) vira uma empresa já em conversa, você recebe um aviso por e-mail e a IA chama no WhatsApp em alguns minutos, em horário comercial (ou responde por e-mail, se a pessoa não deixou WhatsApp). Se o WhatsApp ou o e-mail já forem de uma empresa do sistema, entra na conversa dela.

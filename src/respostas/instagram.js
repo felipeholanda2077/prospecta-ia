@@ -123,7 +123,7 @@ export async function registrarComentario(cm, campanha, { esperar = ESPERA_COMEN
     lead_id: lead.id, canal: "instagram", destino: cm.de, corpo: d.mensagem, status: "aprovada", tipo: "resposta", etapa: 0, em_resposta_a: cm.id,
   });
   await db.atualizarResposta(respostaId, { mensagem_id: mensagemId, lida: true });
-  if (lead.status !== "agendado") await db.atualizarLead(lead.id, { status: "respondeu" });
+  if (!["agendado", "fechado"].includes(lead.status)) await db.atualizarLead(lead.id, { status: "respondeu" });
 
   const [min, max] = esperar;
   if (max) await new Promise((r) => setTimeout(r, min + Math.random() * (max - min)));

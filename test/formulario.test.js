@@ -6,9 +6,12 @@ process.env.TZ = "America/Sao_Paulo";
 for (const k of ["UAZAP_URL", "UAZAP_TOKEN", "SMTP_HOST", "MODO_TESTE_EMAIL", "MODO_TESTE_WHATSAPP"]) delete process.env[k];
 const db = await import("../src/db.js");
 const { validarFormulario, receberFormulario, salvarConfigFormulario } = await import("../src/respostas/formulario.js");
+// Abre o banco antes: com a suíte inteira ele demora, e isso gastaria a trava de 20 s por IP do teste.
+await db.iniciar();
 
 const campanha = { empresa: { nome: "FluxDeck", responsavel: "Felipe" }, servicos: [], automacao: { respostaAutomatica: false, maxRespostasIA: 5 } };
 const agora = Date.now();
+const avisar = async () => {}; // sem e-mail de verdade nos testes
 const envio = (extra = {}) => ({ nome: "Patrícia", empresa: "Belieze", whatsapp: "(85) 99876-5432", servico: "Loja virtual (e-commerce)",
   mensagem: "Quero vender online", consentimento: true, t: agora - 10_000, origem: "instagram", ...extra });
 
@@ -27,7 +30,7 @@ test("formulário: confere os campos e barra robô sem avisar", () => {
 test("formulário: vira lead em conversa, a IA responde pelo WhatsApp, e o envio repetido não duplica", async () => {
   let registrado = null;
   const registrar = async (o) => ((registrado = o), { id: 1 });
-  const r = await receberFormulario(envio(), campanha, { ip: "1.2.3.4", agora, registrar });
+  const r = await receberFormulario(envio(), campanha, { ip: "1.2.3.4", agora, registrar, avisar });
   assert.equal(r.ok, true);
   const lead = await db.buscarLead(r.leadId);
   assert.deepEqual([lead.nome, lead.origem, lead.status, lead.whatsapp], ["Belieze", "formulario", "respondeu", "5585998765432"]);
@@ -39,10 +42,10 @@ test("formulário: vira lead em conversa, a IA responde pelo WhatsApp, e o envio
   assert.equal(registrado.campanha.automacao.respostaAutomatica, true);
 
   // O mesmo IP logo em seguida: pede para esperar.
-  assert.match((await receberFormulario(envio({ whatsapp: "85911112222" }), campanha, { ip: "1.2.3.4", agora, registrar })).erro, /Aguarde/);
+  assert.match((await receberFormulario(envio({ whatsapp: "85911112222" }), campanha, { ip: "1.2.3.4", agora, registrar, avisar })).erro, /Aguarde/);
   // A mesma pessoa de novo (outro IP): não abre outra conversa.
   registrado = null;
-  assert.equal((await receberFormulario(envio(), campanha, { ip: "5.6.7.8", agora, registrar })).repetido, true);
+  assert.equal((await receberFormulario(envio(), campanha, { ip: "5.6.7.8", agora, registrar, avisar })).repetido, true);
   assert.equal(registrado, null);
 });
 
@@ -53,7 +56,7 @@ test("formulário: quem já é uma empresa do sistema cai na conversa dela; sem 
   let registrado = null;
   await salvarConfigFormulario({ iaResponde: false });
   const r = await receberFormulario(envio({ nome: "Ana", empresa: "", whatsapp: "", email: "Ana@DentalCenter.com.br" }), campanha,
-    { ip: "9.9.9.9", agora, registrar: async (o) => ((registrado = o), { id: 2 }) });
+    { ip: "9.9.9.9", agora, avisar, registrar: async (o) => ((registrado = o), { id: 2 }) });
   assert.equal(r.leadId, existente.id);
   assert.equal((await db.buscarLead(existente.id)).status, "respondeu");
   assert.deepEqual([registrado.canal, registrado.de, registrado.assunto], ["email", "ana@dentalcenter.com.br", "Seu contato pelo site da FluxDeck"]);

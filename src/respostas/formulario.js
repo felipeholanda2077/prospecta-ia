@@ -62,7 +62,7 @@ const resumo = (d) => [
  * contato (ou cria o lead) e registra como a primeira mensagem da conversa, para a IA responder.
  * Retorna { ok } ou { erro }.
  */
-export async function receberFormulario(dados, campanha, { ip = "", agora = Date.now(), registrar = registrarResposta } = {}) {
+export async function receberFormulario(dados, campanha, { ip = "", agora = Date.now(), registrar = registrarResposta, avisar = enviarNotificacao } = {}) {
   const d = validarFormulario(dados, agora);
   if (d.robo) return { ok: true }; // robô não precisa saber que foi barrado
   if (d.erro) return { erro: d.erro };
@@ -77,7 +77,7 @@ export async function receberFormulario(dados, campanha, { ip = "", agora = Date
     nome: d.empresa || d.nome, whatsapp: d.whatsapp, email: d.email, origem: "formulario",
     observacao: `Preencheu o formulário do site${d.servico ? `: ${d.servico}` : ""}${d.origem ? ` (veio de ${d.origem})` : ""}`,
   })));
-  if (conhecido && lead.status !== "agendado") await db.atualizarLead(lead.id, { status: "respondeu" });
+  if (conhecido && !["agendado", "fechado"].includes(lead.status)) await db.atualizarLead(lead.id, { status: "respondeu" });
 
   const cfg = await lerConfigFormulario();
   const canal = d.whatsapp ? "whatsapp" : "email";
@@ -88,7 +88,7 @@ export async function receberFormulario(dados, campanha, { ip = "", agora = Date
     // Ligado no painel, a IA responde mesmo com a resposta automática desligada para as outras conversas.
     campanha: { ...campanha, automacao: { ...campanha.automacao, respostaAutomatica: cfg.iaResponde } },
   });
-  await enviarNotificacao(
+  await avisar(
     `Novo contato pelo site: ${d.nome}${d.empresa ? ` (${d.empresa})` : ""}`,
     `${resumo(d)}\n\nWhatsApp: ${d.whatsapp ?? "-"}\nE-mail: ${d.email ?? "-"}\n\n${cfg.iaResponde ? `A IA vai chamar pelo ${canal === "whatsapp" ? "WhatsApp" : "e-mail"} (em horário comercial).` : "Responda pela página Respostas do painel."}`
   ).catch((e) => log(`⚠️  Não foi possível avisar do contato do site: ${e.message}`));

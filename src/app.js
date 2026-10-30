@@ -28,6 +28,8 @@ import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirec
 import { processarWebhookInstagram } from "./respostas/instagram.js";
 import { receberFormulario, lerConfigFormulario, salvarConfigFormulario } from "./respostas/formulario.js";
 import { paginaDoFormulario, paginaDeObrigado } from "./paginaContato.js";
+import * as contratos from "./contratos/contrato.js";
+import { documentoEmHtml, documentoEmPdf } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
 import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada } from "./respostas/processar.js";
@@ -579,7 +581,7 @@ async function conversasAvaliadas() {
   });
   const quando = (c) => new Date(c.ultima?.quando ?? 0).getTime();
   // Quem precisa de você primeiro; depois quem demonstrou interesse; depois quem tem mais chance de fechar; depois as mais recentes.
-  const chance = (c) => ({ agendada: 4, quente: 3, morna: 2, fria: 1, encerrada: 0 })[c.andamento.chance] ?? 0;
+  const chance = (c) => ({ fechada: 5, agendada: 4, quente: 3, morna: 2, fria: 1, encerrada: 0 })[c.andamento.chance] ?? 0;
   return lista.sort((a, b) => Number(b.andamento.precisaDeVoce) - Number(a.andamento.precisaDeVoce)
     || Number(b.interessado) - Number(a.interessado) || chance(b) - chance(a) || quando(b) - quando(a));
 }
@@ -853,6 +855,67 @@ app.put("/api/instagram/direct", async (req, res) => {
     assinatura = await assinarWebhookDoDirect().then(() => ({ ok: true }), (e) => ({ ok: false, erro: e.message.replace(/^Instagram: /, "") }));
   }
   res.json({ ...(await painelDoDirect({ conferir: true })), assinatura });
+});
+
+// Contratos: o modelo editável, seus dados e o contrato de cada cliente (também editável, em PDF).
+app.get("/api/contratos", async (req, res) => res.json(await db.listarContratos()));
+
+app.get("/api/contratos/padroes", async (req, res) => {
+  res.json(await contratos.padroesDoContrato(req.query.lead, await carregarCampanhaCompleta()));
+});
+
+app.get("/api/contratos/modelo", async (req, res) => res.json({ corpo: await contratos.lerModelo() }));
+app.put("/api/contratos/modelo", async (req, res) => res.json({ corpo: await contratos.salvarModelo(req.body?.corpo) }));
+
+app.get("/api/contratos/contratada", async (req, res) => res.json(await contratos.lerContratada(await carregarCampanhaCompleta())));
+app.put("/api/contratos/contratada", async (req, res) => {
+  await contratos.salvarContratada(req.body);
+  res.json(await contratos.lerContratada(await carregarCampanhaCompleta()));
+});
+
+// A prévia do painel, com os seus dados já no lugar.
+app.post("/api/contratos/previa", async (req, res) => {
+  const contratada = await contratos.lerContratada(await carregarCampanhaCompleta());
+  res.json({ html: documentoEmHtml(contratos.preencherContratada(String(req.body?.corpo ?? ""), contratada)) });
+});
+
+app.post("/api/contratos", async (req, res) => {
+  const r = await contratos.criarContrato(req.body ?? {}, await carregarCampanhaCompleta());
+  r.erro ? res.status(400).json(r) : res.json(r);
+});
+
+// O que falta nos seus dados, para o painel avisar antes de mandar o contrato.
+const dadosQueFaltam = (c) => [["CPF", c.cpf], ["e-mail", c.email], ["chave PIX", c.pix], ["nome", c.nome]].filter(([, v]) => !v).map(([n]) => n);
+
+app.get("/api/contratos/:id", async (req, res) => {
+  const contrato = await db.buscarContrato(req.params.id);
+  if (!contrato) return res.status(404).json({ erro: "Contrato não encontrado" });
+  res.json({ ...contrato, faltando: dadosQueFaltam(await contratos.lerContratada(await carregarCampanhaCompleta())) });
+});
+
+app.put("/api/contratos/:id", async (req, res) => {
+  const contrato = await db.buscarContrato(req.params.id);
+  if (!contrato) return res.status(404).json({ erro: "Contrato não encontrado" });
+  const { corpo, status } = req.body ?? {};
+  if (corpo !== undefined && !String(corpo).trim()) return res.status(400).json({ erro: "O contrato não pode ficar vazio" });
+  if (status !== undefined && !contratos.STATUS_CONTRATO.includes(status)) return res.status(400).json({ erro: "Situação inválida" });
+  await db.atualizarContrato(contrato.id, { ...(corpo !== undefined ? { corpo: String(corpo) } : {}), ...(status !== undefined ? { status } : {}) });
+  res.json(await db.buscarContrato(contrato.id));
+});
+
+app.delete("/api/contratos/:id", async (req, res) => {
+  await db.excluirContrato(req.params.id);
+  res.json({ ok: true });
+});
+
+app.get("/api/contratos/:id/pdf", async (req, res) => {
+  const contrato = await db.buscarContrato(req.params.id);
+  if (!contrato) return res.status(404).json({ erro: "Contrato não encontrado" });
+  const campanha = await carregarCampanhaCompleta();
+  const contratada = await contratos.lerContratada(campanha);
+  const pdf = await documentoEmPdf(contratos.preencherContratada(contrato.corpo, contratada), { marca: contratada.marca, projeto: contrato.projeto });
+  const arquivo = `contrato-${contrato.projeto}`.normalize("NFD").replace(/[^\w-]+/g, "-").toLowerCase();
+  res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${arquivo}.pdf"`, "Cache-Control": "no-store" }).send(pdf);
 });
 
 // Formulário do site: o link, se a IA responde sozinha e os últimos contatos que chegaram por ele.

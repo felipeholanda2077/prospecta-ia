@@ -609,6 +609,33 @@ export async function telefoneDeOutroCnpj(telefone, placeId) {
   ));
 }
 
+// ---------- Contratos ----------
+
+export async function criarContrato({ lead_id = null, projeto, contratante, corpo, resumo = null, valor_total = null }) {
+  return (await um(
+    `INSERT INTO contratos (lead_id, projeto, contratante, corpo, resumo, valor_total) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [lead_id, projeto, contratante, corpo, resumo, valor_total]
+  )).id;
+}
+
+export const buscarContrato = (id) => um("SELECT * FROM contratos WHERE id = $1", [id]);
+
+/** Os contratos, do mais novo para o mais antigo (sem o texto). */
+export function listarContratos(limite = 200) {
+  return q(
+    `SELECT id, lead_id, projeto, contratante, resumo, valor_total, status, criado_em, atualizado_em FROM contratos ORDER BY id DESC LIMIT $1`,
+    [limite]
+  );
+}
+
+export async function atualizarContrato(id, campos) {
+  const chaves = Object.keys(campos).filter((k) => ["projeto", "contratante", "corpo", "resumo", "status"].includes(k));
+  if (!chaves.length) return;
+  await q(`UPDATE contratos SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")}, atualizado_em = now() WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
+}
+
+export const excluirContrato = (id) => q("DELETE FROM contratos WHERE id = $1", [id]);
+
 /** As empresas mais recentes que chegaram por uma origem (ex.: o formulário do site). */
 export async function leadsDaOrigem(origem, limite = 10) {
   return q(

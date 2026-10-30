@@ -611,7 +611,7 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
 export async function reanalisar(leadId) {
   const lead = await db.buscarLead(leadId);
   if (!lead) throw new Error("Empresa não encontrada");
-  if (["contatado", "respondeu", "descadastrado"].includes(lead.status)) {
+  if (["contatado", "respondeu", "descadastrado", "fechado"].includes(lead.status)) {
     throw new Error("Esta empresa já está em contato; não dá para reanalisar");
   }
   await db.atualizarLead(lead.id, { status: "novo", observacao: null });

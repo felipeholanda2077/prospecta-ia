@@ -3,6 +3,7 @@
 // fria), ajustada pela situação da empresa e pelo tempo sem resposta.
 
 export const CHANCES = {
+  fechada: { nivel: 5, rotulo: "Cliente fechado" },
   agendada: { nivel: 4, rotulo: "Reunião agendada" },
   quente: { nivel: 3, rotulo: "Alta" },
   morna: { nivel: 2, rotulo: "Média" },
@@ -17,7 +18,8 @@ const DIAS_PARA_ESFRIAR = 3;
 /** Avalia uma conversa (uma linha de db.conversas()). */
 export function avaliarConversa(c, agora = new Date()) {
   let chance;
-  if (c.status === "agendado") chance = "agendada";
+  if (c.status === "fechado") chance = "fechada";
+  else if (c.status === "agendado") chance = "agendada";
   else if (ENCERRADAS.includes(c.status)) chance = "encerrada";
   // Respostas de antes da avaliação da IA: estimativa pelo que a empresa já disse.
   else chance = c.avaliacao?.temperatura ?? (c.mostrou_interesse ? "quente" : c.respostas >= 2 ? "morna" : "fria");
@@ -30,6 +32,7 @@ export function avaliarConversa(c, agora = new Date()) {
   const precisaDeVoce = !ENCERRADAS.includes(c.status) && Boolean(c.recente?.precisa_humano) && !esperandoEmpresa;
   let proximoPasso;
   if (precisaDeVoce) proximoPasso = `Responder você: ${c.recente.precisa_humano}`;
+  else if (chance === "fechada") proximoPasso = "Cuidar do contrato e do projeto";
   else if (chance === "agendada") proximoPasso = "Preparar a reunião";
   else if (chance === "encerrada") proximoPasso = "Nenhum: conversa encerrada";
   else if (c.proxima?.tipo === "resposta") proximoPasso = "A IA já vai responder";
@@ -52,7 +55,7 @@ export function indicadoresDasConversas(lista, funil) {
   const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
   return {
     conversas: lista.length,
-    ativas: conta((c) => !["agendada", "encerrada"].includes(c.andamento.chance)),
+    ativas: conta((c) => !["fechada", "agendada", "encerrada"].includes(c.andamento.chance)),
     quentes: conta((c) => c.andamento.chance === "quente"),
     mornas: conta((c) => c.andamento.chance === "morna"),
     frias: conta((c) => c.andamento.chance === "fria"),
