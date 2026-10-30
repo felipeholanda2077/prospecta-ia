@@ -458,6 +458,8 @@
   .ig-aba { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-size: 14px; font-weight: 600;
             color: var(--muted); background: transparent; border: 0; border-radius: 10px; padding: 9px 14px; cursor: pointer; white-space: nowrap; }
   .ig-aba:hover { color: var(--text); }
+  .ig-aba .so-estreito { display: none; }
+  @media (max-width: 640px) { .ig-aba .so-largo { display: none; } .ig-aba .so-estreito { display: inline; } }
   .ig-aba[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
   .ig-aba:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .ig-painel { display: grid; gap: 16px; }
@@ -475,8 +477,9 @@
     .ig-resumo { gap: 8px; }
     .ig-card { padding: 12px; }
     .ig-card b { font-size: 16px; }
-    .ig-abas { top: 0; border-radius: 12px; }
-    .ig-aba { padding: 8px 12px; font-size: 13.5px; }
+    .ig-abas { top: 0; border-radius: 12px; gap: 2px; }
+    .ig-aba { flex: 1 1 0; padding: 9px 4px; font-size: 13px; min-width: 0; }
+    .ig-aba .ic { display: none; }
     .ig-barra-botoes, .ig-barra-botoes .btn { width: 100%; }
     .ig-barra-botoes .btn { justify-content: center; }
   }
@@ -826,7 +829,7 @@
           <button type="button" class="ig-aba" role="tab" id="ig-aba-posts" data-ig-aba="posts" aria-controls="ig-painel-posts" aria-selected="true"><span data-ic="image"></span>Posts</button>
           <button type="button" class="ig-aba" role="tab" id="ig-aba-desempenho" data-ig-aba="desempenho" aria-controls="ig-painel-desempenho" aria-selected="false"><span data-ic="trend"></span>Desempenho</button>
           <button type="button" class="ig-aba" role="tab" id="ig-aba-direct" data-ig-aba="direct" aria-controls="ig-painel-direct" aria-selected="false"><span data-ic="message"></span>Direct</button>
-          <button type="button" class="ig-aba" role="tab" id="ig-aba-config" data-ig-aba="config" aria-controls="ig-painel-config" aria-selected="false"><span data-ic="settings"></span>Configurações</button>
+          <button type="button" class="ig-aba" role="tab" id="ig-aba-config" data-ig-aba="config" aria-controls="ig-painel-config" aria-selected="false"><span data-ic="settings"></span><span class="so-largo">Configurações</span><span class="so-estreito">Ajustes</span></button>
         </div>
 
         <div class="ig-painel" id="ig-painel-posts" role="tabpanel" aria-labelledby="ig-aba-posts" data-ig-painel="posts">
@@ -2919,7 +2922,7 @@ function desenharResumoIg() {
       <span class="ig-card-cab">${cor !== null ? `<span class="ponto ${cor}"></span>` : ic(icone, "sm")}${rotulo}</span>
       <b>${esc(valor)}</b><span class="ig-card-sub">${esc(sub)}</span></button>`;
   $("#ig-resumo").innerHTML =
-    card("config", "camera", "Conta", ig.conectado ? "ok" : "perigo", ig.conectado ? `@${ig.usuario}` : "Não conectada", ig.conectado ? "Conectada · posta sozinho" : "Conecte em Configurações")
+    card("config", "camera", "Conta", ig.conectado ? "ok" : "perigo", ig.conectado ? `@${ig.usuario}` : "Não conectada", ig.conectado ? "Posta sozinho" : "Conecte em Configurações")
     + card("desempenho", "users", "Seguidores", null, atual != null ? numero(atual) : "–", ganho ? `${ganho > 0 ? "+" : ""}${ganho} na semana` : estadoInsights?.analisados ? `${estadoInsights.analisados} posts analisados` : "Atualiza a cada 6 h")
     + card("posts", "clock", "Próximo post", prox.cor, prox.titulo, prox.sub)
     + card("direct", "message", "Direct", direct[0], direct[1], direct[2]);
