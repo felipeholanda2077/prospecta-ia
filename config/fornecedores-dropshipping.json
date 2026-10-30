@@ -1,0 +1,244 @@
+[
+ {
+  "nome": "Alpha Star Imports",
+  "site": "https://www.alphastarimports.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "eletronicos",
+   "utilidades",
+   "beleza",
+   "variedades"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "C7 Drop (Cem Tecnologia)",
+  "site": "https://www.c7drop.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "eletronicos",
+   "games",
+   "brinquedos",
+   "pet",
+   "casa"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Drop de Casa",
+  "site": "https://dropdecasa.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "moveis",
+   "decoracao",
+   "casa"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Dropify",
+  "site": "https://dropify.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "*"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Hayamax",
+  "site": "https://hayamax.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "informatica",
+   "eletronicos",
+   "gamer",
+   "automotivo"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Imagem Folheados",
+  "site": "https://www.imagemfolheados.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "semijoias",
+   "bijuterias",
+   "acessorios",
+   "joias"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Mais Que Distribuidora",
+  "site": "https://maisquedistribuidora.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "pet",
+   "infantil",
+   "bebe",
+   "cama",
+   "mesa",
+   "banho",
+   "casa"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Revenda de Calçados",
+  "site": "https://www.revendadecalcados.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "calcados",
+   "sapatos",
+   "tenis"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "BioVittas",
+  "site": "https://www.biovittas.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "suplementos",
+   "vitaminas",
+   "naturais",
+   "saude"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "All Nations",
+  "site": "https://allnations.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "informatica",
+   "eletronicos",
+   "seguranca"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Capas no Atacado",
+  "site": "https://www.capasnoatacado.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "celular",
+   "capas",
+   "peliculas",
+   "acessorios"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Kaisan",
+  "site": "https://www.kaisan.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "moda",
+   "fitness",
+   "praia",
+   "roupas",
+   "lingerie"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Lojão do MDF",
+  "site": "https://lojaodomdf.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "mdf",
+   "decoracao",
+   "brindes",
+   "personalizados"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Mirão Distribuidora",
+  "site": "https://www.mirao.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "informatica",
+   "eletronicos",
+   "casa"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Relógio Store",
+  "site": "https://www.relogiostore.com.br",
+  "tipo": "fornecedor",
+  "nichos": [
+   "relogios",
+   "acessorios"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Dropi",
+  "site": "https://dropi.com.br",
+  "tipo": "plataforma",
+  "nichos": [
+   "*"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "DSlite",
+  "site": "https://www.dslite.com.br",
+  "tipo": "plataforma",
+  "nichos": [
+   "*"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "Drop Nacional",
+  "site": "https://dropnacional.com.br",
+  "tipo": "plataforma",
+  "nichos": [
+   "*"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "OneDrop",
+  "site": "https://onedrop.com.br",
+  "tipo": "plataforma",
+  "nichos": [
+   "*"
+  ],
+  "origem": "nacional"
+ },
+ {
+  "nome": "CJ Dropshipping",
+  "site": "https://cjdropshipping.com",
+  "tipo": "plataforma",
+  "nichos": [
+   "*"
+  ],
+  "origem": "internacional"
+ },
+ {
+  "nome": "Printful",
+  "site": "https://www.printful.com",
+  "tipo": "fornecedor",
+  "nichos": [
+   "camisetas",
+   "roupas",
+   "personalizados",
+   "print on demand"
+  ],
+  "origem": "internacional"
+ },
+ {
+  "nome": "Spocket",
+  "site": "https://www.spocket.co",
+  "tipo": "plataforma",
+  "nichos": [
+   "*"
+  ],
+  "origem": "internacional"
+ }
+]

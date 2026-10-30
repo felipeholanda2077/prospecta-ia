@@ -22,6 +22,7 @@ import { testarIA } from "./ia/cliente.js";
 import { rodadaDeConteudo, rodadaDoLinkedin, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia, normalizarHorarios } from "./conteudo/diario.js";
 import { postarNoLinkedin, textoDoPost } from "./conteudo/linkedin.js";
 import * as linkedin from "./envio/linkedin.js";
+import { buscarFornecedores, limparParaSalvar } from "./descoberta/fornecedores.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { narracaoDisponivel, carregarChaveDaVoz, salvarChaveDoGemini } from "./conteudo/narracao.js";
@@ -391,6 +392,28 @@ app.post("/api/maps/buscar", async (req, res) => {
   } catch (e) {
     res.status(502).json({ erro: e.message });
   }
+});
+
+// Fornecedores de dropshipping: ficam fora do funil, então nunca recebem mensagem automática.
+const STATUS_FORNECEDOR = ["novo", "contatado", "aprovado", "descartado"];
+app.post("/api/fornecedores/buscar", async (req, res) => {
+  const { nicho, cidade, quantidade, instagram } = req.body ?? {};
+  const r = await buscarFornecedores({ nicho: String(nicho ?? ""), cidade: String(cidade ?? ""), quantidade, instagram: instagram === true });
+  const salvos = await db.fornecedoresPorChave(r.fornecedores.map((f) => f.chave));
+  res.json({ ...r, fornecedores: r.fornecedores.map((f) => ({ ...f, salvoId: salvos[f.chave] ?? null })) });
+});
+app.get("/api/fornecedores", async (req, res) => res.json(await db.fornecedoresSalvos()));
+app.post("/api/fornecedores", async (req, res) => {
+  const lista = Array.isArray(req.body?.fornecedores) ? req.body.fornecedores.slice(0, 100) : [];
+  let novos = 0;
+  for (const f of lista.map(limparParaSalvar).filter(Boolean)) if (await db.inserirFornecedor(f)) novos++;
+  res.json({ novos });
+});
+app.put("/api/fornecedores/:id", async (req, res) => {
+  const { status, observacao } = req.body ?? {};
+  if (status !== undefined && !STATUS_FORNECEDOR.includes(status)) return res.status(400).json({ erro: "Situação inválida" });
+  await db.atualizarFornecedor(req.params.id, { status, observacao: observacao === undefined ? undefined : String(observacao).slice(0, 1000) });
+  res.json({ ok: true });
 });
 
 // Busca no Instagram pelo painel (perfis comerciais das hashtags ou os @ informados), sem salvar.

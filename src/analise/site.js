@@ -105,7 +105,7 @@ export function analisarHtml(html, url) {
   };
 }
 
-async function baixar(url) {
+export async function baixar(url) {
   const inicio = Date.now();
   const resp = await fetch(url, {
     headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
@@ -117,7 +117,7 @@ async function baixar(url) {
 }
 
 /** Verifica de forma simples se o robots.txt bloqueia robôs genéricos na raiz do site. */
-async function robotsPermite(origem) {
+export async function robotsPermite(origem) {
   try {
     const resp = await fetch(new URL("/robots.txt", origem), {
       headers: { "User-Agent": USER_AGENT },

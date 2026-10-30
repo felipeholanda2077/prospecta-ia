@@ -200,6 +200,14 @@ Cada post novo nasce com um público (clínica, restaurante, loja...), um tom (p
 - **Felipe nos vídeos:** em um Reels sim, um não, a foto dele aparece com o nome, e as falas são em primeira pessoa. Dá para desligar em **Instagram → Configurações**.
 - **Avatar de IA (opcional, pago):** com uma conta no HeyGen, em **Instagram → Configurações → Avatar de IA do Felipe**, o avatar fala na capa e na chamada final desses Reels (cerca de 10 segundos por vídeo). Os clipes são pedidos quando o post é criado e entram na hora de gerar o vídeo; se algum falhar ou não estiver pronto, aquela tela sai com a foto. A legenda avisa que o avatar é gerado com IA, e a marcação de IA do Instagram precisa ser feita à mão.
 
+## Fornecedores de dropshipping
+
+A página **Fornecedores** procura quem envia direto ao cliente do lojista, por segmento e região. Fica separada das empresas: ninguém aqui recebe mensagem automática.
+
+- **Fontes:** a lista inicial (`config/fornecedores-dropshipping.json`, com sites conferidos), o Google Maps, atacadistas pelo CNPJ (com segmento e cidade) e, se marcar, o Instagram.
+- **Confirmação:** o sistema lê o site de cada um. Só aparece "Faz dropshipping" quando o texto do site comprova, e o trecho fica no cartão. O resto é "Possível, confirmar". Curso, blog e loja comum ficam de fora.
+- **Depois:** salve os que interessarem e marque como contatado, aprovado ou descartado, com anotações. O contato sai pela sua mão, pelos botões do cartão.
+
 ## LinkedIn
 
 Os mesmos posts do Instagram saem na página da empresa no LinkedIn, nos mesmos horários, numa execução separada (um erro em uma rede não atrapalha a outra):

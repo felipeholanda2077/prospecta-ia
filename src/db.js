@@ -219,6 +219,35 @@ export async function apagarMidias(prefixo) {
   await q("DELETE FROM midias WHERE starts_with(chave, $1) OR criada_em < now() - interval '3 days'", [prefixo]);
 }
 
+// ---------- Fornecedores de dropshipping ----------
+
+const CAMPOS_FORNECEDOR = ["chave", "nome", "tipo", "nichos", "cidade", "site", "whatsapp", "telefone", "email", "instagram", "fonte", "confirmacao", "evidencia"];
+
+/** Salva o fornecedor. Retorna o id, ou null se ele já estava salvo. */
+export async function inserirFornecedor(f) {
+  const r = await um(
+    `INSERT INTO fornecedores (${CAMPOS_FORNECEDOR.join(", ")}) VALUES (${CAMPOS_FORNECEDOR.map((_, i) => `$${i + 1}`).join(", ")})
+     ON CONFLICT (chave) DO NOTHING RETURNING id`,
+    CAMPOS_FORNECEDOR.map((c) => f[c] ?? null)
+  );
+  return r?.id ?? null;
+}
+
+export async function fornecedoresSalvos() {
+  return q("SELECT * FROM fornecedores ORDER BY criado_em DESC, id DESC LIMIT 500");
+}
+
+/** As chaves desta lista que já estão salvas: { chave: id }. */
+export async function fornecedoresPorChave(chaves) {
+  if (!chaves.length) return {};
+  const linhas = await q("SELECT id, chave FROM fornecedores WHERE chave = ANY($1)", [chaves]);
+  return Object.fromEntries(linhas.map((l) => [l.chave, l.id]));
+}
+
+export async function atualizarFornecedor(id, { status, observacao }) {
+  await q("UPDATE fornecedores SET status = COALESCE($2, status), observacao = COALESCE($3, observacao) WHERE id = $1", [id, status ?? null, observacao ?? null]);
+}
+
 // ---------- Estado interno ----------
 
 export async function lerEstado(chave) {

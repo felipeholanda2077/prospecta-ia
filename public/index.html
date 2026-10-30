@@ -442,6 +442,14 @@
   @media (max-width: 900px) { .post-corpo { grid-template-columns: 1fr; } .post-previa { justify-items: center; } }
 
   /* Contratos: o papel é sempre claro, como vai sair no PDF */
+  .forn-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; }
+  .forn-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; min-width: 0; }
+  .forn-card h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+  .forn-pilulas { display: flex; flex-wrap: wrap; gap: 6px; }
+  .forn-prova { margin: 0; padding: 8px 12px; border-left: 3px solid var(--accent); font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
+  .forn-botoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
+  .forn-botoes .btn { min-height: 36px; padding: 6px 12px; font-size: 13.5px; }
+  .forn-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
   #view-contratos button.link { font: inherit; color: inherit; font-weight: 600; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
   #ct-abas { position: static; }
   .ct-documento { display: grid; gap: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: clip; background: var(--surface); }
@@ -928,6 +936,29 @@
       </section>
 
       <!-- Contratos -->
+      <!-- Fornecedores de dropshipping -->
+      <section id="view-fornecedores" hidden>
+        <form class="cartao cartao-corpo busca" id="form-fornecedores">
+          <div class="campo"><label for="forn-nicho">Segmento (opcional)</label>
+            <div class="com-icone"><span data-ic="search"></span><input id="forn-nicho" name="nicho" placeholder="Ex.: moda, pet, eletrônicos, calçados"></div></div>
+          <div class="campo"><label for="forn-cidade">Cidade (opcional)</label>
+            <div class="com-icone"><span data-ic="pin"></span><input id="forn-cidade" name="cidade" list="cidades" placeholder="Ex.: Fortaleza - CE. Vazio: todo o Brasil"></div></div>
+          <div class="campo"><label for="forn-quantidade">Quantidade</label>
+            <select id="forn-quantidade" name="quantidade"><option value="10">10 fornecedores</option><option value="20" selected>20 fornecedores</option><option value="40">40 fornecedores</option></select></div>
+          <button class="btn primario" type="submit" id="forn-buscar"><span data-ic="search"></span>Buscar fornecedores</button>
+          <label class="chave" style="grid-column:1/-1"><input type="checkbox" name="instagram"><div><b>Buscar também no Instagram</b>
+            <span>Usa o limite de hashtags por semana da Meta, o mesmo da busca de empresas.</span></div></label>
+          <div class="muted" style="grid-column:1/-1;font-size:13px">Com segmento e cidade, a busca inclui atacadistas pelo CNPJ. O sistema não garante a qualidade de ninguém: confira prazo, preço e reputação antes de fechar.</div>
+        </form>
+        <div class="filtros" id="forn-abas" role="tablist" aria-label="Fornecedores" style="margin:16px 0 12px">
+          <button type="button" class="filtro" role="tab" data-forn-aba="resultados" aria-pressed="true">Resultado da busca</button>
+          <button type="button" class="filtro" role="tab" data-forn-aba="salvos" aria-pressed="false">Salvos <span id="forn-total-salvos"></span></button>
+        </div>
+        <div id="forn-avisos"></div>
+        <div class="forn-acoes" id="forn-acoes" hidden></div>
+        <div class="forn-grade" id="forn-lista"></div>
+      </section>
+
       <section id="view-contratos" hidden>
         <div class="ig-abas" role="tablist" aria-label="Seções de contratos" id="ct-abas">
           <button type="button" class="ig-aba" role="tab" data-ct-aba="lista" aria-selected="true"><span data-ic="file"></span>Contratos</button>
@@ -1195,6 +1226,7 @@ const ICONES = {
   checkCircle: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  box: '<path d="M21 8 12 3 3 8v8l9 5 9-5Z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
   linkedin: '<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>',
   alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/>',
   message: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
@@ -1339,6 +1371,8 @@ const VIEWS = {
   enviada:   { grupo: "Prospecção", nome: "Enviadas", icone: "send", titulo: "Mensagens enviadas", sub: "Tudo o que já saiu, por e-mail e WhatsApp." },
   erro:      { grupo: "Prospecção", nome: "Com erro", icone: "alert", titulo: "Mensagens com erro",
                sub: "Corrija e tente de novo, ou descarte.", contador: () => stats?.mensagens.erro, perigo: true },
+  fornecedores: { grupo: "Prospecção", nome: "Fornecedores", icone: "box", titulo: "Fornecedores de dropshipping",
+               sub: "Procure quem envia direto ao seu cliente. Fica separado das empresas: ninguém aqui recebe mensagem automática." },
   respostas: { grupo: "Relacionamento", nome: "Respostas", curto: "Respostas", icone: "message", titulo: "Respostas",
                sub: "Cada conversa como no WhatsApp, com a chance de fechar e o próximo passo.", contador: () => stats?.respostasNaoLidas },
   leads:     { grupo: "Relacionamento", nome: "Empresas", curto: "Empresas", icone: "building", titulo: "Empresas",
@@ -1391,9 +1425,11 @@ function irParaHash() {
   $("#view-configuracoes").hidden = viewAtual !== "configuracoes";
   $("#view-conteudo").hidden = viewAtual !== "conteudo";
   $("#view-contratos").hidden = viewAtual !== "contratos";
-  $("#view-lista").hidden = ["maps", "automacao", "configuracoes", "conteudo", "contratos"].includes(viewAtual);
+  $("#view-fornecedores").hidden = viewAtual !== "fornecedores";
+  $("#view-lista").hidden = ["maps", "automacao", "configuracoes", "conteudo", "contratos", "fornecedores"].includes(viewAtual);
   // Os números da prospecção não dizem nada nestas páginas.
-  $("#kpis").hidden = ["conteudo", "contratos"].includes(viewAtual);
+  $("#kpis").hidden = ["conteudo", "contratos", "fornecedores"].includes(viewAtual);
+  if (viewAtual === "fornecedores") carregarFornecedores();
   if (viewAtual === "contratos") carregarContratos();
   if (viewAtual === "configuracoes") carregarConfiguracoes();
   if (viewAtual === "conteudo") carregarConteudo();
@@ -4122,6 +4158,133 @@ $("#instagram-desconectar").addEventListener("click", async () => {
   if (!confirm("Desconectar o Instagram? Os posts voltam a ficar só para baixar.")) return;
   await post("/api/instagram/desconectar").catch((e) => avisar(e.message, "perigo"));
   await carregarConteudo();
+});
+
+// ===================== Fornecedores de dropshipping =====================
+let estadoForn = { aba: "resultados", resultados: [], salvos: [], buscou: false };
+
+const linkDoWhatsappForn = (numero) => `https://wa.me/${numero}?text=${encodeURIComponent("Olá! Vi o site de vocês e queria saber se trabalham com dropshipping. Podem me passar as condições?")}`;
+
+function pilulasDoForn(f) {
+  return [
+    f.confirmacao === "confirmado"
+      ? `<span class="pilula ok" title="O próprio site diz que faz dropshipping">${ic("check", "sm")}Faz dropshipping</span>`
+      : `<span class="pilula" title="O site não confirma: pergunte antes de contar com ele">Possível, confirmar</span>`,
+    f.tipo === "plataforma" ? `<span class="pilula acc" title="Liga você a vários fornecedores">Plataforma</span>` : "",
+    f.internacional ? `<span class="pilula" title="O envio costuma demorar mais">Internacional</span>` : "",
+    f.jaSalvo ? `<span class="pilula">Já salvo</span>` : "",
+  ].join("");
+}
+
+function botoesDoForn(f) {
+  return [
+    f.site ? `<a class="btn" href="${esc(f.site)}" target="_blank" rel="noopener noreferrer">${ic("external")}Site</a>` : "",
+    f.whatsapp ? `<a class="btn" href="${esc(linkDoWhatsappForn(f.whatsapp))}" target="_blank" rel="noopener noreferrer">${ic("message")}WhatsApp</a>` : "",
+    f.email ? `<a class="btn" href="mailto:${esc(f.email)}">${ic("mail")}E-mail</a>` : "",
+    f.instagram ? `<a class="btn" href="https://instagram.com/${encodeURIComponent(f.instagram)}" target="_blank" rel="noopener noreferrer">${ic("camera")}Instagram</a>` : "",
+    !f.site && f.telefone ? `<span class="muted" style="font-size:13.5px;align-self:center">${esc(f.telefone)}</span>` : "",
+  ].join("");
+}
+
+function cardDoForn(f, i) {
+  const salvo = estadoForn.aba === "salvos";
+  const detalhes = [f.nichos, f.cidade].filter(Boolean).map(esc).join(" · ");
+  return `<article class="cartao forn-card" data-forn="${salvo ? f.id : i}">
+    <h3>${esc(f.nome)}</h3>
+    <div class="forn-pilulas">${pilulasDoForn(f)}</div>
+    ${detalhes ? `<div class="meta">${detalhes}</div>` : ""}
+    ${f.evidencia ? `<p class="forn-prova">“${esc(f.evidencia)}”</p>` : ""}
+    ${f.motivo ? `<div class="muted" style="font-size:13px">Não deu para ler o site: ${esc(f.motivo)}.</div>` : ""}
+    ${salvo ? `<div class="campo"><label for="forn-status-${f.id}">Situação</label>
+        <select id="forn-status-${f.id}" data-forn-status>${[["novo", "Novo"], ["contatado", "Contatado"], ["aprovado", "Aprovado"], ["descartado", "Descartado"]].map(([v, t]) => `<option value="${v}"${f.status === v ? " selected" : ""}>${t}</option>`).join("")}</select></div>
+      <div class="campo"><label for="forn-obs-${f.id}">Anotações</label>
+        <textarea id="forn-obs-${f.id}" data-forn-obs rows="2" placeholder="Prazo, preço mínimo, contato...">${esc(f.observacao ?? "")}</textarea></div>` : ""}
+    <div class="forn-botoes">${botoesDoForn(f)}${salvo || f.jaSalvo ? "" : `<button class="btn primario" type="button" data-forn-salvar>${ic("save")}Salvar</button>`}</div>
+  </article>`;
+}
+
+function desenharFornecedores() {
+  const { aba, resultados, salvos, buscou } = estadoForn;
+  $$("[data-forn-aba]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.fornAba === aba)));
+  $("#forn-total-salvos").textContent = salvos.length ? `(${salvos.length})` : "";
+  const faltando = resultados.filter((f) => !f.jaSalvo && f.confirmacao === "confirmado");
+  $("#forn-acoes").hidden = aba !== "resultados" || !faltando.length;
+  $("#forn-acoes").innerHTML = faltando.length ? `<button class="btn" type="button" data-forn-salvar-todos>${ic("save")}Salvar os ${faltando.length} que fazem dropshipping</button>` : "";
+  const lista = aba === "salvos" ? salvos : resultados;
+  const vazio = aba === "salvos" ? "Nenhum fornecedor salvo ainda. Faça uma busca e salve os que interessarem."
+    : buscou ? "A busca não achou fornecedores. Tente um segmento mais amplo ou sem cidade."
+    : "Escolha um segmento e clique em Buscar fornecedores. Sem segmento, aparece a lista geral.";
+  $("#forn-lista").innerHTML = lista.length ? lista.map(cardDoForn).join("") : `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">${vazio}</div>`;
+}
+
+async function carregarFornecedores() {
+  try {
+    estadoForn.salvos = await api("/api/fornecedores");
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+  desenharFornecedores();
+}
+
+$("#form-fornecedores").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const btn = $("#forn-buscar");
+  const rotulo = btn.lastChild.textContent;
+  btn.disabled = true;
+  btn.lastChild.textContent = "Lendo os sites… (até 3 min)";
+  $("#forn-avisos").innerHTML = "";
+  estadoForn.aba = "resultados";
+  try {
+    const r = await post("/api/fornecedores/buscar", { nicho: f.nicho.value, cidade: f.cidade.value, quantidade: Number(f.quantidade.value), instagram: f.instagram.checked });
+    estadoForn.resultados = r.fornecedores.map((x) => ({ ...x, jaSalvo: Boolean(x.salvoId) }));
+    estadoForn.buscou = true;
+    const resumo = r.descartados ? `<div class="alerta info">${ic("spark")}<div>${r.descartados} ${r.descartados === 1 ? "resultado foi deixado" : "resultados foram deixados"} de fora por ser curso, blog ou loja comum.</div></div>` : "";
+    $("#forn-avisos").innerHTML = resumo + r.avisos.map((a) => `<div class="alerta info" style="margin-top:8px">${ic("alert")}<div>${esc(a)}</div></div>`).join("");
+    desenharFornecedores();
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  } finally {
+    btn.disabled = false;
+    btn.lastChild.textContent = rotulo;
+  }
+});
+
+async function salvarFornecedores(lista) {
+  const { novos } = await post("/api/fornecedores", { fornecedores: lista });
+  lista.forEach((f) => (f.jaSalvo = true));
+  avisar(novos === 1 ? "Fornecedor salvo." : `${novos} fornecedores salvos.`, "ok");
+  estadoForn.salvos = await api("/api/fornecedores");
+  desenharFornecedores();
+}
+
+$("#view-fornecedores").addEventListener("click", async (ev) => {
+  const aba = ev.target.closest("[data-forn-aba]");
+  if (aba) {
+    estadoForn.aba = aba.dataset.fornAba;
+    return desenharFornecedores();
+  }
+  try {
+    if (ev.target.closest("[data-forn-salvar-todos]")) await salvarFornecedores(estadoForn.resultados.filter((f) => !f.jaSalvo && f.confirmacao === "confirmado"));
+    else if (ev.target.closest("[data-forn-salvar]")) await salvarFornecedores([estadoForn.resultados[Number(ev.target.closest("[data-forn]").dataset.forn)]]);
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+});
+
+$("#view-fornecedores").addEventListener("change", async (ev) => {
+  const status = ev.target.closest("[data-forn-status]");
+  const obs = ev.target.closest("[data-forn-obs]");
+  if (!status && !obs) return;
+  const id = ev.target.closest("[data-forn]").dataset.forn;
+  const f = estadoForn.salvos.find((x) => String(x.id) === id);
+  const mudanca = status ? { status: status.value } : { observacao: obs.value };
+  try {
+    await api(`/api/fornecedores/${id}`, { method: "PUT", body: JSON.stringify(mudanca) });
+    Object.assign(f, mudanca);
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
 });
 
 // ===================== Automação =====================
