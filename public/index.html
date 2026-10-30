@@ -1112,6 +1112,24 @@
             <button class="btn primario" type="submit"><span data-ic="save"></span>Salvar</button>
           </div>
         </form>
+          <form class="cartao" id="form-avatar">
+            <div class="cartao-cab"><span class="kpi-ic" data-ic-span="users"></span><div class="titulos"><h3>Avatar de IA do Felipe <span id="avatar-status"></span></h3>
+              <div class="meta">Nos Reels com o Felipe, o avatar fala na capa e na chamada final. O restante do vídeo continua com as fotos. Se o HeyGen falhar, o Reels sai com a foto dele, sem o avatar.</div></div></div>
+            <div class="cartao-corpo config-grade">
+              <label class="chave" style="grid-column:1/-1"><input type="checkbox" name="ativo"><div><b>Usar o avatar nos Reels</b>
+                <span>Gasta créditos do HeyGen: cerca de 10 segundos por Reels. A legenda avisa que o avatar é gerado com IA.</span></div></label>
+              <div class="campo" style="grid-column:1/-1"><label for="avatar-chave">Chave da API do HeyGen</label><input id="avatar-chave" name="chave" type="password" autocomplete="off"></div>
+              <div class="campo"><label for="avatar-id">ID do avatar (look)</label><input id="avatar-id" name="avatarId" autocomplete="off"></div>
+              <div class="campo"><label for="avatar-voz">ID da voz (opcional)</label><input id="avatar-voz" name="vozId" autocomplete="off" placeholder="Vazio: a voz padrão do avatar"></div>
+              <div id="avatar-resultado" style="grid-column:1/-1"></div>
+              <details class="ajuda" style="grid-column:1/-1"><summary>Como criar o avatar no HeyGen</summary>
+                <ol><li>Crie a conta em <b>heygen.com</b> e coloque saldo na API (a partir de US$ 5).</li>
+                  <li>Grave um vídeo seu de cerca de 2 minutos, olhando para a câmera, com boa luz, e crie o seu avatar (Digital Twin). O HeyGen pede a sua autorização em vídeo.</li>
+                  <li>Copie a chave em <b>app.heygen.com/settings</b> (API) e o ID do look do avatar e cole aqui.</li>
+                  <li>Depois de publicar, marque o Reels como feito com IA no Instagram, se a opção aparecer: a Meta exige em vídeo realista.</li></ol></details>
+            </div>
+            <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar e testar</button></div>
+          </form>
         </div>
       </section>
 
@@ -3717,7 +3735,7 @@ function cardPost(post, hoje) {
     <div class="cartao-cab"><span class="kpi-ic">${ic(reels ? "video" : "image")}</span>
       <div class="titulos"><h3>${esc(c.gancho)} ${situacao}</h3>
         <div class="meta">${[quando, reels ? "Reels" : `Carrossel com ${telasDoPost(post).length} imagens`, NOMES_PILAR[post.pilar] ?? post.pilar,
-          NOMES_ESTRUTURA[c.estrutura], NOMES_ARTE[c.arte], reels && NOMES_TRILHA[c.trilha], reels && (estadoConteudo.narracao ? "com voz" : "sem voz"), c.comFelipe && "com Felipe"].filter(Boolean).map(esc).join(" · ")}</div></div></div>
+          NOMES_ESTRUTURA[c.estrutura], NOMES_ARTE[c.arte], reels && NOMES_TRILHA[c.trilha], reels && (estadoConteudo.narracao ? "com voz" : "sem voz"), c.comFelipe && (c.slides?.some((s) => s.avatar) ? "com avatar do Felipe" : "com Felipe")].filter(Boolean).map(esc).join(" · ")}</div></div></div>
     <div class="cartao-corpo post-corpo">
       <div class="post-previa">${previa}
         ${reels ? `<span class="post-progresso" data-progresso></span>` : `<span class="muted" style="font-size:12.5px">Arraste para ver todas as imagens</span>`}</div>
@@ -3769,6 +3787,7 @@ async function carregarConteudo() {
     $("#instagram-conectar").lastChild.textContent = r.instagram.conectado ? "Trocar token" : "Conectar Instagram";
     $("#instagram-desconectar").hidden = !r.instagram.conectado;
     carregarDirect({ conferir: r.instagram.conectado });
+    carregarAvatar();
     await carregarInsights();
     if (!f.base.matches(":focus")) f.base.value = r.base;
     $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
@@ -3790,6 +3809,40 @@ async function carregarConteudo() {
     avisar(e.message, "perigo");
   }
 }
+
+/** O cartão do avatar: mostra o que está salvo e o resultado do teste com o HeyGen. */
+function mostrarAvatar(a) {
+  const f = $("#form-avatar");
+  f.ativo.checked = a.ativo;
+  f.avatarId.value = a.avatarId ?? "";
+  f.vozId.value = a.vozId ?? "";
+  $("#avatar-chave").placeholder = a.chaveDefinida ? "•••••••• já salva (preencha só para trocar)" : "Cole a chave da API";
+  $("#avatar-status").innerHTML = a.ativo && a.chaveDefinida && a.avatarId ? `<span class="pilula ok">${ic("check", "sm")}Ligado</span>` : `<span class="pilula">Desligado</span>`;
+}
+async function carregarAvatar() {
+  try {
+    mostrarAvatar(await api("/api/avatar"));
+  } catch (e) {
+    $("#avatar-resultado").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+$("#form-avatar").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const btn = $("button[type=submit]", f);
+  btn.disabled = true;
+  $("#avatar-resultado").innerHTML = "";
+  try {
+    mostrarAvatar(await api("/api/avatar", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, chave: f.chave.value, avatarId: f.avatarId.value, vozId: f.vozId.value }) }));
+    f.chave.value = "";
+    const t = await post("/api/avatar/testar", {});
+    $("#avatar-resultado").innerHTML = `<div class="alerta ok">${ic("check")}<div>O HeyGen aceitou a chave${t.creditos != null ? ` (${t.creditos} créditos)` : ""}${t.avatar ? ` e achou o avatar${t.avatar.status ? ` (${esc(t.avatar.status)})` : ""}` : ". Falta o ID do avatar"}.</div></div>`;
+  } catch (e) {
+    $("#avatar-resultado").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 function mostrarDirect(d) {
   estadoDirect = d;

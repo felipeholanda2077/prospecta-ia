@@ -24,6 +24,7 @@ import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { narracaoDisponivel } from "./conteudo/narracao.js";
 import { lerChavePexels, salvarChavePexels } from "./conteudo/fotos.js";
+import { lerConfigAvatar, salvarConfigAvatar, testarAvatar } from "./conteudo/avatar.js";
 import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados } from "./conteudo/insights.js";
 import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect } from "./envio/instagram.js";
 import { processarWebhookInstagram } from "./respostas/instagram.js";
@@ -811,6 +812,21 @@ app.get("/api/conteudo/:id/video", async (req, res) => {
   if (!post || post.formato !== "reels") return res.status(404).json({ erro: "Reels não encontrado" });
   const [video] = await gerarArquivos(post, (await carregarCampanhaCompleta()).empresa.nome);
   res.set({ "Content-Type": "video/mp4", "Content-Disposition": `attachment; filename="fluxdeck-${post.dia}-reels.mp4"` }).send(video.dados);
+});
+
+// O avatar de IA do Felipe (HeyGen). A chave nunca volta para o navegador.
+const avatarParaPainel = ({ chave, ...c }) => ({ ...c, chaveDefinida: Boolean(chave) });
+app.get("/api/avatar", async (req, res) => res.json(avatarParaPainel(await lerConfigAvatar())));
+app.put("/api/avatar", async (req, res) => {
+  const { ativo, chave, avatarId, vozId } = req.body ?? {};
+  res.json(avatarParaPainel(await salvarConfigAvatar({ ativo, chave, avatarId, vozId })));
+});
+app.post("/api/avatar/testar", async (req, res) => {
+  try {
+    res.json(await testarAvatar());
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
 });
 
 // As fotos dos posts, para as prévias do painel.

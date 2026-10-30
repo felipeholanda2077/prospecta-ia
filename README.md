@@ -197,7 +197,8 @@ Cada post novo nasce com um público (clínica, restaurante, loja...), um tom (p
 
 - **Fotos reais:** a IA descreve a cena de cada tela e o sistema busca a foto. Com a chave grátis do [Pexels](https://www.pexels.com/api/) (em **Instagram → Configurações** ou `PEXELS_API_KEY`), vêm fotos profissionais. Sem ela, vêm do Wikimedia Commons, só com licença que permite o uso, e o crédito exigido entra na legenda. Foto que não for achada só fica de fora.
 - **Elementos visuais:** ilustrações animadas nas telas sem foto (celular, site, gráfico, agenda, estrelas, notificações).
-- **Felipe nos vídeos:** em um Reels sim, um não, a foto dele aparece com o nome, e as falas são em primeira pessoa. Dá para desligar em **Instagram → Configurações**. Não é um avatar falando: isso exigiria um serviço pago, como HeyGen ou D-ID.
+- **Felipe nos vídeos:** em um Reels sim, um não, a foto dele aparece com o nome, e as falas são em primeira pessoa. Dá para desligar em **Instagram → Configurações**.
+- **Avatar de IA (opcional, pago):** com uma conta no HeyGen, em **Instagram → Configurações → Avatar de IA do Felipe**, o avatar fala na capa e na chamada final desses Reels (cerca de 10 segundos por vídeo). Os clipes são pedidos quando o post é criado e entram na hora de gerar o vídeo; se algum falhar ou não estiver pronto, aquela tela sai com a foto. A legenda avisa que o avatar é gerado com IA, e a marcação de IA do Instagram precisa ser feita à mão.
 
 ## Insights do Instagram
 

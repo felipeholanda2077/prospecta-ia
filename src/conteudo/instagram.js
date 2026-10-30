@@ -20,7 +20,9 @@ const linkDaMidia = (chave) => `${config.painel.urlPublica}/api/midia/${chave}?a
 /** Legenda com as hashtags, no limite de 2.200 caracteres do Instagram. */
 export function legendaDoPost(post) {
   const tags = post.conteudo.hashtags.map((t) => `#${t}`).join(" ");
-  return `${post.conteudo.legenda.slice(0, 2190 - tags.length).trim()}\n\n${tags}`;
+  // Avatar de IA é avisado na legenda: quem assiste tem que saber.
+  const aviso = post.conteudo.slides?.some((s) => s.avatar) ? "\n\nAvatar do Felipe gerado com IA." : "";
+  return `${post.conteudo.legenda.slice(0, 2190 - tags.length - aviso.length).trim()}${aviso}\n\n${tags}`;
 }
 
 /** Os arquivos do post: as telas em JPEG (carrossel) ou o vídeo em MP4 (Reels). */

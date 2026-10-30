@@ -785,11 +785,12 @@ function cartao(ctx, { x, y, w, h, alpha, cor, rotulo, icone, texto, tamanho, pa
 }
 
 /** Desenha a cena `i` (sem o fundo), com `local` segundos desde o começo dela. */
-function desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo, estrutura, topoLivre = null }) {
+function desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo, estrutura, topoLivre = null, comVideo = false }) {
   const tela = telas[i];
   const reels = modo === "reels";
   const area = reels ? { x: 80, topo: 300, base: 1440, largura: w - 160 } : { x: 80, topo: 210, base: h - 140, largura: w - 160 };
   if (topoLivre) area.topo = Math.max(area.topo, topoLivre);
+  if (comVideo) area.base = 1560;
   // O elemento visual só entra na tela que não tem foto ocupando o espaço, e abre lugar embaixo no carrossel.
   const comElemento = tela.elemento && !topoLivre;
   if (comElemento && !reels) area.base -= 300;
@@ -848,7 +849,7 @@ export const duracaoReels = (post, duracoes = duracoesDasCenas(post)) => duracoe
  * Um quadro do Reels (1080x1920) no instante `t` (segundos). `duracoes` vem da narração, quando
  * há voz (cada cena dura o tempo da fala); sem ela, sai pela quantidade de texto.
  */
-export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duracoes = duracoesDasCenas(post) } = {}) {
+export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duracoes = duracoesDasCenas(post), cenasComVideo = null } = {}) {
   const [w, h] = TAMANHOS_POST.reels;
   const telas = telasDoPost(post);
   const { arte, tema, tinta: cor } = aparencia(post);
@@ -861,29 +862,45 @@ export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duraco
   const ultima = i === telas.length - 1;
   const visual = telas[i].visual;
 
-  const topoLivre = fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo: "reels" });
+  // Na cena com o clipe do avatar, o quadro fica transparente (o vídeo vai por baixo) e o texto desce.
+  const comVideo = Boolean(cenasComVideo?.has(i));
+  if (comVideo) {
+    tinta = TINTA_CLARA;
+    ctx.clearRect(0, 0, w, h);
+    const g = ctx.createLinearGradient(0, h * 0.5, 0, h * 0.85);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,.82)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, h * 0.5, w, h * 0.5);
+    const topo = ctx.createLinearGradient(0, 0, 0, 280);
+    topo.addColorStop(0, "rgba(0,0,0,.6)");
+    topo.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = topo;
+    ctx.fillRect(0, 0, w, 280);
+  }
+  const topoLivre = comVideo ? 1040 : fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo: "reels" });
 
   // Entrada e saída de cada cena: chega com zoom e sai encolhendo (a última fica).
   const entra = suave(local / 0.22);
   const sai = ultima ? 0 : suave((local - (dur - 0.18)) / 0.18);
   const forte = visual === "capa" || visual === "impacto";
   // Tremida curta nas cenas de impacto, logo que entram.
-  const tremida = forte ? Math.max(0, 1 - local / 0.4) * 14 : 0;
+  const tremida = forte && !comVideo ? Math.max(0, 1 - local / 0.4) * 14 : 0;
   const dx = (sorteio(Math.floor(local * 60) + i * 100) - 0.5) * tremida;
   const dy = (sorteio(Math.floor(local * 60) + i * 100 + 50) - 0.5) * tremida;
   const escala = (1 + (forte ? 0.14 : 0.06) * (1 - entra)) * (1 - 0.06 * sai);
   ctx.save();
-  ctx.globalAlpha = lim(entra * 1.5) * (1 - sai);
+  ctx.globalAlpha = (comVideo ? 1 : lim(entra * 1.5)) * (1 - sai);
   ctx.translate(w / 2 + dx, h * 0.45 + dy);
   ctx.scale(escala, escala);
   ctx.translate(-w / 2, -h * 0.45);
-  desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo: "reels", estrutura: post.conteudo.estrutura, topoLivre });
+  desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo: "reels", estrutura: post.conteudo.estrutura, topoLivre, comVideo });
   ctx.restore();
   ctx.globalAlpha = 1;
-  if (post.conteudo.comFelipe) felipeNoVideo(ctx, { w, local, tela: telas[i], tema });
+  if (post.conteudo.comFelipe && !comVideo) felipeNoVideo(ctx, { w, local, tela: telas[i], tema });
 
   // Clarão na troca para as cenas fortes.
-  if (forte && local < 0.25) {
+  if (forte && !comVideo && local < 0.25) {
     ctx.fillStyle = `rgba(255,255,255,${0.45 * (1 - local / 0.25)})`;
     ctx.fillRect(0, 0, w, h);
   }

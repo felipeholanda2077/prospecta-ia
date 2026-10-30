@@ -2,6 +2,7 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import { gerarPost, PILARES, ESTRUTURAS, PUBLICOS, TONS } from "../ia/conteudo.js";
 import { colocarFotos } from "./fotos.js";
+import { pedirClipes } from "./avatar.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { lerBaseDeConteudo } from "./base.js";
 import { postarNoInstagram, MAX_TENTATIVAS } from "./instagram.js";
@@ -73,7 +74,7 @@ export function estruturaDoPost(dia, n = 0) {
  * Cria um post para hoje. `formato` fixo serve para "gerar outro" no lugar de um post; `horario`
  * é o horário do dia em que ele sai (sem horário, entra no próximo horário vago).
  */
-export async function criarPostDeHoje(campanha, { formato, horario = null, escrever = gerarPost, agora = new Date(), sorteio = Math.random, fotos = colocarFotos } = {}) {
+export async function criarPostDeHoje(campanha, { formato, horario = null, escrever = gerarPost, agora = new Date(), sorteio = Math.random, fotos = colocarFotos, clipes = pedirClipes } = {}) {
   const { dia } = agoraEmBrasilia(agora);
   const recentes = await db.postsRecentes(30);
   const deHoje = await db.postsDoDia(dia);
@@ -94,7 +95,7 @@ export async function criarPostDeHoje(campanha, { formato, horario = null, escre
     log(`🔁 Gancho parecido com um post recente ("${parecido}"); a IA escreve outro`);
     escrito = await escrever({ ...pedido, aviso: `o gancho "${escrito.gancho}" ficou parecido demais com "${parecido}". Escreva outro assunto, com outro gancho.` });
   }
-  const conteudo = await fotos({ ...escrito, ...variedade }, { formato: escolhido, dia });
+  const conteudo = await clipes(await fotos({ ...escrito, ...variedade }, { formato: escolhido, dia }), { formato: escolhido });
   // Os estilos de foto sem nenhuma foto achada virariam fundo escuro: troca por um que não depende dela.
   if (["foto_cheia", "dividido"].includes(conteudo.arte) && !conteudo.slides?.some((s) => s.foto)) conteudo.arte = sorteio() < 0.5 ? "cor" : "claro";
   const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo, horario });
