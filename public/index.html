@@ -501,7 +501,12 @@
   }
   @media (max-width: 640px) {
     .ct-assinaturas { grid-template-columns: 1fr; gap: 30px; }
+    .ct-barra { position: static; }
+    .ct-barra-titulo { order: -1; flex: 1 1 100%; }
     .ct-barra .btn { flex: 1 1 auto; justify-content: center; }
+    .ct-barra #ct-excluir, .ct-barra [data-ct-voltar] { flex: none; }
+    .ct-ferramentas button { padding: 6px 8px; }
+    .ct-ferramentas .sep { margin: 0 1px; }
   }
 
   /* Página do Instagram: resumo, abas e painéis */
