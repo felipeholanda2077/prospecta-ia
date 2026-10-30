@@ -706,17 +706,22 @@ const CENAS = {
     const reels = c.modo === "reels";
     const opcoes = { largura: c.area.largura, alturaMax: reels ? 480 : 380, maior: reels ? 104 : 88, menor: 56 };
     const t = medirTitulo(ctx, { texto: c.tela.titulo, ...opcoes });
-    const tamLogo = reels ? 150 : 120;
-    const altura = tamLogo + 60 + t.altura + (c.tela.texto ? 40 + alturaDoParagrafo(ctx, c.tela.texto, c.area.largura, 46) : 0) + 170;
+    // Sobre o clipe do avatar, só o título e o botão: o rosto dele ocupa o resto da tela.
+    const tamLogo = c.comVideo ? 0 : reels ? 150 : 120;
+    const respiro = c.comVideo ? 0 : 60;
+    const complemento = c.comVideo ? "" : c.tela.texto;
+    const altura = tamLogo + respiro + t.altura + (complemento ? 40 + alturaDoParagrafo(ctx, complemento, c.area.largura, 46) : 0) + 170;
     const y = blocoCentralizado(c.area, altura);
     const p = elastico(c.local / 0.5);
-    ctx.save();
-    ctx.translate(c.w / 2, y + tamLogo / 2);
-    ctx.scale(p, p);
-    logo(ctx, -tamLogo / 2, -tamLogo / 2, tamLogo);
-    ctx.restore();
-    const fim = tituloAnimado(ctx, { texto: c.tela.titulo, destaque: c.tela.destaque, x: c.area.x, y: y + tamLogo + 60, ...opcoes, local: c.local, tema: c.tema, centro: true, atraso: 0.3 });
-    const fimTexto = paragrafo(ctx, { texto: c.tela.texto, x: c.area.x, y: fim + 40, largura: c.area.largura, tamanho: 46, local: c.local, inicio: 0.8, centro: true });
+    if (tamLogo) {
+      ctx.save();
+      ctx.translate(c.w / 2, y + tamLogo / 2);
+      ctx.scale(p, p);
+      logo(ctx, -tamLogo / 2, -tamLogo / 2, tamLogo);
+      ctx.restore();
+    }
+    const fim = tituloAnimado(ctx, { texto: c.tela.titulo, destaque: c.tela.destaque, x: c.area.x, y: y + tamLogo + respiro, ...opcoes, local: c.local, tema: c.tema, centro: true, atraso: 0.3 });
+    const fimTexto = paragrafo(ctx, { texto: complemento, x: c.area.x, y: fim + 40, largura: c.area.largura, tamanho: 46, local: c.local, inicio: 0.8, centro: true });
     const pb = suave((c.local - 1) / 0.4);
     if (pb > 0) {
       ctx.save();
@@ -790,14 +795,14 @@ function desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo, estrutura, 
   const reels = modo === "reels";
   const area = reels ? { x: 80, topo: 300, base: 1440, largura: w - 160 } : { x: 80, topo: 210, base: h - 140, largura: w - 160 };
   if (topoLivre) area.topo = Math.max(area.topo, topoLivre);
-  if (comVideo) area.base = 1560;
+  if (comVideo) area.base = 1660;
   if (baseMax) area.base = Math.min(area.base, baseMax);
   // O elemento visual só entra na tela que não tem foto ocupando o espaço, e abre lugar embaixo no carrossel.
   const comElemento = tela.elemento && !topoLivre;
   if (comElemento && !reels) area.base -= 300;
   limiteAltura = topoLivre || comElemento ? (area.base - area.topo) * 0.74 : Infinity;
   const numero = telas.slice(0, i + 1).filter((t) => t.visual === "lista").length;
-  (CENAS[tela.visual] ?? CENAS.texto)(ctx, { w, h, tela, i, local, dur, tema, modo, estrutura, area, numero, semPilula });
+  (CENAS[tela.visual] ?? CENAS.texto)(ctx, { w, h, tela, i, local, dur, tema, modo, estrutura, area, numero, semPilula, comVideo });
   limiteAltura = Infinity;
   if (comElemento) reels ? desenharElemento(ctx, tela.elemento, w * 0.6, 1600, 0.74, local, tema) : desenharElemento(ctx, tela.elemento, w / 2, h - 275, 0.78, local, tema);
 }
@@ -875,18 +880,19 @@ export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duraco
   if (comVideo) {
     tinta = TINTA_CLARA;
     ctx.clearRect(0, 0, w, h);
-    const g = ctx.createLinearGradient(0, h * 0.5, 0, h * 0.85);
+    // O escuro para o texto começa abaixo do queixo: a boca do avatar tem que continuar à vista.
+    const g = ctx.createLinearGradient(0, 1060, 0, 1260);
     g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(1, "rgba(0,0,0,.82)");
+    g.addColorStop(1, "rgba(0,0,0,.88)");
     ctx.fillStyle = g;
-    ctx.fillRect(0, h * 0.5, w, h * 0.5);
+    ctx.fillRect(0, 1060, w, h - 1060);
     const topo = ctx.createLinearGradient(0, 0, 0, 280);
     topo.addColorStop(0, "rgba(0,0,0,.6)");
     topo.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = topo;
     ctx.fillRect(0, 0, w, 280);
   }
-  const topoLivre = comVideo ? 1040 : fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo: "reels" });
+  const topoLivre = comVideo ? 1190 : fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo: "reels" });
 
   // Entrada e saída de cada cena: chega com zoom e sai encolhendo (a última fica).
   const entra = suave(local / 0.22);

@@ -115,6 +115,9 @@ export async function videoDoReels(post, empresa, { narrar = narrarCenas, clipes
   }
 }
 
+// O avatar vem em close, com a boca bem na altura do texto. Subindo o clipe, o rosto fica acima dele.
+const SUBIR_CLIPE = 180;
+
 /** O filtro do ffmpeg: a imagem (com o clipe do avatar por baixo, onde houver) e a mistura do som. */
 export function montarFiltro({ w, h, duracao, comClipe, temVoz }) {
   const QPS = QUADROS_POR_SEGUNDO;
@@ -126,7 +129,7 @@ export function montarFiltro({ w, h, duracao, comClipe, temVoz }) {
     partes.push(`color=c=black:s=${w}x${h}:r=${QPS}:d=${(duracao + 0.5).toFixed(2)}[fundo0]`);
     comClipe.forEach((c, n) => {
       partes.push(`[${primeiroClipe + n}:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1,fps=${QPS},setpts=PTS-STARTPTS+${c.inicio.toFixed(3)}/TB[clipe${n}]`);
-      partes.push(`[fundo${n}][clipe${n}]overlay=eof_action=pass:enable='between(t,${c.inicio.toFixed(3)},${c.fim.toFixed(3)})'[fundo${n + 1}]`);
+      partes.push(`[fundo${n}][clipe${n}]overlay=y=-${SUBIR_CLIPE}:eof_action=pass:enable='between(t,${c.inicio.toFixed(3)},${c.fim.toFixed(3)})'[fundo${n + 1}]`);
     });
     partes.push(`[fundo${comClipe.length}][0:v]overlay=format=auto:alpha=premultiplied:shortest=1[v]`);
     imagem = "[v]";
