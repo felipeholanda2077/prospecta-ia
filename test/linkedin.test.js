@@ -223,6 +223,14 @@ test("linkedin: o login confere o state, guarda o acesso e escolhe a página ún
     const s = await li.statusDaConexao();
     assert.deepEqual([s.conectado, s.pagina, s.organizacao, s.renovaSozinho], [true, "FluxDeck", "urn:li:organization:123", false]);
     assert.doesNotMatch(JSON.stringify(s), /segredo|tok/);
+    // Permissão recusada porque o LinkedIn ainda não aprovou: explica, e o app continua salvo.
+    const pendente = new URL(await li.urlDeEntrada(agora)).searchParams.get("state");
+    await assert.rejects(() => li.concluirEntrada({ state: pendente, error: "unauthorized_scope_error", error_description: "Scope not authorized" }, agora), /ainda não liberou/);
+    assert.match((await li.statusDaConexao()).erro, /Community Management API/);
+    assert.equal((await li.statusDaConexao()).appDefinido, true);
+    await li.salvarApp({ clientId: "abc", clientSecret: "segredo" });
+    const novoState = new URL(await li.urlDeEntrada(agora)).searchParams.get("state");
+    await li.concluirEntrada({ code: "c1", state: novoState }, agora);
     // O state só vale uma vez.
     await assert.rejects(() => li.concluirEntrada({ code: "c2", state }, agora), /expirou/);
     // Colar o link de administrador também serve.

@@ -106,6 +106,8 @@ export async function concluirEntrada({ code, state, error_description: recusa, 
   if (!c.estado || !iguais(state, c.estado) || agora - new Date(c.estadoEm) > ESTADO_VALE_MS) throw new Error("Esse login expirou. Clique em Entrar com o LinkedIn de novo.");
   const { estado, estadoEm, ...semEstado } = c;
   try {
+    // O LinkedIn recusa as permissões enquanto não aprovar o produto Community Management API para o app.
+    if (error === "unauthorized_scope_error" || /scope/i.test(recusa ?? "")) throw new Error("O LinkedIn ainda não liberou a publicação para este app: falta ele aprovar o pedido do Community Management API. O Client ID e o Client Secret continuam salvos: quando a aprovação chegar por e-mail, é só entrar de novo.");
     if (error || !code) throw new Error(`LinkedIn: ${recusa || error || "login cancelado"}`);
     const t = await pedirToken(c, { grant_type: "authorization_code", code, redirect_uri: enderecoDeRetorno() });
     const novo = { ...semEstado, ...camposDoToken(t, agora), conectadoEm: agora.toISOString(), erro: null };
