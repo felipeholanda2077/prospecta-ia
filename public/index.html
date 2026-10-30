@@ -560,7 +560,7 @@
       <section id="view-maps" hidden>
         <form class="cartao cartao-corpo busca" id="form-maps">
           <div class="campo"><label for="onde">Onde buscar</label>
-            <select id="onde"><option value="maps">Google Maps</option><option value="instagram">Instagram</option></select></div>
+            <select id="onde"><option value="maps">Google Maps</option><option value="instagram">Instagram</option><option value="cnpj">CNPJ (Receita Federal)</option></select></div>
           <div class="campo"><label for="nicho">Segmento</label>
             <div class="com-icone"><span data-ic="search"></span><input id="nicho" list="nichos" placeholder="Ex.: pet shop, clínica odontológica" required></div></div>
           <div class="campo"><label for="cidade">Cidade</label>
@@ -568,6 +568,13 @@
           <div class="campo"><label for="quantidade">Quantidade</label>
             <select id="quantidade"><option value="20">20 empresas</option><option value="40">40 empresas</option><option value="60">60 empresas</option></select></div>
           <button class="btn primario" type="submit" id="buscar-btn"><span data-ic="search"></span>Buscar no Google Maps</button>
+          <div id="campos-cnpj" style="grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end" hidden>
+            <div class="campo"><label for="cnpj-cnae">Atividade (CNAE, opcional)</label><input id="cnpj-cnae" inputmode="numeric" placeholder="Ex.: 9602501"></div>
+            <div class="campo"><label for="cnpj-abertura">Abertura da empresa</label>
+              <select id="cnpj-abertura"><option value="">Qualquer data</option><option value="365">No último ano</option><option value="90">Nos últimos 90 dias</option></select></div>
+            <label class="chave" style="align-self:center"><input type="checkbox" id="cnpj-mei"><div><b>Incluir MEI</b><span>Costuma ser profissional autônomo.</span></div></label>
+            <span class="muted" style="font-size:12.5px;grid-column:1/-1">Empresas ativas da cidade, pela atividade (CNAE) que a IA acha para o segmento, com o telefone e o e-mail do cadastro da Receita. Telefone e e-mail de contador (repetidos em empresas diferentes, ou de contabilidade) ficam de fora. Empresas abertas há pouco costumam ainda não ter site.</span>
+          </div>
           <div class="campo" id="campo-termos" style="grid-column:1/-1" hidden><label for="termos">Hashtags ou @perfis (opcional)</label>
             <input id="termos" placeholder="Ex.: #petshopfortaleza #banhoetosa @petconcorrente">
             <span class="muted" style="font-size:12.5px">Sem nada aqui, busca pela hashtag do segmento + cidade (ex.: #petshopfortaleza) e parte das empresas da região que você já capturou. Dos posts de cada perfil, segue os @ citados (parceiros, fornecedores) e fica com os da cidade, com o WhatsApp e o e-mail da bio. A Meta deixa consultar 30 hashtags diferentes por semana.</span></div>
@@ -592,6 +599,8 @@
               <span>A cada 10 minutos: busca empresas no Google Maps, analisa, a IA escreve a sequência e ela já sai aprovada. Uma empresa nova por vez, com intervalo entre elas. Envios só de segunda a sexta, das 9h às 18h.</span></div></label>
             <label class="chave"><input type="checkbox" name="buscarNoInstagram"><div><b>Buscar empresas também no Instagram</b>
               <span>Com o Instagram conectado em Conteúdo, a busca automática procura o mesmo segmento e cidade pela hashtag (ex.: #petshopfortaleza) e pega os perfis comerciais com WhatsApp ou e-mail na bio.</span></div></label>
+            <label class="chave"><input type="checkbox" name="buscarPorCnpj"><div><b>Buscar empresas também pelo CNPJ</b>
+              <span>Pelos dados abertos da Receita Federal: empresas ativas do mesmo segmento e cidade, sem MEI, com o telefone e o e-mail do cadastro (sem os do contador). Grátis.</span></div></label>
             <label class="chave"><input type="checkbox" name="respostaAutomatica"><div><b>IA responde as conversas sozinha</b>
               <span>Responde em alguns minutos, em tom humano, uma informação por vez, até a pessoa marcar no Calendly. Passa para você se pedirem ligação, negociarem ou reclamarem.</span></div></label>
             <div class="config-grade">
@@ -1132,10 +1141,12 @@ async function carregarStats() {
 }
 
 // ===================== Google Maps =====================
+const NOME_DA_FONTE = { maps: "no Google Maps", instagram: "no Instagram", cnpj: "pelo CNPJ" };
 $("#onde").addEventListener("change", () => {
-  const insta = $("#onde").value === "instagram";
-  $("#campo-termos").hidden = !insta;
-  $("#buscar-btn").innerHTML = `${ic("search")}Buscar no ${insta ? "Instagram" : "Google Maps"}`;
+  const onde = $("#onde").value;
+  $("#campo-termos").hidden = onde !== "instagram";
+  $("#campos-cnpj").hidden = onde !== "cnpj";
+  $("#buscar-btn").innerHTML = `${ic("search")}Buscar ${NOME_DA_FONTE[onde]}`;
 });
 
 $("#form-maps").addEventListener("submit", async (ev) => {
@@ -1156,6 +1167,13 @@ $("#form-maps").addEventListener("submit", async (ev) => {
       const r = await post("/api/instagram/buscar", { ...buscaMaps, termos: $("#termos").value, quantidade: $("#quantidade").value });
       resultadosMaps = r.empresas;
       avisosBusca = r.avisos ?? [];
+    } else if (onde === "cnpj") {
+      const r = await post("/api/cnpj/buscar", {
+        ...buscaMaps, quantidade: $("#quantidade").value, cnae: $("#cnpj-cnae").value,
+        abertasHaDias: $("#cnpj-abertura").value, incluirMei: $("#cnpj-mei").checked,
+      });
+      resultadosMaps = r.empresas;
+      avisosBusca = [`Atividade (CNAE): ${r.cnaes.map((c) => `${c.codigo} · ${c.descricao.toLowerCase()}`).join("; ")}. ${r.total.toLocaleString("pt-BR")} empresas com esse filtro na cidade; aqui vêm as que você ainda não capturou.`];
     } else resultadosMaps = await post("/api/maps/buscar", { ...buscaMaps, quantidade: $("#quantidade").value });
     buscaMaps.onde = onde;
     desenharMaps();
@@ -1168,6 +1186,23 @@ $("#form-maps").addEventListener("submit", async (ev) => {
 
 const semSite = (e) => e.semSite ?? !e.site;
 
+// Do CNPJ, sem telefone nem e-mail que sirvam: não dá para contatar, então não entra na seleção.
+const naoSelecionavel = (e) => e.jaCapturado || e.semContato;
+
+/** O que a busca pelo CNPJ acrescenta ao cartão: CNPJ, abertura e o que veio (ou não) do cadastro. */
+function detalhesDoCnpj(e) {
+  if (!e.cnpj) return "";
+  const cnpj = e.cnpj.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5");
+  const abertura = e.abertura ? new Date(`${e.abertura}T12:00:00`).toLocaleDateString("pt-BR", { month: "short", year: "numeric" }) : "";
+  return `<div class="pilulas">
+      <span class="pilula">${ic("building", "sm")}${cnpj}</span>
+      ${abertura ? `<span class="pilula">${ic("calendar", "sm")}Aberta em ${abertura}</span>` : ""}
+      ${e.mei ? `<span class="pilula">MEI</span>` : ""}
+      ${e.contador?.length ? `<span class="pilula atencao" title="Repetido em outras empresas ou de contabilidade">${ic("alert", "sm")}${e.contador.join(" e ")} do contador descartado</span>` : ""}
+      ${e.contatoPendente ? `<span class="pilula">${ic("clock", "sm")}Contato buscado na análise</span>` : ""}
+    </div>`;
+}
+
 function cartaoEmpresaMaps(e, i) {
   const sel = selecionadas.has(i);
   return `<article class="cartao empresa ${e.jaCapturado ? "capturada" : ""} ${sel ? "selecionada" : ""} ${semSite(e) ? "prioridade" : ""}" data-indice="${i}">
@@ -1175,8 +1210,10 @@ function cartaoEmpresaMaps(e, i) {
       <span class="avatar">${inicial(e.nome)}</span>
       <h3>${esc(e.nome)}</h3>
       ${e.jaCapturado ? `<span class="pilula">${ic("check", "sm")}Capturada</span>`
+        : e.semContato ? `<span class="pilula">Sem contato</span>`
         : `<input type="checkbox" ${sel ? "checked" : ""} aria-label="Selecionar ${esc(e.nome)}" data-check="${i}">`}
     </div>
+    ${detalhesDoCnpj(e)}
     ${e.endereco ? `<div class="endereco">${ic("pin", "sm")}<span>${esc(e.endereco)}</span></div>` : ""}
     <div class="pilulas">
       ${semSite(e) && !e.jaCapturado ? `<span class="pilula atencao">${ic("star", "sm")}Prioridade</span>` : ""}
@@ -1208,7 +1245,7 @@ function desenharMaps() {
     $("#resultado-maps").innerHTML = `${alertas}<div style="margin-top:18px">${vazio("search", "Nenhuma empresa encontrada", dica)}</div>`;
     return;
   }
-  const novas = resultadosMaps.filter((e) => !e.jaCapturado);
+  const novas = resultadosMaps.filter((e) => !naoSelecionavel(e));
   const novasSemSite = novas.filter(semSite).length;
   const total = { todas: resultadosMaps.length, sem: resultadosMaps.filter(semSite).length };
   total.com = total.todas - total.sem;
@@ -1219,7 +1256,7 @@ function desenharMaps() {
     .map(([v, t]) => `<button class="filtro" data-filtro-maps="${v}" aria-pressed="${v === filtroMaps}">${t} · ${total[v]}</button>`).join("");
   $("#resultado-maps").innerHTML = `${alertas}
     <div class="resultados-cab">
-      <h2>${resultadosMaps.length} empresas encontradas${buscaMaps.onde === "instagram" ? " no Instagram" : ""}</h2>
+      <h2>${resultadosMaps.length} empresas encontradas${buscaMaps.onde === "maps" ? "" : ` ${NOME_DA_FONTE[buscaMaps.onde]}`}</h2>
       <span class="pilula acc">${novas.length} ${novas.length === 1 ? "nova" : "novas"}</span>
       ${novasSemSite ? `<span class="pilula atencao">${ic("star", "sm")}${novasSemSite} sem site</span>` : ""}
       <span class="espaco"></span>
@@ -1240,7 +1277,7 @@ function atualizarSelecao() {
 
 function alternarEmpresa(i, marcar) {
   const e = resultadosMaps[i];
-  if (!e || e.jaCapturado) return;
+  if (!e || naoSelecionavel(e)) return;
   marcar ??= !selecionadas.has(i);
   marcar ? selecionadas.add(i) : selecionadas.delete(i);
   $(`[data-indice="${i}"]`)?.classList.toggle("selecionada", marcar);
@@ -1254,7 +1291,7 @@ async function capturarSelecionadas(btn) {
   if (!escolhidas.length) return avisar("Selecione ao menos uma empresa");
   btn.disabled = true;
   try {
-    const r = await post(`/api/${buscaMaps.onde === "instagram" ? "instagram" : "maps"}/capturar`, { empresas: escolhidas, ...buscaMaps });
+    const r = await post(`/api/${["instagram", "cnpj"].includes(buscaMaps.onde) ? buscaMaps.onde : "maps"}/capturar`, { empresas: escolhidas, ...buscaMaps });
     for (const e of escolhidas) e.jaCapturado = true;
     selecionadas.clear();
     atualizarSelecao();
@@ -1276,7 +1313,7 @@ async function capturarSelecionadas(btn) {
   }
 }
 
-const NOMES_CANAL = { email: "E-mail", whatsapp: "WhatsApp" };
+const NOMES_CANAL = { email: "E-mail", whatsapp: "WhatsApp", instagram: "Direct do Instagram" };
 const AVISO_WHATSAPP = { fixo: " (número fixo: confira se tem WhatsApp)", verificado: " (WhatsApp confirmado)" };
 
 /** O que aconteceu com cada empresa: quem ganhou sequência (e por quais canais) e quem foi descartada. */
@@ -3006,6 +3043,7 @@ async function carregarAutomacao() {
     f.ativo.checked = a.ativo;
     f.respostaAutomatica.checked = a.respostaAutomatica;
     f.buscarNoInstagram.checked = a.buscarNoInstagram !== false;
+    f.buscarPorCnpj.checked = a.buscarPorCnpj !== false;
     f.aquecimentoWhatsapp.checked = a.aquecimentoWhatsapp;
     f.aquecimentoInicial.value = a.aquecimentoInicial;
     f.aquecimentoPasso.value = a.aquecimentoPasso;
@@ -3041,6 +3079,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
     await api("/api/config/automacao", { method: "PUT", body: JSON.stringify({
       ativo: f.ativo.checked, respostaAutomatica: f.respostaAutomatica.checked, aquecimentoWhatsapp: f.aquecimentoWhatsapp.checked,
       buscarNoInstagram: f.buscarNoInstagram.checked,
+      buscarPorCnpj: f.buscarPorCnpj.checked,
       metaEmail: f.metaEmail.value, metaWhatsapp: f.metaWhatsapp.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
       aquecimentoInicial: f.aquecimentoInicial.value, aquecimentoPasso: f.aquecimentoPasso.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,

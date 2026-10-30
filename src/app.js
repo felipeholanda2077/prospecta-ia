@@ -355,6 +355,23 @@ app.post("/api/instagram/capturar", async (req, res) => {
   res.json(await pipeline.capturarDoInstagram(empresas.slice(0, 100), String(nicho ?? ""), String(cidade ?? "")));
 });
 
+// Busca pelo CNPJ (dados abertos da Receita Federal): atividade do segmento + cidade.
+app.post("/api/cnpj/buscar", async (req, res) => {
+  const { nicho, cidade, quantidade, cnae, incluirMei, abertasHaDias } = req.body ?? {};
+  if (!String(nicho ?? "").trim() || !String(cidade ?? "").trim()) return res.status(400).json({ erro: "Informe o segmento e a cidade" });
+  try {
+    res.json(await pipeline.buscarNoCnpj(nicho.trim(), cidade.trim(), { quantidade, cnae, incluirMei: Boolean(incluirMei), abertasHaDias }));
+  } catch (e) {
+    res.status(502).json({ erro: e.message });
+  }
+});
+
+app.post("/api/cnpj/capturar", async (req, res) => {
+  const { empresas, nicho, cidade } = req.body ?? {};
+  if (!Array.isArray(empresas) || !empresas.length) return res.status(400).json({ erro: "Selecione ao menos uma empresa" });
+  res.json(await pipeline.capturarDoCnpj(empresas.slice(0, 100), String(nicho ?? ""), String(cidade ?? "")));
+});
+
 app.post("/api/maps/capturar", async (req, res) => {
   const { empresas, nicho, cidade } = req.body ?? {};
   if (!Array.isArray(empresas) || !empresas.length) return res.status(400).json({ erro: "Selecione ao menos uma empresa" });
@@ -687,6 +704,7 @@ app.put("/api/config/automacao", async (req, res) => {
     maxRespostasIA: inteiro(b.maxRespostasIA, 1, 20, AUTOMACAO_PADRAO.maxRespostasIA),
     calendly: calendlyLink,
     buscarNoInstagram: b.buscarNoInstagram !== false,
+    buscarPorCnpj: b.buscarPorCnpj !== false,
     buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,
   };
   await db.gravarConfig("automacao", novo);

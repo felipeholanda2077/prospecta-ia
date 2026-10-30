@@ -2,6 +2,7 @@ import { config } from "./config.js";
 import * as db from "./db.js";
 import { buscarEmpresas } from "./descoberta/googlePlaces.js";
 import { buscaNoInstagram, buscarEmpresasNoInstagram, instagramDaEmpresa } from "./descoberta/instagram.js";
+import { buscarEmpresasPorCnpj, contatoDoCnpj, emailDeContador } from "./descoberta/cnpj.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
@@ -312,7 +313,72 @@ export async function descobrirProxima(campanha, { tentativas = 3 } = {}) {
   }
   await db.gravarEstado("busca_rotacao", indice % combinacoes.length);
   const instagram = await descobrirNoInstagram(campanha, combinacoes[inicio % combinacoes.length]);
-  return { novas: novas + (instagram?.novas ?? 0), buscas: feitas, ...(instagram ? { instagram } : {}) };
+  const cnpj = await descobrirPorCnpj(campanha, combinacoes[inicio % combinacoes.length]);
+  return {
+    novas: novas + (instagram?.novas ?? 0) + (cnpj?.novas ?? 0), buscas: feitas,
+    ...(instagram ? { instagram } : {}), ...(cnpj ? { cnpj } : {}),
+  };
+}
+
+/** A busca pelo CNPJ com o que o sistema já sabe: os CNPJs já capturados e os telefones de contador. */
+const buscarPorCnpj = async (opcoes) => buscarEmpresasPorCnpj({
+  ...opcoes,
+  jaCapturados: await db.cnpjsCapturados(opcoes.cidade),
+  telefoneUsado: db.telefoneDeOutroCnpj,
+});
+
+/**
+ * A busca automática também procura pelo CNPJ (dados abertos da Receita Federal) o mesmo
+ * segmento e cidade: empresas ativas, sem MEI, com telefone, que ainda não foram capturadas.
+ */
+export async function descobrirPorCnpj(campanha, { nicho, cidade }, { quantidade = 10 } = {}) {
+  if (campanha.automacao?.buscarPorCnpj === false) return null;
+  try {
+    const { empresas, cnaes } = await buscarPorCnpj({ nicho, cidade, quantidade });
+    const novas = (await capturarDoCnpj(empresas.filter((e) => !e.semContato), nicho, cidade)).novas;
+    log(`🏢 Busca automática pelo CNPJ "${nicho} em ${cidade}" (CNAE ${cnaes.map((c) => c.codigo).join(", ")}): ${novas} novas`);
+    return { novas, cnaes };
+  } catch (e) {
+    log(`⚠️  Falha na busca automática pelo CNPJ "${nicho} em ${cidade}": ${e.message}`);
+    return { novas: 0, erro: e.message };
+  }
+}
+
+/** Busca pelo CNPJ no painel, sem salvar: mostra as empresas para você escolher quem capturar. */
+export async function buscarNoCnpj(nicho, cidade, { quantidade = 20, cnae = "", incluirMei = false, abertasHaDias = null } = {}) {
+  const r = await buscarPorCnpj({ nicho, cidade, quantidade: Math.min(Number(quantidade) || 20, 60), cnae, incluirMei, abertasHaDias: Number(abertasHaDias) || null });
+  log(`🏢 Busca no painel pelo CNPJ "${nicho} em ${cidade}": ${r.empresas.length} empresas (de ${r.total})`);
+  return {
+    ...r,
+    empresas: r.empresas.map((e) => ({ ...e, site: null, semSite: true, celular: ehCelularBR(e.telefone) }))
+      .sort((a, b) => Number(a.semContato) - Number(b.semContato) || Number(b.celular) - Number(a.celular)),
+  };
+}
+
+/** Salva como leads as empresas achadas pelo CNPJ (as sem contato ainda têm o contato buscado na análise). */
+export async function capturarDoCnpj(empresas, nicho, cidade) {
+  let novas = 0;
+  for (const e of empresas) {
+    const cnpj = String(e?.cnpj ?? "").replace(/\D/g, "");
+    if (cnpj.length !== 14 || !e?.nome) continue;
+    const lead = {
+      place_id: `cnpj:${cnpj}`,
+      nome: String(e.nome).slice(0, 120),
+      endereco: e.endereco ?? null,
+      telefone: e.telefone ?? null,
+      email: e.email ?? null,
+      site: null,
+      maps_url: null,
+      avaliacao: null,
+      total_avaliacoes: null,
+      nicho,
+      cidade,
+      origem: "cnpj",
+    };
+    if (await db.inserirLead(lead)) novas++;
+  }
+  if (novas) log(`🏢 ${novas} empresas capturadas pelo CNPJ`);
+  return { novas };
 }
 
 /**
@@ -467,6 +533,17 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
 
   for (const lead of leads) {
     if (semTempo(ate)) break;
+    // Empresa do CNPJ sem contato: a consulta de reserva (que tem os CNPJs mais novos) só aceita
+    // uma por vez a cada poucos segundos; sem a vez, a empresa espera a próxima análise.
+    if (lead.origem === "cnpj" && !lead.telefone && !lead.email) {
+      const dados = await contatoDoCnpj(lead.place_id.slice(5));
+      if (dados?.incompleto) continue;
+      const email = dados?.email && !emailDeContador(dados.email) ? dados.email : null;
+      const telefone = dados?.telefones?.[0] ?? null;
+      const doContador = telefone && (await db.telefoneDeOutroCnpj(telefone, lead.place_id));
+      Object.assign(lead, { email, telefone: doContador ? null : telefone, endereco: lead.endereco ?? dados?.endereco ?? null });
+      await db.atualizarLead(lead.id, { email: lead.email, telefone: lead.telefone, endereco: lead.endereco });
+    }
     let analise = await analisarSite(lead.site);
     // O perfil do Instagram (o do Google, o do site ou o capturado por lá): bio com WhatsApp e
     // e-mail, e o site de verdade quando o Google só tem o link do Instagram.

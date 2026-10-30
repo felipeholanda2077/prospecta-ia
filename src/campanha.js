@@ -19,6 +19,7 @@ export const AUTOMACAO_PADRAO = {
   maxRespostasIA: 6, // depois disso a conversa passa para você
   calendly: "",
   buscarNoInstagram: true, // com o Instagram conectado pela página do Facebook, busca lá também
+  buscarPorCnpj: true, // busca também pelos dados abertos do CNPJ (Receita Federal)
   buscas: null, // null = usa as do campanha.json
 };
 

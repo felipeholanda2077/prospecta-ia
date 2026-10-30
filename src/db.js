@@ -560,6 +560,25 @@ export async function criarLeadDeContato({ nome, whatsapp = null, instagram = nu
   return linha.id;
 }
 
+/** CNPJs já capturados nesta cidade (os mais recentes), para a busca trazer empresas novas. */
+export async function cnpjsCapturados(cidade, limite = 800) {
+  return (await q(
+    `SELECT substring(place_id from 6) AS cnpj FROM leads WHERE place_id LIKE 'cnpj:%' AND cidade = $1 ORDER BY id DESC LIMIT $2`,
+    [cidade, limite]
+  )).map((l) => l.cnpj);
+}
+
+/** Outra empresa capturada pelo CNPJ com o mesmo telefone: é o do contador que cuida das duas. */
+export async function telefoneDeOutroCnpj(telefone, placeId) {
+  const digitos = String(telefone ?? "").replace(/\D/g, "");
+  if (!digitos) return false;
+  return Boolean(await um(
+    `SELECT 1 AS x FROM leads WHERE place_id LIKE 'cnpj:%' AND place_id <> $2
+        AND regexp_replace(coalesce(telefone, ''), '\\D', '', 'g') = $1 LIMIT 1`,
+    [digitos, placeId]
+  ));
+}
+
 /** Directs de prospecção esperando você enviar pelo Instagram. */
 export async function directsPendentes() {
   return (await um("SELECT count(*)::int AS n FROM mensagens WHERE canal = 'instagram' AND tipo <> 'resposta' AND status IN ('rascunho', 'aprovada')")).n;
