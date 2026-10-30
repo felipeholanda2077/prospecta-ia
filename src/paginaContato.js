@@ -50,14 +50,14 @@ export function paginaDoFormulario({ empresa, servicos = [], origem = "", embed 
     <form method="post" action="/contato" id="form" novalidate>
       <div class="linha">
         <label>Seu nome<input name="nome" autocomplete="name" required maxlength="80"></label>
-        <label>Empresa <span class="op">(opcional)</span><input name="empresa" autocomplete="organization" maxlength="100"></label>
+        <label><span>Empresa <span class="op">(opcional)</span></span><input name="empresa" autocomplete="organization" maxlength="100"></label>
       </div>
       <div class="linha">
         <label>WhatsApp<input name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" placeholder="(85) 99999-9999" maxlength="20"></label>
-        <label>E-mail <span class="op">(opcional)</span><input name="email" type="email" autocomplete="email" maxlength="120"></label>
+        <label><span>E-mail <span class="op">(opcional)</span></span><input name="email" type="email" autocomplete="email" maxlength="120"></label>
       </div>
       <label>Do que você precisa?<select name="servico">${opcoes.map((o) => `<option>${escapar(o)}</option>`).join("")}</select></label>
-      <label>Conte um pouco <span class="op">(opcional)</span><textarea name="mensagem" maxlength="1000" placeholder="Ex.: tenho uma clínica e quero agendamento online pelo site"></textarea></label>
+      <label><span>Conte um pouco <span class="op">(opcional)</span></span><textarea name="mensagem" maxlength="1000" placeholder="Ex.: tenho uma clínica e quero agendamento online pelo site"></textarea></label>
       <label class="escondido" aria-hidden="true">Não preencha<input name="site" tabindex="-1" autocomplete="off"></label>
       <input type="hidden" name="origem" value="${escapar(origem)}">
       <input type="hidden" name="t" value="${Date.now()}">
