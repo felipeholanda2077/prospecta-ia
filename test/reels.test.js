@@ -119,21 +119,28 @@ test("reels: o Gemini narra cena por cena, tira o cabeçalho WAV e espera quando
   }
 });
 
-test("reels: a capa traz o gancho, e não o fundo vazio do começo da animação", () => {
-  const post = { id: 7, formato: "reels", conteudo: { gancho: "Seu site espanta clientes?", arte: "cor", trilha: "tensa", estrutura: "lista", hashtags: [], legenda: "", slides: [
-    { visual: "capa", titulo: "Seu site espanta clientes?", texto: "", destaque: "clientes" }, { visual: "cta", titulo: "Fim", texto: "", destaque: "" }] } };
+test("reels: a capa traz o gancho inteiro, e não o começo da animação", () => {
+  const gancho = "Software demora anos e custa uma fortuna?";
+  const post = { id: 7, formato: "reels", conteudo: { gancho, arte: "cor", trilha: "tensa", estrutura: "lista", hashtags: [], legenda: "", slides: [
+    { visual: "capa", titulo: gancho, texto: "", destaque: "anos" }, { visual: "cta", titulo: "Fim", texto: "", destaque: "" }] } };
   const [w, h] = desenho.TAMANHOS_POST.reels;
-  // Conta os pixels da faixa do gancho que fogem da cor do fundo: é o texto.
-  const textoNaFaixa = (desenhar) => {
+  const desenhar = (f) => {
     const c = createCanvas(w, h);
     const ctx = c.getContext("2d");
-    desenhar(ctx);
-    const { data } = ctx.getImageData(0, 650, w, 450);
-    let diferentes = 0;
-    for (let i = 0; i < data.length; i += 4) if (Math.abs(data[i] - data[0]) + Math.abs(data[i + 1] - data[1]) + Math.abs(data[i + 2] - data[2]) > 120) diferentes++;
-    return diferentes;
+    f(ctx);
+    return ctx.getImageData(0, 300, w, 1100).data;
   };
-  assert.equal(textoNaFaixa((ctx) => desenho.desenharQuadroReels(ctx, post, 0, "FluxDeck")), 0); // o primeiro quadro da animação está vazio
-  assert.ok(textoNaFaixa((ctx) => desenho.desenharCapaReels(ctx, post, "FluxDeck")) > 20_000);
-  assert.ok(desenho.TEMPO_DA_CAPA < Math.min(desenho.duracoesDasCenas(post)[0], 1.8) - 0.18); // a capa ainda está na primeira cena
+  // Os pixels que fogem da cor do fundo são o texto.
+  const texto = (d) => {
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - d[0]) + Math.abs(d[i + 1] - d[1]) + Math.abs(d[i + 2] - d[2]) > 120) n++;
+    return n;
+  };
+  const capa = texto(desenhar((ctx) => desenho.desenharCapaReels(ctx, post, "FluxDeck")));
+  const inicio = texto(desenhar((ctx) => desenho.desenharQuadroReels(ctx, post, 0, "FluxDeck")));
+  const meioSegundo = texto(desenhar((ctx) => desenho.desenharQuadroReels(ctx, post, 0.6, "FluxDeck")));
+  const fimDaCena = texto(desenhar((ctx) => desenho.desenharQuadroReels(ctx, post, 2.1, "FluxDeck")));
+  assert.equal(inicio, 0); // o primeiro quadro da animação está vazio
+  assert.ok(capa > meioSegundo); // aos 0,6 s ainda faltam palavras
+  assert.ok(Math.abs(capa - fimDaCena) / capa < 0.05, `capa ${capa}, fim da cena ${fimDaCena}`); // igual à cena completa
 });

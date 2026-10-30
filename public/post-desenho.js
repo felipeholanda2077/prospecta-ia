@@ -849,7 +849,7 @@ export const duracaoReels = (post, duracoes = duracoesDasCenas(post)) => duracoe
  * Um quadro do Reels (1080x1920) no instante `t` (segundos). `duracoes` vem da narração, quando
  * há voz (cada cena dura o tempo da fala); sem ela, sai pela quantidade de texto.
  */
-export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duracoes = duracoesDasCenas(post), cenasComVideo = null, semProgresso = false } = {}) {
+export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duracoes = duracoesDasCenas(post), cenasComVideo = null, capa = false } = {}) {
   const [w, h] = TAMANHOS_POST.reels;
   const telas = telasDoPost(post);
   const { arte, tema, tinta: cor } = aparencia(post);
@@ -857,8 +857,9 @@ export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duraco
   let inicio = 0;
   let i = 0;
   while (i < telas.length - 1 && t >= inicio + duracoes[i]) inicio += duracoes[i++];
-  const dur = duracoes[i];
-  const local = t - inicio;
+  // Na capa, a cena já está pronta: todas as palavras entraram e nada começou a sair (como no carrossel).
+  const dur = capa ? Infinity : duracoes[i];
+  const local = capa ? 99 : t - inicio;
   const ultima = i === telas.length - 1;
   const visual = telas[i].visual;
 
@@ -907,7 +908,7 @@ export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duraco
 
   // Barras de progresso, como nos stories, e a marca no topo.
   const larg = (w - 120 - (telas.length - 1) * 12) / telas.length;
-  if (!semProgresso) telas.forEach((_, j) => {
+  if (!capa) telas.forEach((_, j) => {
     const x = 60 + j * (larg + 12);
     ctx.fillStyle = tinta.fraca;
     ctx.fillRect(x, 70, larg, 8);
@@ -918,10 +919,7 @@ export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duraco
   tinta = TINTA_CLARA;
 }
 
-// A primeira cena já terminou de entrar neste instante (no começo dela o gancho ainda não apareceu).
-export const TEMPO_DA_CAPA = 0.6;
-
-/** A capa do Reels: a primeira cena pronta, com o gancho, sem as barras de progresso. */
+/** A capa do Reels: a primeira cena pronta, com o gancho inteiro, sem as barras de progresso. */
 export function desenharCapaReels(ctx, post, empresa = "FluxDeck", opcoes = {}) {
-  desenharQuadroReels(ctx, post, TEMPO_DA_CAPA, empresa, { ...opcoes, semProgresso: true });
+  desenharQuadroReels(ctx, post, 0, empresa, { ...opcoes, capa: true });
 }
