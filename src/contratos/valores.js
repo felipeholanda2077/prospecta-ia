@@ -71,3 +71,23 @@ export function documentoFormatado(valor) {
   if (d.length === 11) return { tipo: "CPF", numero: d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, "$1.$2.$3-$4") };
   return null;
 }
+
+const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
+/** "2026-12-05" → { dia: 5, mes: 11, ano: 2026 }, ou null se não for uma data de verdade. */
+export function lerData(iso) {
+  const m = String(iso ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const [ano, mes, dia] = [Number(m[1]), Number(m[2]) - 1, Number(m[3])];
+  const d = new Date(Date.UTC(ano, mes, dia));
+  return d.getUTCMonth() === mes && d.getUTCDate() === dia ? { dia, mes, ano } : null;
+}
+
+/** "5 de dezembro de 2026" */
+export const dataPorExtenso = ({ dia, mes, ano }) => `${dia} de ${MESES[mes]} de ${ano}`;
+
+/** "janeiro de 2027": o mês `n` meses depois da data. */
+export function mesDepois({ mes, ano }, n) {
+  const total = mes + n;
+  return `${MESES[total % 12]} de ${ano + Math.floor(total / 12)}`;
+}

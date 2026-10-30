@@ -24,7 +24,7 @@
   "functions": {
     "api/index.js": {
       "maxDuration": 300,
-      "includeFiles": "{config/**,node_modules/pdfkit/js/data/**,public/post-desenho.js,node_modules/ffmpeg-static/ffmpeg,node_modules/@fontsource/inter/files/inter-latin-*-normal.woff2,node_modules/@fontsource/inter/files/inter-latin-ext-*-normal.woff2}"
+      "includeFiles": "{config/**,node_modules/pdfkit/js/data/**,public/post-desenho.js,public/fluxdeck-logo.jpg,node_modules/ffmpeg-static/ffmpeg,node_modules/@fontsource/inter/files/inter-latin-*-normal.woff2,node_modules/@fontsource/inter/files/inter-latin-ext-*-normal.woff2}"
     }
   },
   "crons": [

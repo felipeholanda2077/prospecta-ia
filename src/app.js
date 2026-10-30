@@ -876,8 +876,8 @@ app.put("/api/contratos/contratada", async (req, res) => {
 // A folha do painel: o documento como vai sair, com os seus dados no lugar, para editar direto nela.
 app.post("/api/contratos/folha", async (req, res) => {
   const c = await contratos.lerContratada(await carregarCampanhaCompleta());
-  const valores = { contratada_nome: c.nome, contratada_cpf: c.cpf, contratada_marca: c.marca, contratada_email: c.email, contratada_pix: c.pix };
-  res.json({ html: documentoEmHtml(String(req.body?.corpo ?? ""), { valores }), marca: c.marca, campos: ROTULOS_CAMPOS });
+  const valores = { contratada_nome: c.nome, contratada_cnpj: c.cnpj, contratada_cpf: c.cpf, contratada_marca: c.marca, contratada_email: c.email, contratada_pix: c.pix };
+  res.json({ html: documentoEmHtml(String(req.body?.corpo ?? ""), { valores }), marca: c.marca, cnpj: c.cnpj, campos: ROTULOS_CAMPOS });
 });
 
 app.post("/api/contratos", async (req, res) => {
@@ -886,7 +886,7 @@ app.post("/api/contratos", async (req, res) => {
 });
 
 // O que falta nos seus dados, para o painel avisar antes de mandar o contrato.
-const dadosQueFaltam = (c) => [["CPF", c.cpf], ["e-mail", c.email], ["chave PIX", c.pix], ["nome", c.nome]].filter(([, v]) => !v).map(([n]) => n);
+const dadosQueFaltam = (c) => [["CNPJ", c.cnpj], ["CPF", c.cpf], ["e-mail", c.email], ["chave PIX", c.pix], ["nome", c.nome]].filter(([, v]) => !v).map(([n]) => n);
 
 app.get("/api/contratos/:id", async (req, res) => {
   const contrato = await db.buscarContrato(req.params.id);
@@ -914,7 +914,7 @@ app.get("/api/contratos/:id/pdf", async (req, res) => {
   if (!contrato) return res.status(404).json({ erro: "Contrato não encontrado" });
   const campanha = await carregarCampanhaCompleta();
   const contratada = await contratos.lerContratada(campanha);
-  const pdf = await documentoEmPdf(contratos.preencherContratada(contrato.corpo, contratada), { marca: contratada.marca, projeto: contrato.projeto });
+  const pdf = await documentoEmPdf(contratos.preencherContratada(contrato.corpo, contratada), { marca: contratada.marca, cnpj: contratada.cnpj, projeto: contrato.projeto });
   const arquivo = `contrato-${contrato.projeto}`.normalize("NFD").replace(/[^\w-]+/g, "-").toLowerCase();
   // Com ?ver=1 abre no navegador; sem ele, baixa o arquivo.
   res.set({ "Content-Type": "application/pdf", "Content-Disposition": `${req.query.ver === "1" ? "inline" : "attachment"}; filename="${arquivo}.pdf"`, "Cache-Control": "no-store" }).send(pdf);

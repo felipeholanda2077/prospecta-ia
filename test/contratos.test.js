@@ -29,7 +29,7 @@ test("contrato: valores por extenso, como no documento", () => {
 test("contrato: 500 por mês em 12 meses sai com total, parcelas e rescisão coerentes", async () => {
   const m = contrato.montarCorpo(await contrato.modeloPadrao(), dados);
   assert.equal(m.total, 6000);
-  assert.match(m.corpo, /valor total de R\$ 6\.000,00 \(seis mil reais\), em 12 \(doze\) parcelas mensais e consecutivas de R\$ 500,00 \(quinhentos reais\), pelo período de 12 \(doze\) meses/);
+  assert.match(m.corpo, /valor total de R\$ 6\.000,00 \(seis mil reais\), em 12 \(doze\) parcelas mensais e consecutivas de R\$ 500,00 \(quinhentos reais\), com período de vigência de 12 \(doze\) meses/);
   assert.match(m.corpo, /\| 2ª a 12ª \| R\$ 500,00 \(quinhentos reais\) cada \| No mesmo dia dos 11 meses seguintes \|/);
   assert.match(m.corpo, /as parcelas já pagas não serão restituídas/);
   assert.match(m.corpo, /inscrita no CNPJ sob o nº 11\.222\.333\/0001-81/);
@@ -37,6 +37,20 @@ test("contrato: 500 por mês em 12 meses sai com total, parcelas e rescisão coe
   // Nenhum campo do modelo sem preencher, a não ser os seus dados.
   const sobrando = [...m.corpo.matchAll(/\{\{([a-z_]+)\}\}/g)].map((x) => x[1]);
   assert.ok(sobrando.length && sobrando.every((c) => c.startsWith("contratada_")), sobrando.join());
+});
+
+test("contrato: primeiro pagamento com data, vigência e resumo", async () => {
+  const m = contrato.montarCorpo(await contrato.modeloPadrao(), { ...dados, primeiroPagamento: "2026-12-05" });
+  assert.match(m.corpo, /com período de vigência de 12 \(doze\) meses/);
+  assert.match(m.corpo, /\| 1ª \| R\$ 500,00 \(quinhentos reais\) \| 5 de dezembro de 2026 \|/);
+  assert.match(m.corpo, /\| 2ª a 12ª \| R\$ 500,00 \(quinhentos reais\) cada \| Todo dia 5, de janeiro de 2027 a novembro de 2027 \|/);
+  assert.match(m.corpo, /::resumo\nValor mensal \| R\$ 500,00\nVigência \| 12 meses\n1º pagamento \| 5 de dezembro de 2026\nValor total \| R\$ 6\.000,00\n::/);
+  assert.deepEqual(lerBlocos(m.corpo).find((b) => b.tipo === "resumo").linhas[1], ["Vigência", "12 meses"]);
+  assert.match(documentoEmHtml(m.corpo), /class="ct-resumo-rotulo">1º pagamento</);
+  assert.match(contrato.montarCorpo(await contrato.modeloPadrao(), { ...dados, primeiroPagamento: "2026-02-31" }).erro, /primeiro pagamento/);
+  // Dia que não existe em todo mês avisa, e sem data o vencimento continua na assinatura.
+  assert.match(contrato.montarPagamento({ valorMensal: 100, meses: 12, primeiroPagamento: "2026-12-31" }).tabela_pagamento, /Todo dia 31 \(ou o último dia do mês\)/);
+  assert.match(contrato.montarPagamento({ valorMensal: 100, meses: 12 }).tabela_pagamento, /Na assinatura deste contrato/);
 });
 
 test("contrato: entrada e saldo continua funcionando, e faltar dado explica o que falta", async () => {
@@ -75,9 +89,12 @@ test("contrato: gerar pela conversa fecha o cliente e cancela a prospecção; se
   const antes = contrato.preencherContratada(c.corpo, await contrato.lerContratada(campanha));
   assert.match(antes, /Felipe, inscrito no CPF sob o nº _{10,}/);
   await contrato.salvarContratada({ nome: "Fulano de Tal", marca: "FluxDeck", cpf: "000.000.000-00", email: "a@b.com", pix: "1199 (telefone)" });
+  await contrato.salvarContratada({ cnpj: "00.000.000/0001-00" }); // só o que veio: o resto continua
   const depois = contrato.preencherContratada(c.corpo, await contrato.lerContratada(campanha));
   assert.match(depois, /Fulano de Tal, inscrito no CPF sob o nº 000\.000\.000-00/);
   assert.match(depois, /chave 1199 \(telefone\), de titularidade/);
+  assert.match(depois, /marca FluxDeck, inscrita no CNPJ sob o nº 00\.000\.000\/0001-00/);
+  assert.match(depois, /CNPJ: 00\.000\.000\/0001-00 \|/);
   assert.equal(c.corpo.includes("000.000.000-00"), false);
 
   // Modelo editado vale para os próximos, não para os já criados; vazio volta ao original.
@@ -105,7 +122,7 @@ test("contrato: o texto vira blocos, prévia sem HTML solto e PDF de verdade", a
   assert.doesNotMatch(folha, /\{\{/);
 
   const m = contrato.montarCorpo(await contrato.modeloPadrao(), dados);
-  const pdf = await documentoEmPdf(contrato.preencherContratada(m.corpo, { nome: "F", marca: "FluxDeck" }), { marca: "FluxDeck", projeto: "AppTeste" });
+  const pdf = await documentoEmPdf(contrato.preencherContratada(m.corpo, { nome: "F", marca: "FluxDeck" }), { marca: "FluxDeck", projeto: "AppTeste", cnpj: "00.000.000/0001-00" });
   assert.equal(pdf.subarray(0, 5).toString(), "%PDF-");
   assert.ok(pdf.length > 5000);
 });

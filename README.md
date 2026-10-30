@@ -175,9 +175,9 @@ Atenção: a política da Meta exige que o contato tenha dado consentimento (opt
 A página **Contratos** do painel guarda o modelo e o contrato de cada cliente:
 
 - **Modelo:** o texto de onde nasce cada contrato, editável (com prévia ao lado). O original fica em `config/contrato-modelo.md`, sem dados pessoais, porque o repositório é público. Mudar o modelo não altera os contratos já criados.
-- **Seus dados:** nome, CPF, marca, e-mail, chave PIX e foro padrão. Ficam só no banco e entram sozinhos em todos os contratos, inclusive nos já criados.
+- **Seus dados:** nome, CNPJ, CPF, marca, e-mail, chave PIX e foro padrão. Ficam só no banco e entram sozinhos em todos os contratos, inclusive nos já criados.
 - **Quando o cliente aceita:** o botão **Cliente aceitou: gerar contrato** (na conversa ou na lista de empresas) abre o formulário já com os dados da empresa. Ao gerar, a empresa passa a **Cliente fechado**, as mensagens de prospecção na fila são canceladas e, se o cliente escrever, a IA não vende nada e passa a conversa para você. O **Novo contrato** cria um contrato para quem não veio de uma conversa.
-- **Pagamento por contrato:** por mês (valor × meses) ou entrada e saldo. O valor total, por extenso, a tabela de parcelas e a cláusula de rescisão saem de acordo.
+- **Pagamento por contrato:** por mês (valor, meses de vigência e data do primeiro pagamento) ou entrada e saldo. O resumo, o valor total por extenso, a tabela de parcelas e a cláusula de rescisão saem de acordo.
 - **Cada contrato** pode ser editado à vontade, com situação (rascunho, enviado, assinado, cancelado) e **Baixar PDF**, pronto para assinar pelo gov.br.
 
 ## Formulário do site

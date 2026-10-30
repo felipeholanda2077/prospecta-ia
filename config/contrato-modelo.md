@@ -1,8 +1,10 @@
 # CONTRATO DE PRESTAÇÃO DE SERVIÇOS
 ## {{subtitulo}}
 
-| CONTRATADA | {{contratada_nome}}, inscrito no CPF sob o nº {{contratada_cpf}}, atuando comercialmente sob a marca {{contratada_marca}}, e-mail {{contratada_email}}. |
+| CONTRATADA | {{contratada_nome}}, inscrito no CPF sob o nº {{contratada_cpf}}, atuando comercialmente sob a marca {{contratada_marca}}, inscrita no CNPJ sob o nº {{contratada_cnpj}}, e-mail {{contratada_email}}. |
 | CONTRATANTE | {{contratante_nome}}, {{contratante_documento}}, e-mail {{contratante_email}}, neste ato representada por {{representante}}, CPF nº {{representante_cpf}}. |
+
+{{bloco_resumo}}
 
 As partes acima têm entre si justo e contratado o presente instrumento, que se regerá pelas cláusulas seguintes.
 
@@ -55,8 +57,9 @@ ____________________________________, ______ de _______________________ de 20___
 ::assinatura
 {{contratada_nome}} | {{contratante_nome}}
 {{contratada_marca}} — CONTRATADA | CONTRATANTE
-CPF: {{contratada_cpf}} | {{contratante_documento_curto}}
-{{contratada_email}} | Representante: {{representante}}
+CNPJ: {{contratada_cnpj}} | {{contratante_documento_curto}}
+CPF: {{contratada_cpf}} | Representante: {{representante}}
+{{contratada_email}} |
 ::
 
 ::aviso Como assinar este contrato
