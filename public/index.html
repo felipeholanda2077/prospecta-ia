@@ -506,6 +506,11 @@
   .ct-secao { grid-column: 1 / -1; margin: 6px 0 -4px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
   /* Em tela estreita a folha ocupa a largura toda, com letra de ler no celular. */
   @media (max-width: 1100px) {
+    .ct-barra { flex-wrap: nowrap; gap: 8px; padding: 8px 10px; }
+    .ct-barra-titulo { flex: 1 1 60px; }
+    .ct-barra-titulo b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ct-barra-titulo span { display: none; }
+    .ct-barra-logo { width: 32px; height: 32px; }
     .ct-mesa { padding: 12px 8px 24px; }
     .ct-folha { width: 100%; padding: 0 18px 22px; font-size: 14.5px; line-height: 1.5; }
     .ct-folha-topo { margin: 0 -18px 22px; padding: 12px 18px 12px 10px; }
@@ -526,8 +531,9 @@
     .ct-assinaturas { grid-template-columns: 1fr; gap: 30px; }
     .ct-folha-doc span { display: none; }
     .ct-barra-logo { display: none; }
-    .ct-barra { position: static; }
+    .ct-barra { position: static; flex-wrap: wrap; }
     .ct-barra-titulo { order: -1; flex: 1 1 100%; }
+    .ct-barra-titulo span { display: block; }
     .ct-barra .btn { flex: 1 1 auto; justify-content: center; }
     .ct-barra #ct-excluir, .ct-barra [data-ct-voltar] { flex: none; }
     .ct-ferramentas button { padding: 6px 8px; }
