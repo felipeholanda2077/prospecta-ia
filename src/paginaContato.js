@@ -40,7 +40,7 @@ const ESTILO = `
 export function paginaDoFormulario({ empresa, servicos = [], origem = "", embed = false, erro = "" }) {
   const opcoes = [...servicos.map((s) => s.nome), "Ainda não sei, quero conversar"];
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Fale com a ${escapar(empresa)}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Fale com a ${escapar(empresa)}</title>
 <meta name="description" content="Conte o que você precisa e a ${escapar(empresa)} te chama no WhatsApp.">
 <style>${ESTILO}</style></head><body${embed ? ' class="embed"' : ""}><main>
   <div id="area">
@@ -98,6 +98,6 @@ const PRONTO = `<div class="pronto"><div class="ic">✅</div><h2>Recebemos!</h2>
 /** Página de "recebemos" para o envio sem JavaScript. */
 export function paginaDeObrigado({ empresa, embed = false }) {
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Recebemos · ${escapar(empresa)}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>Recebemos · ${escapar(empresa)}</title>
 <style>${ESTILO}</style></head><body${embed ? ' class="embed"' : ""}><main>${PRONTO}</main></body></html>`;
 }
