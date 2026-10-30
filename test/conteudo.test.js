@@ -11,7 +11,9 @@ const campanha = { empresa: { nome: "FluxDeck", diferenciais: [] }, servicos: []
 const escritos = [];
 const escrever = async ({ formato, pilar, estrutura, recentes }) => {
   escritos.push({ formato, pilar, estrutura, recentes });
-  return { tema: `Tema ${escritos.length}`, gancho: "3 sinais de que seu site espanta clientes", slides: [], legenda: "Legenda",
+  // Cada post com um gancho diferente: gancho repetido faz a IA escrever de novo (há um teste só disso).
+  const ganchos = ["3 sinais de que seu site espanta clientes", "Quanto cliente desiste antes de chamar?", "Pare de responder tudo na mão", "Faltou de novo na agenda?", "Planilha não é sistema", "Mito: app custa uma fortuna"];
+  return { tema: `Tema ${escritos.length}`, gancho: ganchos[(escritos.length - 1) % ganchos.length], slides: [], legenda: "Legenda",
     hashtags: ["empreendedorismo"], hashtags_extras: [], audio: "", narracao: "" };
 };
 
@@ -55,7 +57,7 @@ test("post do dia: criado uma vez só no horário, e o dia seguinte troca o form
 
   const [ultimo] = await db.postsRecentes(1);
   assert.equal(ultimo.dia, "2026-10-28");
-  assert.equal(ultimo.conteudo.gancho, "3 sinais de que seu site espanta clientes");
+  assert.equal(ultimo.conteudo.gancho, "Quanto cliente desiste antes de chamar?");
   await db.atualizarStatusPost(ultimo.id, "postado");
   assert.ok((await db.buscarPost(ultimo.id)).postado_em);
 });
