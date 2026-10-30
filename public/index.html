@@ -3441,15 +3441,15 @@ document.addEventListener("click", (ev) => {
 // ===================== Conteúdo (Instagram) =====================
 // Prévias, downloads e a postagem no Instagram dos posts criados pela IA.
 // O desenho fica em /post-desenho.js: o servidor usa o mesmo arquivo para postar sozinho no Instagram.
-let TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels, carregarFotosDoPost, APRESENTADOR, LOGO;
-const desenhoPronto = import("/post-desenho.js").then((m) => ({ TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels, carregarFotosDoPost, APRESENTADOR, LOGO } = m));
+let TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels, carregarFotosDoPost, APRESENTADOR, LOGO_DO_POST;
+const desenhoPronto = import("/post-desenho.js").then((m) => ({ TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels, carregarFotosDoPost, APRESENTADOR, LOGO: LOGO_DO_POST } = m));
 
 /** Uma foto do post, no navegador (a do apresentador é pública; as outras, pela rota com login). */
 const carregarFotoNoPainel = (chave) => new Promise((ok, falhou) => {
   const img = new Image();
   img.onload = () => ok(img);
   img.onerror = falhou;
-  img.src = chave === APRESENTADOR ? "/felipe-holanda.jpg" : chave === LOGO ? "/fluxdeck-logo.jpg" : `/api/foto/${encodeURIComponent(chave)}`;
+  img.src = chave === APRESENTADOR ? "/felipe-holanda.jpg" : chave === LOGO_DO_POST ? "/fluxdeck-logo.jpg" : `/api/foto/${encodeURIComponent(chave)}`;
 });
 const NOMES_ESTRUTURA = { lista: "Lista", pare_de: "Pare de", pov: "POV", pergunta: "Pergunta", mito_verdade: "Mito x verdade",
   antes_depois: "Antes x depois", passo_a_passo: "Passo a passo", segredo: "O que ninguém conta", comparacao: "X vs Y" };
