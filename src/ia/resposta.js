@@ -107,6 +107,7 @@ export function formatarHistorico(historico) {
 const ORIGEM_PROPRIA = {
   whatsapp: " · chamou por conta própria",
   instagram_direct: " · chamou por conta própria no direct do Instagram (pode ser só uma pessoa, não uma empresa)",
+  formulario: " · preencheu o formulário do site pedindo contato: é a PRIMEIRA mensagem para a pessoa; cumprimente pelo nome, diga que viu o pedido e responda ao que ela precisa",
 };
 
 /** Como formatar a mensagem em cada canal. */

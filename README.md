@@ -170,6 +170,17 @@ As variáveis `WHATSAPP_*` do `.env` continuam funcionando e têm prioridade sob
 
 Atenção: a política da Meta exige que o contato tenha dado consentimento (opt-in) para receber mensagens de marketing da sua empresa. Para prospecção fria de quem nunca falou com você, use o **e-mail** como primeiro contato e deixe o WhatsApp para quem responder.
 
+## Formulário do site
+
+O sistema tem um formulário de contato pronto, com link próprio: `https://SEU-SISTEMA/contato`. Quem preenche (nome, empresa, WhatsApp, e-mail, do que precisa e uma mensagem, com o aceite de contato) vira uma empresa já em conversa, você recebe um aviso por e-mail e a IA chama no WhatsApp em alguns minutos, em horário comercial (ou responde por e-mail, se a pessoa não deixou WhatsApp). Se o WhatsApp ou o e-mail já forem de uma empresa do sistema, entra na conversa dela.
+
+Em **Configurações → Formulário do site** estão:
+- o link para o botão de contato do site (`?origem=site`) e para a bio do Instagram (`?origem=instagram`), para saber de onde veio cada contato;
+- o código de um `<iframe>` para colocar o formulário dentro de uma página do site (`?embed=1` deixa sem fundo);
+- a opção **A IA chama sozinha quem preencher** (vale mesmo com a resposta automática desligada para as outras conversas) e os últimos contatos.
+
+O site também pode mandar o próprio formulário para `POST /contato` (JSON, de qualquer domínio) com os campos `nome`, `empresa`, `whatsapp`, `email`, `servico`, `mensagem`, `origem` e `consentimento: true`. Contra robôs: campo escondido (`site`), tempo mínimo de preenchimento (`t`, o horário em que a página abriu), um envio a cada 20 s por IP e a mesma pessoa só uma vez a cada 10 minutos.
+
 ## Insights do Instagram
 
 Em **Conteúdo → Desempenho no Instagram** aparecem os números do perfil: seguidores (e o ganho na semana), alcance médio, engajamento e, post a post, alcance, curtidas, comentários, salvamentos e compartilhamentos (e o tempo médio assistido nos Reels). Os posts feitos fora do sistema também entram. O sistema lê os insights sozinho a cada 6 horas (ou no botão **Atualizar agora**), pelo mesmo token dos posts, que precisa de `instagram_manage_insights`.

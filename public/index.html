@@ -656,6 +656,17 @@
           <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar perfil</button></div>
         </form>
 
+        <div class="cartao" id="cartao-formulario" style="margin-top:16px">
+          <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="inbox"></span><div class="titulos"><h3>Formulário do site <span id="formulario-status"></span></h3>
+            <div class="meta">Quem preenche vira uma empresa já em conversa e a IA chama no WhatsApp (ou responde por e-mail, se a pessoa não deixar WhatsApp). Use o link no site, no botão de contato e na bio do Instagram.</div></div></div>
+          <div class="cartao-corpo" style="display:grid;gap:14px">
+            <label class="chave"><input type="checkbox" id="formulario-ia"><div><b>A IA chama sozinha quem preencher</b>
+              <span>Em alguns minutos, em horário comercial. Vale mesmo com a resposta automática desligada para as outras conversas. Desligado, o contato aparece em Respostas com a sugestão da IA para você enviar.</span></div></label>
+            <div id="formulario-links"></div>
+            <div id="formulario-contatos"></div>
+          </div>
+        </div>
+
         <div class="cartao" id="cartao-cron" style="margin-top:16px">
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="clock"></span><div class="titulos"><h3>Agendamento automático <span id="cron-status"></span></h3>
             <div class="meta" style="display:block">O sistema roda sozinho a cada 10 minutos, de segunda a sexta: pelo agendador do banco (Supabase) e, de reserva, pelo GitHub. Não precisa de chave.</div></div></div>
@@ -2132,7 +2143,7 @@ function cardLead(l) {
       <span class="avatar">${inicial(l.nome)}</span>
       <div class="titulos">
         <h3>${esc(l.nome)}</h3>
-        <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}${l.origem === "instagram" ? `<span class="pilula">${ic("camera", "sm")}Instagram</span>` : ""}${l.origem === "instagram_direct" ? `<span class="pilula">${ic("camera", "sm")}Chamou no direct</span>` : ""}</div>
+        <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}${l.origem === "instagram" ? `<span class="pilula">${ic("camera", "sm")}Instagram</span>` : ""}${l.origem === "instagram_direct" ? `<span class="pilula">${ic("camera", "sm")}Chamou no direct</span>` : ""}${l.origem === "cnpj" ? `<span class="pilula">${ic("building", "sm")}CNPJ</span>` : ""}${l.origem === "formulario" ? `<span class="pilula ok">${ic("inbox", "sm")}Formulário do site</span>` : ""}</div>
         <div class="meta" style="margin-top:8px">
           ${l.nicho ? `<span>${ic("building", "sm")}${esc(l.nicho)}${l.cidade ? ` · ${esc(l.cidade)}` : ""}</span>` : ""}
           ${l.email ? `<span>${ic("mail", "sm")}${esc(l.email)}</span>` : ""}
@@ -2427,9 +2438,55 @@ async function gerarChaveCron(btn) {
   }
 }
 
+/** Os links do formulário (site, bio do Instagram), o código para o site e os últimos contatos. */
+async function carregarFormulario() {
+  try {
+    const f = await api("/api/formulario");
+    $("#formulario-ia").checked = f.iaResponde;
+    $("#formulario-status").innerHTML = f.contatos.length ? `<span class="pilula ok">${f.contatos.length === 10 ? "10+" : f.contatos.length} contato${f.contatos.length === 1 ? "" : "s"}</span>` : `<span class="pilula">Nenhum contato ainda</span>`;
+    const linha = (rotulo, valor, abrir = false) => `<div style="display:grid;gap:4px"><span class="rotulo">${rotulo}</span>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><code style="word-break:break-all;flex:1;min-width:200px">${esc(valor)}</code>
+        <button type="button" class="btn fantasma sm" data-copiar-form="${esc(valor)}">${ic("copy", "sm")}Copiar</button>
+        ${abrir ? `<a class="btn fantasma sm" href="${esc(valor)}" target="_blank" rel="noopener">${ic("external", "sm")}Abrir</a>` : ""}</div></div>`;
+    const iframe = `<iframe src="${f.link}?embed=1&origem=site" title="Fale com a gente" style="width:100%;max-width:640px;height:720px;border:0" loading="lazy"></iframe>`;
+    $("#formulario-links").innerHTML = linha("Link do formulário (para o botão de contato do site)", `${f.link}?origem=site`, true)
+      + linha("Link para a bio do Instagram", `${f.link}?origem=instagram`)
+      + linha("Código para colocar o formulário dentro de uma página do site", iframe);
+    $("#formulario-contatos").innerHTML = f.contatos.length ? `<div style="display:grid;gap:6px"><span class="rotulo">Últimos contatos</span>${f.contatos.map((c) =>
+      `<button type="button" class="btn fantasma" style="justify-content:flex-start;text-align:left" data-abrir-conversa="${c.id}">${ic("message", "sm")}<b>${esc(c.nome)}</b>
+        <span class="muted">${esc(c.whatsapp ?? c.email ?? "")} · ${dataHora(c.criado_em)}</span></button>`).join("")}</div>` : "";
+  } catch (e) {
+    $("#formulario-links").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+$("#formulario-ia").addEventListener("change", async (ev) => {
+  try {
+    await api("/api/formulario", { method: "PUT", body: JSON.stringify({ iaResponde: ev.target.checked }) });
+    avisar(ev.target.checked ? "A IA chama sozinha quem preencher o formulário" : "Os contatos do formulário esperam você responder", "ok");
+  } catch (e) {
+    ev.target.checked = !ev.target.checked;
+    avisar(e.message, "perigo");
+  }
+});
+
+$("#cartao-formulario").addEventListener("click", async (ev) => {
+  const copiar = ev.target.closest("[data-copiar-form]");
+  if (copiar) {
+    await navigator.clipboard.writeText(copiar.dataset.copiarForm).catch(() => {});
+    return avisar("Copiado", "ok", 1600);
+  }
+  const conversa = ev.target.closest("[data-abrir-conversa]");
+  if (conversa) {
+    conversaAberta = Number(conversa.dataset.abrirConversa);
+    location.hash = "#respostas";
+  }
+});
+
 async function carregarConfiguracoes() {
   carregarEmail();
   carregarCron();
+  carregarFormulario();
   api("/api/calendly/status").then((c) => {
     $("#calendly-status").innerHTML = c.conectado ? pilulaCalendly(c) : `<span class="pilula">Não conectado</span>`;
     $("#calendly-token").required = !c.conectado;

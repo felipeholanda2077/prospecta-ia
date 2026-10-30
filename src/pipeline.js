@@ -171,8 +171,9 @@ export async function limiteDoDia(campanha, canal) {
 export async function numeroParaEnviar(m, campanha) {
   const todos = await uazap.numeros();
   const doLead = m.numero_wa_lead !== undefined ? m.numero_wa_lead : (await db.buscarLead(m.lead_id))?.numero_wa;
-  // Conversa de antes de existirem vários números: ela começou pelo principal.
-  const conversaAntiga = !doLead && (m.tipo === "resposta" || m.etapa > 1) ? uazap.PRINCIPAL : null;
+  // Conversa de antes de existirem vários números: ela começou pelo principal. (Conversa nova, como a de
+  // quem preencheu o formulário do site, vai para o número com mais folga.)
+  const conversaAntiga = !doLead && (m.tipo === "resposta" || m.etapa > 1) && (await db.whatsappJaEnviado(m.lead_id)) ? uazap.PRINCIPAL : null;
   const dono = todos.find((n) => n.id === (doLead || conversaAntiga));
   if (dono) {
     return (await uazap.conectadoAgora(dono.id))

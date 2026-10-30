@@ -581,11 +581,11 @@ export async function atualizarResposta(id, campos) {
  * Quem escreveu por conta própria (no WhatsApp, ou no direct do Instagram) e é cliente em potencial
  * vira um lead já em conversa.
  */
-export async function criarLeadDeContato({ nome, whatsapp = null, instagram = null, origem = "whatsapp", observacao = null }) {
+export async function criarLeadDeContato({ nome, whatsapp = null, instagram = null, email = null, origem = "whatsapp", observacao = null }) {
   const linha = await um(
-    `INSERT INTO leads (nome, whatsapp, telefone, instagram, origem, status, observacao, token)
-     VALUES ($1, $2, $2, $3, $4, 'respondeu', $5, $6) RETURNING id`,
-    [nome, whatsapp, instagram, origem, observacao, crypto.randomBytes(16).toString("hex")]
+    `INSERT INTO leads (nome, whatsapp, telefone, instagram, email, origem, status, observacao, token)
+     VALUES ($1, $2, $2, $3, $4, $5, 'respondeu', $6, $7) RETURNING id`,
+    [nome, whatsapp, instagram, email, origem, observacao, crypto.randomBytes(16).toString("hex")]
   );
   return linha.id;
 }
@@ -607,6 +607,32 @@ export async function telefoneDeOutroCnpj(telefone, placeId) {
         AND regexp_replace(coalesce(telefone, ''), '\\D', '', 'g') = $1 LIMIT 1`,
     [digitos, placeId]
   ));
+}
+
+/** As empresas mais recentes que chegaram por uma origem (ex.: o formulário do site). */
+export async function leadsDaOrigem(origem, limite = 10) {
+  return q(
+    `SELECT id, nome, whatsapp, email, status, observacao, criado_em FROM leads WHERE origem = $1 ORDER BY id DESC LIMIT $2`,
+    [origem, limite]
+  );
+}
+
+/** Já saiu alguma mensagem de WhatsApp para esta empresa? */
+export async function whatsappJaEnviado(leadId) {
+  return Boolean(await um("SELECT 1 AS x FROM mensagens WHERE lead_id = $1 AND canal = 'whatsapp' AND status = 'enviada' LIMIT 1", [leadId]));
+}
+
+/** A empresa que já tem este WhatsApp ou e-mail (para quem preenche o formulário cair na conversa que já existe). */
+export async function leadPorContato({ whatsapps = [], email = null }) {
+  const numeros = whatsapps.map((w) => String(w).replace(/\D/g, "")).filter(Boolean);
+  if (!numeros.length && !email) return null;
+  return um(
+    `SELECT * FROM leads
+      WHERE (cardinality($1::text[]) > 0 AND regexp_replace(coalesce(whatsapp, ''), '\\D', '', 'g') = ANY($1::text[]))
+         OR ($2::text IS NOT NULL AND lower(email) = lower($2::text))
+      ORDER BY id DESC LIMIT 1`,
+    [numeros, email]
+  );
 }
 
 /** Directs de prospecção esperando você enviar pelo Instagram. */

@@ -26,6 +26,8 @@ import { narracaoDisponivel } from "./conteudo/narracao.js";
 import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados } from "./conteudo/insights.js";
 import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect } from "./envio/instagram.js";
 import { processarWebhookInstagram } from "./respostas/instagram.js";
+import { receberFormulario, lerConfigFormulario, salvarConfigFormulario } from "./respostas/formulario.js";
+import { paginaDoFormulario, paginaDeObrigado } from "./paginaContato.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
 import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada } from "./respostas/processar.js";
@@ -83,6 +85,39 @@ app.post("/descadastrar/:token", async (req, res) => {
   if (!lead) return res.status(404).send(LINK_INVALIDO);
   await db.descadastrarLead(lead, "link de descadastro");
   res.send(paginaSimples("Pronto", "<h2>Pronto!</h2><p>Você não receberá mais mensagens nossas.</p>"));
+});
+
+// ---------- Formulário de contato do site (público) ----------
+
+// O site da empresa pode mandar o próprio formulário para cá (de outro domínio).
+const liberarOutroSite = (res) => res.set({ "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type" });
+
+app.get("/contato", async (req, res) => {
+  const campanha = await carregarCampanhaCompleta();
+  res.set("Cache-Control", "no-store").send(paginaDoFormulario({
+    empresa: campanha.empresa.nome, servicos: campanha.servicos, origem: String(req.query.origem ?? "").slice(0, 40), embed: req.query.embed === "1",
+  }));
+});
+
+app.options("/contato", (req, res) => liberarOutroSite(res).sendStatus(204));
+
+// JSON (pelo formulário com JavaScript ou pelo site) responde JSON; o envio sem JavaScript recebe a página.
+app.post("/contato", async (req, res) => {
+  liberarOutroSite(res);
+  const campanha = await carregarCampanhaCompleta();
+  const comoJson = req.is("application/json");
+  let r;
+  try {
+    r = await receberFormulario(req.body ?? {}, campanha, { ip: req.ip });
+  } catch (e) {
+    console.error("Erro no formulário do site:", e);
+    r = { erro: "Não foi possível enviar agora. Tente de novo em instantes." };
+  }
+  if (comoJson) return res.status(r.erro ? 400 : 200).json(r.erro ? { erro: r.erro } : { ok: true });
+  const embed = String(req.body?.embed ?? "") === "1";
+  res.status(r.erro ? 400 : 200).send(r.erro
+    ? paginaDoFormulario({ empresa: campanha.empresa.nome, servicos: campanha.servicos, origem: req.body?.origem, embed, erro: r.erro })
+    : paginaDeObrigado({ empresa: campanha.empresa.nome, embed }));
 });
 
 // ---------- Webhook do WhatsApp (público, validado pela assinatura da Meta) ----------
@@ -819,6 +854,16 @@ app.put("/api/instagram/direct", async (req, res) => {
   }
   res.json({ ...(await painelDoDirect({ conferir: true })), assinatura });
 });
+
+// Formulário do site: o link, se a IA responde sozinha e os últimos contatos que chegaram por ele.
+app.get("/api/formulario", async (req, res) => {
+  res.json({
+    ...(await lerConfigFormulario()), link: `${config.painel.urlPublica}/contato`,
+    contatos: await db.leadsDaOrigem("formulario", 10),
+  });
+});
+
+app.put("/api/formulario", async (req, res) => res.json(await salvarConfigFormulario(req.body ?? {})));
 
 // Insights do Instagram: os números de cada post, as médias e o que a IA aprendeu com eles.
 app.get("/api/instagram/insights", async (req, res) => {

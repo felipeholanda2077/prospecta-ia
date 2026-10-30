@@ -15,6 +15,10 @@
     {
       "source": "/webhooks/(.*)",
       "destination": "/api"
+    },
+    {
+      "source": "/contato",
+      "destination": "/api"
     }
   ],
   "functions": {
