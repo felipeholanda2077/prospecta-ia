@@ -200,6 +200,14 @@ Cada post novo nasce com um público (clínica, restaurante, loja...), um tom (p
 - **Felipe nos vídeos:** em um Reels sim, um não, a foto dele aparece com o nome, e as falas são em primeira pessoa. Dá para desligar em **Instagram → Configurações**.
 - **Avatar de IA (opcional, pago):** com uma conta no HeyGen, em **Instagram → Configurações → Avatar de IA do Felipe**, o avatar fala na capa e na chamada final desses Reels (cerca de 10 segundos por vídeo). Os clipes são pedidos quando o post é criado e entram na hora de gerar o vídeo; se algum falhar ou não estiver pronto, aquela tela sai com a foto. A legenda avisa que o avatar é gerado com IA, e a marcação de IA do Instagram precisa ser feita à mão.
 
+## LinkedIn
+
+Os mesmos posts do Instagram saem na página da empresa no LinkedIn, nos mesmos horários, numa execução separada (um erro em uma rede não atrapalha a outra):
+
+- **Formato:** o Reels sai como vídeo vertical e o carrossel como documento em PDF, de passar as páginas (a API do LinkedIn só tem carrossel de verdade para anúncios).
+- **Público:** a IA reescreve o texto para donos e gestores de empresa e troca a última tela por uma chamada que faz sentido lá. O resto do post é o mesmo.
+- **Conexão:** em **Redes sociais → Configurações → Página do LinkedIn**, com um app próprio aprovado no produto *Community Management API*. O acesso vale 60 dias: renova sozinho quando o LinkedIn libera a renovação para o app; senão, o sistema avisa por e-mail 10 dias antes para entrar de novo.
+
 ## Insights do Instagram
 
 Em **Conteúdo → Desempenho no Instagram** aparecem os números do perfil: seguidores (e o ganho na semana), alcance médio, engajamento e, post a post, alcance, curtidas, comentários, salvamentos e compartilhamentos (e o tempo médio assistido nos Reels). Os posts feitos fora do sistema também entram. O sistema lê os insights sozinho a cada 6 horas (ou no botão **Atualizar agora**), pelo mesmo token dos posts, que precisa de `instagram_manage_insights`.

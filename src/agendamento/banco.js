@@ -18,6 +18,9 @@ const JOBS = [
   { nome: "prospecta-ia-conteudo", agenda: "*/15 * * * *", tarefa: "conteudo" },
   // A cada 2 minutos, todos os dias: as respostas da IA no direct do Instagram (a Meta só aceita até 24 h depois).
   { nome: "prospecta-ia-instagram", agenda: "*/2 * * * *", tarefa: "instagram" },
+  // A cada 5 minutos, todos os dias: os posts do dia na página do LinkedIn, numa execução só dele,
+  // para o vídeo ter o próprio tempo e nada do Instagram atrapalhar.
+  { nome: "prospecta-ia-linkedin", agenda: "*/5 * * * *", tarefa: "linkedin" },
 ];
 
 export const resumoDaChave = (chave) => crypto.createHash("sha256").update(`prospecta-banco:${chave}`).digest("hex");

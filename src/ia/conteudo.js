@@ -158,6 +158,71 @@ Hashtags: as de mais alcance no Brasil para o tema, misturando 2 bem amplas (ex.
 2 do nicho do assunto e a da marca (${empresa.nome.toLowerCase().replace(/\W/g, "")}). Sem acentos, sem espaços, sem o #.`;
 }
 
+const LinkedinSchema = z.object({
+  texto: z.string(),
+  titulo_documento: z.string(),
+  hashtags: z.array(z.string()),
+  cta_titulo: z.string(),
+  cta_texto: z.string(),
+  cta_destaque: z.string(),
+  cta_fala: z.string(),
+});
+
+const LINKEDIN_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    texto: { type: "string", description: "o texto do post no LinkedIn, de 700 a 1.500 caracteres, sem as hashtags e sem link. As 2 primeiras linhas (até 200 caracteres) aparecem antes do \"ver mais\" e têm que fazer o gestor querer abrir. Parágrafos de 1 a 3 linhas com linha em branco entre eles" },
+    titulo_documento: { type: "string", description: "título curto do vídeo ou do documento, até 60 caracteres, sem nome de arquivo" },
+    hashtags: { type: "array", description: "de 3 a 5 hashtags profissionais do assunto, em português, sem o # (inclua a da marca)", items: { type: "string" } },
+    cta_titulo: { type: "string", description: "a frase grande da última tela, no máximo 9 palavras. Convida para comentar a opinião ou a experiência da pessoa, marcar um colega ou falar com a empresa" },
+    cta_texto: { type: "string", description: "complemento curto da última tela, no máximo 20 palavras" },
+    cta_destaque: { type: "string", description: "uma ou duas palavras copiadas exatamente de cta_titulo, que aparecem coloridas" },
+    cta_fala: { type: "string", description: "no vídeo: a frase que a voz diz na última tela, de 6 a 18 palavras. No carrossel: vazio" },
+  },
+  required: ["texto", "titulo_documento", "hashtags", "cta_titulo", "cta_texto", "cta_destaque", "cta_fala"],
+  additionalProperties: false,
+};
+
+/**
+ * Adapta um post do Instagram para a página da empresa no LinkedIn: o mesmo assunto e o mesmo
+ * conteúdo, falando com quem decide. Retorna o texto, as hashtags e a chamada da última tela.
+ */
+export async function escreverParaLinkedin({ campanha, base, formato, tema, gancho, legenda, telas = [], publico = null }) {
+  const { empresa } = campanha;
+  const system = `Você cuida da página da ${empresa.nome} no LinkedIn. Sua tarefa é adaptar um post que já saiu no Instagram: o assunto e as ideias são os mesmos, mas quem lê é outro.
+
+Quem está no LinkedIn: donos, sócios, diretores e gestores de pequenas e médias empresas no Brasil. Leem no intervalo entre reuniões e pensam em custo, receita perdida, tempo da equipe, processo e risco. Decidem ou influenciam a compra.
+
+Como escrever:
+- A voz é a da empresa, profissional e direta, sem ser engessada: nada de gíria de criador de conteúdo, nem "galera" ou "bora".
+- Traga o raciocínio de negócio por trás do post: o que isso custa, o que muda na operação, como decidir. Um exemplo concreto vale mais que um adjetivo.
+- No máximo 2 emojis, ou nenhum. Sem listas com símbolos decorativos e sem negrito (o LinkedIn não tem).
+- Termine com uma pergunta que um gestor queira responder.
+- Nada do que só existe no Instagram: "link na bio", "direct", "salva esse post", "arrasta para o lado", "comenta tal palavra que eu te mando". O sistema acrescenta sozinho o link de contato, então não escreva link, site, telefone nem e-mail.
+- Nunca invente clientes, depoimentos, resultados, estatísticas ou números de pesquisa. Números hipotéticos, só deixando claro que são um exemplo. Não cite preços.
+
+Tudo o que você sabe sobre a ${empresa.nome}:
+<base_do_site>
+${base}
+</base_do_site>`;
+  const pedido = `Formato: ${formato === "reels" ? "vídeo vertical curto (o texto acompanha o vídeo)" : "carrossel em documento, de passar as páginas (o texto convida a passar)"}
+Assunto: ${tema}
+${publico ? `Tipo de negócio de que o post fala: ${PUBLICOS[publico] ?? publico}\n` : ""}Gancho no Instagram: ${gancho}
+Telas do post:
+${telas.map((t, i) => `${i + 1}. ${t.titulo}${t.texto ? ` | ${t.texto}` : ""}`).join("\n")}
+
+Legenda no Instagram:
+${legenda}
+
+Adapte para o LinkedIn.`;
+  const r = await gerarJson({ system, pedido, jsonSchema: LINKEDIN_JSON_SCHEMA, zodSchema: LinkedinSchema, modelo: config.conteudo.model });
+  const hashtags = [...new Set(r.hashtags.map((t) => String(t).replace(/^#+/, "").replace(/[^\p{L}\p{N}]/gu, "")).filter(Boolean))].slice(0, 5);
+  return {
+    texto: r.texto.trim(), hashtags, tituloDocumento: r.titulo_documento.slice(0, 100),
+    cta: { titulo: r.cta_titulo, texto: r.cta_texto, destaque: r.cta_destaque, fala: formato === "reels" ? r.cta_fala : "" },
+  };
+}
+
 /**
  * Escreve o post: tema, gancho, telas (do carrossel ou cenas do Reels, com a fala de cada uma),
  * clima da trilha, legenda e hashtags. `recentes` são os posts dos últimos dias, para não repetir.

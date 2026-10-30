@@ -185,6 +185,18 @@ export async function atualizarInstagramDoPost(id, campos) {
   await q(`UPDATE posts SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
 }
 
+const CAMPOS_LINKEDIN = ["linkedin_midia", "linkedin_id", "linkedin_link", "linkedin_erro", "linkedin_tentativas"];
+
+export async function atualizarLinkedinDoPost(id, campos) {
+  const chaves = Object.keys(campos).filter((k) => CAMPOS_LINKEDIN.includes(k));
+  if (!chaves.length) return;
+  await q(`UPDATE posts SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
+}
+
+export async function atualizarConteudoDoPost(id, conteudo) {
+  await q("UPDATE posts SET conteudo = $2 WHERE id = $1", [id, JSON.stringify(conteudo)]);
+}
+
 export async function gravarMidia(chave, tipo, dados) {
   await q(
     "INSERT INTO midias (chave, tipo, dados) VALUES ($1, $2, $3) ON CONFLICT (chave) DO UPDATE SET tipo = excluded.tipo, dados = excluded.dados, criada_em = now()",

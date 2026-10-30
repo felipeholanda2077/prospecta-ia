@@ -120,6 +120,12 @@ ALTER TABLE posts ADD COLUMN IF NOT EXISTS horario integer;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_link text;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_erro text;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_tentativas integer NOT NULL DEFAULT 0;
+-- O mesmo post na página da empresa no LinkedIn, com resultado próprio.
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS linkedin_midia text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS linkedin_id text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS linkedin_link text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS linkedin_erro text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS linkedin_tentativas integer NOT NULL DEFAULT 0;
 
 -- Imagens e vídeos gerados para o Instagram buscar pelo link; apagados depois que o post sai.
 -- Insights dos posts do perfil no Instagram (os criados pelo sistema e os outros), atualizados ao longo do dia.

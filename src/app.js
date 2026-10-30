@@ -19,7 +19,9 @@ import * as whatsappOficial from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
-import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia, normalizarHorarios } from "./conteudo/diario.js";
+import { rodadaDeConteudo, rodadaDoLinkedin, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia, normalizarHorarios } from "./conteudo/diario.js";
+import { postarNoLinkedin, textoDoPost } from "./conteudo/linkedin.js";
+import * as linkedin from "./envio/linkedin.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { narracaoDisponivel } from "./conteudo/narracao.js";
@@ -224,6 +226,8 @@ const TAREFAS_CRON = {
   },
   // A cada 2 minutos, a qualquer hora: as respostas da IA no direct do Instagram.
   instagram: (c) => pipeline.enviarInstagram(c),
+  // A cada 5 minutos: os posts do dia na página do LinkedIn, nos mesmos horários do Instagram.
+  linkedin: (c) => rodadaDoLinkedin(c),
 };
 
 const resumoChave = (v) => crypto.createHash("sha256").update(`prospecta-cron:${v}`).digest("hex");
@@ -249,7 +253,7 @@ app.get("/api/cron/:tarefa", async (req, res) => {
   if (!tarefa) return res.sendStatus(404);
   const recebido = String(req.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!(await chaveDoCronValida(recebido))) return res.sendStatus(401);
-  if (!["novas", "conteudo", "instagram"].includes(req.params.tarefa)) await db.gravarEstado("ultima_rodada", new Date().toISOString());
+  if (!["novas", "conteudo", "instagram", "linkedin"].includes(req.params.tarefa)) await db.gravarEstado("ultima_rodada", new Date().toISOString());
   // Se o agendador do banco ainda não estiver ligado, liga (na primeira rodada que chegar).
   const agendador = await garantirAgendamentoNoBanco().catch((e) => {
     console.error("⚠️  Agendador do banco:", e.message);
@@ -326,6 +330,12 @@ app.get("/api/versao", (req, res) => res.set("Cache-Control", "no-store").json({
 app.post("/api/logout", (req, res) => {
   res.clearCookie(COOKIE, { path: "/" });
   res.json({ ok: true });
+});
+
+// A volta do login do LinkedIn: quem garante que o pedido partiu do painel é o `state`, que só o sistema conhece.
+app.get("/api/linkedin/retorno", async (req, res) => {
+  await linkedin.concluirEntrada(req.query).catch((e) => console.error("⚠️  Login do LinkedIn:", e.message));
+  res.redirect("/#conteudo");
 });
 
 app.use("/api", (req, res, next) => {
@@ -765,7 +775,7 @@ app.get("/api/conteudo", async (req, res) => {
   const conf = await lerConfigConteudo();
   res.json({
     config: conf, base: await lerBaseDeConteudo(), hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14),
-    instagram: await statusDaConexao(), narracao: narracaoDisponivel(), pexels: Boolean(await lerChavePexels()),
+    instagram: await statusDaConexao(), linkedin: await linkedin.statusDaConexao(), narracao: narracaoDisponivel(), pexels: Boolean(await lerChavePexels()),
   });
 });
 
@@ -805,6 +815,41 @@ app.post("/api/conteudo/:id/instagram", async (req, res) => {
   if (r.instagram === "erro") return res.status(502).json({ erro: r.erro });
   res.json(r);
 });
+
+// Publica agora no LinkedIn (também serve para tentar de novo depois de um erro).
+app.post("/api/conteudo/:id/linkedin", async (req, res) => {
+  const post = await db.buscarPost(req.params.id);
+  if (!post) return res.status(404).json({ erro: "Post não encontrado" });
+  if (post.status === "descartado") return res.status(400).json({ erro: "Esse post foi descartado" });
+  await db.atualizarLinkedinDoPost(post.id, { linkedin_tentativas: 0, linkedin_midia: null });
+  const r = await postarNoLinkedin(post.id, await carregarCampanhaCompleta());
+  if (r.linkedin === "desconectado") return res.status(400).json({ erro: "Conecte o LinkedIn primeiro" });
+  if (r.linkedin === "erro") return res.status(502).json({ erro: r.erro });
+  res.json(r);
+});
+
+// A adaptação do post para o LinkedIn, para ver antes de sair (também funciona sem o LinkedIn conectado).
+app.post("/api/conteudo/:id/texto-linkedin", async (req, res) => {
+  const post = await db.buscarPost(req.params.id);
+  if (!post) return res.status(404).json({ erro: "Post não encontrado" });
+  res.json(await textoDoPost(post, await carregarCampanhaCompleta()));
+});
+
+// A conexão com a página do LinkedIn: os segredos ficam só no servidor.
+const rotaLinkedin = (fazer) => async (req, res) => {
+  try {
+    res.json((await fazer(req)) ?? (await linkedin.statusDaConexao()));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+};
+app.put("/api/linkedin/app", rotaLinkedin(async (req) => {
+  await linkedin.salvarApp(req.body ?? {});
+  return { url: await linkedin.urlDeEntrada() };
+}));
+app.post("/api/linkedin/entrar", rotaLinkedin(async () => ({ url: await linkedin.urlDeEntrada() })));
+app.put("/api/linkedin/pagina", rotaLinkedin(async (req) => void (await linkedin.escolherPagina(req.body?.pagina))));
+app.post("/api/linkedin/desconectar", rotaLinkedin(async () => void (await linkedin.desconectarLinkedin())));
 
 // O Reels em MP4, com a trilha e a voz, para baixar pelo painel (o mesmo vídeo que vai para o Instagram).
 app.get("/api/conteudo/:id/video", async (req, res) => {

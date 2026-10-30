@@ -7,6 +7,8 @@ import { enviarNotificacao } from "../envio/email.js";
 import { lerBaseDeConteudo } from "./base.js";
 import { postarNoInstagram, MAX_TENTATIVAS } from "./instagram.js";
 import { lerConexao, renovarTokenSePreciso } from "../envio/instagram.js";
+import { postarNoLinkedin, textoDoPost, MAX_TENTATIVAS as MAX_TENTATIVAS_LINKEDIN } from "./linkedin.js";
+import { lerConexao as lerConexaoLinkedin, renovarTokenSePreciso as renovarTokenLinkedin } from "../envio/linkedin.js";
 import { desempenho, escolherPorDesempenho, lerAprendizados, MINIMO_PARA_APRENDER } from "./insights.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
@@ -74,7 +76,7 @@ export function estruturaDoPost(dia, n = 0) {
  * Cria um post para hoje. `formato` fixo serve para "gerar outro" no lugar de um post; `horario`
  * é o horário do dia em que ele sai (sem horário, entra no próximo horário vago).
  */
-export async function criarPostDeHoje(campanha, { formato, horario = null, escrever = gerarPost, agora = new Date(), sorteio = Math.random, fotos = colocarFotos, clipes = pedirClipes } = {}) {
+export async function criarPostDeHoje(campanha, { formato, horario = null, escrever = gerarPost, agora = new Date(), sorteio = Math.random, fotos = colocarFotos, clipes = pedirClipes, escreverLinkedin } = {}) {
   const { dia } = agoraEmBrasilia(agora);
   const recentes = await db.postsRecentes(30);
   const deHoje = await db.postsDoDia(dia);
@@ -100,7 +102,10 @@ export async function criarPostDeHoje(campanha, { formato, horario = null, escre
   if (["foto_cheia", "dividido"].includes(conteudo.arte) && !conteudo.slides?.some((s) => s.foto)) conteudo.arte = sorteio() < 0.5 ? "cor" : "claro";
   const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo, horario });
   log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}, ${estrutura}, ${variedade.publico}, ${variedade.tom}, arte ${variedade.arte}${variedade.comFelipe ? ", com Felipe" : ""}${escolha.peloDesempenho ? ", pelos insights" : ""}): ${conteudo.tema}`);
-  return db.buscarPost(id);
+  const post = await db.buscarPost(id);
+  // Com o LinkedIn conectado, o texto dele já fica pronto para aparecer no painel. Se a IA falhar aqui, é escrito ao publicar.
+  if ((await lerConexaoLinkedin()).organizacao) await textoDoPost(post, campanha, { escrever: escreverLinkedin }).catch((e) => log(`⚠️  Texto do LinkedIn fica para a hora de publicar: ${e.message}`));
+  return post;
 }
 
 const ARTES_DOS_POSTS = ["foto_cheia", "dividido", "claro", "cor", "escuro"];
@@ -216,6 +221,38 @@ export async function rodadaDeConteudo(campanha, { agora = new Date(), escrever 
     }
   }
   return { conteudo: situacao ?? "nada a fazer" };
+}
+
+// Uma falha no LinkedIn espera 15 minutos antes de tentar de novo.
+const ESPERA_ENTRE_TENTATIVAS_MS = 15 * 60_000;
+
+/**
+ * Chamado pelo agendador a cada 5 minutos: publica na página do LinkedIn os posts cujo horário chegou,
+ * nos mesmos horários do Instagram. Passou a janela de 2 horas, não publica atrasado.
+ */
+export async function rodadaDoLinkedin(campanha, { agora = new Date(), postar = postarNoLinkedin, avisar = enviarNotificacao } = {}) {
+  const conexao = await lerConexaoLinkedin();
+  if (!conexao.token || !conexao.organizacao) return { linkedin: "desconectado" };
+  const conf = await lerConfigConteudo();
+  if (!conf.ativo || !conf.postarSozinho) return { linkedin: "desligado" };
+  const token = await renovarTokenLinkedin(agora).catch((e) => (log(`⚠️  ${e.message}`), {}));
+  if (token.avisar != null && (await db.travar("linkedin_aviso_token", 3 * 86_400_000))) {
+    await avisar(
+      `O acesso ao LinkedIn vence em ${token.avisar} dias`,
+      `Para os posts continuarem saindo na página, entre de novo no LinkedIn em ${config.painel.urlPublica}/#conteudo (aba Configurações). Leva 1 minuto.`
+    ).catch((e) => log(`⚠️  Não foi possível avisar do token do LinkedIn: ${e.message}`));
+  }
+  const { dia, minutos } = agoraEmBrasilia(agora);
+  const pendentes = (await db.postsDoDia(dia)).filter((p) => p.status !== "descartado" && p.horario != null && !p.linkedin_id
+    && minutos >= p.horario * 60 && minutos <= p.horario * 60 + ATRASO_MAXIMO_MIN && (p.linkedin_tentativas ?? 0) < MAX_TENTATIVAS_LINKEDIN);
+  for (const post of pendentes) {
+    if (!(await db.travar(`linkedin_espera_${post.id}`, ESPERA_ENTRE_TENTATIVAS_MS))) continue;
+    const r = await postar(post.id, campanha);
+    // Só um erro espera: a mídia ainda processando continua na próxima passagem.
+    if (r.linkedin !== "erro") await db.destravar(`linkedin_espera_${post.id}`);
+    return { linkedin: "publicando", postId: post.id, ...r };
+  }
+  return { linkedin: "nada a fazer" };
 }
 
 async function criarEAvisar(campanha, conf, { agora, escrever, conectado, dia, horario }) {

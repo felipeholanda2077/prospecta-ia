@@ -8,7 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%235b4cf0'/%3E%3Cstop offset='1' stop-color='%2306b6d4'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Cpath d='M10 10h12M10 16h9M10 22h5' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" type="image/jpeg" href="/fluxdeck-logo.jpg">
+<link rel="apple-touch-icon" href="/fluxdeck-logo.jpg">
 <style>
   /* ---------- Tokens ---------- */
   :root {
@@ -123,9 +124,8 @@
 
   /* ---------- Marca ---------- */
   .marca { display: flex; align-items: center; gap: 12px; }
-  .logo { width: 38px; height: 38px; flex: none; border-radius: 11px; display: grid; place-items: center;
-          background: linear-gradient(135deg, #5b4cf0, #06b6d4); box-shadow: 0 8px 20px -10px #5b4cf0; }
-  .logo svg { width: 22px; height: 22px; }
+  .logo { width: 38px; height: 38px; flex: none; border-radius: 11px; overflow: hidden; background: #000; box-shadow: 0 8px 20px -10px #1d8bff; }
+  .logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .marca-nome { font-weight: 800; font-size: 17px; letter-spacing: -.02em; line-height: 1.1; }
   .marca-sub { font-size: 12px; color: var(--muted); }
 
@@ -541,7 +541,7 @@
   }
 
   /* Página do Instagram: resumo, abas e painéis */
-  .ig-resumo { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 4px 0 16px; }
+  .ig-resumo { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 4px 0 16px; }
   .ig-card { font: inherit; color: inherit; text-align: left; cursor: pointer; background: var(--surface); border: 1px solid var(--border);
              border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 6px; box-shadow: var(--shadow-sm); min-width: 0;
              transition: border-color .15s, transform .15s; }
@@ -576,7 +576,7 @@
   .ajuda summary { cursor: pointer; color: var(--accent-text); font-weight: 600; }
   .ajuda ol { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; }
   .ajuda code { font-size: 12px; }
-  @media (max-width: 900px) { .ig-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 1100px) { .ig-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ig-card:last-child:nth-child(odd) { grid-column: 1 / -1; } }
   @media (max-width: 640px) {
     .ig-resumo { gap: 8px; }
     .ig-card { padding: 12px; }
@@ -1087,6 +1087,33 @@
           <div class="acoes"><button class="btn primario" type="submit" id="instagram-conectar"><span data-ic="check"></span>Conectar Instagram</button>
             <button class="btn fantasma" type="button" id="instagram-desconectar" hidden>Desconectar</button>
             <span class="muted" style="font-size:13px">O token fica só no servidor e é renovado sozinho toda semana, para não vencer.</span></div>
+          <div class="cartao-corpo" style="border-top:1px solid var(--border)">
+            <div class="alerta info"><img src="/fluxdeck-perfil.jpg" alt="" width="44" height="44" style="border-radius:50%;flex:none">
+              <div><b>Foto de perfil:</b> ela só muda pelo próprio Instagram. Baixe a logo nova e, no perfil, toque em <b>Editar perfil → Editar foto</b>. A logo já vem com margem para caber no círculo.
+                <div style="margin-top:8px"><a class="btn" href="/fluxdeck-perfil.jpg" download="fluxdeck-logo-perfil.jpg"><span data-ic="download"></span>Baixar logo para o perfil</a></div></div></div></div>
+        </form>
+        <form class="cartao" id="form-linkedin">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="linkedin"></span><div class="titulos"><h3>Página do LinkedIn <span id="linkedin-status"></span></h3>
+            <div class="meta">Os mesmos posts do Instagram, nos mesmos horários, na página da empresa. O vídeo sai como vídeo e o carrossel como documento de passar as páginas. A IA reescreve o texto para donos e gestores de empresa e troca a última tela por uma chamada que faz sentido lá.</div></div></div>
+          <div class="cartao-corpo config-grade">
+            <div id="linkedin-aviso" style="grid-column:1/-1"></div>
+            <div class="campo" id="linkedin-escolha" style="grid-column:1/-1" hidden></div>
+            <div class="campo"><label for="linkedin-id">Client ID</label>
+              <input id="linkedin-id" name="clientId" autocomplete="off" required></div>
+            <div class="campo"><label for="linkedin-segredo">Client Secret</label>
+              <input id="linkedin-segredo" name="clientSecret" type="password" autocomplete="off"></div>
+            <div class="campo" style="grid-column:1/-1"><label for="linkedin-retorno">URL de retorno (cole no app do LinkedIn)</label>
+              <input id="linkedin-retorno" readonly>
+              <details class="ajuda"><summary>Como criar o app no LinkedIn</summary>
+                <ol><li>Abra <b>linkedin.com/developers/apps</b> → <b>Create app</b> e escolha a página da FluxDeck. Você precisa ser administrador dela.</li>
+                  <li>Na aba <b>Products</b>, peça o <b>Community Management API</b> e preencha o formulário. O LinkedIn exige que ele seja o único produto do app, então use um app só para isso. A publicação só funciona depois que ele aprovar.</li>
+                  <li>Na aba <b>Auth</b>, cole a URL de retorno acima em <b>Authorized redirect URLs</b> e copie o <b>Client ID</b> e o <b>Client Secret</b> para cá.</li>
+                  <li>Clique em <b>Salvar e entrar com o LinkedIn</b> e autorize com a sua conta de administrador.</li></ol></details></div>
+          </div>
+          <div class="acoes"><button class="btn primario" type="submit" id="linkedin-entrar"><span data-ic="linkedin"></span>Salvar e entrar com o LinkedIn</button>
+            <button class="btn fantasma" type="button" id="linkedin-desconectar" hidden>Desconectar</button>
+            <a class="btn" href="/fluxdeck-perfil.jpg" download="fluxdeck-logo-perfil.jpg"><span data-ic="download"></span>Baixar logo para a página</a>
+            <span class="muted" style="font-size:13px">O segredo e o acesso ficam só no servidor.</span></div>
         </form>
         <form class="cartao" id="form-conteudo" >
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="spark"></span><div class="titulos"><h3>Posts automáticos <span id="conteudo-status"></span></h3>
@@ -1164,6 +1191,7 @@ const ICONES = {
   checkCircle: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  linkedin: '<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>',
   alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/>',
   message: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
   building: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>',
@@ -1199,7 +1227,7 @@ const ICONES = {
   repeat: '<path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/>',
 };
 const ic = (nome, cls = "") => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONES[nome] ?? ""}</svg>`;
-const LOGO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6.5h12M6 12h8.5M6 17.5h5" stroke="#fff" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>';
+const LOGO = '<img src="/fluxdeck-logo.jpg" alt="" width="38" height="38">';
 
 let sessao = null;
 let stats = null;
@@ -1313,8 +1341,8 @@ const VIEWS = {
                sub: "Todas as empresas capturadas e em que etapa do funil estão." },
   contratos: { grupo: "Relacionamento", nome: "Contratos", icone: "file", titulo: "Contratos",
                sub: "O modelo editável e o contrato de cada cliente, pronto em PDF para assinar." },
-  conteudo:  { grupo: "Marketing", nome: "Instagram", icone: "camera", titulo: "Instagram",
-               sub: "Os posts que a IA cria e publica, o desempenho de cada um e o direct." },
+  conteudo:  { grupo: "Marketing", nome: "Redes sociais", icone: "camera", titulo: "Redes sociais",
+               sub: "Os posts que a IA cria e publica no Instagram e no LinkedIn, o desempenho e o direct." },
   automacao: { grupo: "Sistema", nome: "Automação", icone: "zap", titulo: "Automação",
                sub: "Rode as etapas do funil manualmente quando quiser." },
   configuracoes: { grupo: "Sistema", nome: "Configurações", icone: "settings", titulo: "Configurações",
@@ -3526,6 +3554,7 @@ function proximoPost() {
 /** O resumo do topo: conta, seguidores, próximo post e direct (cada um abre a aba dele). */
 function desenharResumoIg() {
   const ig = estadoConteudo.instagram ?? {};
+  const li = estadoConteudo.linkedin ?? {};
   const conta = estadoInsights?.conta;
   const seg = estadoInsights?.seguidores ?? [];
   const atual = conta?.seguidores ?? seg.at(-1)?.seguidores ?? null;
@@ -3542,7 +3571,8 @@ function desenharResumoIg() {
       <span class="ig-card-cab">${cor !== null ? `<span class="ponto ${cor}"></span>` : ic(icone, "sm")}${rotulo}</span>
       <b>${esc(valor)}</b><span class="ig-card-sub">${esc(sub)}</span></button>`;
   $("#ig-resumo").innerHTML =
-    card("config", "camera", "Conta", ig.conectado ? "ok" : "perigo", ig.conectado ? `@${ig.usuario}` : "Não conectada", ig.conectado ? "Posta sozinho" : "Conecte em Configurações")
+    card("config", "camera", "Instagram", ig.conectado ? "ok" : "perigo", ig.conectado ? `@${ig.usuario}` : "Não conectado", ig.conectado ? "Posta sozinho" : "Conecte em Configurações")
+    + card("config", "linkedin", "LinkedIn", li.conectado ? "ok" : li.entrou ? "atencao" : "", li.conectado ? li.pagina : li.entrou ? "Falta a página" : "Não conectado", li.conectado ? "Mesmos horários" : "Conecte em Configurações")
     + card("desempenho", "users", "Seguidores", null, atual != null ? numero(atual) : "–", ganho ? `${ganho > 0 ? "+" : ""}${ganho} na semana` : estadoInsights?.analisados ? `${estadoInsights.analisados} posts analisados` : "Atualiza a cada 6 h")
     + card("posts", "clock", "Próximo post", prox.cor, prox.titulo, prox.sub)
     + card("direct", "message", "Direct", direct[0], direct[1], direct[2]);
@@ -3704,6 +3734,7 @@ function pararPreviasReels() {
 }
 
 const legendaCompleta = (post) => `${post.conteudo.legenda}\n\n${post.conteudo.hashtags.map((t) => `#${t}`).join(" ")}`;
+const textoDoLinkedin = (post) => `${post.conteudo.linkedin.texto}\n\n${post.conteudo.linkedin.hashtags.map((t) => `#${t}`).join(" ")}`;
 
 /** "12h e 18h", "9h, 12h e 18h". */
 const listaDeHoras = (horas) => horas.map((h) => `${h}h`).join(", ").replace(/, ([^,]*)$/, " e $1");
@@ -3731,9 +3762,15 @@ function cardPost(post, hoje) {
     : post.instagram_container ? `<span class="pilula acc">Publicando no Instagram…</span>`
     : vaiSairSozinho && !post.instagram_erro ? `<span class="pilula acc">${ic("clock", "sm")}Sai às ${post.horario}h no Instagram</span>`
     : `<span class="pilula acc">Pronto para postar</span>`;
+  const li = estadoConteudo.linkedin ?? {};
+  const noLinkedin = Boolean(post.linkedin_id);
+  const situacaoLi = noLinkedin ? `<span class="pilula ok">${ic("check", "sm")}No LinkedIn</span>`
+    : post.linkedin_midia ? `<span class="pilula acc">Publicando no LinkedIn…</span>`
+    : li.conectado && conf.ativo && conf.postarSozinho && post.dia === hoje && post.horario != null && !post.linkedin_erro ? `<span class="pilula acc">${ic("clock", "sm")}Sai às ${post.horario}h no LinkedIn</span>`
+    : "";
   return `<article class="cartao" data-post="${post.id}">
     <div class="cartao-cab"><span class="kpi-ic">${ic(reels ? "video" : "image")}</span>
-      <div class="titulos"><h3>${esc(c.gancho)} ${situacao}</h3>
+      <div class="titulos"><h3>${esc(c.gancho)} ${situacao} ${situacaoLi}</h3>
         <div class="meta">${[quando, reels ? "Reels" : `Carrossel com ${telasDoPost(post).length} imagens`, NOMES_PILAR[post.pilar] ?? post.pilar,
           NOMES_ESTRUTURA[c.estrutura], NOMES_ARTE[c.arte], reels && NOMES_TRILHA[c.trilha], reels && (estadoConteudo.narracao ? "com voz" : "sem voz"), c.comFelipe && (c.slides?.some((s) => s.avatar) ? "com avatar do Felipe" : "com Felipe")].filter(Boolean).map(esc).join(" · ")}</div></div></div>
     <div class="cartao-corpo post-corpo">
@@ -3741,12 +3778,14 @@ function cardPost(post, hoje) {
         ${reels ? `<span class="post-progresso" data-progresso></span>` : `<span class="muted" style="font-size:12.5px">Arraste para ver todas as imagens</span>`}</div>
       <div class="post-texto">
         ${post.instagram_erro && post.status !== "postado" ? `<div class="alerta perigo">${ic("alert")}<div><b>Não saiu no Instagram:</b> ${esc(post.instagram_erro)}</div></div>` : ""}
+        ${post.linkedin_erro && !noLinkedin ? `<div class="alerta perigo">${ic("alert")}<div><b>Não saiu no LinkedIn:</b> ${esc(post.linkedin_erro)}</div></div>` : ""}
         ${metricasDoPost(post)}
         <div class="campo"><span class="rotulo">Legenda</span><pre class="post-legenda">${esc(legendaCompleta(post))}</pre></div>
         <div class="campo"><span class="rotulo">Hashtags (já na legenda)</span>
           <div class="tags">${c.hashtags.map((t) => `<button type="button" class="tag" data-copiar-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div></div>
         ${c.hashtags_extras?.length ? `<div class="campo"><span class="rotulo">Outras hashtags para trocar (clique para copiar)</span>
           <div class="tags">${c.hashtags_extras.map((t) => `<button type="button" class="tag extra" data-copiar-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div></div>` : ""}
+        ${c.linkedin ? `<details data-texto-linkedin><summary class="rotulo" style="cursor:pointer">Texto do LinkedIn</summary><pre class="post-legenda" style="margin-top:8px">${esc(textoDoLinkedin(post))}</pre></details>` : ""}
         ${reels && c.narracao ? `<details><summary class="rotulo" style="cursor:pointer">Narração do vídeo</summary><p style="white-space:pre-wrap;margin:8px 0 0">${esc(c.narracao)}</p></details>` : ""}
       </div>
     </div>
@@ -3754,8 +3793,12 @@ function cardPost(post, hoje) {
       ${noInstagram && post.instagram_link ? `<a class="btn primario" href="${esc(post.instagram_link)}" target="_blank" rel="noopener">${ic("external")}Ver no Instagram</a>` : ""}
       ${instagram.conectado && post.status !== "postado"
         ? `<button class="btn primario" type="button" data-post-acao="instagram">${ic("send")}${post.instagram_erro ? "Tentar de novo no Instagram" : "Postar no Instagram agora"}</button>` : ""}
+      ${noLinkedin && post.linkedin_link ? `<a class="btn" href="${esc(post.linkedin_link)}" target="_blank" rel="noopener">${ic("external")}Ver no LinkedIn</a>` : ""}
+      ${li.conectado && !noLinkedin ? `<button class="btn" type="button" data-post-acao="linkedin">${ic("linkedin")}${post.linkedin_erro ? "Tentar de novo no LinkedIn" : "Postar no LinkedIn agora"}</button>` : ""}
       <button class="btn${instagram.conectado ? "" : " primario"}" type="button" data-post-acao="baixar">${ic("download")}${reels ? "Baixar vídeo" : "Baixar imagens"}</button>
       <button class="btn" type="button" data-post-acao="copiar">${ic("copy")}Copiar legenda com hashtags</button>
+      ${c.linkedin ? `<button class="btn" type="button" data-post-acao="copiar-linkedin">${ic("copy")}Copiar texto do LinkedIn</button>`
+        : noLinkedin ? "" : `<button class="btn" type="button" data-post-acao="texto-linkedin">${ic("linkedin")}Ver como fica no LinkedIn</button>`}
       ${noInstagram ? "" : post.status === "postado"
         ? `<button class="btn fantasma" type="button" data-post-acao="pronto">Desmarcar postado</button>`
         : `<button class="btn ok" type="button" data-post-acao="postado">${ic("check")}Já postei</button>`}
@@ -3786,6 +3829,7 @@ async function carregarConteudo() {
       : `<span class="pilula">Não conectado</span>`;
     $("#instagram-conectar").lastChild.textContent = r.instagram.conectado ? "Trocar token" : "Conectar Instagram";
     $("#instagram-desconectar").hidden = !r.instagram.conectado;
+    mostrarLinkedin(r.linkedin);
     carregarDirect({ conferir: r.instagram.conectado });
     carregarAvatar();
     await carregarInsights();
@@ -3809,6 +3853,51 @@ async function carregarConteudo() {
     avisar(e.message, "perigo");
   }
 }
+
+/** O cartão do LinkedIn: o app salvo, a página escolhida e até quando vale o acesso. */
+function mostrarLinkedin(l) {
+  const f = $("#form-linkedin");
+  if (!f.clientId.matches(":focus")) f.clientId.value = l.clientId;
+  f.clientSecret.placeholder = l.appDefinido ? "•••••••• já salvo (preencha só para trocar)" : "Cole o Client Secret";
+  $("#linkedin-retorno").value = l.retorno;
+  $("#linkedin-entrar").lastChild.textContent = l.entrou ? "Entrar de novo com o LinkedIn" : "Salvar e entrar com o LinkedIn";
+  $("#linkedin-desconectar").hidden = !l.entrou;
+  const vence = l.expiraEm && new Date(l.expiraEm).toLocaleDateString("pt-BR");
+  $("#linkedin-status").innerHTML = l.conectado
+    ? `<span class="pilula ok">${ic("check", "sm")}${esc(l.pagina)}</span> <span class="pilula">${l.renovaSozinho ? "Acesso renova sozinho" : `Acesso até ${vence}`}</span>`
+    : l.entrou ? `<span class="pilula">Falta escolher a página</span>` : `<span class="pilula">Não conectado</span>`;
+  $("#linkedin-aviso").innerHTML = l.erro ? `<div class="alerta perigo">${ic("alert")}<div>${esc(l.erro)}</div></div>` : "";
+  const escolha = $("#linkedin-escolha");
+  escolha.hidden = !l.entrou || (l.conectado && l.paginas.length < 2);
+  escolha.innerHTML = l.paginas.length
+    ? `<label for="linkedin-pagina">Página que recebe os posts</label><select id="linkedin-pagina"><option value="">Escolha…</option>${l.paginas.map((p) => `<option value="${esc(p.urn)}"${p.urn === l.organizacao ? " selected" : ""}>${esc(p.nome)}</option>`).join("")}</select>`
+    : `<label for="linkedin-pagina">Número da página</label><input id="linkedin-pagina" inputmode="numeric" autocomplete="off" placeholder="Cole o link de administrador: linkedin.com/company/123456/admin"><span class="muted" style="font-size:12.5px">O LinkedIn não listou nenhuma página para esta conta. Cole o link e clique fora do campo.</span>`;
+}
+$("#linkedin-escolha").addEventListener("change", async (ev) => {
+  if (!ev.target.value) return;
+  try {
+    await api("/api/linkedin/pagina", { method: "PUT", body: JSON.stringify({ pagina: ev.target.value }) });
+    avisar("Página do LinkedIn escolhida.", "ok");
+    await carregarConteudo();
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  }
+});
+$("#form-linkedin").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  try {
+    const { url } = await api("/api/linkedin/app", { method: "PUT", body: JSON.stringify({ clientId: f.clientId.value, clientSecret: f.clientSecret.value }) });
+    location.href = url;
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  }
+});
+$("#linkedin-desconectar").addEventListener("click", async () => {
+  if (!confirm("Desconectar o LinkedIn? Os posts deixam de sair na página.")) return;
+  await post("/api/linkedin/desconectar").catch((e) => avisar(e.message, "perigo"));
+  await carregarConteudo();
+});
 
 /** O cartão do avatar: mostra o que está salvo e o resultado do teste com o HeyGen. */
 function mostrarAvatar(a) {
@@ -3955,6 +4044,21 @@ $("#lista-posts").addEventListener("click", async (ev) => {
     if (acao === "copiar") {
       await navigator.clipboard.writeText(legendaCompleta(p));
       avisar("Legenda com hashtags copiada. É só colar no Instagram.", "ok");
+    } else if (acao === "copiar-linkedin") {
+      await navigator.clipboard.writeText(textoDoLinkedin(p));
+      avisar("Texto do LinkedIn copiado.", "ok");
+    } else if (acao === "texto-linkedin") {
+      btn.lastChild.textContent = "A IA está adaptando…";
+      await post(`/api/conteudo/${p.id}/texto-linkedin`);
+      await carregarConteudo();
+      const aberto = $(`[data-post="${p.id}"] [data-texto-linkedin]`);
+      if (aberto) aberto.open = true;
+    } else if (acao === "linkedin") {
+      if (!confirm("Publicar este post agora na página do LinkedIn?")) return;
+      btn.lastChild.textContent = p.formato === "reels" ? "Gerando o vídeo e publicando… (até 3 min)" : "Publicando…";
+      const r = await post(`/api/conteudo/${p.id}/linkedin`);
+      avisar(r.linkedin === "postado" ? "Publicado no LinkedIn." : "O LinkedIn ainda está processando: o post sai sozinho em até 5 minutos.", "ok", 6000);
+      await carregarConteudo();
     } else if (acao === "baixar" && p.formato === "carrossel") {
       await baixarCarrossel(p);
       avisar("Imagens baixadas. No Instagram, escolha todas na ordem para montar o carrossel.", "ok", 6000);
