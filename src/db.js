@@ -248,6 +248,28 @@ export async function atualizarFornecedor(id, { status, observacao }) {
   await q("UPDATE fornecedores SET status = COALESCE($2, status), observacao = COALESCE($3, observacao) WHERE id = $1", [id, status ?? null, observacao ?? null]);
 }
 
+// ---------- Perguntas do Mercado Livre ----------
+
+/** Guarda a pergunta. Retorna true se ela é nova. */
+export async function inserirPerguntaML({ id, item_id, texto, criada_em }) {
+  const r = await um("INSERT INTO ml_perguntas (id, item_id, texto, criada_em) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING RETURNING id", [id, item_id, texto, criada_em]);
+  return Boolean(r);
+}
+
+export const perguntaML = (id) => um("SELECT * FROM ml_perguntas WHERE id = $1", [String(id)]);
+
+export async function perguntasML(status, limite = 100) {
+  return q("SELECT * FROM ml_perguntas WHERE status = $1 ORDER BY criada_em DESC LIMIT $2", [status, limite]);
+}
+
+const CAMPOS_PERGUNTA_ML = ["item_titulo", "item_link", "rascunho", "precisa_conferir", "motivo", "resposta", "respondida_em", "status", "erro"];
+
+export async function atualizarPerguntaML(id, campos) {
+  const chaves = Object.keys(campos).filter((k) => CAMPOS_PERGUNTA_ML.includes(k));
+  if (!chaves.length) return;
+  await q(`UPDATE ml_perguntas SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE id = $1`, [String(id), ...chaves.map((k) => campos[k])]);
+}
+
 // ---------- Estado interno ----------
 
 export async function lerEstado(chave) {

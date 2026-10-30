@@ -23,6 +23,8 @@ import { rodadaDeConteudo, rodadaDoLinkedin, criarPostDeHoje, lerConfigConteudo,
 import { postarNoLinkedin, textoDoPost } from "./conteudo/linkedin.js";
 import * as linkedin from "./envio/linkedin.js";
 import { buscarFornecedores, limparParaSalvar } from "./descoberta/fornecedores.js";
+import * as mercadolivre from "./envio/mercadolivre.js";
+import { rodadaDoMercadoLivre, enviarResposta, refazerSugestao } from "./vendas/mercadolivre.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { narracaoDisponivel, carregarChaveDaVoz, salvarChaveDoGemini } from "./conteudo/narracao.js";
@@ -195,6 +197,20 @@ app.post("/webhooks/instagram", async (req, res) => {
   );
 });
 
+// ---------- Webhook do Mercado Livre (público) ----------
+
+// Ele não assina os avisos, então o aviso só serve de gatilho: nada do que vem nele é usado, e a rodada
+// consulta a API com o nosso acesso, no máximo uma vez por minuto. O resto fica para a passagem de 10 minutos.
+app.post("/webhooks/mercadolivre", async (req, res) => {
+  res.sendStatus(200);
+  if (req.body?.topic !== "questions" || !(await db.travar("mercadolivre_aviso", 60_000))) return;
+  waitUntil(
+    carregarCampanhaCompleta()
+      .then((campanha) => rodadaDoMercadoLivre(campanha))
+      .catch((e) => console.error("Erro no aviso do Mercado Livre:", e.message))
+  );
+});
+
 // ---------- Webhook do Calendly (público, validado pela assinatura) ----------
 
 app.post("/webhooks/calendly", async (req, res) => {
@@ -229,6 +245,8 @@ const TAREFAS_CRON = {
   instagram: (c) => pipeline.enviarInstagram(c),
   // A cada 5 minutos: os posts do dia na página do LinkedIn, nos mesmos horários do Instagram.
   linkedin: (c) => rodadaDoLinkedin(c),
+  // A cada 10 minutos: as perguntas novas do Mercado Livre, com a resposta sugerida.
+  mercadolivre: (c) => rodadaDoMercadoLivre(c),
 };
 
 const resumoChave = (v) => crypto.createHash("sha256").update(`prospecta-cron:${v}`).digest("hex");
@@ -254,7 +272,7 @@ app.get("/api/cron/:tarefa", async (req, res) => {
   if (!tarefa) return res.sendStatus(404);
   const recebido = String(req.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!(await chaveDoCronValida(recebido))) return res.sendStatus(401);
-  if (!["novas", "conteudo", "instagram", "linkedin"].includes(req.params.tarefa)) await db.gravarEstado("ultima_rodada", new Date().toISOString());
+  if (!["novas", "conteudo", "instagram", "linkedin", "mercadolivre"].includes(req.params.tarefa)) await db.gravarEstado("ultima_rodada", new Date().toISOString());
   // Se o agendador do banco ainda não estiver ligado, liga (na primeira rodada que chegar).
   const agendador = await garantirAgendamentoNoBanco().catch((e) => {
     console.error("⚠️  Agendador do banco:", e.message);
@@ -333,6 +351,12 @@ app.post("/api/logout", (req, res) => {
   res.json({ ok: true });
 });
 
+// A volta do login do Mercado Livre: quem garante que o pedido partiu do painel é o `state`.
+app.get("/api/mercadolivre/retorno", async (req, res) => {
+  await mercadolivre.concluirEntrada(req.query).catch((e) => console.error("⚠️  Login do Mercado Livre:", e.message));
+  res.redirect("/#marketplaces");
+});
+
 // A volta do login do LinkedIn: quem garante que o pedido partiu do painel é o `state`, que só o sistema conhece.
 app.get("/api/linkedin/retorno", async (req, res) => {
   await linkedin.concluirEntrada(req.query).catch((e) => console.error("⚠️  Login do LinkedIn:", e.message));
@@ -393,6 +417,41 @@ app.post("/api/maps/buscar", async (req, res) => {
     res.status(502).json({ erro: e.message });
   }
 });
+
+// Mercado Livre: as perguntas (a resposta só sai com a aprovação de quem clica) e os pedidos.
+const rotaMl = (fazer) => async (req, res) => {
+  try {
+    res.json(await fazer(req));
+  } catch (e) {
+    res.status(e.status === 401 ? 401 : 400).json({ erro: e.message, ...(e.status === 401 ? { reconectar: true } : {}) });
+  }
+};
+const painelDoMl = async () => ({
+  conexao: await mercadolivre.statusDaConexao(),
+  pendentes: await db.perguntasML("pendente"),
+  respondidas: await db.perguntasML("respondida", 20),
+});
+app.get("/api/mercadolivre", rotaMl(painelDoMl));
+app.post("/api/mercadolivre/atualizar", rotaMl(async () => ({ rodada: await rodadaDoMercadoLivre(await carregarCampanhaCompleta()), ...(await painelDoMl()) })));
+app.get("/api/mercadolivre/pedidos", rotaMl(() => mercadolivre.pedidosRecentes()));
+app.put("/api/mercadolivre/app", rotaMl(async (req) => {
+  await mercadolivre.salvarApp(req.body ?? {});
+  return { url: await mercadolivre.urlDeEntrada() };
+}));
+app.post("/api/mercadolivre/entrar", rotaMl(async () => ({ url: await mercadolivre.urlDeEntrada() })));
+app.post("/api/mercadolivre/desconectar", rotaMl(async () => {
+  await mercadolivre.desconectar();
+  return mercadolivre.statusDaConexao();
+}));
+app.post("/api/mercadolivre/perguntas/:id/responder", rotaMl(async (req) => {
+  await enviarResposta(req.params.id, req.body?.texto);
+  return painelDoMl();
+}));
+app.post("/api/mercadolivre/perguntas/:id/refazer", rotaMl(async (req) => refazerSugestao(req.params.id, await carregarCampanhaCompleta())));
+app.post("/api/mercadolivre/perguntas/:id/ignorar", rotaMl(async (req) => {
+  await db.atualizarPerguntaML(req.params.id, { status: "ignorada" });
+  return painelDoMl();
+}));
 
 // Fornecedores de dropshipping: ficam fora do funil, então nunca recebem mensagem automática.
 const STATUS_FORNECEDOR = ["novo", "contatado", "aprovado", "descartado"];

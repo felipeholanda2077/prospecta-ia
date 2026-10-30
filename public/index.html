@@ -936,6 +936,39 @@
       </section>
 
       <!-- Contratos -->
+      <!-- Mercado Livre -->
+      <section id="view-marketplaces" hidden>
+        <div id="ml-aviso"></div>
+        <div class="filtros" id="ml-abas" role="tablist" aria-label="Mercado Livre" style="margin:0 0 12px;flex-wrap:wrap">
+          <button type="button" class="filtro" role="tab" data-ml-aba="perguntas" aria-pressed="true">Perguntas <span id="ml-total"></span></button>
+          <button type="button" class="filtro" role="tab" data-ml-aba="pedidos" aria-pressed="false">Pedidos</button>
+          <button type="button" class="filtro" role="tab" data-ml-aba="conexao" aria-pressed="false">Conexão</button>
+        </div>
+        <div data-ml-painel="perguntas">
+          <div class="forn-acoes"><button class="btn" type="button" id="ml-atualizar"><span data-ic="refresh"></span>Buscar perguntas agora</button>
+            <span class="muted" style="font-size:13px">O sistema também busca sozinho a cada 10 minutos e avisa por e-mail.</span></div>
+          <div class="forn-grade" id="ml-perguntas"></div>
+        </div>
+        <div data-ml-painel="pedidos" hidden><div class="forn-grade" id="ml-pedidos"></div></div>
+        <form class="cartao" id="form-ml" data-ml-painel="conexao" hidden>
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="store"></span><div class="titulos"><h3>Conta de vendedor <span id="ml-status"></span></h3>
+            <div class="meta">Liga a sua loja ao sistema pela API oficial. Os acessos ficam criptografados, só no servidor.</div></div></div>
+          <div class="cartao-corpo config-grade">
+            <div class="campo"><label for="ml-id">App ID (Client ID)</label><input id="ml-id" name="clientId" autocomplete="off" required></div>
+            <div class="campo"><label for="ml-segredo">Secret Key</label><input id="ml-segredo" name="clientSecret" type="password" autocomplete="off"></div>
+            <div class="campo" style="grid-column:1/-1"><label for="ml-retorno">URL de redirecionamento (cole no app)</label><input id="ml-retorno" readonly></div>
+            <div class="campo" style="grid-column:1/-1"><label for="ml-avisos">URL de notificações (cole no app)</label><input id="ml-avisos" readonly>
+              <details class="ajuda"><summary>Como criar o app no Mercado Livre</summary>
+                <ol><li>Entre com a <b>conta principal da loja</b> em <b>developers.mercadolivre.com.br</b> → <b>Minhas aplicações</b>. Colaborador não consegue conectar.</li>
+                  <li>Clique em <b>Criar aplicação</b>. No Brasil, cada conta só pode criar 1, depois de validar os dados do titular.</li>
+                  <li>Cole as duas URLs acima, marque os escopos de <b>leitura e escrita</b>, deixe o <b>PKCE desligado</b> e selecione o tópico de <b>perguntas</b>.</li>
+                  <li>Salve, copie o <b>App ID</b> e a <b>Secret Key</b> para cá e clique em <b>Salvar e entrar</b>.</li></ol></details></div>
+          </div>
+          <div class="acoes"><button class="btn primario" type="submit" id="ml-entrar"><span data-ic="store"></span>Salvar e entrar com o Mercado Livre</button>
+            <button class="btn fantasma" type="button" id="ml-desconectar" hidden>Desconectar</button></div>
+        </form>
+      </section>
+
       <!-- Fornecedores de dropshipping -->
       <section id="view-fornecedores" hidden>
         <form class="cartao cartao-corpo busca" id="form-fornecedores">
@@ -1226,6 +1259,7 @@ const ICONES = {
   checkCircle: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
   clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
   send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  store: '<path d="M3 9 4.5 3h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v9h14v-9"/>',
   box: '<path d="M21 8 12 3 3 8v8l9 5 9-5Z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
   linkedin: '<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>',
   alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/>',
@@ -1373,6 +1407,8 @@ const VIEWS = {
                sub: "Corrija e tente de novo, ou descarte.", contador: () => stats?.mensagens.erro, perigo: true },
   fornecedores: { grupo: "Prospecção", nome: "Fornecedores", icone: "box", titulo: "Fornecedores de dropshipping",
                sub: "Procure quem envia direto ao seu cliente. Fica separado das empresas: ninguém aqui recebe mensagem automática." },
+  marketplaces: { grupo: "Vendas", nome: "Mercado Livre", icone: "store", titulo: "Mercado Livre",
+               sub: "As perguntas dos compradores com a resposta sugerida pela IA, que só sai com a sua aprovação, e os seus pedidos." },
   respostas: { grupo: "Relacionamento", nome: "Respostas", curto: "Respostas", icone: "message", titulo: "Respostas",
                sub: "Cada conversa como no WhatsApp, com a chance de fechar e o próximo passo.", contador: () => stats?.respostasNaoLidas },
   leads:     { grupo: "Relacionamento", nome: "Empresas", curto: "Empresas", icone: "building", titulo: "Empresas",
@@ -1426,9 +1462,11 @@ function irParaHash() {
   $("#view-conteudo").hidden = viewAtual !== "conteudo";
   $("#view-contratos").hidden = viewAtual !== "contratos";
   $("#view-fornecedores").hidden = viewAtual !== "fornecedores";
-  $("#view-lista").hidden = ["maps", "automacao", "configuracoes", "conteudo", "contratos", "fornecedores"].includes(viewAtual);
+  $("#view-marketplaces").hidden = viewAtual !== "marketplaces";
+  $("#view-lista").hidden = ["maps", "automacao", "configuracoes", "conteudo", "contratos", "fornecedores", "marketplaces"].includes(viewAtual);
   // Os números da prospecção não dizem nada nestas páginas.
-  $("#kpis").hidden = ["conteudo", "contratos", "fornecedores"].includes(viewAtual);
+  $("#kpis").hidden = ["conteudo", "contratos", "fornecedores", "marketplaces"].includes(viewAtual);
+  if (viewAtual === "marketplaces") carregarMercadoLivre();
   if (viewAtual === "fornecedores") carregarFornecedores();
   if (viewAtual === "contratos") carregarContratos();
   if (viewAtual === "configuracoes") carregarConfiguracoes();
@@ -4158,6 +4196,140 @@ $("#instagram-desconectar").addEventListener("click", async () => {
   if (!confirm("Desconectar o Instagram? Os posts voltam a ficar só para baixar.")) return;
   await post("/api/instagram/desconectar").catch((e) => avisar(e.message, "perigo"));
   await carregarConteudo();
+});
+
+// ===================== Mercado Livre =====================
+let estadoMl = { aba: "perguntas", conexao: {}, pendentes: [], respondidas: [], pedidos: null };
+
+const dinheiro = (v, moeda = "BRL") => (v == null ? "–" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: moeda || "BRL" }));
+const STATUS_PEDIDO = { paid: ["ok", "Pago"], confirmed: ["acc", "Confirmado"], payment_required: ["", "Aguardando pagamento"], payment_in_process: ["", "Pagamento em análise"], partially_paid: ["", "Pago em parte"], cancelled: ["perigo", "Cancelado"], invalid: ["perigo", "Inválido"] };
+
+function cardDaPergunta(p) {
+  return `<article class="cartao forn-card" data-pergunta="${esc(p.id)}">
+    <h3>${p.item_link ? `<a href="${esc(p.item_link)}" target="_blank" rel="noopener noreferrer">${esc(p.item_titulo ?? p.item_id)}</a>` : esc(p.item_titulo ?? p.item_id)}</h3>
+    <div class="meta">${p.criada_em ? esc(new Date(p.criada_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })) : ""}</div>
+    <p class="forn-prova" style="color:var(--text)">${esc(p.texto)}</p>
+    ${p.precisa_conferir ? `<div class="alerta info">${ic("alert")}<div><b>O anúncio não responde tudo.</b> ${esc(p.motivo ?? "")}</div></div>` : ""}
+    ${p.erro ? `<div class="alerta perigo">${ic("alert")}<div>${esc(p.erro)}</div></div>` : ""}
+    <div class="campo"><label for="ml-resp-${esc(p.id)}">Sua resposta</label>
+      <textarea id="ml-resp-${esc(p.id)}" data-ml-texto rows="4" maxlength="2000" placeholder="${p.rascunho ? "" : "A IA ainda vai sugerir. Se preferir, escreva aqui."}">${esc(p.rascunho ?? "")}</textarea></div>
+    <div class="forn-botoes"><button class="btn primario" type="button" data-ml-acao="responder">${ic("send")}Enviar resposta</button>
+      <button class="btn" type="button" data-ml-acao="refazer">${ic("refresh")}Sugerir outra</button>
+      <button class="btn fantasma" type="button" data-ml-acao="ignorar">Ignorar</button></div>
+  </article>`;
+}
+
+function cardDoPedido(o) {
+  const [cor, texto] = STATUS_PEDIDO[o.status] ?? ["", o.status ?? "–"];
+  return `<article class="cartao forn-card">
+    <div class="forn-pilulas"><span class="pilula ${cor}">${esc(texto)}</span></div>
+    <h3>${o.itens.map((i) => `${i.quantidade}× ${esc(i.titulo)}`).join("<br>")}</h3>
+    <div class="meta">${[o.criadoEm && new Date(o.criadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }), o.comprador, `Pedido ${o.id}`].filter(Boolean).map(esc).join(" · ")}</div>
+    <b>${esc(dinheiro(o.total, o.moeda))}</b>
+  </article>`;
+}
+
+function desenharMercadoLivre() {
+  const { aba, conexao: c, pendentes, pedidos } = estadoMl;
+  $$("[data-ml-aba]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mlAba === aba)));
+  $$("[data-ml-painel]").forEach((p) => (p.hidden = p.dataset.mlPainel !== aba));
+  $("#ml-total").textContent = pendentes.length ? `(${pendentes.length})` : "";
+  $("#ml-aviso").innerHTML = c.erro ? `<div class="alerta perigo" style="margin-bottom:12px">${ic("alert")}<div>${esc(c.erro)}</div></div>` : "";
+  const f = $("#form-ml");
+  if (!f.clientId.matches(":focus")) f.clientId.value = c.clientId ?? "";
+  f.clientSecret.placeholder = c.appDefinido ? "•••••••• já salva (preencha só para trocar)" : "Cole a Secret Key";
+  $("#ml-retorno").value = c.retorno ?? "";
+  $("#ml-avisos").value = c.avisos ?? "";
+  $("#ml-status").innerHTML = c.conectado ? `<span class="pilula ok">${ic("check", "sm")}${esc(c.apelido ?? "Conectado")}</span>` : `<span class="pilula">Não conectado</span>`;
+  $("#ml-entrar").lastChild.textContent = c.conectado ? "Entrar de novo com o Mercado Livre" : "Salvar e entrar com o Mercado Livre";
+  $("#ml-desconectar").hidden = !c.conectado;
+  const desconectado = `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">Conecte a sua conta de vendedor na aba <b>Conexão</b> para ver isto aqui.</div>`;
+  $("#ml-perguntas").innerHTML = !c.conectado ? desconectado : pendentes.length ? pendentes.map(cardDaPergunta).join("") : `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">Nenhuma pergunta esperando resposta.</div>`;
+  $("#ml-pedidos").innerHTML = !c.conectado ? desconectado : !pedidos ? `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">Carregando os pedidos…</div>`
+    : pedidos.length ? pedidos.map(cardDoPedido).join("") : `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">Nenhum pedido ainda.</div>`;
+}
+
+async function carregarMercadoLivre() {
+  try {
+    Object.assign(estadoMl, await api("/api/mercadolivre"));
+    // Sem aba escolhida ainda e sem conexão: vai direto para onde dá para conectar.
+    if (!estadoMl.conexao.conectado) estadoMl.aba = "conexao";
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+  desenharMercadoLivre();
+}
+
+async function carregarPedidosMl() {
+  try {
+    estadoMl.pedidos = await api("/api/mercadolivre/pedidos");
+  } catch (e) {
+    estadoMl.pedidos = [];
+    avisar(e.message, "perigo", 8000);
+  }
+  desenharMercadoLivre();
+}
+
+$("#ml-abas").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-ml-aba]");
+  if (!b) return;
+  estadoMl.aba = b.dataset.mlAba;
+  desenharMercadoLivre();
+  if (estadoMl.aba === "pedidos" && estadoMl.conexao.conectado) carregarPedidosMl();
+});
+
+$("#ml-atualizar").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  try {
+    Object.assign(estadoMl, await post("/api/mercadolivre/atualizar"));
+    desenharMercadoLivre();
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#ml-perguntas").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-ml-acao]");
+  if (!btn) return;
+  const card = btn.closest("[data-pergunta]");
+  const id = card.dataset.pergunta;
+  const acao = btn.dataset.mlAcao;
+  btn.disabled = true;
+  try {
+    if (acao === "responder") {
+      Object.assign(estadoMl, await post(`/api/mercadolivre/perguntas/${id}/responder`, { texto: $("[data-ml-texto]", card).value }));
+      avisar("Resposta enviada ao comprador.", "ok");
+    } else if (acao === "ignorar") {
+      Object.assign(estadoMl, await post(`/api/mercadolivre/perguntas/${id}/ignorar`));
+    } else {
+      const nova = await post(`/api/mercadolivre/perguntas/${id}/refazer`);
+      estadoMl.pendentes = estadoMl.pendentes.map((p) => (p.id === id ? nova : p));
+    }
+    desenharMercadoLivre();
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+    btn.disabled = false;
+  }
+});
+
+$("#form-ml").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  try {
+    const { url } = await api("/api/mercadolivre/app", { method: "PUT", body: JSON.stringify({ clientId: f.clientId.value, clientSecret: f.clientSecret.value }) });
+    location.href = url;
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  }
+});
+
+$("#ml-desconectar").addEventListener("click", async () => {
+  if (!confirm("Desconectar o Mercado Livre? As perguntas deixam de chegar aqui.")) return;
+  await post("/api/mercadolivre/desconectar").catch((e) => avisar(e.message, "perigo"));
+  await carregarMercadoLivre();
 });
 
 // ===================== Fornecedores de dropshipping =====================

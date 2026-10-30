@@ -21,6 +21,8 @@ const JOBS = [
   // A cada 5 minutos, todos os dias: os posts do dia na página do LinkedIn, numa execução só dele,
   // para o vídeo ter o próprio tempo e nada do Instagram atrapalhar.
   { nome: "prospecta-ia-linkedin", agenda: "*/5 * * * *", tarefa: "linkedin" },
+  // A cada 10 minutos, todos os dias: as perguntas novas do Mercado Livre (e mantém o acesso em dia).
+  { nome: "prospecta-ia-mercadolivre", agenda: "*/10 * * * *", tarefa: "mercadolivre" },
 ];
 
 export const resumoDaChave = (chave) => crypto.createHash("sha256").update(`prospecta-banco:${chave}`).digest("hex");

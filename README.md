@@ -200,6 +200,14 @@ Cada post novo nasce com um público (clínica, restaurante, loja...), um tom (p
 - **Felipe nos vídeos:** em um Reels sim, um não, a foto dele aparece com o nome, e as falas são em primeira pessoa. Dá para desligar em **Instagram → Configurações**.
 - **Avatar de IA (opcional, pago):** com uma conta no HeyGen, em **Instagram → Configurações → Avatar de IA do Felipe**, o avatar fala na capa e na chamada final desses Reels (cerca de 10 segundos por vídeo). Os clipes são pedidos quando o post é criado e entram na hora de gerar o vídeo; se algum falhar ou não estiver pronto, aquela tela sai com a foto. A legenda avisa que o avatar é gerado com IA, e a marcação de IA do Instagram precisa ser feita à mão.
 
+## Mercado Livre
+
+A página **Mercado Livre** liga a conta de vendedor pela API oficial, em **Conexão** (com o App ID e a Secret Key de um app próprio).
+
+- **Perguntas:** a cada 10 minutos o sistema traz as novas, a IA sugere a resposta só com o que está no anúncio e você recebe um e-mail. **A resposta só sai quando você aprova.** Texto com telefone, link, e-mail ou WhatsApp é barrado, porque o Mercado Livre pune contato fora da plataforma.
+- **Pedidos:** as vendas recentes, consultadas na hora. Endereço e dados pessoais do comprador não entram no sistema.
+- **Segurança:** os acessos ficam criptografados (AES-256-GCM), com a chave derivada de `PAINEL_SENHA`. Trocar essa senha obriga a conectar de novo.
+
 ## Fornecedores de dropshipping
 
 A página **Fornecedores** procura quem envia direto ao cliente do lojista, por segmento e região. Fica separada das empresas: ninguém aqui recebe mensagem automática.
