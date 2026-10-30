@@ -121,7 +121,7 @@ test("arte: todos os estilos desenham todas as cenas, com e sem foto, elemento e
   // Post antigo, sem arte nem foto, continua saindo no estilo de antes.
   const antigo = { id: 1, conteudo: { gancho: "G", slides: [{ titulo: "A" }, { titulo: "B" }] } };
   desenho.desenharTelaCarrossel(createCanvas(1080, 1350).getContext("2d"), antigo, 0);
-  assert.deepEqual(desenho.fotosDoPost(antigo), [desenho.LOGO]);
+  assert.deepEqual(desenho.fotosDoPost(antigo), [desenho.LOGO, desenho.APRESENTADOR]); // ele entra na capa de todo post
   // Foto que não carrega só fica de fora.
   await desenho.carregarFotosDoPost({ conteudo: { slides: [{ foto: { chave: "foto-quebrada" } }] } }, async () => { throw new Error("404"); });
 });

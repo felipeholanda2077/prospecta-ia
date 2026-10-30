@@ -97,7 +97,7 @@ export async function criarPostDeHoje(campanha, { formato, horario = null, escre
     log(`🔁 Gancho parecido com um post recente ("${parecido}"); a IA escreve outro`);
     escrito = await escrever({ ...pedido, aviso: `o gancho "${escrito.gancho}" ficou parecido demais com "${parecido}". Escreva outro assunto, com outro gancho.` });
   }
-  const conteudo = await clipes(await fotos({ ...escrito, ...variedade }, { formato: escolhido, dia }), { formato: escolhido });
+  const conteudo = await clipes(await fotos({ ...escrito, ...variedade, capaSemFelipe: conf.apresentador === false }, { formato: escolhido, dia }), { formato: escolhido });
   // Os estilos de foto sem nenhuma foto achada virariam fundo escuro: troca por um que não depende dela.
   if (["foto_cheia", "dividido"].includes(conteudo.arte) && !conteudo.slides?.some((s) => s.foto)) conteudo.arte = sorteio() < 0.5 ? "cor" : "claro";
   const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo, horario });

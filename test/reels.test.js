@@ -144,3 +144,33 @@ test("reels: a capa traz o gancho inteiro, e não o começo da animação", () =
   assert.ok(capa > meioSegundo); // aos 0,6 s ainda faltam palavras
   assert.ok(Math.abs(capa - fimDaCena) / capa < 0.05, `capa ${capa}, fim da cena ${fimDaCena}`); // igual à cena completa
 });
+
+test("capa: o Felipe entra na capa de todo post, a não ser que esteja desligado", async () => {
+  const post = (extra = {}) => ({ id: 8, formato: "carrossel", conteudo: { gancho: "Capa", arte: "cor", estrutura: "lista", hashtags: [], legenda: "", ...extra, slides: [
+    { visual: "capa", titulo: "Capa", texto: "", destaque: "" }, { visual: "cta", titulo: "Fim", texto: "", destaque: "" }] } });
+  assert.ok(desenho.fotosDoPost(post()).includes(desenho.APRESENTADOR));
+  assert.ok(!desenho.fotosDoPost(post({ capaSemFelipe: true })).includes(desenho.APRESENTADOR));
+  assert.ok(desenho.fotosDoPost(post({ capaSemFelipe: true, comFelipe: true })).includes(desenho.APRESENTADOR));
+
+  // Uma imagem vermelha no lugar da foto dele: ela aparece só na faixa de baixo, sem cobrir o título.
+  const foto = createCanvas(400, 400);
+  const f = foto.getContext("2d");
+  f.fillStyle = "#ff0000";
+  f.fillRect(0, 0, 400, 400);
+  await desenho.carregarFotosDoPost(post(), async (c) => (c === desenho.APRESENTADOR ? foto : null));
+  const vermelhos = (desenhar, w, h, y0, y1) => {
+    const c = createCanvas(w, h);
+    const ctx = c.getContext("2d");
+    desenhar(ctx);
+    const { data } = ctx.getImageData(0, y0, w, y1 - y0);
+    let n = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i] > 240 && data[i + 1] < 15 && data[i + 2] < 15) n++;
+    return n;
+  };
+  const reels = { ...post(), formato: "reels" };
+  assert.ok(vermelhos((ctx) => desenho.desenharCapaReels(ctx, reels, "FluxDeck"), 1080, 1920, 1400, 1680) > 10_000);
+  assert.equal(vermelhos((ctx) => desenho.desenharCapaReels(ctx, reels, "FluxDeck"), 1080, 1920, 200, 1390), 0);
+  assert.equal(vermelhos((ctx) => desenho.desenharCapaReels(ctx, { ...reels, conteudo: { ...reels.conteudo, capaSemFelipe: true } }, "FluxDeck"), 1080, 1920, 1400, 1680), 0);
+  assert.ok(vermelhos((ctx) => desenho.desenharTelaCarrossel(ctx, post(), 0, "FluxDeck"), 1080, 1350, 1060, 1260) > 10_000);
+  assert.equal(vermelhos((ctx) => desenho.desenharTelaCarrossel(ctx, post(), 1, "FluxDeck"), 1080, 1350, 0, 1350), 0); // só na capa
+});

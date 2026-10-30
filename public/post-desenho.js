@@ -53,7 +53,8 @@ const fotos = new Map();
 /** As imagens que o post usa (as fotos das telas e, se for o caso, o apresentador). */
 export function fotosDoPost(post) {
   const chaves = (post?.conteudo?.slides ?? []).map((s) => s.foto?.chave).filter(Boolean);
-  if (post?.conteudo?.comFelipe) chaves.push(APRESENTADOR);
+  // O Felipe aparece nas capas de todos os posts, e nas cenas dos Reels com ele.
+  if (post?.conteudo?.comFelipe || !post?.conteudo?.capaSemFelipe) chaves.push(APRESENTADOR);
   return [...new Set([LOGO, ...chaves])];
 }
 
@@ -288,13 +289,12 @@ function desenharElemento(ctx, tipo, cx, cy, escala, local, tema) {
 }
 
 /** O Felipe no vídeo: a foto dele num círculo, com o anel pulsando como quem fala. Com nome na capa e na chamada. */
-function felipeNoVideo(ctx, { w, local, tela, tema }) {
+function felipeNoVideo(ctx, { w, local, tela, tema, cy = 1560, raio = null }) {
   const foto = fotos.get(APRESENTADOR);
   if (!foto) return;
   const grande = tela.visual === "capa" || tela.visual === "cta";
-  const r = grande ? 96 : 62;
+  const r = raio ?? (grande ? 96 : 62);
   const cx = 80 + r;
-  const cy = 1560;
   const p = elastico(local / 0.45);
   ctx.save();
   ctx.translate(cx, cy);
@@ -610,11 +610,11 @@ const CENAS = {
     const reels = c.modo === "reels";
     const opcoes = { largura: c.area.largura, alturaMax: reels ? 760 : 640, maior: reels ? 150 : 124, menor: 72 };
     const t = medirTitulo(ctx, { texto: c.tela.titulo, ...opcoes });
-    const extra = (c.tela.texto ? 40 + alturaDoParagrafo(ctx, c.tela.texto, c.area.largura, 48) : 0) + (reels ? 0 : 150);
+    const extra = (c.tela.texto ? 40 + alturaDoParagrafo(ctx, c.tela.texto, c.area.largura, 48) : 0) + (reels || c.semPilula ? 0 : 150);
     const y = blocoCentralizado(c.area, t.altura + extra);
     const fim = tituloAnimado(ctx, { texto: c.tela.titulo, destaque: c.tela.destaque, x: c.area.x, y, ...opcoes, local: c.local, tema: c.tema, centro: true, estilo: "batida", passo: 0.09 });
     const fimTexto = paragrafo(ctx, { texto: c.tela.texto, x: c.area.x, y: fim + 40, largura: c.area.largura, tamanho: 48, local: c.local, inicio: 0.6, centro: true });
-    if (!reels) pilula(ctx, "Arrasta para o lado  »", c.w / 2, fimTexto + 56, c.tema);
+    if (!reels && !c.semPilula) pilula(ctx, "Arrasta para o lado  »", c.w / 2, fimTexto + 56, c.tema);
   },
 
   impacto(ctx, c) {
@@ -785,18 +785,19 @@ function cartao(ctx, { x, y, w, h, alpha, cor, rotulo, icone, texto, tamanho, pa
 }
 
 /** Desenha a cena `i` (sem o fundo), com `local` segundos desde o começo dela. */
-function desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo, estrutura, topoLivre = null, comVideo = false }) {
+function desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo, estrutura, topoLivre = null, comVideo = false, semPilula = false, baseMax = null }) {
   const tela = telas[i];
   const reels = modo === "reels";
   const area = reels ? { x: 80, topo: 300, base: 1440, largura: w - 160 } : { x: 80, topo: 210, base: h - 140, largura: w - 160 };
   if (topoLivre) area.topo = Math.max(area.topo, topoLivre);
   if (comVideo) area.base = 1560;
+  if (baseMax) area.base = Math.min(area.base, baseMax);
   // O elemento visual só entra na tela que não tem foto ocupando o espaço, e abre lugar embaixo no carrossel.
   const comElemento = tela.elemento && !topoLivre;
   if (comElemento && !reels) area.base -= 300;
   limiteAltura = topoLivre || comElemento ? (area.base - area.topo) * 0.74 : Infinity;
   const numero = telas.slice(0, i + 1).filter((t) => t.visual === "lista").length;
-  (CENAS[tela.visual] ?? CENAS.texto)(ctx, { w, h, tela, i, local, dur, tema, modo, estrutura, area, numero });
+  (CENAS[tela.visual] ?? CENAS.texto)(ctx, { w, h, tela, i, local, dur, tema, modo, estrutura, area, numero, semPilula });
   limiteAltura = Infinity;
   if (comElemento) reels ? desenharElemento(ctx, tela.elemento, w * 0.6, 1600, 0.74, local, tema) : desenharElemento(ctx, tela.elemento, w / 2, h - 275, 0.78, local, tema);
 }
@@ -817,7 +818,13 @@ export function desenharTelaCarrossel(ctx, post, i, empresa = "FluxDeck") {
   ctx.textBaseline = "middle";
   ctx.fillText(`${i + 1}/${telas.length}`, w - 80, 113);
   ctx.textAlign = "left";
-  desenharCena(ctx, { w, h, telas, i, local: 99, dur: 99, tema, modo: "carrossel", estrutura: post.conteudo.estrutura, topoLivre });
+  // A primeira tela é a capa do carrossel: o Felipe fica embaixo e o "arrasta" vai para o lado dele, em versão curta.
+  const felipeNaCapa = i === 0 && !post.conteudo.capaSemFelipe && fotos.has(APRESENTADOR);
+  desenharCena(ctx, { w, h, telas, i, local: 99, dur: 99, tema, modo: "carrossel", estrutura: post.conteudo.estrutura, topoLivre, semPilula: felipeNaCapa, baseMax: felipeNaCapa ? 1050 : null });
+  if (felipeNaCapa) {
+    felipeNoVideo(ctx, { w, local: 99, tela: telas[0], tema, cy: 1160, raio: 80 });
+    pilula(ctx, "Arrasta  »", w - 170, 1132, tema);
+  }
   // Pontinhos de progresso no rodapé.
   telas.forEach((_, j) => {
     ctx.fillStyle = j === i ? tinta.forte : tinta.fraca;
@@ -895,10 +902,13 @@ export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duraco
   ctx.translate(w / 2 + dx, h * 0.45 + dy);
   ctx.scale(escala, escala);
   ctx.translate(-w / 2, -h * 0.45);
-  desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo: "reels", estrutura: post.conteudo.estrutura, topoLivre, comVideo });
+  desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo: "reels", estrutura: post.conteudo.estrutura, topoLivre, comVideo, baseMax: capa && !comVideo && !post.conteudo.capaSemFelipe ? 1390 : null });
   ctx.restore();
   ctx.globalAlpha = 1;
-  if (post.conteudo.comFelipe && !comVideo) felipeNoVideo(ctx, { w, local, tela: telas[i], tema });
+  // Na capa ele fica um pouco acima do normal: a grade do perfil corta a parte de baixo da imagem.
+  if (capa) {
+    if (!comVideo && !post.conteudo.capaSemFelipe) felipeNoVideo(ctx, { w, local, tela: telas[i], tema, cy: 1530, raio: 104 });
+  } else if (post.conteudo.comFelipe && !comVideo) felipeNoVideo(ctx, { w, local, tela: telas[i], tema });
 
   // Clarão na troca para as cenas fortes.
   if (forte && !comVideo && local < 0.25) {
