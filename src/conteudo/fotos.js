@@ -50,6 +50,23 @@ async function buscarNoCommons(busca) {
   });
 }
 
+const PALAVRAS_VAZIAS = new Set(["a", "an", "the", "with", "at", "in", "on", "of", "and", "to", "for", "using", "their", "his", "her"]);
+
+/** A busca e versões com menos palavras: o Wikimedia só acha o que tem todas elas. */
+export function variacoesDaBusca(busca) {
+  const palavras = String(busca).toLowerCase().split(/\s+/).filter((p) => p && !PALAVRAS_VAZIAS.has(p));
+  return [...new Set([palavras.join(" "), palavras.slice(0, 3).join(" "), palavras.slice(0, 2).join(" ")])].filter(Boolean);
+}
+
+/** Tenta a busca completa e, sem resultado, as versões menores. */
+async function buscarNoCommonsComVariacoes(busca) {
+  for (const tentativa of variacoesDaBusca(busca)) {
+    const achadas = await buscarNoCommons(tentativa);
+    if (achadas.length) return achadas;
+  }
+  return [];
+}
+
 /** Baixa e recorta a foto no tamanho do post, para o banco guardar pouco. Retorna JPEG. */
 async function prepararFoto(url, largura, altura) {
   const r = await fetch(url, { headers: { "User-Agent": AGENTE }, signal: AbortSignal.timeout(TEMPO_MS) });
@@ -70,7 +87,7 @@ export async function colocarFotos(conteudo, { formato, dia, buscar = null, prep
   const pedidos = (conteudo.slides ?? []).map((s, i) => ({ i, busca: String(s.busca_imagem ?? "").trim() })).filter((p) => p.busca).slice(0, MAX_FOTOS);
   if (!pedidos.length) return conteudo;
   const chave = await lerChavePexels();
-  const procurar = buscar ?? ((busca) => (chave ? buscarNoPexels(busca, chave, "portrait") : buscarNoCommons(busca)));
+  const procurar = buscar ?? ((busca) => (chave ? buscarNoPexels(busca, chave, "portrait") : buscarNoCommonsComVariacoes(busca)));
   const [largura, altura] = formato === "reels" ? [1080, 1920] : [1080, 1350];
   const usadas = new Set();
   const slides = conteudo.slides.map((s) => ({ ...s }));

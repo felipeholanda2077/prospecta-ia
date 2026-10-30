@@ -95,6 +95,8 @@ export async function criarPostDeHoje(campanha, { formato, horario = null, escre
     escrito = await escrever({ ...pedido, aviso: `o gancho "${escrito.gancho}" ficou parecido demais com "${parecido}". Escreva outro assunto, com outro gancho.` });
   }
   const conteudo = await fotos({ ...escrito, ...variedade }, { formato: escolhido, dia });
+  // Os estilos de foto sem nenhuma foto achada virariam fundo escuro: troca por um que não depende dela.
+  if (["foto_cheia", "dividido"].includes(conteudo.arte) && !conteudo.slides?.some((s) => s.foto)) conteudo.arte = sorteio() < 0.5 ? "cor" : "claro";
   const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo, horario });
   log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}, ${estrutura}, ${variedade.publico}, ${variedade.tom}, arte ${variedade.arte}${variedade.comFelipe ? ", com Felipe" : ""}${escolha.peloDesempenho ? ", pelos insights" : ""}): ${conteudo.tema}`);
   return db.buscarPost(id);

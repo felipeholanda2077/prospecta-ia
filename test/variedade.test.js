@@ -7,7 +7,7 @@ process.env.TZ = "America/Sao_Paulo";
 delete process.env.PEXELS_API_KEY;
 const db = await import("../src/db.js");
 const desenho = await import("../public/post-desenho.js");
-const { colocarFotos } = await import("../src/conteudo/fotos.js");
+const { colocarFotos, variacoesDaBusca } = await import("../src/conteudo/fotos.js");
 const diario = await import("../src/conteudo/diario.js");
 const { PUBLICOS, TONS } = await import("../src/ia/conteudo.js");
 await db.iniciar();
@@ -82,6 +82,21 @@ test("fotos: coloca a foto nas telas, não repete a mesma, dá crédito só quan
   // Sem nenhuma busca, não mexe em nada.
   const sem = { slides: [{ titulo: "a" }], legenda: "L" };
   assert.deepEqual(await colocarFotos(sem, { formato: "reels", dia: "2026-10-30" }), sem);
+});
+
+test("fotos: a busca tenta com menos palavras, e post sem foto não fica no estilo de foto", async () => {
+  assert.deepEqual(variacoesDaBusca("Man thinking with notebook startup idea"), ["man thinking notebook startup idea", "man thinking notebook", "man thinking"]);
+  assert.deepEqual(variacoesDaBusca("clinic"), ["clinic"]);
+  const artes = new Set();
+  for (const v of [0.1, 0.9]) {
+    const recentes = (await db.postsRecentes(30));
+    const criado = await diario.criarPostDeHoje({ empresa: { nome: "FluxDeck" } }, {
+      escrever: async () => conteudoEscrito(`Gancho único ${v} ${recentes.length} sem repetir nada`), agora: new Date("2026-10-30T15:00:00Z"), sorteio: () => v,
+      fotos: async (c) => ({ ...c, arte: "foto_cheia" }), // nenhuma foto achada
+    });
+    artes.add(criado.conteudo.arte);
+  }
+  assert.deepEqual([...artes].sort(), ["claro", "cor"]);
 });
 
 test("arte: todos os estilos desenham todas as cenas, com e sem foto, elemento e Felipe", async () => {
