@@ -5,6 +5,7 @@ import { enviarNotificacao } from "../envio/email.js";
 import { lerBaseDeConteudo } from "./base.js";
 import { postarNoInstagram, MAX_TENTATIVAS } from "./instagram.js";
 import { lerConexao, renovarTokenSePreciso } from "../envio/instagram.js";
+import { desempenho, escolherPorDesempenho, lerAprendizados, MINIMO_PARA_APRENDER } from "./insights.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
@@ -71,21 +72,54 @@ export function estruturaDoPost(dia, n = 0) {
  * Cria um post para hoje. `formato` fixo serve para "gerar outro" no lugar de um post; `horario`
  * é o horário do dia em que ele sai (sem horário, entra no próximo horário vago).
  */
-export async function criarPostDeHoje(campanha, { formato, horario = null, escrever = gerarPost, agora = new Date() } = {}) {
+export async function criarPostDeHoje(campanha, { formato, horario = null, escrever = gerarPost, agora = new Date(), sorteio = Math.random } = {}) {
   const { dia } = agoraEmBrasilia(agora);
   const recentes = await db.postsRecentes(30);
   const deHoje = await db.postsDoDia(dia);
-  const escolhido = formato ?? proximoFormato(recentes[0]);
-  const pilar = pilarDoDia(dia, deHoje.length);
-  const estrutura = estruturaDoPost(dia, deHoje.length);
+  const escolha = await escolhaPeloDesempenho({ dia, n: deHoje.length, recentes, agora, sorteio });
+  const escolhido = formato ?? escolha.formato;
+  const { pilar, estrutura } = escolha;
   const base = await lerBaseDeConteudo();
   const conteudo = await escrever({
-    campanha, formato: escolhido, pilar, estrutura, base,
+    campanha, formato: escolhido, pilar, estrutura, base, aprendizados: escolha.aprendizados,
     recentes: recentes.slice(0, 20).map((p) => ({ tema: p.tema, gancho: p.conteudo?.gancho ?? "" })),
   });
   const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo, horario });
-  log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}, ${estrutura}): ${conteudo.tema}`);
+  log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}, ${estrutura}${escolha.peloDesempenho ? ", pelos insights" : ""}): ${conteudo.tema}`);
   return db.buscarPost(id);
+}
+
+// Mesmo com os insights, 1 em cada 4 posts segue o rodízio normal: assim os assuntos e estruturas que
+// ainda não foram bem testados continuam aparecendo, e a IA não fica presa no que deu certo uma vez.
+const CHANCE_DE_EXPLORAR = 0.25;
+
+/**
+ * Formato, linha editorial e estrutura do próximo post. Sem insights suficientes, o rodízio de sempre.
+ * Com eles, mais chance para o que performa melhor no perfil (sem repetir os 2 últimos posts), o
+ * formato que está claramente melhor sai em 2 de cada 3 posts, e os aprendizados da IA vão no pedido.
+ */
+export async function escolhaPeloDesempenho({ dia, n, recentes, agora = new Date(), sorteio = Math.random }) {
+  const rodizio = { formato: proximoFormato(recentes[0]), pilar: pilarDoDia(dia, n), estrutura: estruturaDoPost(dia, n) };
+  const d = await desempenho({ agora }).catch(() => null);
+  const aprendizados = await lerAprendizados();
+  const doSistema = d?.posts.filter((p) => p.nota != null && p.conteudo).length ?? 0;
+  const comAprendizados = aprendizados && {
+    ...aprendizados,
+    ganchosQueFuncionaram: (d?.melhores ?? []).map((p) => p.conteudo?.gancho).filter(Boolean),
+  };
+  if (doSistema < MINIMO_PARA_APRENDER || sorteio() < CHANCE_DE_EXPLORAR) return { ...rodizio, aprendizados: comAprendizados, peloDesempenho: false };
+
+  const ultimos = recentes.slice(0, 2);
+  const pilar = escolherPorDesempenho(Object.keys(PILARES), d.porPilar, { evitar: ultimos.map((p) => p.pilar), sorteio: sorteio() });
+  const estrutura = escolherPorDesempenho(Object.keys(ESTRUTURAS), d.porEstrutura, { evitar: ultimos.map((p) => p.conteudo?.estrutura), sorteio: sorteio() });
+  const { reels, carrossel } = d.porFormato;
+  let formato = rodizio.formato;
+  if (reels?.posts >= 3 && carrossel?.posts >= 3) {
+    const melhor = reels.media >= carrossel.media ? "reels" : "carrossel";
+    const pior = melhor === "reels" ? carrossel : reels;
+    if (d.porFormato[melhor].media >= 1.3 * pior.media) formato = sorteio() < 2 / 3 ? melhor : melhor === "reels" ? "carrossel" : "reels";
+  }
+  return { formato, pilar, estrutura, aprendizados: comAprendizados, peloDesempenho: true };
 }
 
 /**

@@ -170,6 +170,16 @@ As variáveis `WHATSAPP_*` do `.env` continuam funcionando e têm prioridade sob
 
 Atenção: a política da Meta exige que o contato tenha dado consentimento (opt-in) para receber mensagens de marketing da sua empresa. Para prospecção fria de quem nunca falou com você, use o **e-mail** como primeiro contato e deixe o WhatsApp para quem responder.
 
+## Insights do Instagram
+
+Em **Conteúdo → Desempenho no Instagram** aparecem os números do perfil: seguidores (e o ganho na semana), alcance médio, engajamento e, post a post, alcance, curtidas, comentários, salvamentos e compartilhamentos (e o tempo médio assistido nos Reels). Os posts feitos fora do sistema também entram. O sistema lê os insights sozinho a cada 6 horas (ou no botão **Atualizar agora**), pelo mesmo token dos posts, que precisa de `instagram_manage_insights`.
+
+Cada post ganha uma **nota** comparada à média do próprio perfil (1 = na média, 2 = o dobro): 60% engajamento, em que salvar e compartilhar pesam mais que curtir, e 40% alcance. Só os posts com mais de 24 h no ar entram na comparação.
+
+Com 6 posts ou mais, a IA aprende com os números:
+- uma vez por dia ela escreve **o que fazer mais e o que evitar** (formato, assunto, jeito do gancho, estrutura), que aparece no painel e vai no pedido de cada post novo, junto com os ganchos dos posts que mais deram certo;
+- o assunto, a estrutura do roteiro e o formato que performam melhor ganham mais vez no sorteio do próximo post (sem repetir os dois últimos). Um em cada quatro posts segue o rodízio normal, para os assuntos ainda pouco testados continuarem aparecendo.
+
 ## Direct do Instagram
 
 Com o Instagram conectado em **Conteúdo**, a IA também conversa pelo direct da conta, pela API oficial da Meta:

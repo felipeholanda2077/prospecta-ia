@@ -128,9 +128,14 @@ Hashtags: as de mais alcance no Brasil para o tema, misturando 2 bem amplas (ex.
  * Escreve o post: tema, gancho, telas (do carrossel ou cenas do Reels, com a fala de cada uma),
  * clima da trilha, legenda e hashtags. `recentes` são os posts dos últimos dias, para não repetir.
  */
-export async function gerarPost({ campanha, formato, pilar, estrutura = "lista", base, recentes = [] }) {
+export async function gerarPost({ campanha, formato, pilar, estrutura = "lista", base, recentes = [], aprendizados = null }) {
   const usados = recentes.map((r) => (typeof r === "string" ? { tema: r } : r));
-  const pedido = `Formato: ${FORMATOS[formato]}
+  // O que os insights do perfil mostraram: o que repetir e o que evitar.
+  const doPerfil = aprendizados ? `O que os números do Instagram do perfil mostram (siga isto):
+${aprendizados.fazer_mais.map((x) => `- Faça mais: ${x}`).join("\n")}
+${aprendizados.evitar.map((x) => `- Evite: ${x}`).join("\n")}
+${aprendizados.ganchosQueFuncionaram?.length ? `Ganchos dos posts que mais deram certo (inspire-se no jeito, sem copiar): ${aprendizados.ganchosQueFuncionaram.map((g) => `"${g}"`).join("; ")}\n` : ""}` : "";
+  const pedido = `${doPerfil}Formato: ${FORMATOS[formato]}
 Assunto de hoje (linha editorial): ${PILARES[pilar]}
 Estrutura do roteiro: ${ESTRUTURAS[estrutura] ?? ESTRUTURAS.lista}
 ${usados.length ? `Posts dos últimos dias (não repita o tema nem o jeito do gancho):\n${usados.map((p) => `- ${p.tema}${p.gancho ? ` | gancho: "${p.gancho}"` : ""}`).join("\n")}\n` : ""}

@@ -353,3 +353,12 @@ export async function assinarWebhookDoDirect() {
   }
   throw ultimoErro;
 }
+
+// ---------- Insights ----------
+
+/** Leitura na API do Instagram com a conta conectada (ex.: os posts e os insights). */
+export async function lerDaApi(caminho, params = {}) {
+  const c = await lerConexao();
+  if (!c?.token) throw new Error("Instagram desconectado");
+  return chamar(c, "GET", caminho.replace("{conta}", c.igId), params);
+}

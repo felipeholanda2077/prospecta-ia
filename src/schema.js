@@ -122,6 +122,18 @@ ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_erro text;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS instagram_tentativas integer NOT NULL DEFAULT 0;
 
 -- Imagens e vídeos gerados para o Instagram buscar pelo link; apagados depois que o post sai.
+-- Insights dos posts do perfil no Instagram (os criados pelo sistema e os outros), atualizados ao longo do dia.
+CREATE TABLE IF NOT EXISTS instagram_metricas (
+  midia_id      text PRIMARY KEY,
+  post_id       integer,                 -- o post do sistema, quando foi ele que publicou
+  formato       text,                    -- reels | carrossel | imagem
+  legenda       text,
+  link          text,
+  publicado_em  timestamptz,
+  metricas      text NOT NULL,           -- JSON: alcance, visualizações, curtidas, comentários...
+  atualizado_em timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS midias (
   chave     text PRIMARY KEY,
   tipo      text NOT NULL,                      -- image/jpeg | video/mp4

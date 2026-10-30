@@ -128,6 +128,36 @@ export async function buscarPost(id) {
   return lerPost(await um("SELECT * FROM posts WHERE id = $1", [id]));
 }
 
+/** Guarda (ou atualiza) os insights de um post do Instagram. */
+export async function gravarMetricas({ midia_id, post_id = null, formato, legenda, link, publicado_em, metricas }) {
+  await q(
+    `INSERT INTO instagram_metricas (midia_id, post_id, formato, legenda, link, publicado_em, metricas, atualizado_em)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, now())
+     ON CONFLICT (midia_id) DO UPDATE SET post_id = excluded.post_id, formato = excluded.formato, legenda = excluded.legenda,
+       link = excluded.link, publicado_em = excluded.publicado_em, metricas = excluded.metricas, atualizado_em = now()`,
+    [midia_id, post_id, formato, legenda, link, publicado_em, JSON.stringify(metricas)]
+  );
+}
+
+/** Insights dos posts, do mais novo para o mais antigo, com o post do sistema (quando houver). */
+export async function listarMetricas(limite = 60) {
+  return (await q(
+    `SELECT m.*, p.pilar, p.tema, p.conteudo AS conteudo_post FROM instagram_metricas m
+       LEFT JOIN posts p ON p.id = m.post_id
+      ORDER BY m.publicado_em DESC NULLS LAST LIMIT $1`,
+    [limite]
+  )).map(({ conteudo_post, ...m }) => ({
+    ...m,
+    metricas: JSON.parse(m.metricas),
+    conteudo: conteudo_post ? JSON.parse(conteudo_post) : null,
+  }));
+}
+
+/** Os ids dos posts do sistema publicados no Instagram (id da mídia → id do post). */
+export async function postsPublicados() {
+  return new Map((await q("SELECT id, instagram_id FROM posts WHERE instagram_id IS NOT NULL")).map((p) => [String(p.instagram_id), p.id]));
+}
+
 /** O post publicado no Instagram com este id de mídia. */
 export async function postPeloInstagram(midiaId) {
   return lerPost(await um("SELECT * FROM posts WHERE instagram_id = $1 LIMIT 1", [String(midiaId)]));

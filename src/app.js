@@ -23,6 +23,7 @@ import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia, 
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { narracaoDisponivel } from "./conteudo/narracao.js";
+import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados } from "./conteudo/insights.js";
 import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect } from "./envio/instagram.js";
 import { processarWebhookInstagram } from "./respostas/instagram.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
@@ -176,7 +177,12 @@ const TAREFAS_CRON = {
   // o intervalo de 5 a 12 minutos desde a anterior.
   novas: (c) => pipeline.enviar(c, { somenteNovas: true, distribuir: Boolean(c.automacao?.ativo) }),
   // A cada 15 minutos: no horário escolhido em Conteúdo, cria o post do dia para o Instagram.
-  conteudo: (c) => rodadaDeConteudo(c),
+  // Quando não há post para criar ou publicar, lê os insights (a cada 6 h) e atualiza os aprendizados.
+  conteudo: async (c) => {
+    const r = await rodadaDeConteudo(c);
+    if (["criado", "publicando"].includes(r.conteudo)) return r;
+    return { ...r, insights: await rotinaDeInsights().catch((e) => ({ erro: e.message })) };
+  },
   // A cada 2 minutos, a qualquer hora: as respostas da IA no direct do Instagram.
   instagram: (c) => pipeline.enviarInstagram(c),
 };
@@ -812,6 +818,26 @@ app.put("/api/instagram/direct", async (req, res) => {
     assinatura = await assinarWebhookDoDirect().then(() => ({ ok: true }), (e) => ({ ok: false, erro: e.message.replace(/^Instagram: /, "") }));
   }
   res.json({ ...(await painelDoDirect({ conferir: true })), assinatura });
+});
+
+// Insights do Instagram: os números de cada post, as médias e o que a IA aprendeu com eles.
+app.get("/api/instagram/insights", async (req, res) => {
+  const d = await desempenho();
+  const { posts, melhores, piores, ...resto } = d;
+  const resumir = ({ conteudo, metricas, ...p }) => ({ ...p, metricas, gancho: conteudo?.gancho ?? null, estrutura: conteudo?.estrutura ?? null, trilha: conteudo?.trilha ?? null });
+  res.json({ ...resto, posts: posts.map(resumir), melhores: melhores.map((p) => p.midia_id), piores: piores.map((p) => p.midia_id), aprendizados: await lerAprendizados() });
+});
+
+// Lê os insights agora e a IA refaz os aprendizados.
+app.post("/api/instagram/insights/atualizar", async (req, res) => {
+  try {
+    const lidos = await atualizarInsights({ forcar: true });
+    if (lidos.insights === "instagram desconectado") return res.status(400).json({ erro: "Conecte o Instagram primeiro" });
+    const r = await gerarAprendizados().catch((e) => ({ erro: e.message }));
+    res.json({ ...lidos, aprendizados: r.aprendizados ?? null, motivo: r.motivo ?? r.erro ?? null });
+  } catch (e) {
+    res.status(502).json({ erro: e.message });
+  }
 });
 
 app.post("/api/conteudo/:id/status", async (req, res) => {

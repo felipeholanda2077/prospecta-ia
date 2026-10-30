@@ -831,6 +831,18 @@
               </ol></details>
           </div>
         </div>
+        <div class="cartao" id="cartao-insights" style="margin-bottom:16px">
+          <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="trend"></span><div class="titulos"><h3>Desempenho no Instagram <span id="insights-status"></span></h3>
+            <div class="meta">Os números de cada post (alcance, curtidas, comentários, salvamentos, compartilhamentos), lidos sozinhos a cada 6 horas. A IA compara os posts e passa a criar mais do que funciona no seu perfil e menos do que não funciona.</div></div></div>
+          <div class="cartao-corpo" style="display:grid;gap:16px">
+            <div class="kpis" id="insights-kpis" style="margin:0"></div>
+            <div id="insights-aprendizados"></div>
+            <div id="insights-grupos"></div>
+            <div id="insights-posts"></div>
+          </div>
+          <div class="acoes"><button class="btn" type="button" id="insights-atualizar"><span data-ic="refresh"></span>Atualizar agora</button>
+            <span class="muted" style="font-size:13px">A nota compara cada post com a média do próprio perfil: 1 = na média, 2 = o dobro. Salvar e compartilhar pesam mais que curtir.</span></div>
+        </div>
         <div id="lista-posts" class="lista"></div>
       </section>
 
@@ -2714,6 +2726,93 @@ const NOMES_PILAR = { erro: "Erros comuns", dica: "Dica prática", mito: "Mito x
                       portfolio: "Projeto do portfólio", faq: "Pergunta frequente" };
 let postsCarregados = [];
 let estadoConteudo = { instagram: { conectado: false }, config: {}, hoje: "" };
+let estadoInsights = null;
+
+const NOMES_FORMATO = { reels: "Reels", carrossel: "Carrossel", imagem: "Imagem" };
+const numero = (n) => (n == null ? "–" : Number(n).toLocaleString("pt-BR"));
+
+/** Nota do post comparada à média do perfil, em cor: acima, na média ou abaixo. */
+function pilulaNota(nota) {
+  if (nota == null) return `<span class="pilula" title="Os números de um post se firmam depois de 24 h">${ic("clock", "sm")}Ainda medindo</span>`;
+  const [cor, texto] = nota >= 1.2 ? ["ok", "Acima da média"] : nota <= 0.8 ? ["perigo", "Abaixo da média"] : ["", "Na média"];
+  return `<span class="pilula ${cor}" title="1 = na média do perfil">${texto} · ${String(nota).replace(".", ",")}</span>`;
+}
+
+/** Os números de um post em uma linha. */
+const linhaDeMetricas = (m) => [
+  ["users", "alcance", m.alcance], ["heart", "curtidas", m.curtidas], ["message", "comentários", m.comentarios],
+  ["save", "salvamentos", m.salvamentos], ["send", "compartilhamentos", m.compartilhamentos],
+].filter(([, , v]) => v != null).map(([i, t, v]) => `<span title="${t}">${ic(i, "sm")}${numero(v)}</span>`).join("");
+
+function desenharInsights(d) {
+  estadoInsights = d;
+  const conectado = estadoConteudo.instagram.conectado;
+  $("#insights-status").innerHTML = !conectado ? `<span class="pilula">Instagram não conectado</span>`
+    : d.lidosEm ? `<span class="pilula">Atualizado ${dataHora(d.lidosEm)}</span>` : `<span class="pilula">Ainda não lido</span>`;
+  const seg = d.seguidores ?? [];
+  const atual = d.conta?.seguidores ?? seg.at(-1)?.seguidores ?? null;
+  const semanaAtras = seg.find((h) => h.dia >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10))?.seguidores;
+  const ganho = atual != null && semanaAtras != null && seg.length > 1 ? atual - semanaAtras : null;
+  const kpis = [
+    ["users", "", numero(atual), `Seguidores${ganho ? ` (${ganho > 0 ? "+" : ""}${ganho} na semana)` : ""}`],
+    ["image", "", d.analisados, "Posts analisados"],
+    ["trend", "", numero(d.medias?.alcance), "Alcance médio"],
+    ["heart", "ok", d.medias ? `${String(d.medias.engajamento).replace(".", ",")}%` : "–", "Engajamento médio"],
+    ["save", "", d.medias ? String(d.medias.salvamentos).replace(".", ",") : "–", "Salvamentos por post"],
+  ];
+  $("#insights-kpis").innerHTML = kpis.map(([i, cor, n, t]) => `<div class="kpi"><span class="kpi-ic ${cor}">${ic(i)}</span><div><b>${n}</b><span>${esc(t)}</span></div></div>`).join("");
+
+  const a = d.aprendizados;
+  $("#insights-aprendizados").innerHTML = a
+    ? `<div class="alerta info">${ic("spark")}<div style="display:grid;gap:8px"><div><b>O que a IA aprendeu</b> <span class="muted" style="font-size:12.5px">com ${a.baseadoEm} posts · ${dataHora(a.geradoEm)}</span></div>
+        <div>${esc(a.resumo)}</div>
+        <div><b>Fazer mais</b><ul style="margin:4px 0 0;padding-left:18px">${a.fazer_mais.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
+        <div><b>Evitar</b><ul style="margin:4px 0 0;padding-left:18px">${a.evitar.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>
+        <div class="muted" style="font-size:12.5px">Cada post novo é escrito seguindo isto, e o assunto, a estrutura e o formato que vêm performando melhor ganham mais vez (1 em cada 4 posts segue o rodízio normal, para continuar testando).</div></div></div>`
+    : `<div class="alerta info">${ic("spark")}<div>A IA começa a aprender quando houver 6 posts com mais de 24 h no ar e os insights lidos (agora: ${d.analisados}). Até lá, os posts seguem o rodízio de assuntos e estruturas.</div></div>`;
+
+  const grupo = (titulo, g, nomes) => {
+    const itens = Object.entries(g ?? {}).sort((x, y) => y[1].media - x[1].media);
+    return itens.length ? `<div><span class="rotulo">${titulo}</span><div class="pilulas" style="margin-top:6px">${itens.map(([k, v]) =>
+      `<span class="pilula ${v.media >= 1.2 ? "ok" : v.media <= 0.8 ? "perigo" : ""}">${esc(nomes[k] ?? k)} · ${String(v.media).replace(".", ",")} <span class="muted">(${v.posts})</span></span>`).join("")}</div></div>` : "";
+  };
+  $("#insights-grupos").innerHTML = `<div style="display:grid;gap:10px">${grupo("Por formato", d.porFormato, NOMES_FORMATO)}${grupo("Por assunto", d.porPilar, NOMES_PILAR)}${grupo("Por estrutura", d.porEstrutura, NOMES_ESTRUTURA)}${grupo("Por trilha (Reels)", d.porTrilha, NOMES_TRILHA)}</div>`;
+
+  const melhores = new Set(d.melhores);
+  const piores = new Set(d.piores);
+  $("#insights-posts").innerHTML = d.posts.length ? `<details ${d.posts.length <= 6 ? "open" : ""}><summary class="rotulo" style="cursor:pointer">Posts (${d.posts.length})</summary>
+      <div style="display:grid;gap:8px;margin-top:10px">${d.posts.map((p) => `<div style="border:1px solid var(--border);border-radius:12px;padding:10px 12px;display:grid;gap:6px">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">
+          <b style="flex:1;min-width:180px">${esc(p.gancho ?? (p.legenda ?? "").split("\n")[0].slice(0, 90) ?? "Post")}</b>
+          ${melhores.has(p.midia_id) ? `<span class="pilula ok">${ic("star", "sm")}Top 3</span>` : ""}${piores.has(p.midia_id) ? `<span class="pilula perigo">Entre os piores</span>` : ""}
+          ${pilulaNota(p.nota)}</div>
+        <div class="meta">${[NOMES_FORMATO[p.formato], p.publicado_em && dataHora(p.publicado_em), p.pilar && NOMES_PILAR[p.pilar], p.estrutura && NOMES_ESTRUTURA[p.estrutura], !p.post_id && "postado fora do sistema"].filter(Boolean).map(esc).join(" · ")}
+          ${p.link ? `<a href="${esc(p.link)}" target="_blank" rel="noopener">${ic("external", "sm")}Ver</a>` : ""}</div>
+        <div class="meta">${linhaDeMetricas(p.metricas)}</div></div>`).join("")}</div></details>` : "";
+}
+
+async function carregarInsights() {
+  try {
+    desenharInsights(await api("/api/instagram/insights"));
+  } catch (e) {
+    $("#insights-aprendizados").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+$("#insights-atualizar").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  try {
+    const r = await post("/api/instagram/insights/atualizar", {});
+    avisar(r.aprendizados ? `Insights de ${r.lidos} posts lidos e aprendizados atualizados` : `Insights de ${r.lidos ?? 0} posts lidos${r.motivo ? `: ${r.motivo}` : ""}`, "ok", 7000);
+    await carregarInsights();
+    if (postsCarregados.length) $("#lista-posts").innerHTML = postsCarregados.map((p) => cardPost(p, estadoConteudo.hoje)).join("");
+  } catch (e) {
+    avisar(e.message, "perigo", 9000);
+  } finally {
+    btn.disabled = false;
+  }
+});
 let previasReels = [];
 let quadroPrevias = null;
 
@@ -2783,6 +2882,14 @@ const legendaCompleta = (post) => `${post.conteudo.legenda}\n\n${post.conteudo.h
 /** "12h e 18h", "9h, 12h e 18h". */
 const listaDeHoras = (horas) => horas.map((h) => `${h}h`).join(", ").replace(/, ([^,]*)$/, " e $1");
 
+/** Os insights do post publicado, no cartão dele. */
+function metricasDoPost(post) {
+  const m = post.instagram_id && estadoInsights?.posts.find((p) => p.midia_id === String(post.instagram_id));
+  if (!m) return "";
+  return `<div class="campo"><span class="rotulo">Desempenho no Instagram</span>
+    <div class="meta" style="margin-top:4px">${linhaDeMetricas(m.metricas)} ${pilulaNota(m.nota)}</div></div>`;
+}
+
 function cardPost(post, hoje) {
   const c = post.conteudo;
   const reels = post.formato === "reels";
@@ -2808,6 +2915,7 @@ function cardPost(post, hoje) {
         ${reels ? `<span class="post-progresso" data-progresso></span>` : `<span class="muted" style="font-size:12.5px">Arraste para ver todas as imagens</span>`}</div>
       <div class="post-texto">
         ${post.instagram_erro && post.status !== "postado" ? `<div class="alerta perigo">${ic("alert")}<div><b>Não saiu no Instagram:</b> ${esc(post.instagram_erro)}</div></div>` : ""}
+        ${metricasDoPost(post)}
         <div class="campo"><span class="rotulo">Legenda</span><pre class="post-legenda">${esc(legendaCompleta(post))}</pre></div>
         <div class="campo"><span class="rotulo">Hashtags (já na legenda)</span>
           <div class="tags">${c.hashtags.map((t) => `<button type="button" class="tag" data-copiar-tag="#${esc(t)}">#${esc(t)}</button>`).join("")}</div></div>
@@ -2849,6 +2957,7 @@ async function carregarConteudo() {
     $("#instagram-conectar").lastChild.textContent = r.instagram.conectado ? "Trocar token" : "Conectar Instagram";
     $("#instagram-desconectar").hidden = !r.instagram.conectado;
     carregarDirect({ conferir: r.instagram.conectado });
+    await carregarInsights();
     if (!f.base.matches(":focus")) f.base.value = r.base;
     $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
     $("#conteudo-voz").innerHTML = r.narracao
