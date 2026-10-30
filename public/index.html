@@ -438,7 +438,48 @@
   .tag:hover { border-color: var(--accent); }
   .tag.extra { color: var(--muted); font-weight: 500; }
   .post-progresso { font-size: 13px; color: var(--muted); }
-  @media (max-width: 900px) { .post-corpo { grid-template-columns: 1fr; } }
+  @media (max-width: 900px) { .post-corpo { grid-template-columns: 1fr; } .post-previa { justify-items: center; } }
+
+  /* Página do Instagram: resumo, abas e painéis */
+  .ig-resumo { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 4px 0 16px; }
+  .ig-card { font: inherit; color: inherit; text-align: left; cursor: pointer; background: var(--surface); border: 1px solid var(--border);
+             border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 6px; box-shadow: var(--shadow-sm); min-width: 0;
+             transition: border-color .15s, transform .15s; }
+  .ig-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .ig-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ig-card .ig-card-cab { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .ig-card b { font-size: 19px; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ig-card .ig-card-sub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ig-card .ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+  .ig-card .ponto.ok { background: var(--ok); } .ig-card .ponto.atencao { background: var(--warn); } .ig-card .ponto.perigo { background: var(--danger); }
+  .ig-abas { display: flex; gap: 4px; padding: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px;
+             overflow-x: auto; scrollbar-width: none; margin-bottom: 18px; position: sticky; top: 8px; z-index: 5; }
+  .ig-abas::-webkit-scrollbar { display: none; }
+  .ig-aba { flex: 1 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: inherit; font-size: 14px; font-weight: 600;
+            color: var(--muted); background: transparent; border: 0; border-radius: 10px; padding: 9px 14px; cursor: pointer; white-space: nowrap; }
+  .ig-aba:hover { color: var(--text); }
+  .ig-aba[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+  .ig-aba:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .ig-painel { display: grid; gap: 16px; }
+  .ig-painel[hidden] { display: none; }
+  .ig-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; justify-content: space-between; }
+  .ig-barra h3 { margin: 0; font-size: 17px; }
+  .ig-barra p { margin: 2px 0 0; font-size: 13.5px; }
+  .ig-barra-botoes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ajuda { font-size: 13px; color: var(--muted); }
+  .ajuda summary { cursor: pointer; color: var(--accent-text); font-weight: 600; }
+  .ajuda ol { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; }
+  .ajuda code { font-size: 12px; }
+  @media (max-width: 900px) { .ig-resumo { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 640px) {
+    .ig-resumo { gap: 8px; }
+    .ig-card { padding: 12px; }
+    .ig-card b { font-size: 16px; }
+    .ig-abas { top: 0; border-radius: 12px; }
+    .ig-aba { padding: 8px 12px; font-size: 13.5px; }
+    .ig-barra-botoes, .ig-barra-botoes .btn { width: 100%; }
+    .ig-barra-botoes .btn { justify-content: center; }
+  }
 
   /* ---------- Avisos (toasts) ---------- */
   .toasts { position: fixed; z-index: 60; right: 24px; bottom: 24px; display: grid; gap: 10px; width: min(380px, calc(100% - 32px)); }
@@ -780,42 +821,42 @@
 
       <!-- Conteúdo para o Instagram -->
       <section id="view-conteudo" hidden>
-        <form class="cartao" id="form-conteudo" style="margin-bottom:16px">
-          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="spark"></span><div class="titulos"><h3>Posts do dia <span id="conteudo-status"></span></h3>
-            <div class="meta">Em cada horário escolhido a IA cria um post sobre a FluxDeck, com base no conteúdo do site, alternando Reels e carrossel, com legenda e hashtags. Com o Instagram conectado, ele sai sozinho no perfil.</div></div></div>
-          <div class="cartao-corpo" style="display:grid;gap:18px">
-            <label class="chave"><input type="checkbox" name="ativo"><div><b>Criar os posts do dia sozinho</b>
-              <span>Inclusive sábado e domingo. O post fica pronto 15 minutos antes do horário e você recebe um aviso por e-mail.</span></div></label>
-            <label class="chave"><input type="checkbox" name="postarSozinho"><div><b>Postar sozinho no Instagram</b>
-              <span>Em cada horário abaixo, um post é publicado no perfil conectado. Um post criado pelos botões entra no próximo horário vago do dia.</span></div></label>
-            <div id="conteudo-voz"></div>
-            <div class="campo"><span class="rotulo">Horários dos posts (até 4 por dia)</span>
-              <div class="filtros" id="conteudo-horarios" role="group" aria-label="Horários dos posts" style="margin:0;flex-wrap:wrap"></div></div>
-            <div class="campo"><label for="conteudo-base">Base de conteúdo (tirada do site fluxdeck.vercel.app)</label>
-              <textarea id="conteudo-base" name="base" style="min-height:220px"></textarea>
-              <span class="muted" style="font-size:12.5px">A IA cria os posts só com o que está aqui: serviços, portfólio, diferenciais e o jeito de trabalhar. Quando o site mudar, atualize este texto e salve.</span></div>
+        <div class="ig-resumo" id="ig-resumo" aria-label="Resumo do Instagram"></div>
+        <div class="ig-abas" role="tablist" aria-label="Seções do Instagram">
+          <button type="button" class="ig-aba" role="tab" id="ig-aba-posts" data-ig-aba="posts" aria-controls="ig-painel-posts" aria-selected="true"><span data-ic="image"></span>Posts</button>
+          <button type="button" class="ig-aba" role="tab" id="ig-aba-desempenho" data-ig-aba="desempenho" aria-controls="ig-painel-desempenho" aria-selected="false"><span data-ic="trend"></span>Desempenho</button>
+          <button type="button" class="ig-aba" role="tab" id="ig-aba-direct" data-ig-aba="direct" aria-controls="ig-painel-direct" aria-selected="false"><span data-ic="message"></span>Direct</button>
+          <button type="button" class="ig-aba" role="tab" id="ig-aba-config" data-ig-aba="config" aria-controls="ig-painel-config" aria-selected="false"><span data-ic="settings"></span>Configurações</button>
+        </div>
+
+        <div class="ig-painel" id="ig-painel-posts" role="tabpanel" aria-labelledby="ig-aba-posts" data-ig-painel="posts">
+          <div class="ig-barra">
+            <div class="ig-barra-texto"><h3>Seus posts</h3><p class="muted" id="ig-proximo-texto"></p></div>
+            <div class="ig-barra-botoes">
+              <button class="btn" type="button" data-conteudo-gerar="reels"><span data-ic="video"></span>Criar Reels agora</button>
+              <button class="btn" type="button" data-conteudo-gerar="carrossel"><span data-ic="image"></span>Criar carrossel agora</button>
+            </div>
           </div>
-          <div class="acoes">
-            <button class="btn primario" type="submit"><span data-ic="save"></span>Salvar</button>
-            <button class="btn" type="button" data-conteudo-gerar="reels"><span data-ic="spark"></span>Criar um Reels agora</button>
-            <button class="btn" type="button" data-conteudo-gerar="carrossel"><span data-ic="spark"></span>Criar um carrossel agora</button>
+          <div id="lista-posts" class="lista"></div>
+        </div>
+
+        <div class="ig-painel" id="ig-painel-desempenho" role="tabpanel" aria-labelledby="ig-aba-desempenho" data-ig-painel="desempenho" hidden>
+        <div class="cartao" id="cartao-insights">
+          <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="trend"></span><div class="titulos"><h3>Desempenho no Instagram <span id="insights-status"></span></h3>
+            <div class="meta">Os números de cada post (alcance, curtidas, comentários, salvamentos, compartilhamentos), lidos sozinhos a cada 6 horas. A IA compara os posts e passa a criar mais do que funciona no seu perfil e menos do que não funciona.</div></div></div>
+          <div class="cartao-corpo" style="display:grid;gap:16px">
+            <div class="kpis" id="insights-kpis" style="margin:0"></div>
+            <div id="insights-aprendizados"></div>
+            <div id="insights-grupos"></div>
+            <div id="insights-posts"></div>
           </div>
-        </form>
-        <form class="cartao" id="form-instagram" style="margin-bottom:16px">
-          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="camera"></span><div class="titulos"><h3>Instagram <span id="instagram-status"></span></h3>
-            <div class="meta">Conecte a conta profissional do Instagram (comercial ou de criador de conteúdo) para os posts saírem sozinhos: o carrossel com as imagens ou o Reels com o vídeo, já com a legenda e as hashtags.</div></div></div>
-          <div class="cartao-corpo config-grade">
-            <div class="campo" style="grid-column:1/-1"><label for="instagram-token">Token de acesso (developers.facebook.com/tools/explorer → app FluxDeck → token de usuário com pages_show_list, pages_read_engagement, instagram_basic, instagram_content_publish, instagram_manage_insights e business_management)</label>
-              <input id="instagram-token" name="token" type="password" autocomplete="off" required></div>
-            <div class="campo"><label for="instagram-id">ID da conta do Instagram (opcional)</label>
-              <input id="instagram-id" name="igId" inputmode="numeric" autocomplete="off" placeholder="17841…">
-              <span class="muted" style="font-size:12.5px">Aparece na Meta ao lado do @ da conta, na hora de gerar o token.</span></div>
-          </div>
-          <div class="acoes"><button class="btn primario" type="submit" id="instagram-conectar"><span data-ic="check"></span>Conectar Instagram</button>
-            <button class="btn fantasma" type="button" id="instagram-desconectar" hidden>Desconectar</button>
-            <span class="muted" style="font-size:13px">O token fica só no servidor e é renovado sozinho toda semana, para não vencer.</span></div>
-        </form>
-        <div class="cartao" id="cartao-direct" style="margin-bottom:16px">
+          <div class="acoes"><button class="btn" type="button" id="insights-atualizar"><span data-ic="refresh"></span>Atualizar agora</button>
+            <span class="muted" style="font-size:13px">A nota compara cada post com a média do próprio perfil: 1 = na média, 2 = o dobro. Salvar e compartilhar pesam mais que curtir.</span></div>
+        </div>
+        </div>
+
+        <div class="ig-painel" id="ig-painel-direct" role="tabpanel" aria-labelledby="ig-aba-direct" data-ig-painel="direct" hidden>
+        <div class="cartao" id="cartao-direct">
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="message"></span><div class="titulos"><h3>Direct do Instagram <span id="direct-status"></span></h3>
             <div class="meta">A IA responde quem chama no direct e manda uma mensagem privada para quem comenta nos posts (ex.: comentou SITE, recebe no direct o que o post prometeu). As conversas aparecem em Respostas, junto com as do WhatsApp e do e-mail.</div></div></div>
           <form class="cartao-corpo config-grade" id="form-direct">
@@ -834,7 +875,7 @@
             <div id="direct-webhook"></div>
             <details><summary class="muted" style="cursor:pointer;font-size:13px">O que fazer na Meta para liberar o direct</summary>
               <ol class="muted" style="font-size:13px;margin:8px 0 0;padding-left:18px;display:grid;gap:6px">
-                <li><b>Token novo</b>: gere o token como antes, acrescentando as permissões <code>instagram_manage_messages</code>, <code>instagram_manage_comments</code> e <code>pages_manage_metadata</code>, e conecte de novo no cartão Instagram acima.</li>
+                <li><b>Token novo</b>: gere o token como antes, acrescentando as permissões <code>instagram_manage_messages</code>, <code>instagram_manage_comments</code> e <code>pages_manage_metadata</code>, e conecte de novo na aba <b>Configurações</b>.</li>
                 <li><b>Webhook</b>: no app da Meta → Webhooks → escolha <b>Instagram</b> → cole a URL de callback e o token de verificação abaixo → assine os campos <b>messages</b> e <b>comments</b>.</li>
                 <li><b>App Secret</b>: no app da Meta → Configurações do app → <b>Básico</b> → "Chave secreta do app".</li>
                 <li><b>Aprovação da Meta</b>: no app → <b>Análise do app</b> → peça o acesso avançado a <code>instagram_manage_messages</code> e <code>instagram_manage_comments</code> (a Meta pode pedir a verificação da empresa). Até aprovar, a IA só conversa com contas que têm função no app, o que já serve para testar.</li>
@@ -842,19 +883,47 @@
               </ol></details>
           </div>
         </div>
-        <div class="cartao" id="cartao-insights" style="margin-bottom:16px">
-          <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="trend"></span><div class="titulos"><h3>Desempenho no Instagram <span id="insights-status"></span></h3>
-            <div class="meta">Os números de cada post (alcance, curtidas, comentários, salvamentos, compartilhamentos), lidos sozinhos a cada 6 horas. A IA compara os posts e passa a criar mais do que funciona no seu perfil e menos do que não funciona.</div></div></div>
-          <div class="cartao-corpo" style="display:grid;gap:16px">
-            <div class="kpis" id="insights-kpis" style="margin:0"></div>
-            <div id="insights-aprendizados"></div>
-            <div id="insights-grupos"></div>
-            <div id="insights-posts"></div>
-          </div>
-          <div class="acoes"><button class="btn" type="button" id="insights-atualizar"><span data-ic="refresh"></span>Atualizar agora</button>
-            <span class="muted" style="font-size:13px">A nota compara cada post com a média do próprio perfil: 1 = na média, 2 = o dobro. Salvar e compartilhar pesam mais que curtir.</span></div>
         </div>
-        <div id="lista-posts" class="lista"></div>
+
+        <div class="ig-painel ig-config" id="ig-painel-config" role="tabpanel" aria-labelledby="ig-aba-config" data-ig-painel="config" hidden>
+        <form class="cartao" id="form-instagram" >
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="camera"></span><div class="titulos"><h3>Conta do Instagram <span id="instagram-status"></span></h3>
+            <div class="meta">Conecte a conta profissional do Instagram (comercial ou de criador de conteúdo) para os posts saírem sozinhos: o carrossel com as imagens ou o Reels com o vídeo, já com a legenda e as hashtags.</div></div></div>
+          <div class="cartao-corpo config-grade">
+            <div class="campo" style="grid-column:1/-1"><label for="instagram-token">Token de acesso</label>
+              <input id="instagram-token" name="token" type="password" autocomplete="off" required>
+              <details class="ajuda"><summary>Como gerar o token</summary>
+                <ol><li>Abra <b>developers.facebook.com/tools/explorer</b> e escolha o app <b>FluxDeck</b>.</li>
+                  <li>Em "Usuário ou página", gere um <b>token de usuário</b> com as permissões: <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>business_management</code>, <code>instagram_basic</code>, <code>instagram_content_publish</code>, <code>instagram_manage_insights</code> e, para o direct, <code>instagram_manage_messages</code>, <code>instagram_manage_comments</code> e <code>pages_manage_metadata</code>.</li>
+                  <li>Estenda o token (botão "i" → "Abrir na ferramenta de token de acesso" → <b>Estender</b>) e cole aqui. O sistema guarda o token da página, que não vence.</li></ol></details></div>
+            <div class="campo"><label for="instagram-id">ID da conta do Instagram (opcional)</label>
+              <input id="instagram-id" name="igId" inputmode="numeric" autocomplete="off" placeholder="17841…">
+              <span class="muted" style="font-size:12.5px">Aparece na Meta ao lado do @ da conta, na hora de gerar o token.</span></div>
+          </div>
+          <div class="acoes"><button class="btn primario" type="submit" id="instagram-conectar"><span data-ic="check"></span>Conectar Instagram</button>
+            <button class="btn fantasma" type="button" id="instagram-desconectar" hidden>Desconectar</button>
+            <span class="muted" style="font-size:13px">O token fica só no servidor e é renovado sozinho toda semana, para não vencer.</span></div>
+        </form>
+        <form class="cartao" id="form-conteudo" >
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="spark"></span><div class="titulos"><h3>Posts automáticos <span id="conteudo-status"></span></h3>
+            <div class="meta">Em cada horário escolhido a IA cria um post sobre a FluxDeck, com base no conteúdo do site, alternando Reels e carrossel, com legenda e hashtags. Com o Instagram conectado, ele sai sozinho no perfil.</div></div></div>
+          <div class="cartao-corpo" style="display:grid;gap:18px">
+            <label class="chave"><input type="checkbox" name="ativo"><div><b>Criar os posts do dia sozinho</b>
+              <span>Inclusive sábado e domingo. O post fica pronto 15 minutos antes do horário e você recebe um aviso por e-mail.</span></div></label>
+            <label class="chave"><input type="checkbox" name="postarSozinho"><div><b>Postar sozinho no Instagram</b>
+              <span>Em cada horário abaixo, um post é publicado no perfil conectado. Um post criado pelos botões entra no próximo horário vago do dia.</span></div></label>
+            <div id="conteudo-voz"></div>
+            <div class="campo"><span class="rotulo">Horários dos posts (até 4 por dia)</span>
+              <div class="filtros" id="conteudo-horarios" role="group" aria-label="Horários dos posts" style="margin:0;flex-wrap:wrap"></div></div>
+            <div class="campo"><label for="conteudo-base">Base de conteúdo (tirada do site fluxdeck.vercel.app)</label>
+              <textarea id="conteudo-base" name="base" style="min-height:220px"></textarea>
+              <span class="muted" style="font-size:12.5px">A IA cria os posts só com o que está aqui: serviços, portfólio, diferenciais e o jeito de trabalhar. Quando o site mudar, atualize este texto e salve.</span></div>
+          </div>
+          <div class="acoes">
+            <button class="btn primario" type="submit"><span data-ic="save"></span>Salvar</button>
+          </div>
+        </form>
+        </div>
       </section>
 
       <!-- Listas dinâmicas -->
@@ -1034,8 +1103,8 @@ const VIEWS = {
                sub: "Cada conversa como no WhatsApp, com a chance de fechar e o próximo passo.", contador: () => stats?.respostasNaoLidas },
   leads:     { grupo: "Relacionamento", nome: "Empresas", curto: "Empresas", icone: "building", titulo: "Empresas",
                sub: "Todas as empresas capturadas e em que etapa do funil estão." },
-  conteudo:  { grupo: "Marketing", nome: "Conteúdo", icone: "image", titulo: "Conteúdo para o Instagram",
-               sub: "O post do dia da FluxDeck: imagem ou vídeo pronto, legenda e hashtags para postar." },
+  conteudo:  { grupo: "Marketing", nome: "Instagram", icone: "camera", titulo: "Instagram",
+               sub: "Os posts que a IA cria e publica, o desempenho de cada um e o direct." },
   automacao: { grupo: "Sistema", nome: "Automação", icone: "zap", titulo: "Automação",
                sub: "Rode as etapas do funil manualmente quando quiser." },
   configuracoes: { grupo: "Sistema", nome: "Configurações", icone: "settings", titulo: "Configurações",
@@ -1077,6 +1146,8 @@ function irParaHash() {
   $("#view-configuracoes").hidden = viewAtual !== "configuracoes";
   $("#view-conteudo").hidden = viewAtual !== "conteudo";
   $("#view-lista").hidden = ["maps", "automacao", "configuracoes", "conteudo"].includes(viewAtual);
+  // Os números da prospecção não dizem nada na página do Instagram (ela tem o próprio resumo).
+  $("#kpis").hidden = viewAtual === "conteudo";
   if (viewAtual === "configuracoes") carregarConfiguracoes();
   if (viewAtual === "conteudo") carregarConteudo();
   else pararPreviasReels();
@@ -2784,6 +2855,79 @@ const NOMES_PILAR = { erro: "Erros comuns", dica: "Dica prática", mito: "Mito x
 let postsCarregados = [];
 let estadoConteudo = { instagram: { conectado: false }, config: {}, hoje: "" };
 let estadoInsights = null;
+let estadoDirect = null;
+
+// ----- Abas da página do Instagram (a última aberta fica lembrada neste navegador) -----
+const ABAS_IG = ["posts", "desempenho", "direct", "config"];
+function abrirAbaIg(aba, { focar = false } = {}) {
+  if (!ABAS_IG.includes(aba)) aba = "posts";
+  $$("[data-ig-aba]").forEach((b) => {
+    const ativa = b.dataset.igAba === aba;
+    b.setAttribute("aria-selected", String(ativa));
+    b.tabIndex = ativa ? 0 : -1;
+    if (ativa && focar) b.focus();
+  });
+  $$("[data-ig-painel]").forEach((p) => (p.hidden = p.dataset.igPainel !== aba));
+  try { localStorage.setItem("aba-instagram", aba); } catch {}
+}
+$(".ig-abas").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-ig-aba]");
+  if (b) abrirAbaIg(b.dataset.igAba);
+});
+// Setas do teclado entre as abas.
+$(".ig-abas").addEventListener("keydown", (ev) => {
+  if (!["ArrowLeft", "ArrowRight"].includes(ev.key)) return;
+  const atual = ABAS_IG.indexOf($("[data-ig-aba][aria-selected=true]")?.dataset.igAba);
+  abrirAbaIg(ABAS_IG[(atual + (ev.key === "ArrowRight" ? 1 : ABAS_IG.length - 1)) % ABAS_IG.length], { focar: true });
+});
+$("#ig-resumo").addEventListener("click", (ev) => {
+  const c = ev.target.closest("[data-ir-aba]");
+  if (c) abrirAbaIg(c.dataset.irAba);
+});
+abrirAbaIg((() => { try { return localStorage.getItem("aba-instagram"); } catch { return null; } })());
+
+/** Quando sai o próximo post, pelos horários e pelos posts de hoje. */
+function proximoPost() {
+  const { config: conf = {}, posts = [], hoje } = estadoConteudo;
+  if (!conf.ativo || !conf.horarios?.length) return { titulo: "Desligado", sub: "Ligue em Configurações", cor: "" };
+  const agora = new Date().toLocaleTimeString("en-GB", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }).split(":").map(Number);
+  const minutos = agora[0] * 60 + agora[1];
+  const deHoje = posts.filter((p) => p.dia === hoje && p.status !== "descartado");
+  const h = conf.horarios.find((x) => x * 60 > minutos && !deHoje.some((p) => p.horario === x && p.status === "postado"));
+  const post = h != null && deHoje.find((p) => p.horario === h);
+  const formato = post ? (post.formato === "reels" ? "Reels" : "Carrossel") : null;
+  if (h != null) return { titulo: `Hoje às ${h}h`, sub: formato ? `${formato} pronto` : "A IA cria 15 min antes", cor: "ok" };
+  return { titulo: `Amanhã às ${conf.horarios[0]}h`, sub: "A IA cria 15 min antes", cor: "ok" };
+}
+
+/** O resumo do topo: conta, seguidores, próximo post e direct (cada um abre a aba dele). */
+function desenharResumoIg() {
+  const ig = estadoConteudo.instagram ?? {};
+  const conta = estadoInsights?.conta;
+  const seg = estadoInsights?.seguidores ?? [];
+  const atual = conta?.seguidores ?? seg.at(-1)?.seguidores ?? null;
+  const semanaAtras = seg.find((x) => x.dia >= new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10))?.seguidores;
+  const ganho = atual != null && semanaAtras != null && seg.length > 1 ? atual - semanaAtras : null;
+  const prox = proximoPost();
+  const d = estadoDirect;
+  const ligado = d && (d.respostas || d.comentarios);
+  const falta = ligado && (!d.appSecretDefinido || (d.status && !d.status.permissao));
+  const direct = !d ? ["", "…", ""] : !ligado ? ["", "Desligado", "Ligue na aba Direct"]
+    : falta ? ["atencao", "Falta configurar", "Veja o que falta na aba Direct"]
+    : ["ok", "Ligado", [d.respostas && "directs", d.comentarios && "comentários"].filter(Boolean).join(" e ")];
+  const card = (aba, icone, rotulo, cor, valor, sub) => `<button type="button" class="ig-card" data-ir-aba="${aba}">
+      <span class="ig-card-cab">${cor !== null ? `<span class="ponto ${cor}"></span>` : ic(icone, "sm")}${rotulo}</span>
+      <b>${esc(valor)}</b><span class="ig-card-sub">${esc(sub)}</span></button>`;
+  $("#ig-resumo").innerHTML =
+    card("config", "camera", "Conta", ig.conectado ? "ok" : "perigo", ig.conectado ? `@${ig.usuario}` : "Não conectada", ig.conectado ? "Conectada · posta sozinho" : "Conecte em Configurações")
+    + card("desempenho", "users", "Seguidores", null, atual != null ? numero(atual) : "–", ganho ? `${ganho > 0 ? "+" : ""}${ganho} na semana` : estadoInsights?.analisados ? `${estadoInsights.analisados} posts analisados` : "Atualiza a cada 6 h")
+    + card("posts", "clock", "Próximo post", prox.cor, prox.titulo, prox.sub)
+    + card("direct", "message", "Direct", direct[0], direct[1], direct[2]);
+  const conf = estadoConteudo.config ?? {};
+  $("#ig-proximo-texto").textContent = conf.ativo
+    ? `A IA cria e ${conf.postarSozinho && ig.conectado ? "publica" : "deixa pronto"} um post todo dia às ${listaDeHoras(conf.horarios ?? [])}. Próximo: ${prox.titulo.toLowerCase()}.`
+    : "Os posts automáticos estão desligados. Ligue na aba Configurações, ou crie um agora.";
+}
 
 const NOMES_FORMATO = { reels: "Reels", carrossel: "Carrossel", imagem: "Imagem" };
 const numero = (n) => (n == null ? "–" : Number(n).toLocaleString("pt-BR"));
@@ -2803,6 +2947,7 @@ const linhaDeMetricas = (m) => [
 
 function desenharInsights(d) {
   estadoInsights = d;
+  desenharResumoIg();
   const conectado = estadoConteudo.instagram.conectado;
   $("#insights-status").innerHTML = !conectado ? `<span class="pilula">Instagram não conectado</span>`
     : d.lidosEm ? `<span class="pilula">Atualizado ${dataHora(d.lidosEm)}</span>` : `<span class="pilula">Ainda não lido</span>`;
@@ -3005,6 +3150,7 @@ async function carregarConteudo() {
     const r = await api("/api/conteudo");
     await desenhoPronto;
     estadoConteudo = r;
+    desenharResumoIg();
     f.ativo.checked = r.config.ativo;
     f.postarSozinho.checked = r.config.postarSozinho;
     $$("#conteudo-horarios [data-hora]").forEach((b) => b.setAttribute("aria-pressed", String(r.config.horarios.includes(Number(b.dataset.hora)))));
@@ -3036,6 +3182,8 @@ async function carregarConteudo() {
 }
 
 function mostrarDirect(d) {
+  estadoDirect = d;
+  desenharResumoIg();
   const f = $("#form-direct");
   f.respostas.checked = d.respostas;
   f.comentarios.checked = d.comentarios;
