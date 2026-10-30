@@ -38,20 +38,46 @@ export function trechos(texto) {
 }
 
 const escapar = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const inline = (t) => trechos(t).map((x) => (x.negrito ? `<b>${escapar(x.texto)}</b>` : escapar(x.texto))).join("");
 
-/** A prévia do painel, em HTML (com o texto escapado: o conteúdo é digitado à mão). */
-export function documentoEmHtml(texto) {
+/** Como cada campo do modelo aparece na folha, para ninguém precisar ler {{contratante_nome}}. */
+export const ROTULOS_CAMPOS = {
+  contratada_nome: "Seu nome", contratada_cpf: "Seu CPF", contratada_marca: "Sua marca", contratada_email: "Seu e-mail", contratada_pix: "Sua chave PIX",
+  subtitulo: "Subtítulo do contrato", contratante_nome: "Nome do cliente", contratante_documento: "CNPJ ou CPF do cliente (por extenso)",
+  contratante_documento_curto: "CNPJ ou CPF do cliente", contratante_email: "E-mail do cliente", representante: "Representante", representante_cpf: "CPF do representante",
+  objeto: "O que será feito", documento_escopo: "Documento de escopo", valor_total: "Valor total", forma_de_pagamento: "Forma de pagamento",
+  tabela_pagamento: "Tabela de parcelas", prazo: "Prazo", obrigacoes_contratante: "O que o cliente entrega", rescisao_valores_pagos: "Valores na rescisão", foro: "Foro",
+};
+
+/**
+ * Um trecho de texto para a folha: {{campo}} vira um selo com o valor (ou o nome do campo, em destaque se
+ * faltar preencher) e a linha em branco (____) fica marcada, para clicar e digitar por cima.
+ */
+function textoNaFolha(texto, valores) {
+  return escapar(texto)
+    .replace(/\{\{\s*([a-z_]+)\s*\}\}/g, (tudo, nome) => {
+      const valor = valores[nome];
+      const rotulo = ROTULOS_CAMPOS[nome] ?? nome;
+      const falta = nome in valores && !valor;
+      return `<span class="ct-campo${falta ? " falta" : ""}" contenteditable="false" data-campo="${nome}" title="${escapar(rotulo)}">${escapar(valor || (falta ? `${rotulo}: preencher` : rotulo))}</span>`;
+    })
+    .replace(/_{4,}/g, (linha) => `<span class="ct-branco" title="Clique e digite">${linha}</span>`);
+}
+
+const inline = (t, valores = {}) => trechos(t).map((x) => (x.negrito ? `<b>${textoNaFolha(x.texto, valores)}</b>` : textoNaFolha(x.texto, valores))).join("");
+
+/** O documento em HTML, para a folha do painel (o texto é escapado: ele é digitado à mão). */
+export function documentoEmHtml(texto, { valores = {} } = {}) {
+  const t = (x) => inline(x, valores);
   return lerBlocos(texto).map((b) => {
     switch (b.tipo) {
-      case "titulo": return `<h2 class="ct-titulo">${inline(b.texto)}</h2>`;
-      case "subtitulo": return `<p class="ct-subtitulo">${inline(b.texto)}</p>`;
-      case "clausula": return `<h3 class="ct-clausula">${inline(b.texto)}</h3>`;
-      case "item": return `<p class="ct-item">${inline(b.texto)}</p>`;
-      case "tabela": return `<div class="ct-tabela"><table>${b.cabecalho ? `<thead><tr>${b.cabecalho.map((c) => `<th>${inline(c)}</th>`).join("")}</tr></thead>` : ""}<tbody>${b.linhas.map((l) => `<tr>${l.map((c) => `<td>${inline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
-      case "assinatura": return `<div class="ct-assinaturas">${[0, 1].map((col) => `<div>${b.linhas.map((l, i) => `<div class="${i === 0 ? "ct-nome" : ""}">${inline(l[col] ?? "")}</div>`).join("")}</div>`).join("")}</div>`;
-      case "aviso": return `<div class="ct-aviso"><b>${inline(b.titulo)}</b><p>${inline(b.texto)}</p></div>`;
-      default: return `<p>${inline(b.texto)}</p>`;
+      case "titulo": return `<h2>${t(b.texto)}</h2>`;
+      case "subtitulo": return `<p class="ct-subtitulo">${t(b.texto)}</p>`;
+      case "clausula": return `<h3>${t(b.texto)}</h3>`;
+      case "item": return `<p class="ct-item">${t(b.texto)}</p>`;
+      case "tabela": return `<div class="ct-tabela${b.cabecalho ? " com-cabecalho" : ""}"><table>${b.cabecalho ? `<thead><tr>${b.cabecalho.map((c) => `<th>${t(c)}</th>`).join("")}</tr></thead>` : ""}<tbody>${b.linhas.map((l) => `<tr>${l.map((c) => `<td>${t(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+      case "assinatura": return `<div class="ct-assinaturas">${[0, 1].map((col) => `<div>${b.linhas.map((l, i) => `<div class="${i === 0 ? "ct-nome" : ""}">${t(l[col] ?? "") || "<br>"}</div>`).join("")}</div>`).join("")}</div>`;
+      case "aviso": return `<div class="ct-aviso"><div class="ct-aviso-titulo">${t(b.titulo)}</div><p>${t(b.texto)}</p></div>`;
+      default: return `<p>${t(b.texto)}</p>`;
     }
   }).join("");
 }

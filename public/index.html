@@ -442,33 +442,66 @@
 
   /* Contratos: o papel é sempre claro, como vai sair no PDF */
   #view-contratos button.link { font: inherit; color: inherit; font-weight: 600; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
-  .ct-texto { min-height: 560px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.55; }
-  .ct-papel { background: #fff; color: #14151f; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 26px 26px 30px; font-size: 13px; line-height: 1.5;
-              max-height: 640px; overflow: auto; }
-  .ct-papel p { margin: 0 0 8px; }
-  .ct-titulo { margin: 0 0 2px; text-align: center; font-size: 17px; color: #14151f; }
-  .ct-subtitulo { text-align: center; color: #5d6275; margin: 0 0 16px !important; }
-  .ct-clausula { margin: 16px 0 6px; font-size: 13.5px; color: #5b4cf0; }
-  .ct-item { padding-left: 12px; }
-  .ct-tabela { overflow-x: auto; margin: 0 0 12px; }
-  .ct-tabela table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  .ct-tabela th, .ct-tabela td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #d9dbe6; vertical-align: top; }
-  .ct-tabela th { background: #f3f3fb; }
-  .ct-tabela tbody tr td:first-child { font-weight: 600; white-space: nowrap; }
-  .ct-assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin: 34px 0 16px; font-size: 12px; color: #5d6275; text-align: center; }
-  .ct-assinaturas > div { border-top: 1px solid #14151f; padding-top: 6px; min-width: 0; overflow-wrap: anywhere; }
-  .ct-nome { color: #14151f; font-weight: 700; font-size: 13px; }
-  .ct-aviso { background: #f3f3fb; border-radius: 8px; padding: 10px 12px; font-size: 12px; }
-  .ct-aviso p { margin: 3px 0 0; color: #5d6275; }
+  #ct-abas { position: static; }
+  .ct-documento { display: grid; gap: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: clip; background: var(--surface); }
+  .ct-barra { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 6; }
+  .ct-barra-titulo { min-width: 0; flex: 1 1 180px; }
+  .ct-barra-titulo b { display: block; font-size: 15px; }
+  .ct-barra-titulo span { font-size: 12.5px; color: var(--muted); }
+  .ct-barra select { font: inherit; font-size: 13px; color: inherit; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 7px 8px; }
+  .ct-salvo { font-size: 12.5px; color: var(--muted); white-space: nowrap; display: inline-flex; gap: 5px; align-items: center; }
+  .ct-salvo.erro { color: var(--danger); }
+  .ct-ferramentas { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; padding: 6px 10px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+  .ct-ferramentas button { font: inherit; font-size: 13px; font-weight: 600; color: inherit; background: none; border: 1px solid transparent; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  .ct-ferramentas button:hover { background: var(--surface); border-color: var(--border); }
+  .ct-ferramentas select { font: inherit; font-size: 13px; color: inherit; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; max-width: 190px; }
+  .ct-ferramentas .sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+  .ct-mesa { background: #e4e6ee; padding: 26px 16px 40px; overflow-x: auto; }
+  /* A folha tem o tamanho de um A4 (595 pt): o texto quebra quase igual ao PDF. */
+  .ct-folha { position: relative; width: 794px; max-width: 100%; margin: 0 auto; background: #fff; color: #14151f; box-shadow: 0 2px 4px rgba(20,21,40,.12), 0 12px 32px -12px rgba(20,21,40,.3);
+              border-radius: 3px; padding: 26px 75px 44px; font-family: Helvetica, Arial, sans-serif; font-size: 13.33px; line-height: 1.42; color-scheme: light; }
+  .ct-folha-topo { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; padding-bottom: 8px; margin-bottom: 26px; border-bottom: 1px solid #d9dbe6; font-size: 11.3px; color: #5d6275; user-select: none; }
+  .ct-folha-topo b { color: #5b4cf0; font-size: 13.3px; }
+  .ct-folha-corpo { outline: none; min-height: 500px; caret-color: #5b4cf0; overflow-wrap: anywhere; }
+  .ct-folha-corpo p { margin: 0 0 9px; }
+  .ct-folha-corpo h2 { margin: 0 0 4px; text-align: center; font-size: 20px; font-weight: 700; color: #14151f; letter-spacing: 0; }
+  .ct-folha-corpo .ct-subtitulo { text-align: center; color: #5d6275; font-size: 14px; margin-bottom: 20px; }
+  .ct-folha-corpo h3 { margin: 18px 0 7px; font-size: 14.6px; font-weight: 700; color: #5b4cf0; letter-spacing: 0; }
+  .ct-folha-corpo .ct-item { padding-left: 16px; }
+  .ct-folha-corpo p:hover, .ct-folha-corpo td:hover { background: #f7f7fd; }
+  .ct-tabela { margin: 0 0 13px; }
+  .ct-tabela table { width: 100%; border-collapse: collapse; font-size: 12.67px; }
+  .ct-tabela th, .ct-tabela td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #d9dbe6; vertical-align: top; }
+  .ct-tabela th { background: #f3f3fb; font-weight: 700; }
+  .ct-tabela:not(.com-cabecalho) td:first-child { font-weight: 700; width: 20%; }
+  .ct-assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 53px; margin: 48px 0 21px; font-size: 12px; color: #5d6275; text-align: center; }
+  .ct-assinaturas > div { border-top: 1px solid #14151f; padding-top: 7px; min-width: 0; }
+  .ct-nome { color: #14151f; font-weight: 700; font-size: 13.33px; }
+  .ct-aviso { background: #f3f3fb; border-radius: 8px; padding: 12px 16px; font-size: 12px; }
+  .ct-aviso-titulo { font-weight: 700; font-size: 12.67px; margin-bottom: 3px; }
+  .ct-aviso p { margin: 0; color: #5d6275; }
+  .ct-campo { background: #ecebfe; color: #3f31c9; border-radius: 4px; padding: 0 4px; font-weight: 600; cursor: default; }
+  .ct-campo.falta { background: #fff1c9; color: #8a5a00; }
+  .ct-branco { background: #fff6d6; border-radius: 3px; cursor: text; }
+  .ct-folha-rodape { margin-top: 26px; text-align: center; font-size: 11.3px; color: #5d6275; user-select: none; }
+  .ct-quebra { position: absolute; left: 0; right: 0; border-top: 1px dashed #b9bccc; pointer-events: none; }
+  .ct-quebra span { position: absolute; right: 8px; top: -9px; background: #fff; color: #8a8ea3; font-size: 10.5px; padding: 0 6px; }
   .ct-secao { grid-column: 1 / -1; margin: 6px 0 -4px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
-  .ct-cab-editor { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 14px 20px; }
-  .ct-cab-editor h3 { margin: 0; font-size: 16px; }
-  .ct-cab-editor .espaco { flex: 1; }
-  .ct-cab-editor select { font: inherit; color: inherit; background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 7px 10px; }
+  /* Em tela estreita a folha ocupa a largura toda, com letra de ler no celular. */
+  @media (max-width: 1100px) {
+    .ct-mesa { padding: 12px 8px 24px; }
+    .ct-folha { width: 100%; padding: 16px 18px 28px; font-size: 14.5px; line-height: 1.5; }
+    .ct-folha-corpo h2 { font-size: 18px; }
+    .ct-folha-corpo .ct-item { padding-left: 0; }
+    .ct-tabela table { font-size: 13.5px; }
+    .ct-tabela th, .ct-tabela td { padding: 7px 6px; }
+    .ct-tabela:not(.com-cabecalho) tr { display: grid; padding: 6px 0; border-bottom: 1px solid #d9dbe6; }
+    .ct-tabela:not(.com-cabecalho) td { border: 0; padding: 2px 0; width: auto !important; }
+    .ct-quebra { display: none; }
+  }
   @media (max-width: 640px) {
-    .ct-texto { min-height: 340px; }
-    .ct-papel { padding: 18px 14px; max-height: 480px; }
-    .ct-assinaturas { grid-template-columns: 1fr; gap: 26px; }
+    .ct-assinaturas { grid-template-columns: 1fr; gap: 30px; }
+    .ct-barra .btn { flex: 1 1 auto; justify-content: center; }
   }
 
   /* Página do Instagram: resumo, abas e painéis */
@@ -912,19 +945,9 @@
         <div class="ig-painel cartao" data-ct-painel="modelo" hidden>
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="settings"></span><div class="titulos"><h3>Modelo de contrato</h3>
             <div class="meta">É dele que nasce o contrato de cada cliente novo. Mudar o modelo não altera os contratos já criados.</div></div></div>
-          <div class="editor">
-            <div class="campos"><div class="campo"><label for="ct-modelo">Texto do modelo</label><textarea id="ct-modelo" class="ct-texto" spellcheck="true"></textarea></div></div>
-            <div class="campo"><span class="rotulo">Como fica</span><div class="ct-papel" id="ct-modelo-previa"></div></div>
-          </div>
-          <div class="cartao-corpo" style="border-top:1px solid var(--border)">
-            <details class="ajuda"><summary>Como editar o texto</summary>
-              <ol><li><code># Título</code>, <code>## Subtítulo</code> e <code>### CLÁUSULA</code> são os títulos. <code>**assim**</code> fica em negrito.</li>
-                <li>Tabela: linhas começando com <code>|</code>. Com <code>|---|---|</code> abaixo da primeira linha, ela vira o cabeçalho.</li>
-                <li>Entre <code>{{ }}</code> estão os campos preenchidos ao gerar o contrato: <code>contratante_nome</code>, <code>contratante_documento</code>, <code>contratante_email</code>, <code>representante</code>, <code>representante_cpf</code>, <code>objeto</code>, <code>documento_escopo</code>, <code>valor_total</code>, <code>forma_de_pagamento</code>, <code>tabela_pagamento</code>, <code>prazo</code>, <code>obrigacoes_contratante</code>, <code>rescisao_valores_pagos</code>, <code>foro</code>.</li>
-                <li>Os seus dados entram sozinhos: <code>contratada_nome</code>, <code>contratada_cpf</code>, <code>contratada_marca</code>, <code>contratada_email</code>, <code>contratada_pix</code>.</li></ol></details>
-          </div>
-          <div class="acoes"><button class="btn primario" type="button" id="ct-modelo-salvar"><span data-ic="save"></span>Salvar modelo</button>
-            <button class="btn fantasma" type="button" id="ct-modelo-padrao">Voltar ao modelo original</button></div>
+          <div id="ct-modelo-folha"></div>
+          <div class="acoes"><button class="btn fantasma" type="button" id="ct-modelo-padrao">Voltar ao modelo original</button>
+            <span class="muted" style="font-size:13px">Os selos coloridos são preenchidos sozinhos em cada contrato, com os dados do cliente e os seus.</span></div>
         </div>
 
         <form class="ig-painel cartao" data-ct-painel="dados" id="form-contratada" hidden>
@@ -2978,6 +3001,8 @@ let contratoDoLead = null; // veio do botão "Cliente aceitou"
 let previaCt = null;
 
 function abrirAbaCt(aba) {
+  salvarFolhaAgora();
+  if (["lista", "dados"].includes(aba)) folhaAtual = null;
   const daLista = ["novo", "editor"].includes(aba) ? "lista" : aba;
   $$("[data-ct-aba]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.ctAba === daLista)));
   $$("[data-ct-painel]").forEach((p) => (p.hidden = p.dataset.ctPainel !== aba));
@@ -3039,54 +3064,209 @@ function atualizarPagamentoCt() {
   $("#ct-total").textContent = total ? `Valor total do contrato: ${total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}` : "";
 }
 
-/** A prévia, um pouco depois de parar de digitar. */
-function agendarPreviaCt(texto, alvo) {
-  clearTimeout(previaCt);
-  previaCt = setTimeout(async () => {
-    try {
-      alvo.innerHTML = (await post("/api/contratos/previa", { corpo: texto })).html;
-    } catch {}
-  }, 400);
+// ----- A folha: edita direto no documento, sem ver marcação nenhuma -----
+const textoLimpo = (t) => t.replace(/\u00a0/g, " ").replace(/[\r\n\t]+/g, " ");
+
+/** O texto de um trecho da folha, de volta ao formato guardado (**negrito**, {{campo}}). */
+function textoDoTrecho(no) {
+  let saida = "";
+  for (const n of no.childNodes) {
+    if (n.nodeType === Node.TEXT_NODE) saida += textoLimpo(n.textContent);
+    else if (n.nodeType !== Node.ELEMENT_NODE) continue;
+    else if (n.dataset.campo) saida += `{{${n.dataset.campo}}}`;
+    else if (n.tagName === "BR") saida += " ";
+    else if (["B", "STRONG"].includes(n.tagName)) {
+      const dentro = textoDoTrecho(n);
+      const miolo = dentro.trim();
+      saida += miolo ? `${dentro.startsWith(" ") ? " " : ""}**${miolo.replace(/\*\*/g, "")}**${dentro.endsWith(" ") ? " " : ""}` : dentro;
+    } else saida += textoDoTrecho(n);
+  }
+  return saida;
 }
+const linhaDaFolha = (no) => textoDoTrecho(no).replace(/ {2,}/g, " ").trim();
+const celulaDaFolha = (no) => linhaDaFolha(no).replace(/\|/g, "/");
+
+/** A folha inteira de volta ao texto guardado. */
+function textoDaFolha(corpo) {
+  const linhas = [];
+  for (const el of corpo.children) {
+    if (el.matches(".ct-tabela")) {
+      const cab = el.querySelector("thead tr");
+      if (cab) linhas.push(`| ${[...cab.cells].map(celulaDaFolha).join(" | ")} |`, `|${[...cab.cells].map(() => "---").join("|")}|`);
+      for (const tr of el.querySelectorAll("tbody tr")) linhas.push(`| ${[...tr.cells].map(celulaDaFolha).join(" | ")} |`);
+      linhas.push("");
+    } else if (el.matches(".ct-assinaturas")) {
+      const [esq, dir] = [...el.children].map((c) => [...c.children]);
+      linhas.push("::assinatura");
+      for (let i = 0; i < Math.max(esq?.length ?? 0, dir?.length ?? 0); i++) linhas.push(`${esq?.[i] ? celulaDaFolha(esq[i]) : ""} | ${dir?.[i] ? celulaDaFolha(dir[i]) : ""}`);
+      linhas.push("::", "");
+    } else if (el.matches(".ct-aviso")) {
+      linhas.push(`::aviso ${linhaDaFolha(el.querySelector(".ct-aviso-titulo") ?? el)}`, linhaDaFolha(el.querySelector("p") ?? el), "::", "");
+    } else {
+      const t = linhaDaFolha(el);
+      if (!t) continue;
+      if (el.tagName === "H2") linhas.push(`# ${t}`);
+      else if (el.matches(".ct-subtitulo")) linhas.push(`## ${t}`, "");
+      else if (el.tagName === "H3") linhas.push(`### ${t}`);
+      else if (/^\d+\.\d+\.?\s/.test(t)) linhas.push(t);
+      else linhas.push(t, "");
+    }
+  }
+  return linhas.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+// O que foi digitado e ainda não saiu para o servidor.
+let folhaAtual = null;
+
+/** Monta a folha em `alvo`. `salvar(texto)` é chamado sozinho, pouco depois de parar de digitar. */
+async function abrirFolha(alvo, { corpo, projeto = "", salvar, cabecalho = "", comCampos = false }) {
+  const { html, marca, campos } = await post("/api/contratos/folha", { corpo });
+  const opcoesCampos = comCampos ? `<span class="sep"></span><select data-folha-campo aria-label="Inserir um campo"><option value="">Inserir campo…</option>${Object.entries(campos).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select>` : "";
+  alvo.innerHTML = `<div class="ct-documento">
+    ${cabecalho}
+    <div class="ct-ferramentas" role="toolbar" aria-label="Formatação">
+      <button type="button" data-folha-cmd="bold" title="Negrito"><b>N</b></button>
+      <span class="sep"></span>
+      <button type="button" data-folha-bloco="h3" title="Transforma a linha em título de cláusula">Título</button>
+      <button type="button" data-folha-bloco="p" title="Transforma a linha em texto normal">Texto</button>
+      <span class="sep"></span>
+      <button type="button" data-folha-cmd="undo" title="Desfazer">Desfazer</button>
+      <button type="button" data-folha-cmd="redo" title="Refazer">Refazer</button>
+      ${opcoesCampos}
+    </div>
+    <div class="ct-mesa"><div class="ct-folha">
+      <div class="ct-folha-topo"><b>${esc(marca)}</b><span>Contrato de Prestação de Serviços${projeto ? ` | ${esc(projeto)}` : ""}</span></div>
+      <div class="ct-folha-corpo" contenteditable="true" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Texto do contrato">${html}</div>
+      <div class="ct-folha-rodape">Contrato ${esc(projeto)}</div>
+    </div></div></div>`;
+  const folha = $(".ct-folha-corpo", alvo);
+  document.execCommand("defaultParagraphSeparator", false, "p");
+  const estado = { alvo, folha, salvar, ultimo: textoDaFolha(folha), tempo: null, salvando: Promise.resolve() };
+  folhaAtual = estado;
+  marcarPaginas(alvo);
+  return estado;
+}
+
+function mostrarSalvo(alvo, texto, erro = false) {
+  const el = $("[data-folha-salvo]", alvo);
+  if (!el) return;
+  el.textContent = texto;
+  el.classList.toggle("erro", erro);
+}
+
+/** Salva já, se mudou algo. Espera terminar (para o PDF sair com o que está na tela). */
+async function salvarFolhaAgora() {
+  const f = folhaAtual;
+  if (!f) return;
+  clearTimeout(f.tempo);
+  const texto = textoDaFolha(f.folha);
+  if (texto === f.ultimo) return f.salvando;
+  if (!texto) return mostrarSalvo(f.alvo, "O contrato não pode ficar vazio", true);
+  f.ultimo = texto;
+  mostrarSalvo(f.alvo, "Salvando…");
+  f.salvando = f.salvar(texto)
+    .then(() => mostrarSalvo(f.alvo, "Salvo"))
+    .catch((e) => {
+      f.ultimo = null; // tenta de novo na próxima mudança
+      mostrarSalvo(f.alvo, `Não salvou: ${e.message}`, true);
+    });
+  return f.salvando;
+}
+
+/** Linhas pontilhadas onde cada folha A4 termina (só com a folha em tamanho real). */
+function marcarPaginas(alvo) {
+  const folha = $(".ct-folha", alvo);
+  if (!folha) return;
+  $$(".ct-quebra", folha).forEach((q) => q.remove());
+  const corpo = $(".ct-folha-corpo", folha);
+  if (folha.offsetWidth < 790) return;
+  const ALTURA_DA_PAGINA = 944; // A4 menos as margens do PDF (708 pt)
+  for (let n = 1; n * ALTURA_DA_PAGINA < corpo.offsetHeight; n++) {
+    const q = document.createElement("div");
+    q.className = "ct-quebra";
+    q.style.top = `${corpo.offsetTop + n * ALTURA_DA_PAGINA}px`;
+    q.innerHTML = `<span>Página ${n + 1}</span>`;
+    folha.append(q);
+  }
+}
+
+$("#view-contratos").addEventListener("input", (ev) => {
+  if (!ev.target.closest?.(".ct-folha-corpo") || !folhaAtual) return;
+  // Linha em branco preenchida deixa de ser destacada.
+  const sel = getSelection().anchorNode?.parentElement?.closest?.(".ct-branco");
+  if (sel && !/^_+$/.test(sel.textContent)) sel.classList.remove("ct-branco");
+  mostrarSalvo(folhaAtual.alvo, "Alterado…");
+  clearTimeout(folhaAtual.tempo);
+  folhaAtual.tempo = setTimeout(salvarFolhaAgora, 1000);
+  marcarPaginas(folhaAtual.alvo);
+});
+// Colar entra como texto puro, para não trazer a formatação de outro lugar.
+$("#view-contratos").addEventListener("paste", (ev) => {
+  if (!ev.target.closest?.(".ct-folha-corpo")) return;
+  ev.preventDefault();
+  document.execCommand("insertText", false, (ev.clipboardData?.getData("text/plain") ?? "").replace(/\s*\n\s*/g, " "));
+});
+// Clicar numa linha em branco seleciona a linha: é só digitar por cima.
+$("#view-contratos").addEventListener("click", (ev) => {
+  const branco = ev.target.closest?.(".ct-branco");
+  if (!branco) return;
+  const r = document.createRange();
+  r.selectNodeContents(branco);
+  const s = getSelection();
+  s.removeAllRanges();
+  s.addRange(r);
+});
+// A barra de formatação não tira o cursor do texto.
+$("#view-contratos").addEventListener("mousedown", (ev) => {
+  if (ev.target.closest?.("[data-folha-cmd], [data-folha-bloco]")) ev.preventDefault();
+});
+$("#view-contratos").addEventListener("change", (ev) => {
+  const sel = ev.target.closest?.("[data-folha-campo]");
+  if (!sel?.value || !folhaAtual) return;
+  folhaAtual.folha.focus();
+  document.execCommand("insertHTML", false, `<span class="ct-campo" contenteditable="false" data-campo="${sel.value}">${esc(sel.selectedOptions[0].textContent)}</span>&nbsp;`);
+  sel.value = "";
+});
+window.addEventListener("resize", () => folhaAtual && marcarPaginas(folhaAtual.alvo));
+window.addEventListener("hashchange", () => salvarFolhaAgora());
+document.addEventListener("visibilitychange", () => { if (document.hidden) salvarFolhaAgora(); });
 
 async function abrirContrato(id) {
   try {
+    await salvarFolhaAgora();
     const c = await api(`/api/contratos/${id}`);
     contratoAberto = c;
     const alvo = $("#ct-editor");
-    alvo.innerHTML = `<div class="cartao">
-      <div class="ct-cab-editor">
-        <button type="button" class="btn fantasma sm" data-ct-voltar aria-label="Voltar para os contratos">${ic("arrowLeft", "sm")}Voltar</button>
-        <div><h3>${esc(c.projeto)}</h3><span class="muted" style="font-size:13px">${esc(c.contratante)}${c.resumo ? ` · ${esc(c.resumo)}` : ""}</span></div>
-        <span class="espaco"></span>
-        <label class="muted" style="font-size:13px;display:flex;gap:8px;align-items:center">Situação
-          <select id="ct-status">${Object.entries(STATUS_CONTRATO).map(([k, [t]]) => `<option value="${k}" ${k === c.status ? "selected" : ""}>${t}</option>`).join("")}</select></label>
-      </div>
-      ${c.faltando?.length ? `<div style="padding:0 20px 12px"><div class="alerta info">${ic("alert")}<div>Falta em <button type="button" class="link" data-ct-ir="dados">Seus dados</button>: <b>${esc(c.faltando.join(", "))}</b>. Esses campos saem em branco até você preencher.</div></div></div>` : ""}
-      <div class="editor">
-        <div class="campos"><div class="campo"><label for="ct-corpo">Texto do contrato (edite à vontade)</label><textarea id="ct-corpo" class="ct-texto" spellcheck="true">${esc(c.corpo)}</textarea></div></div>
-        <div class="campo"><span class="rotulo">Como vai ficar</span><div class="ct-papel" id="ct-previa"></div></div>
-      </div>
-      <div class="acoes">
-        <button class="btn primario" type="button" id="ct-salvar">${ic("save")}Salvar</button>
-        <button class="btn ok" type="button" id="ct-pdf">${ic("download")}Baixar PDF</button>
-        <span class="espaco"></span>
-        <button class="btn perigo" type="button" id="ct-excluir">${ic("x")}Excluir</button>
-      </div></div>`;
     abrirAbaCt("editor");
-    $("#ct-previa").innerHTML = (await post("/api/contratos/previa", { corpo: c.corpo })).html;
+    alvo.innerHTML = `<div class="esqueleto" style="height:320px"></div>`;
+    const cabecalho = `<div class="ct-barra">
+        <button type="button" class="btn fantasma sm" data-ct-voltar aria-label="Voltar para os contratos">${ic("arrowLeft", "sm")}Voltar</button>
+        <div class="ct-barra-titulo"><b>${esc(c.projeto)}</b><span>${esc(c.contratante)}${c.resumo ? ` · ${esc(c.resumo)}` : ""}</span></div>
+        <span class="ct-salvo" data-folha-salvo>Salvo</span>
+        <select id="ct-status" aria-label="Situação do contrato">${Object.entries(STATUS_CONTRATO).map(([k, [t]]) => `<option value="${k}" ${k === c.status ? "selected" : ""}>${t}</option>`).join("")}</select>
+        <button class="btn sm" type="button" id="ct-ver-pdf">${ic("external", "sm")}Ver PDF</button>
+        <button class="btn primario sm" type="button" id="ct-pdf">${ic("download", "sm")}Baixar PDF</button>
+        <button class="btn fantasma sm" type="button" id="ct-excluir" aria-label="Excluir contrato" title="Excluir contrato">${ic("x", "sm")}</button>
+      </div>
+      ${c.faltando?.length ? `<div style="padding:10px 14px;background:var(--surface);border-bottom:1px solid var(--border)"><div class="alerta info">${ic("alert")}<div>Falta em <button type="button" class="link" data-ct-ir="dados">Seus dados</button>: <b>${esc(c.faltando.join(", "))}</b>.</div></div></div>` : ""}`;
+    await abrirFolha(alvo, {
+      corpo: c.corpo, projeto: c.projeto, cabecalho,
+      salvar: (corpo) => api(`/api/contratos/${c.id}`, { method: "PUT", body: JSON.stringify({ corpo }) }),
+    });
   } catch (e) {
     avisar(e.message, "perigo");
   }
 }
 
-const salvarContrato = () => api(`/api/contratos/${contratoAberto.id}`, { method: "PUT", body: JSON.stringify({ corpo: $("#ct-corpo").value, status: $("#ct-status").value }) });
-
 async function carregarModeloCt() {
   try {
+    await salvarFolhaAgora();
     const { corpo } = await api("/api/contratos/modelo");
-    $("#ct-modelo").value = corpo;
-    $("#ct-modelo-previa").innerHTML = (await post("/api/contratos/previa", { corpo })).html;
+    await abrirFolha($("#ct-modelo-folha"), {
+      corpo, comCampos: true,
+      cabecalho: `<div class="ct-barra"><div class="ct-barra-titulo"><b>Modelo</b><span>Clique no texto para editar. Salva sozinho.</span></div><span class="ct-salvo" data-folha-salvo>Salvo</span></div>`,
+      salvar: (texto) => api("/api/contratos/modelo", { method: "PUT", body: JSON.stringify({ corpo: texto }) }),
+    });
   } catch (e) {
     avisar(e.message, "perigo");
   }
@@ -3123,18 +3303,10 @@ $("#form-contrato").addEventListener("submit", async (ev) => {
     btn.disabled = false;
   }
 });
-$("#ct-modelo").addEventListener("input", (ev) => agendarPreviaCt(ev.target.value, $("#ct-modelo-previa")));
-$("#ct-modelo-salvar").addEventListener("click", async () => {
-  try {
-    await api("/api/contratos/modelo", { method: "PUT", body: JSON.stringify({ corpo: $("#ct-modelo").value }) });
-    avisar("Modelo salvo. Os próximos contratos usam este texto.", "ok");
-  } catch (e) {
-    avisar(e.message, "perigo");
-  }
-});
 $("#ct-modelo-padrao").addEventListener("click", async () => {
   if (!confirm("Voltar ao modelo original? O texto que você editou no modelo será perdido (os contratos já criados não mudam).")) return;
   try {
+    folhaAtual = null;
     await api("/api/contratos/modelo", { method: "PUT", body: JSON.stringify({ corpo: "" }) });
     await carregarModeloCt();
     avisar("Modelo original de volta", "ok");
@@ -3157,30 +3329,50 @@ $("#view-contratos").addEventListener("click", async (ev) => {
   if (ev.target.closest("[data-ct-voltar]")) return abrirAbaCt("lista");
   const ir = ev.target.closest("[data-ct-ir]");
   if (ir) return abrirAbaCt(ir.dataset.ctIr);
-  const alvo = ev.target.closest("#ct-salvar, #ct-pdf, #ct-excluir");
+  const alvo = ev.target.closest("#ct-ver-pdf, #ct-pdf, #ct-excluir");
   if (!alvo) return;
+  // Abre a janela já no clique (senão o navegador bloqueia) e salva antes, para o PDF sair com o que está na tela.
+  const janela = alvo.id === "ct-ver-pdf" ? window.open("about:blank", "_blank") : null;
   alvo.disabled = true;
   try {
-    if (alvo.id === "ct-salvar") {
-      await salvarContrato();
-      avisar("Contrato salvo", "ok");
-    } else if (alvo.id === "ct-pdf") {
-      // Salva antes, para o PDF sair com o que está na tela.
-      await salvarContrato();
-      location.href = `/api/contratos/${contratoAberto.id}/pdf`;
-    } else if (confirm(`Excluir o contrato de ${contratoAberto.contratante}? Não dá para desfazer.`)) {
-      await api(`/api/contratos/${contratoAberto.id}`, { method: "DELETE" });
-      avisar("Contrato excluído");
-      abrirAbaCt("lista");
+    if (alvo.id === "ct-excluir") {
+      if (confirm(`Excluir o contrato de ${contratoAberto.contratante}? Não dá para desfazer.`)) {
+        folhaAtual = null;
+        await api(`/api/contratos/${contratoAberto.id}`, { method: "DELETE" });
+        avisar("Contrato excluído");
+        abrirAbaCt("lista");
+      }
+    } else {
+      await salvarFolhaAgora();
+      const url = `/api/contratos/${contratoAberto.id}/pdf`;
+      if (janela) janela.location = `${url}?ver=1`;
+      else location.href = url;
     }
   } catch (e) {
+    janela?.close();
     avisar(e.message, "perigo");
   } finally {
     alvo.disabled = false;
   }
 });
-$("#view-contratos").addEventListener("input", (ev) => {
-  if (ev.target.id === "ct-corpo") agendarPreviaCt(ev.target.value, $("#ct-previa"));
+$("#view-contratos").addEventListener("change", async (ev) => {
+  if (ev.target.id !== "ct-status") return;
+  try {
+    await api(`/api/contratos/${contratoAberto.id}`, { method: "PUT", body: JSON.stringify({ status: ev.target.value }) });
+    avisar("Situação atualizada", "ok", 1800);
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+});
+// Barra de formatação da folha.
+$("#view-contratos").addEventListener("click", (ev) => {
+  const cmd = ev.target.closest("[data-folha-cmd]");
+  const bloco = ev.target.closest("[data-folha-bloco]");
+  if (!folhaAtual || (!cmd && !bloco)) return;
+  folhaAtual.folha.focus();
+  if (cmd) document.execCommand(cmd.dataset.folhaCmd);
+  else document.execCommand("formatBlock", false, bloco.dataset.folhaBloco);
+  folhaAtual.folha.dispatchEvent(new Event("input", { bubbles: true }));
 });
 // "Cliente aceitou" (na conversa ou na lista de empresas): abre o contrato já com os dados dela.
 document.addEventListener("click", (ev) => {

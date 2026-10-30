@@ -29,7 +29,7 @@ import { processarWebhookInstagram } from "./respostas/instagram.js";
 import { receberFormulario, lerConfigFormulario, salvarConfigFormulario } from "./respostas/formulario.js";
 import { paginaDoFormulario, paginaDeObrigado } from "./paginaContato.js";
 import * as contratos from "./contratos/contrato.js";
-import { documentoEmHtml, documentoEmPdf } from "./contratos/documento.js";
+import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
 import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada } from "./respostas/processar.js";
@@ -873,10 +873,11 @@ app.put("/api/contratos/contratada", async (req, res) => {
   res.json(await contratos.lerContratada(await carregarCampanhaCompleta()));
 });
 
-// A prévia do painel, com os seus dados já no lugar.
-app.post("/api/contratos/previa", async (req, res) => {
-  const contratada = await contratos.lerContratada(await carregarCampanhaCompleta());
-  res.json({ html: documentoEmHtml(contratos.preencherContratada(String(req.body?.corpo ?? ""), contratada)) });
+// A folha do painel: o documento como vai sair, com os seus dados no lugar, para editar direto nela.
+app.post("/api/contratos/folha", async (req, res) => {
+  const c = await contratos.lerContratada(await carregarCampanhaCompleta());
+  const valores = { contratada_nome: c.nome, contratada_cpf: c.cpf, contratada_marca: c.marca, contratada_email: c.email, contratada_pix: c.pix };
+  res.json({ html: documentoEmHtml(String(req.body?.corpo ?? ""), { valores }), marca: c.marca, campos: ROTULOS_CAMPOS });
 });
 
 app.post("/api/contratos", async (req, res) => {
@@ -915,7 +916,8 @@ app.get("/api/contratos/:id/pdf", async (req, res) => {
   const contratada = await contratos.lerContratada(campanha);
   const pdf = await documentoEmPdf(contratos.preencherContratada(contrato.corpo, contratada), { marca: contratada.marca, projeto: contrato.projeto });
   const arquivo = `contrato-${contrato.projeto}`.normalize("NFD").replace(/[^\w-]+/g, "-").toLowerCase();
-  res.set({ "Content-Type": "application/pdf", "Content-Disposition": `attachment; filename="${arquivo}.pdf"`, "Cache-Control": "no-store" }).send(pdf);
+  // Com ?ver=1 abre no navegador; sem ele, baixa o arquivo.
+  res.set({ "Content-Type": "application/pdf", "Content-Disposition": `${req.query.ver === "1" ? "inline" : "attachment"}; filename="${arquivo}.pdf"`, "Cache-Control": "no-store" }).send(pdf);
 });
 
 // Formulário do site: o link, se a IA responde sozinha e os últimos contatos que chegaram por ele.

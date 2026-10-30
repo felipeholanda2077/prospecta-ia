@@ -96,6 +96,13 @@ test("contrato: o texto vira blocos, prévia sem HTML solto e PDF de verdade", a
   assert.equal(lerBlocos("| a | b |")[0].cabecalho, null);
   assert.equal(documentoEmHtml("<script>alert(1)</script>").includes("<script>"), false);
   assert.match(documentoEmHtml("1.1. item **forte**"), /<b>forte<\/b>/);
+  // Na folha não aparece marcação: campo vira selo com o valor, ou avisa que falta; linha em branco fica marcada.
+  const folha = documentoEmHtml("CPF {{contratada_cpf}} nome {{contratada_nome}} foro {{foro}} data ______", { valores: { contratada_cpf: "", contratada_nome: "Fulano <x>" } });
+  assert.match(folha, /class="ct-campo falta"[^>]*data-campo="contratada_cpf"[^>]*>Seu CPF: preencher</);
+  assert.match(folha, /data-campo="contratada_nome"[^>]*>Fulano &lt;x&gt;</);
+  assert.match(folha, /data-campo="foro"[^>]*>Foro</);
+  assert.match(folha, /<span class="ct-branco"[^>]*>______<\/span>/);
+  assert.doesNotMatch(folha, /\{\{/);
 
   const m = contrato.montarCorpo(await contrato.modeloPadrao(), dados);
   const pdf = await documentoEmPdf(contrato.preencherContratada(m.corpo, { nome: "F", marca: "FluxDeck" }), { marca: "FluxDeck", projeto: "AppTeste" });
