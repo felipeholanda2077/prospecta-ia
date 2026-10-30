@@ -25,7 +25,8 @@ export const TEMAS = [
 export const temaDoPost = (post) => TEMAS[Math.abs(Number(post?.id) || 0) % TEMAS.length];
 
 // Direção de arte: cada post sai num estilo, para o feed não parecer sempre o mesmo modelo.
-export const ARTES = ["foto_cheia", "dividido", "claro", "cor", "escuro"];
+// Nenhuma coloca texto em cima de foto: a legenda nunca cai sobre o rosto de alguém.
+export const ARTES = ["dividido", "claro", "cor", "escuro"];
 export const ELEMENTOS = ["celular", "navegador", "grafico", "calendario", "estrelas", "notificacao"];
 const CORES = ["#1d4ed8", "#9f1239", "#047857", "#5b21b6", "#c2410c"];
 const TINTA_CLARA = { forte: "#ffffff", suave: "rgba(255,255,255,.82)", fraca: "rgba(255,255,255,.25)", grade: "#ffffff" };
@@ -34,7 +35,11 @@ const TINTA_ESCURA = { forte: "#0b0c14", suave: "rgba(11,12,20,.72)", fraca: "rg
 let tinta = TINTA_CLARA;
 let limiteAltura = Infinity;
 
-const arteDoPost = (post) => (ARTES.includes(post?.conteudo?.arte) ? post.conteudo.arte : "escuro");
+// "foto_cheia" (texto sobre a foto inteira) saiu: os posts que já tinham esse estilo ficam com a foto no topo.
+const arteDoPost = (post) => {
+  const arte = post?.conteudo?.arte === "foto_cheia" ? "dividido" : post?.conteudo?.arte;
+  return ARTES.includes(arte) ? arte : "escuro";
+};
 
 /** O tema e a cor do texto do post, conforme a arte. */
 function aparencia(post) {
@@ -134,33 +139,23 @@ function fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo }) {
     ctx.beginPath(); ctx.arc(w / 2, cy, r, 0, Math.PI * 2); ctx.stroke();
     return cy + r + 36;
   }
-  if ((arte === "foto_cheia" || arte === "dividido") && foto) {
-    if (arte === "dividido" && noTopo) {
-      ctx.fillStyle = tema.base;
-      ctx.fillRect(0, 0, w, h);
-      const alt = reels ? 840 : 590;
-      fotoCobrindo(ctx, foto, 0, 0, w, alt, zoom);
-      // Escurece em cima (para a marca aparecer) e funde com a cor de baixo.
-      const topo = ctx.createLinearGradient(0, 0, 0, 260);
-      topo.addColorStop(0, "rgba(0,0,0,.72)");
-      topo.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.fillStyle = topo;
-      ctx.fillRect(0, 0, w, 260);
-      const g = ctx.createLinearGradient(0, alt * 0.55, 0, alt);
-      g.addColorStop(0, "rgba(0,0,0,0)");
-      g.addColorStop(1, tema.base);
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, w, alt);
-      return alt + 6;
-    }
-    fotoCobrindo(ctx, foto, 0, 0, w, h, zoom);
-    const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, "rgba(5,6,12,.72)");
-    g.addColorStop(0.45, "rgba(5,6,12,.6)");
-    g.addColorStop(1, "rgba(5,6,12,.88)");
-    ctx.fillStyle = g;
+  if (arte === "dividido" && foto && noTopo) {
+    ctx.fillStyle = tema.base;
     ctx.fillRect(0, 0, w, h);
-    return null;
+    const alt = reels ? 840 : 590;
+    fotoCobrindo(ctx, foto, 0, 0, w, alt, zoom);
+    // Escurece em cima (para a marca aparecer) e funde com a cor de baixo.
+    const topo = ctx.createLinearGradient(0, 0, 0, 260);
+    topo.addColorStop(0, "rgba(0,0,0,.72)");
+    topo.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = topo;
+    ctx.fillRect(0, 0, w, 260);
+    const g = ctx.createLinearGradient(0, alt * 0.55, 0, alt);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, tema.base);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, alt);
+    return alt + 6;
   }
   fundo(ctx, w, h, t, tema);
   // No fundo escuro, a foto entra num cartão só na tela que pediu uma.
@@ -857,6 +852,9 @@ export function duracoesDasCenas(post) {
 export const DURACAO_CENA = (i, total, post) => duracoesDasCenas(post)[i];
 export const duracaoReels = (post, duracoes = duracoesDasCenas(post)) => duracoes.reduce((s, d) => s + d, 0);
 
+// Onde o avatar aparece no vídeo: um quadro no alto, com o texto sempre embaixo dele.
+export const JANELA_DO_AVATAR = { x: 220, y: 220, w: 640, h: 800 };
+
 /**
  * Um quadro do Reels (1080x1920) no instante `t` (segundos). `duracoes` vem da narração, quando
  * há voz (cada cena dura o tempo da fala); sem ela, sai pela quantidade de texto.
@@ -875,24 +873,26 @@ export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duraco
   const ultima = i === telas.length - 1;
   const visual = telas[i].visual;
 
-  // Na cena com o clipe do avatar, o quadro fica transparente (o vídeo vai por baixo) e o texto desce.
+  // Na cena com o clipe do avatar, o fundo tem uma janela transparente: o vídeo vai por baixo e
+  // aparece só nela, em tamanho menor, e o texto fica todo abaixo da janela.
   const comVideo = Boolean(cenasComVideo?.has(i));
   if (comVideo) {
-    tinta = TINTA_CLARA;
-    ctx.clearRect(0, 0, w, h);
-    // O escuro para o texto começa abaixo do queixo: a boca do avatar tem que continuar à vista.
-    const g = ctx.createLinearGradient(0, 1060, 0, 1260);
-    g.addColorStop(0, "rgba(0,0,0,0)");
-    g.addColorStop(1, "rgba(0,0,0,.88)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 1060, w, h - 1060);
-    const topo = ctx.createLinearGradient(0, 0, 0, 280);
-    topo.addColorStop(0, "rgba(0,0,0,.6)");
-    topo.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = topo;
-    ctx.fillRect(0, 0, w, 280);
+    const j = JANELA_DO_AVATAR;
+    fundoDaArte(ctx, { w, h, t, local, arte: ["claro", "cor"].includes(arte) ? arte : "escuro", tema, telas: telas.map(({ foto, ...resto }) => resto), i, modo: "reels" });
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.fillStyle = "#000"; // opaco, para apagar por inteiro
+    ctx.beginPath();
+    ctx.roundRect(j.x, j.y, j.w, j.h, 44);
+    ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = tema.a;
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.roundRect(j.x, j.y, j.w, j.h, 44);
+    ctx.stroke();
   }
-  const topoLivre = comVideo ? 1190 : fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo: "reels" });
+  const topoLivre = comVideo ? JANELA_DO_AVATAR.y + JANELA_DO_AVATAR.h + 44 : fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo: "reels" });
 
   // Entrada e saída de cada cena: chega com zoom e sai encolhendo (a última fica).
   const entra = suave(local / 0.22);

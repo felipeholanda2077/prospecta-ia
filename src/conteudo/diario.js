@@ -99,7 +99,7 @@ export async function criarPostDeHoje(campanha, { formato, horario = null, escre
   }
   const conteudo = await clipes(await fotos({ ...escrito, ...variedade, capaSemFelipe: conf.apresentador === false }, { formato: escolhido, dia }), { formato: escolhido });
   // Os estilos de foto sem nenhuma foto achada virariam fundo escuro: troca por um que não depende dela.
-  if (["foto_cheia", "dividido"].includes(conteudo.arte) && !conteudo.slides?.some((s) => s.foto)) conteudo.arte = sorteio() < 0.5 ? "cor" : "claro";
+  if (conteudo.arte === "dividido" && !conteudo.slides?.some((s) => s.foto)) conteudo.arte = sorteio() < 0.5 ? "cor" : "claro";
   const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo, horario });
   log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}, ${estrutura}, ${variedade.publico}, ${variedade.tom}, arte ${variedade.arte}${variedade.comFelipe ? ", com Felipe" : ""}${escolha.peloDesempenho ? ", pelos insights" : ""}): ${conteudo.tema}`);
   const post = await db.buscarPost(id);
@@ -108,7 +108,7 @@ export async function criarPostDeHoje(campanha, { formato, horario = null, escre
   return post;
 }
 
-const ARTES_DOS_POSTS = ["foto_cheia", "dividido", "claro", "cor", "escuro"];
+const ARTES_DOS_POSTS = ["dividido", "claro", "cor", "escuro"];
 
 /** Sorteia entre as opções que não apareceram nos últimos posts. */
 function sortearSemRepetir(opcoes, usados, sorteio) {

@@ -174,3 +174,52 @@ test("capa: o Felipe entra na capa de todo post, a não ser que esteja desligado
   assert.ok(vermelhos((ctx) => desenho.desenharTelaCarrossel(ctx, post(), 0, "FluxDeck"), 1080, 1350, 1060, 1260) > 10_000);
   assert.equal(vermelhos((ctx) => desenho.desenharTelaCarrossel(ctx, post(), 1, "FluxDeck"), 1080, 1350, 0, 1350), 0); // só na capa
 });
+
+test("legenda: nunca fica sobre o rosto, nem do avatar, nem das fotos", async () => {
+  const titulo = "Quantos alunos você perdeu esta semana sem nem perceber isso?";
+  const slides = [
+    { visual: "capa", titulo, texto: "", destaque: "alunos", foto: { chave: "foto-rosto" } },
+    { visual: "lista", titulo: "Primeiro erro: responder tarde demais", texto: "Quem espera vai para outra empresa.", destaque: "tarde", foto: { chave: "foto-rosto" } },
+    { visual: "texto", titulo: "Segundo erro: não aparecer", texto: "Quem não é achado não é escolhido.", destaque: "achado", foto: { chave: "foto-rosto" } },
+    { visual: "cta", titulo: "Comenta ALUNO e eu te respondo no direct", texto: "Te mostro onde sua academia perde matrículas.", destaque: "ALUNO" },
+  ];
+  // A janela do avatar continua toda transparente: nenhum texto entra nela, em nenhum estilo.
+  const j = desenho.JANELA_DO_AVATAR;
+  assert.ok(j.w < 1080 * 0.7); // e o Felipe não fica gigante
+  for (const arte of ["dividido", "claro", "cor", "escuro", "foto_cheia"]) {
+    const post = { id: 3, formato: "reels", conteudo: { gancho: titulo, arte, trilha: "tensa", estrutura: "lista", hashtags: [], legenda: "", comFelipe: true, slides } };
+    const duracoes = [4, 3, 3, 4];
+    for (const [t, cena] of [[3, 0], [13, 3]]) {
+      const c = createCanvas(1080, 1920);
+      const ctx = c.getContext("2d");
+      desenho.desenharQuadroReels(ctx, post, t, "FluxDeck", { duracoes, cenasComVideo: new Set([0, 3]) });
+      const { data } = ctx.getImageData(j.x + 30, j.y + 30, j.w - 60, j.h - 60);
+      let opacos = 0;
+      for (let i = 3; i < data.length; i += 4) if (data[i] > 0) opacos++;
+      assert.equal(opacos, 0, `${arte}, cena ${cena}: ${opacos} pixels sobre o avatar`);
+    }
+  }
+
+  // Uma foto toda vermelha: ela só pode aparecer acima de onde o texto começa, e nunca atrás dele.
+  const foto = createCanvas(400, 400);
+  const f = foto.getContext("2d");
+  f.fillStyle = "#ff0000";
+  f.fillRect(0, 0, 400, 400);
+  await desenho.carregarFotosDoPost({ conteudo: { capaSemFelipe: true, slides } }, async (ch) => (ch === "foto-rosto" ? foto : null));
+  const vermelhos = (desenhar, w, h, y0, y1) => {
+    const c = createCanvas(w, h);
+    const ctx = c.getContext("2d");
+    desenhar(ctx);
+    const { data } = ctx.getImageData(0, y0, w, y1 - y0);
+    let n = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i] > 200 && data[i + 1] < 60 && data[i + 2] < 60) n++;
+    return n;
+  };
+  for (const arte of ["dividido", "claro", "cor", "escuro", "foto_cheia"]) {
+    const post = { id: 3, formato: "carrossel", conteudo: { gancho: titulo, arte, estrutura: "lista", hashtags: [], legenda: "", capaSemFelipe: true, slides } };
+    // A foto fica só na parte de cima da tela (no máximo até y = 596, onde o texto começa).
+    assert.equal(vermelhos((ctx) => desenho.desenharTelaCarrossel(ctx, post, 0, "FluxDeck"), 1080, 1350, 600, 1350), 0, `${arte}, capa`);
+    // Nas telas de lista não há foto nenhuma atrás do texto.
+    assert.equal(vermelhos((ctx) => desenho.desenharTelaCarrossel(ctx, post, 1, "FluxDeck"), 1080, 1350, 0, 1350), 0, `${arte}, lista`);
+  }
+});

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createCanvas, GlobalFonts, loadImage } from "@napi-rs/canvas";
 import ffmpeg from "ffmpeg-static";
 import {
-  usarCanvas, TAMANHOS_POST, telasDoPost, duracoesDasCenas, desenharTelaCarrossel, desenharQuadroReels, desenharCapaReels, carregarFotosDoPost, APRESENTADOR, LOGO,
+  usarCanvas, TAMANHOS_POST, telasDoPost, duracoesDasCenas, desenharTelaCarrossel, desenharQuadroReels, desenharCapaReels, carregarFotosDoPost, APRESENTADOR, LOGO, JANELA_DO_AVATAR,
 } from "../../public/post-desenho.js";
 import * as db from "../db.js";
 import { gerarTrilha, wav, TAXA } from "./trilha.js";
@@ -115,21 +115,21 @@ export async function videoDoReels(post, empresa, { narrar = narrarCenas, clipes
   }
 }
 
-// O avatar vem em close, com a boca bem na altura do texto. Subindo o clipe, o rosto fica acima dele.
-const SUBIR_CLIPE = 180;
-
 /** O filtro do ffmpeg: a imagem (com o clipe do avatar por baixo, onde houver) e a mistura do som. */
 export function montarFiltro({ w, h, duracao, comClipe, temVoz }) {
   const QPS = QUADROS_POR_SEGUNDO;
   const partes = [];
+  // O clipe vertical encolhido até a largura da janela, com a cabeça dentro dela.
+  const jan = JANELA_DO_AVATAR;
+  const altClipe = Math.round((jan.w * 16) / 9 / 2) * 2;
   let imagem = "[0:v]";
   // Entradas: 0 quadros, 1 trilha, 2 voz (se houver) e depois os clipes.
   const primeiroClipe = temVoz ? 3 : 2;
   if (comClipe.length) {
     partes.push(`color=c=black:s=${w}x${h}:r=${QPS}:d=${(duracao + 0.5).toFixed(2)}[fundo0]`);
     comClipe.forEach((c, n) => {
-      partes.push(`[${primeiroClipe + n}:v]scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1,fps=${QPS},setpts=PTS-STARTPTS+${c.inicio.toFixed(3)}/TB[clipe${n}]`);
-      partes.push(`[fundo${n}][clipe${n}]overlay=y=-${SUBIR_CLIPE}:eof_action=pass:enable='between(t,${c.inicio.toFixed(3)},${c.fim.toFixed(3)})'[fundo${n + 1}]`);
+      partes.push(`[${primeiroClipe + n}:v]scale=${jan.w}:${altClipe}:force_original_aspect_ratio=increase,crop=${jan.w}:${altClipe},setsar=1,fps=${QPS},setpts=PTS-STARTPTS+${c.inicio.toFixed(3)}/TB[clipe${n}]`);
+      partes.push(`[fundo${n}][clipe${n}]overlay=x=${jan.x}:y=${jan.y}:eof_action=pass:enable='between(t,${c.inicio.toFixed(3)},${c.fim.toFixed(3)})'[fundo${n + 1}]`);
     });
     partes.push(`[fundo${comClipe.length}][0:v]overlay=format=auto:alpha=premultiplied:shortest=1[v]`);
     imagem = "[v]";

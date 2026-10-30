@@ -25,7 +25,7 @@ test("variedade: público, tom e arte não repetem os últimos posts; o Felipe a
     const v = diario.escolherVariedade(recentes, { formato: "carrossel", sorteio: () => i / 50 });
     assert.ok(!["clinica", "loja", "beleza"].includes(v.publico) && v.publico in PUBLICOS);
     assert.ok(!["humor", "direto", "conta"].includes(v.tom) && v.tom in TONS);
-    assert.ok(["foto_cheia", "dividido"].includes(v.arte));
+    assert.equal(v.arte, "dividido");
     assert.equal(v.comFelipe, false); // só nos vídeos
   }
   assert.equal(diario.escolherVariedade(recentes, { formato: "reels" }).comFelipe, false); // o último Reels já teve
@@ -92,7 +92,7 @@ test("fotos: a busca tenta com menos palavras, e post sem foto não fica no esti
     const recentes = (await db.postsRecentes(30));
     const criado = await diario.criarPostDeHoje({ empresa: { nome: "FluxDeck" } }, {
       escrever: async () => conteudoEscrito(`Gancho único ${v} ${recentes.length} sem repetir nada`), agora: new Date("2026-10-30T15:00:00Z"), sorteio: () => v,
-      fotos: async (c) => ({ ...c, arte: "foto_cheia" }), // nenhuma foto achada
+      fotos: async (c) => ({ ...c, arte: "dividido" }), // nenhuma foto achada
     });
     artes.add(criado.conteudo.arte);
   }
