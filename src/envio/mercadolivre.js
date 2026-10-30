@@ -139,6 +139,8 @@ async function chamarCom(token, metodo, caminho, corpo) {
   const dados = await r.json().catch(() => ({}));
   if (!r.ok) {
     if (r.status === 401) throw Object.assign(new Error("Mercado Livre: o acesso venceu. Entre com o Mercado Livre de novo."), { status: 401 });
+    // O app sem a permissão de escrita, que se marca nas configurações dele.
+    if (/policy returned UNAUTHORIZED/i.test(dados.message ?? "")) throw Object.assign(new Error("O app do Mercado Livre não tem permissão para isso. Em Minhas aplicações → Editar, dê leitura e escrita em Publicação e sincronização, salve e entre com a conta de novo."), { status: r.status });
     const causas = Array.isArray(dados.cause) ? dados.cause.filter((x) => x?.type !== "warning" && x?.message).map((x) => x.message) : [];
     throw Object.assign(new Error(`Mercado Livre: ${causas.slice(0, 5).join(" ") || dados.message || `respondeu ${r.status}`}`), { status: r.status });
   }
@@ -238,7 +240,8 @@ export async function atributosDaCategoria(id, categoria, agora) {
   const r = await chamar(id, "GET", `/categories/${encodeURIComponent(categoria)}/attributes`, null, agora);
   return (Array.isArray(r) ? r : [])
     .filter((a) => (temTag(a, "required") || temTag(a, "catalog_required")) && !temTag(a, "read_only") && !temTag(a, "hidden"))
-    .map((a) => ({ id: a.id, nome: a.name, obrigatorio: true, tipo: a.value_type, valores: (a.values ?? []).slice(0, 300).map((v) => ({ id: v.id, nome: v.name })) }));
+    // "list" e "boolean" só aceitam as opções da lista; nos outros dá para digitar, e a lista é só sugestão.
+    .map((a) => ({ id: a.id, nome: a.name, obrigatorio: true, livre: !["list", "boolean"].includes(a.value_type), valores: (a.values ?? []).slice(0, 300).map((v) => ({ id: v.id, nome: v.name })) }));
 }
 
 /** Contas no novo modelo do Mercado Livre usam o nome da família no lugar do título. */

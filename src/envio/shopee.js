@@ -193,7 +193,8 @@ export async function atributosDaCategoria(id, categoria, agora) {
   const r = await chamar(id, "GET", "/api/v2/product/get_attribute_tree", { category_id_list: categoria, language: "pt-br" }, null, agora);
   const arvore = r.list?.[0]?.attribute_tree ?? [];
   return arvore.filter((a) => a.mandatory).map((a) => ({
-    id: a.attribute_id, nome: nomeEmPortugues(a), obrigatorio: true,
+    // Sem lista de opções, o campo é digitado; com lista, só os tipos "combobox" aceitam outro valor.
+    id: a.attribute_id, nome: nomeEmPortugues(a), obrigatorio: true, livre: !a.attribute_value_list?.length || [2, 4].includes(a.attribute_info?.input_type),
     valores: (a.attribute_value_list ?? []).slice(0, 300).map((v) => ({ id: v.value_id, nome: nomeEmPortugues(v) })),
   }));
 }

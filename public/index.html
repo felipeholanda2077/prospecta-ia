@@ -4308,8 +4308,9 @@ function formularioDePublicacao(p) {
   if (!pub.categorias) return `<div class="config-grade" style="margin-top:6px">${destino}</div>${pub.carregando ? `<div class="muted" style="font-size:13px">Buscando categoria e campos…</div>` : ""}`;
   return `<div style="display:grid;gap:10px;margin-top:6px">${destino}
     <div class="campo"><label for="pub-cat-${p.id}">Categoria sugerida</label><select id="pub-cat-${p.id}" data-pub-categoria>${pub.categorias.map((c) => `<option value="${esc(c.id)}"${String(pub.categoria) === String(c.id) ? " selected" : ""}>${esc(c.nome)}</option>`).join("")}</select></div>
-    ${pub.atributos.map((a) => `<div class="campo"><label for="pub-at-${p.id}-${esc(a.id)}">${esc(a.nome)}</label>${a.valores?.length
-      ? `<select id="pub-at-${p.id}-${esc(a.id)}" data-pub-atributo="${esc(a.id)}"><option value="">Escolha…</option>${a.valores.map((v) => `<option value="${esc(v.id)}"${a.valor && v.nome === a.valor ? " selected" : ""}>${esc(v.nome)}</option>`).join("")}</select>`
+    ${pub.atributos.map((a) => `<div class="campo"><label for="pub-at-${p.id}-${esc(a.id)}">${esc(a.nome)}</label>${a.livre
+      ? `<input id="pub-at-${p.id}-${esc(a.id)}" data-pub-atributo="${esc(a.id)}" value="${esc(a.valor ?? "")}"${a.valores?.length ? ` list="pub-lista-${p.id}-${esc(a.id)}"` : ""}>${a.valores?.length ? `<datalist id="pub-lista-${p.id}-${esc(a.id)}">${a.valores.map((v) => `<option value="${esc(v.nome)}"></option>`).join("")}</datalist>` : ""}`
+      : a.valores?.length ? `<select id="pub-at-${p.id}-${esc(a.id)}" data-pub-atributo="${esc(a.id)}"><option value="">Escolha…</option>${a.valores.map((v) => `<option value="${esc(v.id)}"${a.valor && v.nome === a.valor ? " selected" : ""}>${esc(v.nome)}</option>`).join("")}</select>`
       : `<input id="pub-at-${p.id}-${esc(a.id)}" data-pub-atributo="${esc(a.id)}" value="${esc(a.valor ?? "")}">`}</div>`).join("")}
     ${pub.canal === "mercadolivre" ? `<div class="campo"><label for="pub-tipo-${p.id}">Tipo de anúncio</label><select id="pub-tipo-${p.id}" data-pub-tipo><option value="gold_special">Clássico</option><option value="gold_pro">Premium</option><option value="free">Grátis</option></select></div>` : ""}
     <label class="chave"><input type="checkbox" data-pub-pausado checked><div><b>Criar pausado</b><span>Fica fora do ar até você conferir no marketplace e ativar aqui.</span></div></label>
@@ -4566,7 +4567,12 @@ $("#form-produto").addEventListener("submit", async (ev) => {
 function dadosDaPublicacao(card, pub) {
   const atributos = $$("[data-pub-atributo]", card).map((el) => {
     const id = el.dataset.pubAtributo;
-    if (el.tagName !== "SELECT") return { id, value_name: el.value.trim() };
+    if (el.tagName !== "SELECT") {
+      // Digitou uma opção da lista: vai com o código dela. Senão, vai o texto.
+      const digitado = el.value.trim();
+      const opcao = estadoMl.publicar[Number(card.dataset.produto)]?.atributos.find((a) => String(a.id) === id)?.valores?.find((v) => v.nome.toLowerCase() === digitado.toLowerCase());
+      return opcao ? { id, value_id: opcao.id, value_name: opcao.nome } : { id, value_name: digitado };
+    }
     return { id, value_id: el.value, value_name: el.selectedOptions[0]?.textContent };
   }).filter((a) => a.value_id || a.value_name);
   return { canal: pub.canal, conta: pub.conta, categoria: $("[data-pub-categoria]", card)?.value, atributos, tipoAnuncio: $("[data-pub-tipo]", card)?.value, pausado: $("[data-pub-pausado]", card)?.checked };

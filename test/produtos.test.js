@@ -232,6 +232,21 @@ test("shopee: duas lojas, cada uma no próprio registro, e desconectar uma não 
   assert.deepEqual((await sp.statusDaConexao()).lojas.map((l) => l.nome), ["Outra Loja"]);
 });
 
+test("mercado livre: campo livre aceita digitar, e falta de permissão explica o que fazer", async () => {
+  const ml = await import("../src/envio/mercadolivre.js");
+  const { cifrar } = await import("../src/segredos.js");
+  await db.gravarConfig("mercadolivre", { clientId: "1", clientSecret: cifrar("s"), contas: ["9"] });
+  await db.gravarConfig("mercadolivre_conta_9", { token: cifrar("T"), renovacao: cifrar("R"), expiraEm: new Date(+AGORA + 3600_000).toISOString(), vendedorId: "9" });
+  const atributos = await comFetch(async () => resposta([
+    { id: "BRAND", name: "Marca", value_type: "string", tags: { required: true }, values: [{ id: "1", name: "Wahl" }] },
+    { id: "VOLTAGE", name: "Voltagem", value_type: "list", tags: { required: true }, values: [{ id: "2", name: "Bivolt" }] },
+    { id: "COR", name: "Cor", value_type: "string", tags: {} },
+    { id: "X", name: "Só leitura", value_type: "string", tags: { required: true, read_only: true } },
+  ]), () => ml.atributosDaCategoria("9", "MLB1", AGORA));
+  assert.deepEqual(atributos.map((a) => [a.id, a.livre]), [["BRAND", true], ["VOLTAGE", false]]);
+  await comFetch(async () => resposta({ message: "At least one policy returned UNAUTHORIZED.", status: 403 }, 403), () => assert.rejects(() => ml.validarAnuncio("9", {}, AGORA), /leitura e escrita em Publicação/));
+});
+
 test("as rotas de produtos e da Shopee exigem login", async () => {
   const { app } = await import("../src/app.js");
   const servidor = app.listen(0);
