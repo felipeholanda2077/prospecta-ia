@@ -15,7 +15,7 @@ const CONSULTAS = 7;
 // Os links das mídias são públicos (o Instagram baixa sem login), mas assinados: só o sistema consegue gerar.
 const chaveDosLinks = () => crypto.createHash("sha256").update(`prospecta-midia:${config.painel.senha}`).digest();
 export const assinaturaDaMidia = (chave) => crypto.createHmac("sha256", chaveDosLinks()).update(chave).digest("hex").slice(0, 32);
-const linkDaMidia = (chave) => `${config.painel.urlPublica}/api/midia/${chave}?a=${assinaturaDaMidia(chave)}`;
+export const linkDaMidia = (chave) => `${config.painel.urlPublica}/api/midia/${chave}?a=${assinaturaDaMidia(chave)}`;
 
 /** Legenda com as hashtags, no limite de 2.200 caracteres do Instagram. */
 export function legendaDoPost(post) {

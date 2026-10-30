@@ -3,8 +3,9 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import { cifrar, decifrar } from "../segredos.js";
 
-// A conta de vendedor no Mercado Livre, pela API oficial. O acesso dura 6 horas e a renovação só pode ser
-// usada uma vez: uma trava impede que duas execuções renovem juntas, o que derrubaria a conexão.
+// As contas de vendedor no Mercado Livre, pela API oficial. Um app só atende várias contas. O acesso dura 6 horas
+// e a renovação só pode ser usada uma vez: uma trava por conta impede que duas execuções renovem juntas, e cada
+// conta fica em um registro próprio, para a renovação de uma não sobrescrever a de outra.
 const API = "https://api.mercadolibre.com";
 const LOGIN = "https://auth.mercadolivre.com.br/authorization";
 const CONFIG = "mercadolivre";
@@ -12,8 +13,23 @@ const ESTADO_VALE_MS = 15 * 60_000;
 const RENOVAR_ANTES_MS = 5 * 60_000;
 export const MAX_RESPOSTA = 2000;
 
-const ler = async () => (await db.lerConfig(CONFIG)) ?? {};
 const gravar = (c) => db.gravarConfig(CONFIG, c);
+const lerConta = async (id) => (await db.lerConfig(`${CONFIG}_conta_${id}`)) ?? {};
+const gravarConta = (conta) => db.gravarConfig(`${CONFIG}_conta_${conta.vendedorId}`, conta);
+
+/** A configuração do app. A conexão antiga, de uma conta só, passa para o formato de várias contas. */
+async function ler() {
+  const c = (await db.lerConfig(CONFIG)) ?? {};
+  if (!c.token) return c;
+  const { token, renovacao, expiraEm, vendedorId, apelido, conectadoEm, ...app } = c;
+  await gravarConta({ token, renovacao, expiraEm, vendedorId, apelido, conectadoEm });
+  const novo = { ...app, contas: [...new Set([...(app.contas ?? []), vendedorId])] };
+  await gravar(novo);
+  return novo;
+}
+
+/** Os IDs das contas conectadas. */
+export const idsDasContas = async () => (await ler()).contas ?? [];
 
 export const enderecoDeRetorno = () => `${config.painel.urlPublica}/api/mercadolivre/retorno`;
 export const enderecoDeAvisos = () => `${config.painel.urlPublica}/webhooks/mercadolivre`;
@@ -21,15 +37,17 @@ export const enderecoDeAvisos = () => `${config.painel.urlPublica}/webhooks/merc
 /** O que o painel pode ver. Nada de segredo sai daqui. */
 export async function statusDaConexao() {
   const c = await ler();
+  const contas = await Promise.all((c.contas ?? []).map(async (id) => {
+    const conta = await lerConta(id);
+    return { id, apelido: conta.apelido ?? null, conectadoEm: conta.conectadoEm ?? null, erro: conta.erro ?? null };
+  }));
   return {
     appDefinido: Boolean(c.clientId && c.clientSecret),
     clientId: c.clientId ?? "",
     retorno: enderecoDeRetorno(),
     avisos: enderecoDeAvisos(),
-    conectado: Boolean(c.token),
-    apelido: c.apelido ?? null,
-    vendedorId: c.vendedorId ?? null,
-    conectadoEm: c.conectadoEm ?? null,
+    conectado: contas.length > 0,
+    contas,
     erro: c.erro ?? null,
   };
 }
@@ -43,10 +61,12 @@ export async function salvarApp({ clientId, clientSecret }) {
   await gravar({ ...c, clientId: id, clientSecret: segredo ? cifrar(segredo) : c.clientSecret, erro: null });
 }
 
-export const desconectar = async () => {
-  const { clientId, clientSecret } = await ler();
-  await gravar({ clientId, clientSecret });
-};
+/** Tira uma conta do sistema e apaga os acessos dela. */
+export async function desconectar(id) {
+  const c = await ler();
+  await gravar({ ...c, contas: (c.contas ?? []).filter((x) => x !== String(id)) });
+  await db.gravarConfig(`${CONFIG}_conta_${id}`, {});
+}
 
 /** O link do login do Mercado Livre. O `state` confere, na volta, que o pedido partiu daqui. */
 export async function urlDeEntrada(agora = new Date()) {
@@ -100,7 +120,9 @@ export async function concluirEntrada({ code, state, error_description: recusa, 
     if (error || !code) throw new Error(`Mercado Livre: ${recusa || error || "login cancelado"}`);
     const t = await pedirToken(c, { grant_type: "authorization_code", code, redirect_uri: enderecoDeRetorno() });
     const eu = await chamarCom(t.access_token, "GET", "/users/me");
-    await gravar({ ...semEstado, ...camposDoToken(t, agora), vendedorId: String(eu.id ?? t.user_id), apelido: eu.nickname ?? null, conectadoEm: agora.toISOString(), erro: null });
+    const vendedorId = String(eu.id ?? t.user_id);
+    await gravarConta({ ...camposDoToken(t, agora), vendedorId, apelido: eu.nickname ?? null, tags: eu.tags ?? [], conectadoEm: agora.toISOString(), erro: null });
+    await gravar({ ...semEstado, contas: [...new Set([...(semEstado.contas ?? []), vendedorId])], erro: null });
   } catch (e) {
     await gravar({ ...semEstado, erro: e.message });
     throw e;
@@ -117,90 +139,113 @@ async function chamarCom(token, metodo, caminho, corpo) {
   const dados = await r.json().catch(() => ({}));
   if (!r.ok) {
     if (r.status === 401) throw Object.assign(new Error("Mercado Livre: o acesso venceu. Entre com o Mercado Livre de novo."), { status: 401 });
-    const causa = Array.isArray(dados.cause) ? dados.cause[0]?.message : null;
-    throw Object.assign(new Error(`Mercado Livre: ${causa || dados.message || `respondeu ${r.status}`}`), { status: r.status });
+    const causas = Array.isArray(dados.cause) ? dados.cause.filter((x) => x?.type !== "warning" && x?.message).map((x) => x.message) : [];
+    throw Object.assign(new Error(`Mercado Livre: ${causas.slice(0, 5).join(" ") || dados.message || `respondeu ${r.status}`}`), { status: r.status });
   }
   return dados;
 }
 
 const esperar = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
-/** A conexão com um acesso que vale agora, renovando se precisar. */
-async function conexaoValida(agora = new Date()) {
-  let c = await ler();
-  if (!c.token) throw new Error("Conecte o Mercado Livre primeiro");
+/** A conta com um acesso que vale agora, renovando se precisar. */
+async function contaValida(id, agora = new Date()) {
+  const trava = `mercadolivre_renovar_${id}`;
+  let c = await lerConta(id);
+  if (!c.token) throw new Error("Conecte essa conta do Mercado Livre primeiro");
   if (new Date(c.expiraEm) - agora > RENOVAR_ANTES_MS) return c;
   // Outra execução pode estar renovando: espera ela terminar em vez de gastar a renovação de novo.
-  for (let i = 0; !(await db.travar("mercadolivre_renovar", 30_000)); i++) {
+  for (let i = 0; !(await db.travar(trava, 30_000)); i++) {
     if (i >= 8) throw new Error("Mercado Livre: a renovação do acesso está demorando. Tente de novo em instantes.");
     await esperar(1500);
-    c = await ler();
+    c = await lerConta(id);
     if (new Date(c.expiraEm) - agora > RENOVAR_ANTES_MS) return c;
   }
   try {
-    c = await ler();
+    c = await lerConta(id);
     if (new Date(c.expiraEm) - agora > RENOVAR_ANTES_MS) return c;
     const renovacao = decifrar(c.renovacao);
     if (!renovacao) throw new Error("Mercado Livre: entre de novo (a senha do painel mudou)");
-    const t = await pedirToken(c, { grant_type: "refresh_token", refresh_token: renovacao });
+    const t = await pedirToken(await ler(), { grant_type: "refresh_token", refresh_token: renovacao });
     const novo = { ...c, ...camposDoToken(t, agora), erro: null };
-    await gravar(novo);
+    await gravarConta(novo);
     return novo;
   } catch (e) {
-    await gravar({ ...c, erro: e.message });
+    await gravarConta({ ...c, erro: e.message });
     throw e;
   } finally {
-    await db.destravar("mercadolivre_renovar");
+    await db.destravar(trava);
   }
 }
 
-async function chamar(metodo, caminho, corpo, agora) {
-  const c = await conexaoValida(agora);
+async function chamar(id, metodo, caminho, corpo, agora) {
+  const c = await contaValida(id, agora);
   return chamarCom(decifrar(c.token), metodo, caminho, corpo);
 }
 
-export const estaConectado = async () => Boolean((await ler()).token);
-
 /** As perguntas ainda sem resposta na conta. */
-export async function perguntasSemResposta(agora) {
-  const { vendedorId } = await ler();
-  const r = await chamar("GET", `/questions/search?seller_id=${encodeURIComponent(vendedorId)}&status=UNANSWERED&sort_fields=date_created&sort_types=DESC&limit=50&api_version=4`, null, agora);
+export async function perguntasSemResposta(id, agora) {
+  const r = await chamar(id, "GET", `/questions/search?seller_id=${encodeURIComponent(id)}&status=UNANSWERED&sort_fields=date_created&sort_types=DESC&limit=50&api_version=4`, null, agora);
   return (r.questions ?? []).filter((q) => !q.suspected_spam && !q.deleted_from_listing && q.status === "UNANSWERED");
 }
 
 /** O anúncio, com o que a IA precisa para responder: título, preço, estoque, atributos e descrição. */
-export async function dadosDoAnuncio(itemId, agora) {
-  const id = encodeURIComponent(itemId);
-  const [item, descricao] = await Promise.all([
-    chamar("GET", `/items/${id}`, null, agora),
-    chamar("GET", `/items/${id}/description`, null, agora).catch(() => ({})),
+export async function dadosDoAnuncio(contaId, itemId, agora) {
+  const item = encodeURIComponent(itemId);
+  const [dados, descricao] = await Promise.all([
+    chamar(contaId, "GET", `/items/${item}`, null, agora),
+    chamar(contaId, "GET", `/items/${item}/description`, null, agora).catch(() => ({})),
   ]);
   return {
-    id: item.id, titulo: item.title ?? "", preco: item.price ?? null, moeda: item.currency_id ?? "BRL", estoque: item.available_quantity ?? null,
-    condicao: item.condition ?? null, link: item.permalink ?? null, freteGratis: item.shipping?.free_shipping ?? null,
-    atributos: (item.attributes ?? []).filter((a) => a.value_name).slice(0, 40).map((a) => `${a.name}: ${a.value_name}`),
+    id: dados.id, titulo: dados.title ?? dados.family_name ?? "", preco: dados.price ?? null, moeda: dados.currency_id ?? "BRL", estoque: dados.available_quantity ?? null,
+    condicao: dados.condition ?? null, link: dados.permalink ?? null, freteGratis: dados.shipping?.free_shipping ?? null,
+    atributos: (dados.attributes ?? []).filter((a) => a.value_name).slice(0, 40).map((a) => `${a.name}: ${a.value_name}`),
     descricao: String(descricao.plain_text ?? "").slice(0, 4000),
   };
 }
 
 /** O primeiro anúncio ativo da conta, ou null. */
-export async function primeiroAnuncio(agora) {
-  const { vendedorId } = await ler();
-  const r = await chamar("GET", `/users/${encodeURIComponent(vendedorId)}/items/search?status=active&limit=1`, null, agora);
+export async function primeiroAnuncio(id, agora) {
+  const r = await chamar(id, "GET", `/users/${encodeURIComponent(id)}/items/search?status=active&limit=1`, null, agora);
   return r.results?.[0] ?? null;
 }
 
-export const apelidoDaLoja = async () => (await ler()).apelido ?? "";
+export const apelidoDaLoja = async (id) => (await lerConta(id)).apelido ?? "";
 
-export const responderPergunta = (perguntaId, texto, agora) => chamar("POST", "/answers", { question_id: Number(perguntaId), text: texto }, agora);
+export const responderPergunta = (contaId, perguntaId, texto, agora) => chamar(contaId, "POST", "/answers", { question_id: Number(perguntaId), text: texto }, agora);
 
 /** As vendas mais recentes, só com o necessário: nem endereço nem documento do comprador entram aqui. */
-export async function pedidosRecentes(agora) {
-  const { vendedorId } = await ler();
-  const r = await chamar("GET", `/orders/search?seller=${encodeURIComponent(vendedorId)}&sort=date_desc&limit=30`, null, agora);
+export async function pedidosRecentes(id, agora) {
+  const r = await chamar(id, "GET", `/orders/search?seller=${encodeURIComponent(id)}&sort=date_desc&limit=30`, null, agora);
   return (r.results ?? []).map((o) => ({
     id: String(o.id), criadoEm: o.date_created ?? null, status: o.status ?? null, total: o.total_amount ?? null, moeda: o.currency_id ?? "BRL",
     comprador: o.buyer?.nickname ?? null, envio: o.shipping?.id ? String(o.shipping.id) : null,
     itens: (o.order_items ?? []).map((i) => ({ titulo: i.item?.title ?? "", quantidade: i.quantity ?? 1, preco: i.unit_price ?? null })),
   }));
 }
+
+// ---------- Publicação de produtos ----------
+
+/** As categorias que o Mercado Livre sugere para o título do produto. */
+export async function preverCategorias(id, texto, agora) {
+  const r = await chamar(id, "GET", `/sites/MLB/domain_discovery/search?limit=5&q=${encodeURIComponent(texto)}`, null, agora);
+  return (Array.isArray(r) ? r : []).map((c) => ({ id: c.category_id, nome: c.category_name, sugestoes: c.attributes ?? [] }));
+}
+
+const temTag = (a, tag) => (Array.isArray(a.tags) ? a.tags.includes(tag) : Boolean(a.tags?.[tag]));
+
+/** Os atributos que a categoria exige, com as opções de cada um. */
+export async function atributosDaCategoria(id, categoria, agora) {
+  const r = await chamar(id, "GET", `/categories/${encodeURIComponent(categoria)}/attributes`, null, agora);
+  return (Array.isArray(r) ? r : [])
+    .filter((a) => (temTag(a, "required") || temTag(a, "catalog_required")) && !temTag(a, "read_only") && !temTag(a, "hidden"))
+    .map((a) => ({ id: a.id, nome: a.name, obrigatorio: true, tipo: a.value_type, valores: (a.values ?? []).slice(0, 300).map((v) => ({ id: v.id, nome: v.name })) }));
+}
+
+/** Contas no novo modelo do Mercado Livre usam o nome da família no lugar do título. */
+export const usaFamilia = async (id) => ((await lerConta(id)).tags ?? []).includes("user_product_seller");
+
+/** Confere o anúncio sem publicar nada. O Mercado Livre responde o que precisa mudar. */
+export const validarAnuncio = (id, anuncio, agora) => chamar(id, "POST", "/items/validate", anuncio, agora);
+export const criarAnuncio = (id, anuncio, agora) => chamar(id, "POST", "/items", anuncio, agora);
+export const salvarDescricao = (id, itemId, texto, agora) => chamar(id, "POST", `/items/${encodeURIComponent(itemId)}/description`, { plain_text: texto }, agora);
+export const mudarStatusDoAnuncio = (id, itemId, status, agora) => chamar(id, "PUT", `/items/${encodeURIComponent(itemId)}`, { status }, agora);

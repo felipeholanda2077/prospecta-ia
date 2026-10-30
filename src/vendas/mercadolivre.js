@@ -27,42 +27,52 @@ export function problemaNaResposta(texto) {
   return null;
 }
 
-async function sugerir(pergunta, { api, escrever, agora, loja }) {
-  const anuncio = await api.dadosDoAnuncio(pergunta.item_id, agora);
-  const s = await escrever({ pergunta: pergunta.texto, anuncio, loja });
+async function sugerir(pergunta, { api, escrever, agora }) {
+  const anuncio = await api.dadosDoAnuncio(pergunta.conta_id, pergunta.item_id, agora);
+  // A loja é a da conta conectada, que pode não ser a empresa dona do painel.
+  const s = await escrever({ pergunta: pergunta.texto, anuncio, loja: await api.apelidoDaLoja(pergunta.conta_id) });
   await db.atualizarPerguntaML(pergunta.id, {
     item_titulo: anuncio.titulo, item_link: anuncio.link, rascunho: s.texto, precisa_conferir: Boolean(s.precisa_conferir), motivo: s.motivo || null, erro: null,
   });
 }
 
 /**
- * Traz as perguntas novas, escreve as sugestões e avisa por e-mail. Pergunta respondida direto no site do
- * Mercado Livre sai da fila sozinha. A cada 10 minutos, e também quando o Mercado Livre avisa.
+ * Traz as perguntas novas de todas as contas, escreve as sugestões e avisa por e-mail. Pergunta respondida
+ * direto no site do Mercado Livre sai da fila sozinha. O erro de uma conta não atrapalha as outras.
+ * A cada 10 minutos, e também quando o Mercado Livre avisa.
  */
 export async function rodadaDoMercadoLivre(campanha, { api = ml, escrever = escreverRespostaDoMarketplace, avisar = enviarNotificacao, agora = new Date() } = {}) {
-  if (!(await api.estaConectado())) return { mercadolivre: "desconectado" };
+  const contas = await api.idsDasContas();
+  if (!contas.length) return { mercadolivre: "desconectado" };
   if (!(await db.travar("mercadolivre_rodada", 4 * 60_000))) return { mercadolivre: "em andamento" };
   try {
-    const abertas = await api.perguntasSemResposta(agora);
-    const idsAbertos = new Set(abertas.map((q) => String(q.id)));
     const novas = [];
-    for (const q of abertas) {
-      const inserida = await db.inserirPerguntaML({ id: String(q.id), item_id: q.item_id, texto: q.text ?? "", criada_em: q.date_created ?? agora.toISOString() });
-      if (inserida) novas.push(q);
-    }
-    const pendentes = await db.perguntasML("pendente");
-    for (const p of pendentes) if (!idsAbertos.has(p.id)) await db.atualizarPerguntaML(p.id, { status: "fora" });
-
-    // A loja é a da conta conectada, que pode não ser a empresa dona do painel.
-    const loja = await api.apelidoDaLoja();
+    const erros = [];
+    let abertas = 0;
     let sugeridas = 0;
-    for (const p of pendentes.filter((x) => idsAbertos.has(x.id) && !x.rascunho).slice(0, SUGESTOES_POR_PASSAGEM)) {
+    for (const conta of contas) {
       try {
-        await sugerir(p, { api, escrever, agora, loja });
-        sugeridas++;
+        const daConta = await api.perguntasSemResposta(conta, agora);
+        abertas += daConta.length;
+        const idsAbertos = new Set(daConta.map((q) => String(q.id)));
+        for (const q of daConta) {
+          if (await db.inserirPerguntaML({ id: String(q.id), conta_id: conta, item_id: q.item_id, texto: q.text ?? "", criada_em: q.date_created ?? agora.toISOString() })) novas.push(q);
+        }
+        const pendentes = (await db.perguntasML("pendente")).filter((p) => p.conta_id === conta);
+        for (const p of pendentes) if (!idsAbertos.has(p.id)) await db.atualizarPerguntaML(p.id, { status: "fora" });
+        for (const p of pendentes.filter((x) => idsAbertos.has(x.id) && !x.rascunho)) {
+          if (sugeridas >= SUGESTOES_POR_PASSAGEM) break;
+          try {
+            await sugerir(p, { api, escrever, agora });
+            sugeridas++;
+          } catch (e) {
+            await db.atualizarPerguntaML(p.id, { erro: e.message });
+            log(`⚠️  Mercado Livre: sem sugestão para a pergunta ${p.id}: ${e.message}`);
+          }
+        }
       } catch (e) {
-        await db.atualizarPerguntaML(p.id, { erro: e.message });
-        log(`⚠️  Mercado Livre: sem sugestão para a pergunta ${p.id}: ${e.message}`);
+        erros.push(e.message);
+        log(`⚠️  Mercado Livre: a conta ${conta} não respondeu: ${e.message}`);
       }
     }
     if (novas.length) {
@@ -71,7 +81,7 @@ export async function rodadaDoMercadoLivre(campanha, { api = ml, escrever = escr
         `${novas.slice(0, 5).map((q) => `- ${q.text}`).join("\n")}\n\nResponder rápido ajuda a vender. A resposta sugerida está em ${config.painel.urlPublica}/#marketplaces.`
       ).catch((e) => log(`⚠️  Não foi possível avisar da pergunta: ${e.message}`));
     }
-    return { mercadolivre: "ok", abertas: abertas.length, novas: novas.length, sugeridas };
+    return { mercadolivre: "ok", abertas, novas: novas.length, sugeridas, erros };
   } finally {
     await db.destravar("mercadolivre_rodada");
   }
@@ -81,7 +91,7 @@ export async function rodadaDoMercadoLivre(campanha, { api = ml, escrever = escr
 export async function refazerSugestao(id, campanha, { api = ml, escrever = escreverRespostaDoMarketplace, agora = new Date() } = {}) {
   const p = await db.perguntaML(id);
   if (!p) throw new Error("Pergunta não encontrada");
-  await sugerir(p, { api, escrever, agora, loja: await api.apelidoDaLoja() });
+  await sugerir(p, { api, escrever, agora });
   return db.perguntaML(id);
 }
 
@@ -89,10 +99,19 @@ const PERGUNTA_DE_TESTE = "Qual é o prazo de garantia e vocês entregam em todo
 
 /** Testa a leitura do anúncio e a sugestão com uma pergunta de exemplo. Nada é salvo nem enviado ao Mercado Livre. */
 export async function testarSugestao({ api = ml, escrever = escreverRespostaDoMarketplace, agora = new Date() } = {}) {
-  const itemId = await api.primeiroAnuncio(agora);
-  if (!itemId) throw new Error("A conta não tem anúncio ativo para testar.");
-  const anuncio = await api.dadosDoAnuncio(itemId, agora);
-  const s = await escrever({ pergunta: PERGUNTA_DE_TESTE, anuncio, loja: await api.apelidoDaLoja() });
+  // A primeira conta que tiver um anúncio ativo.
+  let conta = null;
+  let itemId = null;
+  for (const id of await api.idsDasContas()) {
+    itemId = await api.primeiroAnuncio(id, agora);
+    if (itemId) {
+      conta = id;
+      break;
+    }
+  }
+  if (!itemId) throw new Error("Nenhuma conta conectada tem anúncio ativo para testar.");
+  const anuncio = await api.dadosDoAnuncio(conta, itemId, agora);
+  const s = await escrever({ pergunta: PERGUNTA_DE_TESTE, anuncio, loja: await api.apelidoDaLoja(conta) });
   return { anuncio: anuncio.titulo, link: anuncio.link, pergunta: PERGUNTA_DE_TESTE, resposta: s.texto, precisaConferir: Boolean(s.precisa_conferir), motivo: s.motivo || null, barrada: problemaNaResposta(s.texto) };
 }
 
@@ -105,7 +124,7 @@ export async function enviarResposta(id, texto, { api = ml, agora = new Date() }
   if (problema) throw new Error(problema);
   // Dois cliques não mandam a resposta duas vezes.
   if (!(await db.travar(`mercadolivre_resposta_${id}`, 30_000))) throw new Error("Essa resposta já está sendo enviada");
-  await api.responderPergunta(id, String(texto).trim(), agora);
+  await api.responderPergunta(p.conta_id, id, String(texto).trim(), agora);
   await db.atualizarPerguntaML(id, { status: "respondida", resposta: String(texto).trim(), respondida_em: agora.toISOString(), erro: null });
   log(`🛒 Pergunta ${id} respondida no Mercado Livre`);
 }

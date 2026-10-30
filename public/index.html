@@ -939,36 +939,90 @@
       <!-- Mercado Livre -->
       <section id="view-marketplaces" hidden>
         <div id="ml-aviso"></div>
-        <div class="filtros" id="ml-abas" role="tablist" aria-label="Mercado Livre" style="margin:0 0 12px;flex-wrap:wrap">
-          <button type="button" class="filtro" role="tab" data-ml-aba="perguntas" aria-pressed="true">Perguntas <span id="ml-total"></span></button>
+        <div class="filtros" id="ml-abas" role="tablist" aria-label="Marketplaces" style="margin:0 0 12px;flex-wrap:wrap">
+          <button type="button" class="filtro" role="tab" data-ml-aba="produtos" aria-pressed="true">Produtos</button>
+          <button type="button" class="filtro" role="tab" data-ml-aba="perguntas" aria-pressed="false">Perguntas <span id="ml-total"></span></button>
           <button type="button" class="filtro" role="tab" data-ml-aba="pedidos" aria-pressed="false">Pedidos</button>
-          <button type="button" class="filtro" role="tab" data-ml-aba="conexao" aria-pressed="false">Conexão</button>
+          <button type="button" class="filtro" role="tab" data-ml-aba="conexao" aria-pressed="false">Contas</button>
         </div>
-        <div data-ml-painel="perguntas">
+        <div data-ml-painel="produtos">
+          <div class="forn-acoes"><button class="btn primario" type="button" id="prod-novo"><span data-ic="spark"></span>Novo produto</button></div>
+          <form class="cartao" id="form-produto" hidden style="margin-bottom:14px">
+            <div class="cartao-cab"><span class="kpi-ic" data-ic-span="box"></span><div class="titulos"><h3 id="prod-titulo">Novo produto</h3>
+              <div class="meta">Esses dados valem para todas as contas. Na hora de publicar, cada marketplace pede a categoria e os campos dele.</div></div></div>
+            <div class="cartao-corpo config-grade">
+              <div class="campo" style="grid-column:1/-1"><label for="prod-nome">Nome do produto</label><input id="prod-nome" name="nome" maxlength="120" required placeholder="Ex.: Máquina de corte de cabelo profissional sem fio"></div>
+              <div class="campo"><label for="prod-preco">Preço (R$)</label><input id="prod-preco" name="preco" inputmode="decimal" required></div>
+              <div class="campo"><label for="prod-estoque">Estoque</label><input id="prod-estoque" name="estoque" inputmode="numeric" required></div>
+              <div class="campo"><label for="prod-condicao">Condição</label><select id="prod-condicao" name="condicao"><option value="new">Novo</option><option value="used">Usado</option></select></div>
+              <div class="campo"><label for="prod-sku">Código interno (SKU)</label><input id="prod-sku" name="sku" maxlength="60"></div>
+              <div class="campo"><label for="prod-marca">Marca</label><input id="prod-marca" name="marca" maxlength="60"></div>
+              <div class="campo"><label for="prod-modelo">Modelo</label><input id="prod-modelo" name="modelo" maxlength="60"></div>
+              <div class="campo"><label for="prod-gtin">Código de barras (GTIN/EAN)</label><input id="prod-gtin" name="gtin" inputmode="numeric" maxlength="14"></div>
+              <div class="campo" style="grid-column:1/-1"><label for="prod-descricao">Descrição</label><textarea id="prod-descricao" name="descricao" rows="5" maxlength="5000"></textarea></div>
+              <div class="campo"><label for="prod-peso">Peso com embalagem (g)</label><input id="prod-peso" name="peso_g" inputmode="numeric"></div>
+              <div class="campo"><label for="prod-altura">Altura (cm)</label><input id="prod-altura" name="altura_cm" inputmode="numeric"></div>
+              <div class="campo"><label for="prod-largura">Largura (cm)</label><input id="prod-largura" name="largura_cm" inputmode="numeric"></div>
+              <div class="campo"><label for="prod-comprimento">Comprimento (cm)</label><input id="prod-comprimento" name="comprimento_cm" inputmode="numeric"></div>
+              <div class="campo" style="grid-column:1/-1"><label for="prod-fotos">Fotos (até 9)</label><input id="prod-fotos" type="file" accept="image/*" multiple>
+                <div class="forn-pilulas" id="prod-fotos-lista" style="margin-top:8px"></div></div>
+              <details class="ajuda" style="grid-column:1/-1"><summary>Dados fiscais para a Shopee (peça ao seu contador)</summary>
+                <div class="config-grade" style="margin-top:10px">
+                  <div class="campo"><label for="prod-ncm">NCM</label><input id="prod-ncm" name="ncm" inputmode="numeric" maxlength="8"></div>
+                  <div class="campo"><label for="prod-cfop1">CFOP mesmo estado</label><input id="prod-cfop1" name="cfop_mesmo_estado" inputmode="numeric" maxlength="4"></div>
+                  <div class="campo"><label for="prod-cfop2">CFOP outro estado</label><input id="prod-cfop2" name="cfop_outro_estado" inputmode="numeric" maxlength="4"></div>
+                  <div class="campo"><label for="prod-csosn">CSOSN</label><input id="prod-csosn" name="csosn" inputmode="numeric" maxlength="3"></div>
+                  <div class="campo"><label for="prod-origem">Origem (0 a 8)</label><input id="prod-origem" name="origem" inputmode="numeric" maxlength="1"></div>
+                </div></details>
+            </div>
+            <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar produto</button>
+              <button class="btn fantasma" type="button" id="prod-cancelar">Cancelar</button></div>
+          </form>
+          <div class="forn-grade" id="prod-lista"></div>
+        </div>
+        <div data-ml-painel="perguntas" hidden>
           <div class="forn-acoes"><button class="btn" type="button" id="ml-atualizar"><span data-ic="refresh"></span>Buscar perguntas agora</button>
             <button class="btn" type="button" id="ml-testar"><span data-ic="spark"></span>Testar uma sugestão</button>
-            <span class="muted" style="font-size:13px">O sistema também busca sozinho a cada 10 minutos e avisa por e-mail.</span></div>
+            <span class="muted" style="font-size:13px">Só do Mercado Livre. O sistema também busca sozinho a cada 10 minutos e avisa por e-mail.</span></div>
           <div id="ml-teste"></div>
           <div class="forn-grade" id="ml-perguntas"></div>
         </div>
-        <div data-ml-painel="pedidos" hidden><div class="forn-grade" id="ml-pedidos"></div></div>
-        <form class="cartao" id="form-ml" data-ml-painel="conexao" hidden>
-          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="store"></span><div class="titulos"><h3>Conta de vendedor <span id="ml-status"></span></h3>
-            <div class="meta">Liga a sua loja ao sistema pela API oficial. Os acessos ficam criptografados, só no servidor.</div></div></div>
-          <div class="cartao-corpo config-grade">
-            <div class="campo"><label for="ml-id">App ID (Client ID)</label><input id="ml-id" name="clientId" autocomplete="off" required></div>
-            <div class="campo"><label for="ml-segredo">Secret Key</label><input id="ml-segredo" name="clientSecret" type="password" autocomplete="off"></div>
-            <div class="campo" style="grid-column:1/-1"><label for="ml-retorno">URL de redirecionamento (cole no app)</label><input id="ml-retorno" readonly></div>
-            <div class="campo" style="grid-column:1/-1"><label for="ml-avisos">URL de notificações (cole no app)</label><input id="ml-avisos" readonly>
-              <details class="ajuda"><summary>Como criar o app no Mercado Livre</summary>
-                <ol><li>Entre com a <b>conta principal da loja</b> em <b>developers.mercadolivre.com.br</b> → <b>Minhas aplicações</b>. Colaborador não consegue conectar.</li>
-                  <li>Clique em <b>Criar aplicação</b>. No Brasil, cada conta só pode criar 1, depois de validar os dados do titular.</li>
-                  <li>Cole as duas URLs acima, marque os escopos de <b>leitura e escrita</b>, deixe o <b>PKCE desligado</b> e selecione o tópico de <b>perguntas</b>.</li>
-                  <li>Salve, copie o <b>App ID</b> e a <b>Secret Key</b> para cá e clique em <b>Salvar e entrar</b>.</li></ol></details></div>
-          </div>
-          <div class="acoes"><button class="btn primario" type="submit" id="ml-entrar"><span data-ic="store"></span>Salvar e entrar com o Mercado Livre</button>
-            <button class="btn fantasma" type="button" id="ml-desconectar" hidden>Desconectar</button></div>
-        </form>
+        <div data-ml-painel="pedidos" hidden><div id="ml-pedidos-avisos"></div><div class="forn-grade" id="ml-pedidos"></div></div>
+        <div data-ml-painel="conexao" hidden style="display:grid;gap:14px">
+          <form class="cartao" id="form-ml">
+            <div class="cartao-cab"><span class="kpi-ic" data-ic-span="store"></span><div class="titulos"><h3>Mercado Livre <span id="ml-status"></span></h3>
+              <div class="meta">Dá para ligar várias contas no mesmo app. Os acessos ficam criptografados, só no servidor.</div></div></div>
+            <div class="cartao-corpo" id="ml-contas" style="display:grid;gap:8px"></div>
+            <div class="cartao-corpo config-grade">
+              <div class="campo"><label for="ml-id">App ID (Client ID)</label><input id="ml-id" name="clientId" autocomplete="off" required></div>
+              <div class="campo"><label for="ml-segredo">Secret Key</label><input id="ml-segredo" name="clientSecret" type="password" autocomplete="off"></div>
+              <div class="campo" style="grid-column:1/-1"><label for="ml-retorno">URL de redirecionamento (no app)</label><input id="ml-retorno" readonly></div>
+              <div class="campo" style="grid-column:1/-1"><label for="ml-avisos">URL de notificações (no app)</label><input id="ml-avisos" readonly>
+                <details class="ajuda"><summary>Como ligar outra conta</summary>
+                  <ol><li>Saia do Mercado Livre neste navegador e entre com a <b>conta principal</b> da outra loja. Colaborador não consegue conectar.</li>
+                    <li>Clique em <b>Adicionar conta</b> e autorize. O login usa a conta que estiver aberta no navegador.</li>
+                    <li>Para publicar produtos, o app precisa de <b>Publicação e sincronização</b> com leitura e escrita, em Minhas aplicações → Administrar permissões.</li></ol></details></div>
+            </div>
+            <div class="acoes"><button class="btn primario" type="submit" id="ml-entrar"><span data-ic="store"></span>Adicionar conta</button></div>
+          </form>
+          <form class="cartao" id="form-shopee">
+            <div class="cartao-cab"><span class="kpi-ic" data-ic-span="store"></span><div class="titulos"><h3>Shopee <span id="sp-status"></span></h3>
+              <div class="meta">Dá para ligar várias lojas. A autorização da Shopee vence e precisa ser renovada: o próprio vendedor escolhe o prazo ao autorizar.</div></div></div>
+            <div class="cartao-corpo" id="sp-lojas" style="display:grid;gap:8px"></div>
+            <div class="cartao-corpo config-grade">
+              <div class="campo"><label for="sp-id">Partner ID</label><input id="sp-id" name="partnerId" inputmode="numeric" autocomplete="off" required></div>
+              <div class="campo"><label for="sp-chave">Partner Key</label><input id="sp-chave" name="partnerKey" type="password" autocomplete="off"></div>
+              <div class="campo"><label for="sp-ambiente">Ambiente</label><select id="sp-ambiente" name="ambiente"><option value="live">Produção (loja real)</option><option value="sandbox">Teste (sandbox)</option></select></div>
+              <div class="campo" style="grid-column:1/-1"><label for="sp-retorno">URL de retorno (domínio no app)</label><input id="sp-retorno" readonly>
+                <details class="ajuda"><summary>Como criar o app na Shopee</summary>
+                  <ol><li>Crie a conta de desenvolvedor em <b>open.shopee.com</b> e aguarde a aprovação da Shopee.</li>
+                    <li>Em <b>Console</b>, crie um app do tipo para sistema próprio do vendedor e informe o domínio da URL acima em <b>Redirect URL Domain</b>.</li>
+                    <li>Quando a Shopee liberar, copie o <b>Partner ID</b> e a <b>Partner Key</b> para cá. A chave de teste só funciona com o ambiente de teste.</li>
+                    <li>Clique em <b>Adicionar loja</b> e autorize com a conta da loja. Subconta não consegue autorizar.</li></ol></details></div>
+            </div>
+            <div class="acoes"><button class="btn primario" type="submit" id="sp-entrar"><span data-ic="store"></span>Adicionar loja</button></div>
+          </form>
+        </div>
       </section>
 
       <!-- Fornecedores de dropshipping -->
@@ -1409,8 +1463,8 @@ const VIEWS = {
                sub: "Corrija e tente de novo, ou descarte.", contador: () => stats?.mensagens.erro, perigo: true },
   fornecedores: { grupo: "Prospecção", nome: "Fornecedores", icone: "box", titulo: "Fornecedores de dropshipping",
                sub: "Procure quem envia direto ao seu cliente. Fica separado das empresas: ninguém aqui recebe mensagem automática." },
-  marketplaces: { grupo: "Vendas", nome: "Mercado Livre", icone: "store", titulo: "Mercado Livre",
-               sub: "As perguntas dos compradores com a resposta sugerida pela IA, que só sai com a sua aprovação, e os seus pedidos." },
+  marketplaces: { grupo: "Vendas", nome: "Marketplaces", icone: "store", titulo: "Marketplaces",
+               sub: "Cadastre produtos para o Mercado Livre e a Shopee, responda perguntas com a IA e acompanhe os pedidos das suas contas." },
   respostas: { grupo: "Relacionamento", nome: "Respostas", curto: "Respostas", icone: "message", titulo: "Respostas",
                sub: "Cada conversa como no WhatsApp, com a chance de fechar e o próximo passo.", contador: () => stats?.respostasNaoLidas },
   leads:     { grupo: "Relacionamento", nome: "Empresas", curto: "Empresas", icone: "building", titulo: "Empresas",
@@ -4200,16 +4254,28 @@ $("#instagram-desconectar").addEventListener("click", async () => {
   await carregarConteudo();
 });
 
-// ===================== Mercado Livre =====================
-let estadoMl = { aba: "perguntas", conexao: {}, pendentes: [], respondidas: [], pedidos: null };
+// ===================== Marketplaces =====================
+let estadoMl = { aba: "produtos", conexao: { contas: [] }, shopee: { lojas: [] }, pendentes: [], respondidas: [], pedidos: null, erros: [], produtos: [], editando: null, fotos: [], publicar: {} };
 
 const dinheiro = (v, moeda = "BRL") => (v == null ? "–" : Number(v).toLocaleString("pt-BR", { style: "currency", currency: moeda || "BRL" }));
-const STATUS_PEDIDO = { paid: ["ok", "Pago"], confirmed: ["acc", "Confirmado"], payment_required: ["", "Aguardando pagamento"], payment_in_process: ["", "Pagamento em análise"], partially_paid: ["", "Pago em parte"], cancelled: ["perigo", "Cancelado"], invalid: ["perigo", "Inválido"] };
+const STATUS_PEDIDO = {
+  paid: ["ok", "Pago"], confirmed: ["acc", "Confirmado"], payment_required: ["", "Aguardando pagamento"], payment_in_process: ["", "Pagamento em análise"], partially_paid: ["", "Pago em parte"], cancelled: ["perigo", "Cancelado"], invalid: ["perigo", "Inválido"],
+  UNPAID: ["", "Aguardando pagamento"], READY_TO_SHIP: ["ok", "Pronto para enviar"], PROCESSED: ["acc", "Processado"], SHIPPED: ["acc", "Enviado"], COMPLETED: ["ok", "Concluído"], IN_CANCEL: ["perigo", "Cancelando"], CANCELLED: ["perigo", "Cancelado"], TO_RETURN: ["perigo", "Devolução"],
+};
+const NOME_MARKETPLACE = { mercadolivre: "Mercado Livre", shopee: "Shopee" };
+
+/** As contas e lojas onde dá para publicar. */
+const destinos = () => [
+  ...estadoMl.conexao.contas.map((c) => ({ canal: "mercadolivre", conta: c.id, nome: c.apelido ?? c.id })),
+  ...estadoMl.shopee.lojas.map((l) => ({ canal: "shopee", conta: l.id, nome: l.nome ?? l.id })),
+];
+const nomeDoDestino = (canal, conta) => destinos().find((d) => d.canal === canal && d.conta === String(conta))?.nome ?? conta;
 
 function cardDaPergunta(p) {
+  const conta = estadoMl.conexao.contas.find((c) => c.id === p.conta_id)?.apelido;
   return `<article class="cartao forn-card" data-pergunta="${esc(p.id)}">
     <h3>${p.item_link ? `<a href="${esc(p.item_link)}" target="_blank" rel="noopener noreferrer">${esc(p.item_titulo ?? p.item_id)}</a>` : esc(p.item_titulo ?? p.item_id)}</h3>
-    <div class="meta">${p.criada_em ? esc(new Date(p.criada_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })) : ""}</div>
+    <div class="meta">${[conta, p.criada_em && new Date(p.criada_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })].filter(Boolean).map(esc).join(" · ")}</div>
     <p class="forn-prova" style="color:var(--text)">${esc(p.texto)}</p>
     ${p.precisa_conferir ? `<div class="alerta info">${ic("alert")}<div><b>O anúncio não responde tudo.</b> ${esc(p.motivo ?? "")}</div></div>` : ""}
     ${p.erro ? `<div class="alerta perigo">${ic("alert")}<div>${esc(p.erro)}</div></div>` : ""}
@@ -4224,38 +4290,95 @@ function cardDaPergunta(p) {
 function cardDoPedido(o) {
   const [cor, texto] = STATUS_PEDIDO[o.status] ?? ["", o.status ?? "–"];
   return `<article class="cartao forn-card">
-    <div class="forn-pilulas"><span class="pilula ${cor}">${esc(texto)}</span></div>
-    <h3>${o.itens.map((i) => `${i.quantidade}× ${esc(i.titulo)}`).join("<br>")}</h3>
-    <div class="meta">${[o.criadoEm && new Date(o.criadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }), o.comprador, `Pedido ${o.id}`].filter(Boolean).map(esc).join(" · ")}</div>
-    <b>${esc(dinheiro(o.total, o.moeda))}</b>
+    <div class="forn-pilulas"><span class="pilula ${cor}">${esc(texto)}</span><span class="pilula">${esc(NOME_MARKETPLACE[o.canal] ?? o.canal)}</span></div>
+    ${o.itens?.length ? `<h3>${o.itens.map((i) => `${i.quantidade}× ${esc(i.titulo)}`).join("<br>")}</h3>` : `<h3>Pedido ${esc(o.id)}</h3>`}
+    <div class="meta">${[o.conta, o.criadoEm && new Date(o.criadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }), o.comprador, o.itens?.length && `Pedido ${o.id}`].filter(Boolean).map(esc).join(" · ")}</div>
+    ${o.total != null ? `<b>${esc(dinheiro(o.total, o.moeda))}</b>` : ""}
   </article>`;
 }
 
+const fotoDoProduto = (chave) => `/api/produtos/foto/${encodeURIComponent(chave)}`;
+
+function formularioDePublicacao(p) {
+  const pub = estadoMl.publicar[p.id];
+  if (!pub) return "";
+  const lista = destinos();
+  const destino = `<div class="campo"><label for="pub-destino-${p.id}">Onde publicar</label><select id="pub-destino-${p.id}" data-pub-destino><option value="">Escolha…</option>
+    ${lista.map((d) => `<option value="${esc(d.canal)}|${esc(d.conta)}"${pub.canal === d.canal && pub.conta === d.conta ? " selected" : ""}>${esc(NOME_MARKETPLACE[d.canal])} · ${esc(d.nome)}</option>`).join("")}</select></div>`;
+  if (!pub.categorias) return `<div class="config-grade" style="margin-top:6px">${destino}</div>${pub.carregando ? `<div class="muted" style="font-size:13px">Buscando categoria e campos…</div>` : ""}`;
+  return `<div style="display:grid;gap:10px;margin-top:6px">${destino}
+    <div class="campo"><label for="pub-cat-${p.id}">Categoria sugerida</label><select id="pub-cat-${p.id}" data-pub-categoria>${pub.categorias.map((c) => `<option value="${esc(c.id)}"${String(pub.categoria) === String(c.id) ? " selected" : ""}>${esc(c.nome)}</option>`).join("")}</select></div>
+    ${pub.atributos.map((a) => `<div class="campo"><label for="pub-at-${p.id}-${esc(a.id)}">${esc(a.nome)}</label>${a.valores?.length
+      ? `<select id="pub-at-${p.id}-${esc(a.id)}" data-pub-atributo="${esc(a.id)}"><option value="">Escolha…</option>${a.valores.map((v) => `<option value="${esc(v.id)}"${a.valor && v.nome === a.valor ? " selected" : ""}>${esc(v.nome)}</option>`).join("")}</select>`
+      : `<input id="pub-at-${p.id}-${esc(a.id)}" data-pub-atributo="${esc(a.id)}" value="${esc(a.valor ?? "")}">`}</div>`).join("")}
+    ${pub.canal === "mercadolivre" ? `<div class="campo"><label for="pub-tipo-${p.id}">Tipo de anúncio</label><select id="pub-tipo-${p.id}" data-pub-tipo><option value="gold_special">Clássico</option><option value="gold_pro">Premium</option><option value="free">Grátis</option></select></div>` : ""}
+    <label class="chave"><input type="checkbox" data-pub-pausado checked><div><b>Criar pausado</b><span>Fica fora do ar até você conferir no marketplace e ativar aqui.</span></div></label>
+    <div class="forn-botoes"><button class="btn" type="button" data-prod-acao="conferir">${ic("check")}Conferir</button><button class="btn primario" type="button" data-prod-acao="publicar">${ic("send")}Publicar</button><button class="btn fantasma" type="button" data-prod-acao="fechar-publicar">Cancelar</button></div>
+  </div>`;
+}
+
+function cardDoProduto(p) {
+  const publicacoes = p.publicacoes.map((x) => `<div class="forn-pilulas" style="align-items:center" data-pub="${esc(x.canal)}|${esc(x.conta_id)}">
+    <span class="pilula ${x.status === "ativo" ? "ok" : x.status === "erro" ? "perigo" : ""}">${esc(NOME_MARKETPLACE[x.canal])} · ${esc(nomeDoDestino(x.canal, x.conta_id))}: ${esc(x.status)}</span>
+    ${x.link ? `<a class="btn" style="min-height:30px;padding:2px 10px;font-size:13px" href="${esc(x.link)}" target="_blank" rel="noopener noreferrer">Ver</a>` : ""}
+    ${x.externo_id ? `<button class="btn" style="min-height:30px;padding:2px 10px;font-size:13px" type="button" data-prod-acao="${x.status === "ativo" ? "pausar" : "ativar"}">${x.status === "ativo" ? "Pausar" : "Ativar"}</button>` : ""}
+    ${x.status === "erro" && x.erro ? `<div class="muted" style="font-size:13px;flex-basis:100%">${esc(x.erro)}</div>` : ""}</div>`).join("");
+  return `<article class="cartao forn-card" data-produto="${p.id}">
+    ${p.fotos[0] ? `<img src="${esc(fotoDoProduto(p.fotos[0]))}" alt="" loading="lazy" style="width:100%;height:170px;object-fit:contain;background:var(--bg);border-radius:10px">` : `<div class="muted" style="font-size:13px">Sem foto: adicione ao menos uma para publicar.</div>`}
+    <h3>${esc(p.nome)}</h3>
+    <div class="meta">${[dinheiro(p.preco), `${p.estoque} em estoque`, p.sku].filter(Boolean).map(esc).join(" · ")}</div>
+    ${publicacoes}
+    ${estadoMl.publicar[p.id] ? formularioDePublicacao(p) : `<div class="forn-botoes"><button class="btn primario" type="button" data-prod-acao="abrir-publicar">${ic("send")}Publicar</button>
+      <button class="btn" type="button" data-prod-acao="editar">Editar</button>
+      <button class="btn fantasma" type="button" data-prod-acao="apagar">Apagar</button></div>`}
+  </article>`;
+}
+
+function desenharFotosDoProduto() {
+  $("#prod-fotos-lista").innerHTML = estadoMl.fotos.map((f, i) => `<span style="position:relative;display:inline-block"><img src="${esc(fotoDoProduto(f))}" alt="" width="72" height="72" style="object-fit:cover;border-radius:8px">
+    <button type="button" class="btn" data-foto-tirar="${i}" aria-label="Tirar foto" style="position:absolute;top:2px;right:2px;min-height:22px;padding:0 6px;font-size:12px">×</button></span>`).join("");
+}
+
+function linhaDeConta(nome, id, tipo, erro) {
+  return `<div class="forn-pilulas" style="align-items:center"><span class="pilula ok">${ic("check", "sm")}${esc(nome ?? id)}</span>
+    <button class="btn fantasma" style="min-height:30px;padding:2px 10px;font-size:13px" type="button" data-desconectar-${tipo}="${esc(id)}">Desconectar</button>
+    ${erro ? `<div class="alerta perigo" style="flex-basis:100%">${ic("alert")}<div>${esc(erro)}</div></div>` : ""}</div>`;
+}
+
 function desenharMercadoLivre() {
-  const { aba, conexao: c, pendentes, pedidos } = estadoMl;
+  const { aba, conexao: c, shopee: sp, pendentes, pedidos, erros, produtos } = estadoMl;
   $$("[data-ml-aba]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mlAba === aba)));
   $$("[data-ml-painel]").forEach((p) => (p.hidden = p.dataset.mlPainel !== aba));
+  if (aba === "conexao") $("[data-ml-painel=conexao]").style.display = "grid"; else $("[data-ml-painel=conexao]").style.display = "none";
   $("#ml-total").textContent = pendentes.length ? `(${pendentes.length})` : "";
-  $("#ml-aviso").innerHTML = c.erro ? `<div class="alerta perigo" style="margin-bottom:12px">${ic("alert")}<div>${esc(c.erro)}</div></div>` : "";
+  $("#ml-aviso").innerHTML = [c.erro, sp.erro].filter(Boolean).map((e) => `<div class="alerta perigo" style="margin-bottom:12px">${ic("alert")}<div>${esc(e)}</div></div>`).join("");
   const f = $("#form-ml");
   if (!f.clientId.matches(":focus")) f.clientId.value = c.clientId ?? "";
   f.clientSecret.placeholder = c.appDefinido ? "•••••••• já salva (preencha só para trocar)" : "Cole a Secret Key";
+  f.clientSecret.required = !c.appDefinido;
   $("#ml-retorno").value = c.retorno ?? "";
   $("#ml-avisos").value = c.avisos ?? "";
-  $("#ml-status").innerHTML = c.conectado ? `<span class="pilula ok">${ic("check", "sm")}${esc(c.apelido ?? "Conectado")}</span>` : `<span class="pilula">Não conectado</span>`;
-  $("#ml-entrar").lastChild.textContent = c.conectado ? "Entrar de novo com o Mercado Livre" : "Salvar e entrar com o Mercado Livre";
-  $("#ml-desconectar").hidden = !c.conectado;
-  const desconectado = `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">Conecte a sua conta de vendedor na aba <b>Conexão</b> para ver isto aqui.</div>`;
-  $("#ml-perguntas").innerHTML = !c.conectado ? desconectado : pendentes.length ? pendentes.map(cardDaPergunta).join("") : `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">Nenhuma pergunta esperando resposta.</div>`;
-  $("#ml-pedidos").innerHTML = !c.conectado ? desconectado : !pedidos ? `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">Carregando os pedidos…</div>`
-    : pedidos.length ? pedidos.map(cardDoPedido).join("") : `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">Nenhum pedido ainda.</div>`;
+  $("#ml-status").innerHTML = c.contas.length ? `<span class="pilula ok">${c.contas.length} ${c.contas.length === 1 ? "conta" : "contas"}</span>` : `<span class="pilula">Não conectado</span>`;
+  $("#ml-contas").innerHTML = c.contas.map((x) => linhaDeConta(x.apelido, x.id, "ml", x.erro)).join("");
+  const g = $("#form-shopee");
+  if (!g.partnerId.matches(":focus")) g.partnerId.value = sp.partnerId ?? "";
+  g.partnerKey.placeholder = sp.appDefinido ? "•••••••• já salva (preencha só para trocar)" : "Cole a Partner Key";
+  g.partnerKey.required = !sp.appDefinido;
+  g.ambiente.value = sp.ambiente ?? "live";
+  $("#sp-retorno").value = sp.retorno ?? "";
+  $("#sp-status").innerHTML = sp.lojas.length ? `<span class="pilula ok">${sp.lojas.length} ${sp.lojas.length === 1 ? "loja" : "lojas"}</span>` : `<span class="pilula">Não conectado</span>`;
+  $("#sp-lojas").innerHTML = sp.lojas.map((x) => linhaDeConta(x.nome, x.id, "sp", x.erro)).join("");
+  const vazio = (t) => `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">${t}</div>`;
+  $("#prod-lista").innerHTML = produtos.length ? produtos.map(cardDoProduto).join("") : vazio("Nenhum produto ainda. Clique em <b>Novo produto</b> para cadastrar o primeiro.");
+  $("#ml-perguntas").innerHTML = !c.conectado ? vazio("Conecte uma conta do Mercado Livre na aba <b>Contas</b> para ver as perguntas aqui.") : pendentes.length ? pendentes.map(cardDaPergunta).join("") : vazio("Nenhuma pergunta esperando resposta.");
+  $("#ml-pedidos-avisos").innerHTML = erros.map((e) => `<div class="alerta perigo" style="margin-bottom:12px">${ic("alert")}<div>${esc(e)}</div></div>`).join("");
+  $("#ml-pedidos").innerHTML = !destinos().length ? vazio("Conecte uma conta na aba <b>Contas</b> para ver os pedidos aqui.") : !pedidos ? vazio("Carregando os pedidos…") : pedidos.length ? pedidos.map(cardDoPedido).join("") : vazio("Nenhum pedido ainda.");
 }
 
 async function carregarMercadoLivre() {
   try {
-    Object.assign(estadoMl, await api("/api/mercadolivre"));
-    // Sem aba escolhida ainda e sem conexão: vai direto para onde dá para conectar.
-    if (!estadoMl.conexao.conectado) estadoMl.aba = "conexao";
+    const [ml, sp, produtos] = await Promise.all([api("/api/mercadolivre"), api("/api/shopee"), api("/api/produtos")]);
+    Object.assign(estadoMl, ml, { shopee: sp, produtos });
   } catch (e) {
     avisar(e.message, "perigo");
   }
@@ -4264,7 +4387,9 @@ async function carregarMercadoLivre() {
 
 async function carregarPedidosMl() {
   try {
-    estadoMl.pedidos = await api("/api/mercadolivre/pedidos");
+    const r = await api("/api/marketplaces/pedidos");
+    estadoMl.pedidos = r.pedidos;
+    estadoMl.erros = r.erros;
   } catch (e) {
     estadoMl.pedidos = [];
     avisar(e.message, "perigo", 8000);
@@ -4277,7 +4402,7 @@ $("#ml-abas").addEventListener("click", (ev) => {
   if (!b) return;
   estadoMl.aba = b.dataset.mlAba;
   desenharMercadoLivre();
-  if (estadoMl.aba === "pedidos" && estadoMl.conexao.conectado) carregarPedidosMl();
+  if (estadoMl.aba === "pedidos" && destinos().length) carregarPedidosMl();
 });
 
 $("#ml-atualizar").addEventListener("click", async (ev) => {
@@ -4348,10 +4473,182 @@ $("#form-ml").addEventListener("submit", async (ev) => {
   }
 });
 
-$("#ml-desconectar").addEventListener("click", async () => {
-  if (!confirm("Desconectar o Mercado Livre? As perguntas deixam de chegar aqui.")) return;
-  await post("/api/mercadolivre/desconectar").catch((e) => avisar(e.message, "perigo"));
-  await carregarMercadoLivre();
+$("#form-shopee").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  try {
+    const { url } = await api("/api/shopee/app", { method: "PUT", body: JSON.stringify({ partnerId: f.partnerId.value, partnerKey: f.partnerKey.value, ambiente: f.ambiente.value }) });
+    location.href = url;
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  }
+});
+
+$("[data-ml-painel=conexao]").addEventListener("click", async (ev) => {
+  const ml = ev.target.closest("[data-desconectar-ml]");
+  const sp = ev.target.closest("[data-desconectar-sp]");
+  if (!ml && !sp) return;
+  if (!confirm("Desconectar? Essa conta deixa de aparecer aqui. Os anúncios dela continuam no marketplace.")) return;
+  try {
+    if (ml) await post("/api/mercadolivre/desconectar", { conta: ml.dataset.desconectarMl });
+    else await post("/api/shopee/desconectar", { loja: sp.dataset.desconectarSp });
+    await carregarMercadoLivre();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+});
+
+// ----- Produtos -----
+function abrirFormProduto(p = null) {
+  const f = $("#form-produto");
+  f.reset();
+  estadoMl.editando = p?.id ?? null;
+  estadoMl.fotos = [...(p?.fotos ?? [])];
+  $("#prod-titulo").textContent = p ? "Editar produto" : "Novo produto";
+  if (p) for (const c of ["nome", "preco", "estoque", "condicao", "sku", "marca", "modelo", "gtin", "descricao", "peso_g", "altura_cm", "largura_cm", "comprimento_cm", "ncm", "cfop_mesmo_estado", "cfop_outro_estado", "csosn", "origem"]) f[c].value = p[c] ?? "";
+  desenharFotosDoProduto();
+  f.hidden = false;
+  f.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/** Reduz a foto no navegador: o servidor só aceita pedidos pequenos. */
+async function fotoReduzida(arquivo) {
+  const imagem = await createImageBitmap(arquivo);
+  const escala = Math.min(1, 1200 / Math.max(imagem.width, imagem.height));
+  const c = document.createElement("canvas");
+  c.width = Math.round(imagem.width * escala);
+  c.height = Math.round(imagem.height * escala);
+  const x = c.getContext("2d");
+  x.fillStyle = "#fff";
+  x.fillRect(0, 0, c.width, c.height);
+  x.drawImage(imagem, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.82);
+}
+
+$("#prod-novo").addEventListener("click", () => abrirFormProduto());
+$("#prod-cancelar").addEventListener("click", () => ($("#form-produto").hidden = true));
+$("#prod-fotos").addEventListener("change", async (ev) => {
+  for (const arquivo of [...ev.target.files].slice(0, 9 - estadoMl.fotos.length)) {
+    try {
+      const { chave } = await post("/api/produtos/foto", { imagem: await fotoReduzida(arquivo) });
+      estadoMl.fotos.push(chave);
+      desenharFotosDoProduto();
+    } catch (e) {
+      avisar(`${arquivo.name}: ${e.message}`, "perigo", 8000);
+    }
+  }
+  ev.target.value = "";
+});
+$("#prod-fotos-lista").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-foto-tirar]");
+  if (!b) return;
+  estadoMl.fotos.splice(Number(b.dataset.fotoTirar), 1);
+  desenharFotosDoProduto();
+});
+$("#form-produto").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const dados = Object.fromEntries(new FormData(f).entries());
+  dados.fotos = estadoMl.fotos;
+  try {
+    if (estadoMl.editando) await api(`/api/produtos/${estadoMl.editando}`, { method: "PUT", body: JSON.stringify(dados) });
+    else await post("/api/produtos", dados);
+    f.hidden = true;
+    avisar("Produto salvo.", "ok");
+    estadoMl.produtos = await api("/api/produtos");
+    desenharMercadoLivre();
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  }
+});
+
+/** O que o formulário de publicação tem marcado agora. */
+function dadosDaPublicacao(card, pub) {
+  const atributos = $$("[data-pub-atributo]", card).map((el) => {
+    const id = el.dataset.pubAtributo;
+    if (el.tagName !== "SELECT") return { id, value_name: el.value.trim() };
+    return { id, value_id: el.value, value_name: el.selectedOptions[0]?.textContent };
+  }).filter((a) => a.value_id || a.value_name);
+  return { canal: pub.canal, conta: pub.conta, categoria: $("[data-pub-categoria]", card)?.value, atributos, tipoAnuncio: $("[data-pub-tipo]", card)?.value, pausado: $("[data-pub-pausado]", card)?.checked };
+}
+
+$("#prod-lista").addEventListener("change", async (ev) => {
+  const card = ev.target.closest("[data-produto]");
+  if (!card) return;
+  const id = Number(card.dataset.produto);
+  const pub = estadoMl.publicar[id];
+  try {
+    if (ev.target.matches("[data-pub-destino]")) {
+      const [canal, conta] = ev.target.value.split("|");
+      estadoMl.publicar[id] = conta ? { canal, conta, carregando: true } : {};
+      desenharMercadoLivre();
+      if (!conta) return;
+      const r = await post(`/api/produtos/${id}/preparar`, { canal, conta });
+      estadoMl.publicar[id] = { canal, conta, categorias: r.categorias, categoria: r.categorias[0].id, atributos: r.atributos };
+      desenharMercadoLivre();
+    } else if (ev.target.matches("[data-pub-categoria]")) {
+      pub.categoria = ev.target.value;
+      pub.atributos = await post(`/api/produtos/${id}/atributos`, { canal: pub.canal, conta: pub.conta, categoria: pub.categoria });
+      desenharMercadoLivre();
+    }
+  } catch (e) {
+    estadoMl.publicar[id] = {};
+    desenharMercadoLivre();
+    avisar(e.message, "perigo", 10000);
+  }
+});
+
+$("#prod-lista").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-prod-acao]");
+  if (!btn) return;
+  const card = btn.closest("[data-produto]");
+  const id = Number(card.dataset.produto);
+  const p = estadoMl.produtos.find((x) => x.id === id);
+  const acao = btn.dataset.prodAcao;
+  if (acao === "editar") return abrirFormProduto(p);
+  if (acao === "abrir-publicar") {
+    if (!destinos().length) return avisar("Conecte uma conta na aba Contas primeiro.", "perigo", 6000);
+    estadoMl.publicar[id] = {};
+    return desenharMercadoLivre();
+  }
+  if (acao === "fechar-publicar") {
+    delete estadoMl.publicar[id];
+    return desenharMercadoLivre();
+  }
+  btn.disabled = true;
+  try {
+    if (acao === "apagar") {
+      const noAr = p.publicacoes.some((x) => x.externo_id);
+      if (confirm(noAr ? "Apagar daqui? Os anúncios já publicados continuam no marketplace." : "Apagar este produto?")) await api(`/api/produtos/${id}`, { method: "DELETE" });
+    } else if (acao === "conferir") {
+      const r = await post(`/api/produtos/${id}/publicar`, { ...dadosDaPublicacao(card, estadoMl.publicar[id]), soConferir: true });
+      avisar(r.parcial ? "A loja tem canal de envio. A Shopee só confere os outros campos ao publicar." : "O Mercado Livre conferiu e aceitou este anúncio.", "ok", 8000);
+      btn.disabled = false;
+      return;
+    } else if (acao === "publicar") {
+      const dados = dadosDaPublicacao(card, estadoMl.publicar[id]);
+      if (!confirm(`Publicar em ${NOME_MARKETPLACE[dados.canal]} · ${nomeDoDestino(dados.canal, dados.conta)}${dados.pausado ? ", pausado" : ", JÁ NO AR"}?`)) {
+        btn.disabled = false;
+        return;
+      }
+      btn.lastChild.textContent = "Publicando…";
+      const r = await post(`/api/produtos/${id}/publicar`, dados);
+      delete estadoMl.publicar[id];
+      avisar(`Publicado (${r.status}).${r.avisos?.length ? ` ${r.avisos.join(" ")}` : ""}`, r.avisos?.length ? "perigo" : "ok", 10000);
+    } else if (acao === "ativar" || acao === "pausar") {
+      const [canal, conta] = btn.closest("[data-pub]").dataset.pub.split("|");
+      await post(`/api/produtos/${id}/status`, { canal, conta, ativo: acao === "ativar" });
+    }
+    estadoMl.produtos = await api("/api/produtos");
+    desenharMercadoLivre();
+  } catch (e) {
+    avisar(e.message, "perigo", 12000);
+    btn.disabled = false;
+    if (acao === "publicar") {
+      btn.lastChild.textContent = "Publicar";
+      estadoMl.produtos = await api("/api/produtos").catch(() => estadoMl.produtos);
+    }
+  }
 });
 
 // ===================== Fornecedores de dropshipping =====================

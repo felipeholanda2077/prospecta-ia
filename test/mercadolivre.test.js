@@ -28,9 +28,8 @@ async function comFetch(falso, fazer) {
 }
 
 async function conectar({ expiraEm = new Date(+AGORA + 3600_000).toISOString() } = {}) {
-  await db.gravarConfig("mercadolivre", {
-    clientId: "123", clientSecret: cifrar("segredo-do-app"), token: cifrar("TOKEN-1"), renovacao: cifrar("REFRESH-1"), expiraEm, vendedorId: "999", apelido: "LOJA",
-  });
+  await db.gravarConfig("mercadolivre", { clientId: "123", clientSecret: cifrar("segredo-do-app"), contas: ["999"] });
+  await db.gravarConfig("mercadolivre_conta_999", { token: cifrar("TOKEN-1"), renovacao: cifrar("REFRESH-1"), expiraEm, vendedorId: "999", apelido: "LOJA" });
 }
 
 test("segredos: criptografa de verdade, e dado adulterado não abre", () => {
@@ -69,10 +68,10 @@ test("mercado livre: login confere o state, guarda os acessos criptografados e n
   assert.match(corpoDoToken, /grant_type=authorization_code/);
   assert.match(corpoDoToken, /client_secret=segredo-do-app/);
 
-  const salvo = JSON.stringify(await db.lerConfig("mercadolivre"));
+  const salvo = JSON.stringify([await db.lerConfig("mercadolivre"), await db.lerConfig("mercadolivre_conta_999")]);
   assert.doesNotMatch(salvo, /APP_USR-novo|TG-renova|segredo-do-app/);
   const status = await ml.statusDaConexao();
-  assert.deepEqual([status.conectado, status.apelido, status.vendedorId], [true, "MINHALOJA", "999"]);
+  assert.deepEqual([status.conectado, status.contas[0].apelido, status.contas[0].id], [true, "MINHALOJA", "999"]);
   assert.doesNotMatch(JSON.stringify(status), /segredo|TG-|APP_USR/);
   await assert.rejects(() => ml.concluirEntrada({ code: "x", state }, AGORA), /expirou/); // o state só vale uma vez
 });
@@ -91,19 +90,19 @@ test("mercado livre: renova só perto de vencer, guarda a renovação nova e dua
     assert.equal(o.headers.Authorization, "Bearer TOKEN-2");
     return resposta({ questions: [] });
   };
-  await comFetch(falso, () => Promise.all([ml.perguntasSemResposta(AGORA), ml.perguntasSemResposta(AGORA)]));
+  await comFetch(falso, () => Promise.all([ml.perguntasSemResposta("999", AGORA), ml.perguntasSemResposta("999", AGORA)]));
   assert.equal(renovacoes, 1);
   assert.match(corpos[0], /refresh_token=REFRESH-1/);
-  const c = await db.lerConfig("mercadolivre");
+  const c = await db.lerConfig("mercadolivre_conta_999");
   assert.equal(decifrar(c.renovacao), "REFRESH-2");
   // Ainda válido: não renova.
-  await comFetch(async (u) => (String(u).endsWith("/oauth/token") ? assert.fail("não renova") : resposta({ questions: [] })), () => ml.perguntasSemResposta(AGORA));
+  await comFetch(async (u) => (String(u).endsWith("/oauth/token") ? assert.fail("não renova") : resposta({ questions: [] })), () => ml.perguntasSemResposta("999", AGORA));
 });
 
 test("mercado livre: renovação recusada vira aviso claro no painel", async () => {
   await conectar({ expiraEm: new Date(+AGORA - 60_000).toISOString() });
-  await comFetch(async () => resposta({ error: "invalid_grant" }, 400), () => assert.rejects(() => ml.perguntasSemResposta(AGORA), /venceu ou foi revogado/));
-  assert.match((await ml.statusDaConexao()).erro, /venceu ou foi revogado/);
+  await comFetch(async () => resposta({ error: "invalid_grant" }, 400), () => assert.rejects(() => ml.perguntasSemResposta("999", AGORA), /venceu ou foi revogado/));
+  assert.match((await ml.statusDaConexao()).contas[0].erro, /venceu ou foi revogado/);
 });
 
 test("mercado livre: resposta com contato ou lacuna não sai", () => {
@@ -123,12 +122,12 @@ function apiFalsa(perguntas) {
   const respondidas = [];
   return {
     respondidas,
-    estaConectado: async () => true,
+    idsDasContas: async () => ["999"],
     apelidoDaLoja: async () => "LOJA DA CONTA",
     primeiroAnuncio: async () => perguntas.semAnuncio ? null : "MLB9",
     perguntasSemResposta: async () => perguntas.lista,
-    dadosDoAnuncio: async (id) => ({ id, titulo: `Anúncio ${id}`, link: `https://produto.mercadolivre.com.br/${id}`, preco: 50, moeda: "BRL", atributos: ["Voltagem: bivolt"], descricao: "Bivolt." }),
-    responderPergunta: async (id, texto) => respondidas.push([id, texto]),
+    dadosDoAnuncio: async (conta, id) => ({ id, titulo: `Anúncio ${id}`, link: `https://produto.mercadolivre.com.br/${id}`, preco: 50, moeda: "BRL", atributos: ["Voltagem: bivolt"], descricao: "Bivolt." }),
+    responderPergunta: async (conta, id, texto) => respondidas.push([conta, id, texto]),
   };
 }
 
@@ -159,7 +158,7 @@ test("mercado livre: pergunta nova ganha sugestão e aviso uma vez só, e nada s
   await assert.rejects(() => vendas.enviarResposta("111", "Chama no zap", o), /WhatsApp/);
   assert.equal(api.respondidas.length, 0);
   await vendas.enviarResposta("111", " Sim, é bivolt, pode comprar. ", o);
-  assert.deepEqual(api.respondidas, [["111", "Sim, é bivolt, pode comprar."]]);
+  assert.deepEqual(api.respondidas, [["999", "111", "Sim, é bivolt, pode comprar."]]);
   const enviada = await db.perguntaML("111");
   assert.deepEqual([enviada.status, enviada.resposta], ["respondida", "Sim, é bivolt, pode comprar."]);
   await assert.rejects(() => vendas.enviarResposta("111", "De novo", o), /já saiu da fila/);
@@ -209,14 +208,14 @@ test("mercado livre: spam fica de fora e os pedidos não trazem dados pessoais d
   await comFetch(async (u) => {
     assert.match(String(u), /seller_id=999&status=UNANSWERED/);
     return resposta({ questions: [{ id: 1, status: "UNANSWERED", text: "ok" }, { id: 2, status: "UNANSWERED", suspected_spam: true }, { id: 3, status: "UNANSWERED", deleted_from_listing: true }] });
-  }, async () => assert.deepEqual((await ml.perguntasSemResposta(AGORA)).map((q) => q.id), [1]));
+  }, async () => assert.deepEqual((await ml.perguntasSemResposta("999", AGORA)).map((q) => q.id), [1]));
 
   const pedidos = await comFetch(async (u) => {
     assert.match(String(u), /orders\/search\?seller=999&sort=date_desc/);
     return resposta({ results: [{ id: 2000003508897196, status: "paid", total_amount: 50, currency_id: "BRL", date_created: "2026-11-09T10:00:00Z",
       buyer: { id: 5, nickname: "COMPRADOR1", email: "pessoa@exemplo.com", phone: { number: "999" }, first_name: "Ana" }, shipping: { id: 7, receiver_address: { street_name: "Rua X" } },
       order_items: [{ item: { id: "MLB1", title: "Camiseta" }, quantity: 2, unit_price: 25 }] }] });
-  }, () => ml.pedidosRecentes(AGORA));
+  }, () => ml.pedidosRecentes("999", AGORA));
   assert.equal(pedidos[0].id, "2000003508897196");
   assert.deepEqual(pedidos[0].itens, [{ titulo: "Camiseta", quantidade: 2, preco: 25 }]);
   assert.equal(pedidos[0].comprador, "COMPRADOR1");
@@ -239,4 +238,54 @@ test("mercado livre: as rotas exigem login, o retorno sem state não conecta e o
   } finally {
     servidor.close();
   }
+});
+
+test("mercado livre: duas contas no mesmo app, cada uma com o próprio acesso, e a conexão antiga migra sozinha", async () => {
+  // O formato antigo, de uma conta só.
+  await db.gravarConfig("mercadolivre", { clientId: "123", clientSecret: cifrar("segredo-do-app"), token: cifrar("TOKEN-A"), renovacao: cifrar("R-A"), expiraEm: new Date(+AGORA + 3600_000).toISOString(), vendedorId: "111", apelido: "LOJA A" });
+  let s = await ml.statusDaConexao();
+  assert.deepEqual(s.contas.map((c) => [c.id, c.apelido]), [["111", "LOJA A"]]);
+  assert.equal((await db.lerConfig("mercadolivre")).token, undefined);
+
+  // A segunda conta entra pelo mesmo login, sem derrubar a primeira.
+  const state = new URL(await ml.urlDeEntrada(AGORA)).searchParams.get("state");
+  await comFetch(async (u) => (String(u).endsWith("/oauth/token")
+    ? resposta({ access_token: "TOKEN-B", refresh_token: "R-B", expires_in: 21600, user_id: 222 })
+    : resposta({ id: 222, nickname: "LOJA B", tags: ["user_product_seller"] })), () => ml.concluirEntrada({ code: "c", state }, AGORA));
+  s = await ml.statusDaConexao();
+  assert.deepEqual(s.contas.map((c) => c.apelido), ["LOJA A", "LOJA B"]);
+  assert.equal(await ml.usaFamilia("222"), true);
+  assert.equal(await ml.usaFamilia("111"), false);
+
+  // Cada chamada usa o acesso da conta certa.
+  const usados = {};
+  await comFetch(async (u, o) => {
+    usados[String(u).match(/seller_id=(\d+)/)[1]] = o.headers.Authorization;
+    return resposta({ questions: [] });
+  }, async () => {
+    await ml.perguntasSemResposta("111", AGORA);
+    await ml.perguntasSemResposta("222", AGORA);
+  });
+  assert.deepEqual(usados, { 111: "Bearer TOKEN-A", 222: "Bearer TOKEN-B" });
+
+  // Desconectar uma não mexe na outra.
+  await ml.desconectar("111");
+  s = await ml.statusDaConexao();
+  assert.deepEqual(s.contas.map((c) => c.apelido), ["LOJA B"]);
+  await assert.rejects(() => ml.perguntasSemResposta("111", AGORA), /Conecte essa conta/);
+});
+
+test("mercado livre: o erro de uma conta não impede as perguntas da outra", async () => {
+  const api = {
+    idsDasContas: async () => ["1", "2"],
+    apelidoDaLoja: async (c) => `LOJA ${c}`,
+    perguntasSemResposta: async (c) => { if (c === "1") throw new Error("acesso vencido"); return [{ id: 555, item_id: "MLB5", text: "Oi?", date_created: "2026-11-10T11:00:00Z", status: "UNANSWERED" }]; },
+    dadosDoAnuncio: async (c, id) => ({ id, titulo: "A", link: null, atributos: [] }),
+  };
+  const lojas = [];
+  const r = await vendas.rodadaDoMercadoLivre({}, { api, escrever: async (p) => (lojas.push(p.loja), { texto: "Olá.", precisa_conferir: false, motivo: "" }), avisar: async () => {}, agora: AGORA });
+  assert.deepEqual([r.novas, r.sugeridas, r.erros], [1, 1, ["acesso vencido"]]);
+  assert.equal((await db.perguntaML("555")).conta_id, "2");
+  assert.deepEqual(lojas, ["LOJA 2"]);
+  await db.atualizarPerguntaML("555", { status: "ignorada" });
 });

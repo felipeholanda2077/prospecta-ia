@@ -24,6 +24,8 @@ import { postarNoLinkedin, textoDoPost } from "./conteudo/linkedin.js";
 import * as linkedin from "./envio/linkedin.js";
 import { buscarFornecedores, limparParaSalvar } from "./descoberta/fornecedores.js";
 import * as mercadolivre from "./envio/mercadolivre.js";
+import * as shopee from "./envio/shopee.js";
+import * as produtos from "./vendas/produtos.js";
 import { rodadaDoMercadoLivre, enviarResposta, refazerSugestao, testarSugestao } from "./vendas/mercadolivre.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
@@ -351,6 +353,12 @@ app.post("/api/logout", (req, res) => {
   res.json({ ok: true });
 });
 
+// A volta da autorização da Shopee: quem garante que o pedido partiu do painel é o `state`.
+app.get("/api/shopee/retorno", async (req, res) => {
+  await shopee.concluirEntrada(req.query).catch((e) => console.error("⚠️  Login da Shopee:", e.message));
+  res.redirect("/#marketplaces");
+});
+
 // A volta do login do Mercado Livre: quem garante que o pedido partiu do painel é o `state`.
 app.get("/api/mercadolivre/retorno", async (req, res) => {
   await mercadolivre.concluirEntrada(req.query).catch((e) => console.error("⚠️  Login do Mercado Livre:", e.message));
@@ -434,14 +442,29 @@ const painelDoMl = async () => ({
 app.get("/api/mercadolivre", rotaMl(painelDoMl));
 app.post("/api/mercadolivre/atualizar", rotaMl(async () => ({ rodada: await rodadaDoMercadoLivre(await carregarCampanhaCompleta()), ...(await painelDoMl()) })));
 app.post("/api/mercadolivre/testar", rotaMl(() => testarSugestao()));
-app.get("/api/mercadolivre/pedidos", rotaMl(() => mercadolivre.pedidosRecentes()));
+// Os pedidos de todas as contas e lojas. O erro de uma não esconde as outras.
+app.get("/api/marketplaces/pedidos", rotaMl(async () => {
+  const erros = [];
+  const deCada = async (ids, buscar, canal, nomes) => (await Promise.all(ids.map((id) => buscar(id).then(
+    (lista) => lista.map((o) => ({ ...o, canal, conta: nomes[id] ?? id })),
+    (e) => (erros.push(`${nomes[id] ?? id}: ${e.message}`), [])
+  )))).flat();
+  const ml = await mercadolivre.statusDaConexao();
+  const sp = await shopee.statusDaConexao();
+  const pedidos = [
+    ...(await deCada(ml.contas.map((c) => c.id), mercadolivre.pedidosRecentes, "mercadolivre", Object.fromEntries(ml.contas.map((c) => [c.id, c.apelido])))),
+    ...(await deCada(sp.lojas.map((l) => l.id), shopee.pedidosRecentes, "shopee", Object.fromEntries(sp.lojas.map((l) => [l.id, l.nome])))),
+  ];
+  return { pedidos, erros };
+}));
 app.put("/api/mercadolivre/app", rotaMl(async (req) => {
   await mercadolivre.salvarApp(req.body ?? {});
   return { url: await mercadolivre.urlDeEntrada() };
 }));
 app.post("/api/mercadolivre/entrar", rotaMl(async () => ({ url: await mercadolivre.urlDeEntrada() })));
-app.post("/api/mercadolivre/desconectar", rotaMl(async () => {
-  await mercadolivre.desconectar();
+app.post("/api/mercadolivre/desconectar", rotaMl(async (req) => {
+  await mercadolivre.desconectar(String(req.body?.conta ?? ""));
+  for (const p of (await db.perguntasML("pendente")).filter((x) => x.conta_id === String(req.body?.conta ?? ""))) await db.atualizarPerguntaML(p.id, { status: "fora" });
   return mercadolivre.statusDaConexao();
 }));
 app.post("/api/mercadolivre/perguntas/:id/responder", rotaMl(async (req) => {
@@ -452,6 +475,43 @@ app.post("/api/mercadolivre/perguntas/:id/refazer", rotaMl(async (req) => refaze
 app.post("/api/mercadolivre/perguntas/:id/ignorar", rotaMl(async (req) => {
   await db.atualizarPerguntaML(req.params.id, { status: "ignorada" });
   return painelDoMl();
+}));
+
+// Shopee: as lojas conectadas. Os segredos ficam só no servidor.
+app.get("/api/shopee", rotaMl(() => shopee.statusDaConexao()));
+app.put("/api/shopee/app", rotaMl(async (req) => {
+  await shopee.salvarApp(req.body ?? {});
+  return { url: await shopee.urlDeEntrada() };
+}));
+app.post("/api/shopee/desconectar", rotaMl(async (req) => {
+  await shopee.desconectar(String(req.body?.loja ?? ""));
+  return shopee.statusDaConexao();
+}));
+
+// Produtos: o cadastro único e a publicação em cada conta.
+app.get("/api/produtos", rotaMl(() => db.produtosCadastrados()));
+app.post("/api/produtos", rotaMl(async (req) => ({ id: await db.criarProduto(produtos.limparProduto(req.body)) })));
+app.put("/api/produtos/:id", rotaMl(async (req) => {
+  await db.atualizarProduto(req.params.id, produtos.limparProduto(req.body));
+  return { ok: true };
+}));
+app.delete("/api/produtos/:id", rotaMl(async (req) => {
+  await db.apagarProduto(req.params.id);
+  return { ok: true };
+}));
+app.post("/api/produtos/foto", rotaMl(async (req) => ({ chave: await produtos.salvarFoto(req.body?.imagem) })));
+app.get("/api/produtos/foto/:chave", async (req, res) => {
+  if (!/^produto-[0-9a-f-]+\.jpg$/.test(req.params.chave)) return res.sendStatus(404);
+  const midia = await db.lerMidia(req.params.chave);
+  if (!midia) return res.sendStatus(404);
+  res.set({ "Content-Type": midia.tipo, "Cache-Control": "private, max-age=86400" }).send(midia.dados);
+});
+app.post("/api/produtos/:id/preparar", rotaMl((req) => produtos.prepararPublicacao(req.params.id, req.body ?? {})));
+app.post("/api/produtos/:id/atributos", rotaMl((req) => produtos.atributosParaCategoria(req.params.id, req.body ?? {})));
+app.post("/api/produtos/:id/publicar", rotaMl((req) => produtos.publicarProduto(req.params.id, req.body ?? {})));
+app.post("/api/produtos/:id/status", rotaMl(async (req) => {
+  await produtos.mudarStatusDaPublicacao(req.params.id, req.body ?? {});
+  return { ok: true };
 }));
 
 // Fornecedores de dropshipping: ficam fora do funil, então nunca recebem mensagem automática.

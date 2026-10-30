@@ -216,7 +216,8 @@ export async function lerMidia(chave) {
 
 /** Apaga as mídias de um post (e as esquecidas há mais de 3 dias). */
 export async function apagarMidias(prefixo) {
-  await q("DELETE FROM midias WHERE starts_with(chave, $1) OR criada_em < now() - interval '3 days'", [prefixo]);
+  // As fotos dos produtos ficam: elas são o cadastro, não um arquivo temporário de post.
+  await q("DELETE FROM midias WHERE starts_with(chave, $1) OR (criada_em < now() - interval '3 days' AND NOT starts_with(chave, 'produto-'))", [prefixo]);
 }
 
 // ---------- Fornecedores de dropshipping ----------
@@ -251,8 +252,8 @@ export async function atualizarFornecedor(id, { status, observacao }) {
 // ---------- Perguntas do Mercado Livre ----------
 
 /** Guarda a pergunta. Retorna true se ela é nova. */
-export async function inserirPerguntaML({ id, item_id, texto, criada_em }) {
-  const r = await um("INSERT INTO ml_perguntas (id, item_id, texto, criada_em) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING RETURNING id", [id, item_id, texto, criada_em]);
+export async function inserirPerguntaML({ id, conta_id, item_id, texto, criada_em }) {
+  const r = await um("INSERT INTO ml_perguntas (id, conta_id, item_id, texto, criada_em) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING RETURNING id", [id, conta_id, item_id, texto, criada_em]);
   return Boolean(r);
 }
 
@@ -268,6 +269,48 @@ export async function atualizarPerguntaML(id, campos) {
   const chaves = Object.keys(campos).filter((k) => CAMPOS_PERGUNTA_ML.includes(k));
   if (!chaves.length) return;
   await q(`UPDATE ml_perguntas SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE id = $1`, [String(id), ...chaves.map((k) => campos[k])]);
+}
+
+// ---------- Produtos dos marketplaces ----------
+
+const CAMPOS_PRODUTO = ["nome", "descricao", "preco", "estoque", "sku", "marca", "modelo", "gtin", "condicao", "peso_g", "altura_cm", "largura_cm", "comprimento_cm", "ncm", "cfop_mesmo_estado", "cfop_outro_estado", "csosn", "origem", "fotos"];
+const lerProduto = (p) => p && { ...p, preco: Number(p.preco), fotos: JSON.parse(p.fotos ?? "[]") };
+const valorDoProduto = (p, c) => (c === "fotos" ? JSON.stringify(p.fotos ?? []) : p[c] ?? null);
+
+export async function criarProduto(p) {
+  const r = await um(
+    `INSERT INTO produtos (${CAMPOS_PRODUTO.join(", ")}) VALUES (${CAMPOS_PRODUTO.map((_, i) => `$${i + 1}`).join(", ")}) RETURNING id`,
+    CAMPOS_PRODUTO.map((c) => valorDoProduto(p, c))
+  );
+  return r.id;
+}
+
+export async function atualizarProduto(id, p) {
+  await q(`UPDATE produtos SET ${CAMPOS_PRODUTO.map((c, i) => `${c} = $${i + 2}`).join(", ")}, atualizado_em = now() WHERE id = $1`, [id, ...CAMPOS_PRODUTO.map((c) => valorDoProduto(p, c))]);
+}
+
+export const buscarProduto = async (id) => lerProduto(await um("SELECT * FROM produtos WHERE id = $1", [id]));
+
+export async function produtosCadastrados() {
+  const produtos = (await q("SELECT * FROM produtos ORDER BY atualizado_em DESC, id DESC LIMIT 300")).map(lerProduto);
+  const publicacoes = await q("SELECT * FROM produto_publicacoes ORDER BY id");
+  return produtos.map((p) => ({ ...p, publicacoes: publicacoes.filter((x) => x.produto_id === p.id) }));
+}
+
+export async function apagarProduto(id) {
+  await q("DELETE FROM produto_publicacoes WHERE produto_id = $1", [id]);
+  await q("DELETE FROM produtos WHERE id = $1", [id]);
+}
+
+export const publicacaoDoProduto = (id, canal, conta) => um("SELECT * FROM produto_publicacoes WHERE produto_id = $1 AND canal = $2 AND conta_id = $3", [id, canal, String(conta)]);
+
+/** Guarda o resultado da publicação naquela conta (uma por produto e conta). */
+export async function gravarPublicacao({ produto_id, canal, conta_id, externo_id = null, link = null, status, erro = null }) {
+  await q(
+    `INSERT INTO produto_publicacoes (produto_id, canal, conta_id, externo_id, link, status, erro) VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (produto_id, canal, conta_id) DO UPDATE SET externo_id = COALESCE(excluded.externo_id, produto_publicacoes.externo_id), link = COALESCE(excluded.link, produto_publicacoes.link), status = excluded.status, erro = excluded.erro`,
+    [produto_id, canal, String(conta_id), externo_id, link, status, erro]
+  );
 }
 
 // ---------- Estado interno ----------
