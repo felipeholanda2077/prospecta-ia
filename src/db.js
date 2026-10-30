@@ -192,6 +192,11 @@ export async function gravarMidia(chave, tipo, dados) {
   );
 }
 
+/** Apaga as mídias com esse começo de nome mais velhas que `dias`. */
+export async function apagarMidiasAntigas(prefixo, dias) {
+  await q("DELETE FROM midias WHERE chave LIKE $1 AND criada_em < now() - make_interval(days => $2)", [`${prefixo}%`, dias]);
+}
+
 export async function lerMidia(chave) {
   const m = await um("SELECT tipo, dados FROM midias WHERE chave = $1", [chave]);
   return m && { tipo: m.tipo, dados: Buffer.from(m.dados, "base64") };

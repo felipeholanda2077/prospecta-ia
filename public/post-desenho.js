@@ -24,6 +24,308 @@ export const TEMAS = [
 ];
 export const temaDoPost = (post) => TEMAS[Math.abs(Number(post?.id) || 0) % TEMAS.length];
 
+// Direção de arte: cada post sai num estilo, para o feed não parecer sempre o mesmo modelo.
+export const ARTES = ["foto_cheia", "dividido", "claro", "cor", "escuro"];
+export const ELEMENTOS = ["celular", "navegador", "grafico", "calendario", "estrelas", "notificacao"];
+const CORES = ["#1d4ed8", "#9f1239", "#047857", "#5b21b6", "#c2410c"];
+const TINTA_CLARA = { forte: "#ffffff", suave: "rgba(255,255,255,.82)", fraca: "rgba(255,255,255,.25)", grade: "#ffffff" };
+const TINTA_ESCURA = { forte: "#0b0c14", suave: "rgba(11,12,20,.72)", fraca: "rgba(11,12,20,.18)", grade: "#0b0c14" };
+// A cor do texto da cena que está sendo desenhada (o desenho é síncrono, uma cena por vez).
+let tinta = TINTA_CLARA;
+let limiteAltura = Infinity;
+
+const arteDoPost = (post) => (ARTES.includes(post?.conteudo?.arte) ? post.conteudo.arte : "escuro");
+
+/** O tema e a cor do texto do post, conforme a arte. */
+function aparencia(post) {
+  const arte = arteDoPost(post);
+  if (arte === "claro") return { arte, tema: { nome: "claro", a: "#5b4cf0", b: "#06b6d4", base: "#ffffff" }, tinta: TINTA_ESCURA };
+  if (arte === "cor") return { arte, tema: { nome: "cor", a: "#ffffff", b: "#fde68a", base: CORES[Math.abs(Number(post?.id) || 0) % CORES.length] }, tinta: TINTA_CLARA };
+  return { arte, tema: temaDoPost(post), tinta: TINTA_CLARA };
+}
+
+// ---------- Fotos ----------
+// As imagens já carregadas: o servidor lê do banco, o painel pela rota com login.
+export const APRESENTADOR = "felipe-holanda";
+export const LOGO = "fluxdeck-logo";
+const fotos = new Map();
+
+/** As imagens que o post usa (as fotos das telas e, se for o caso, o apresentador). */
+export function fotosDoPost(post) {
+  const chaves = (post?.conteudo?.slides ?? []).map((s) => s.foto?.chave).filter(Boolean);
+  if (post?.conteudo?.comFelipe) chaves.push(APRESENTADOR);
+  return [...new Set([LOGO, ...chaves])];
+}
+
+/** Carrega o que falta, com `carregar(chave)` de cada ambiente. Foto que falhar só fica de fora. */
+export async function carregarFotosDoPost(post, carregar) {
+  await Promise.all(fotosDoPost(post).filter((c) => !fotos.has(c)).map(async (c) => {
+    const imagem = await carregar(c).catch(() => null);
+    if (imagem) fotos.set(c, imagem);
+  }));
+}
+
+function fotoCobrindo(ctx, img, x, y, w, h, zoom = 1) {
+  const e = Math.max(w / img.width, h / img.height) * zoom;
+  const iw = img.width * e;
+  const ih = img.height * e;
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.drawImage(img, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
+  ctx.restore();
+}
+
+/** A foto da tela; sem foto própria, a de outra tela do post. */
+function fotoDaTela(telas, i) {
+  const propria = fotos.get(telas[i].foto?.chave);
+  if (propria) return propria;
+  const outras = telas.map((t) => fotos.get(t.foto?.chave)).filter(Boolean);
+  return outras.length ? outras[i % outras.length] : null;
+}
+
+const CENAS_COM_FOTO_NO_TOPO = new Set(["capa", "impacto", "texto", "pergunta"]);
+
+/** O fundo da cena, pela arte. Retorna quanto do topo a foto ocupa (a área do texto começa depois). */
+function fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo }) {
+  const reels = modo === "reels";
+  const foto = fotoDaTela(telas, i);
+  const noTopo = foto && CENAS_COM_FOTO_NO_TOPO.has(telas[i].visual);
+  const zoom = 1 + 0.08 * lim(local / 6);
+  if (arte === "claro") {
+    ctx.fillStyle = "#f7f6f2";
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(91,76,240,.08)";
+    ctx.beginPath(); ctx.arc(w * 0.95, h * 0.1, w * 0.42, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(6,182,212,.1)";
+    ctx.beginPath(); ctx.arc(w * 0.02, h * 0.95, w * 0.34, 0, Math.PI * 2); ctx.fill();
+    if (!noTopo) return null;
+    const y = reels ? 240 : 190;
+    const alt = reels ? 540 : 370;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(60, y, w - 120, alt, 36);
+    ctx.clip();
+    fotoCobrindo(ctx, foto, 60, y, w - 120, alt, zoom);
+    ctx.restore();
+    return y + alt + 34;
+  }
+  if (arte === "cor") {
+    ctx.fillStyle = tema.base;
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = "rgba(255,255,255,.16)";
+    ctx.lineWidth = 46;
+    ctx.beginPath(); ctx.arc(w * 0.98, h * (0.82 + 0.01 * Math.sin(t)), w * 0.36, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = "rgba(0,0,0,.1)";
+    ctx.beginPath(); ctx.arc(0, h * 0.06, w * 0.34, 0, Math.PI * 2); ctx.fill();
+    if (!noTopo) return null;
+    const r = reels ? 220 : 150;
+    const cy = reels ? 500 : 360;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(w / 2, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    fotoCobrindo(ctx, foto, w / 2 - r, cy - r, r * 2, r * 2, zoom);
+    ctx.restore();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.arc(w / 2, cy, r, 0, Math.PI * 2); ctx.stroke();
+    return cy + r + 36;
+  }
+  if ((arte === "foto_cheia" || arte === "dividido") && foto) {
+    if (arte === "dividido" && noTopo) {
+      ctx.fillStyle = tema.base;
+      ctx.fillRect(0, 0, w, h);
+      const alt = reels ? 840 : 590;
+      fotoCobrindo(ctx, foto, 0, 0, w, alt, zoom);
+      // Escurece em cima (para a marca aparecer) e funde com a cor de baixo.
+      const topo = ctx.createLinearGradient(0, 0, 0, 260);
+      topo.addColorStop(0, "rgba(0,0,0,.72)");
+      topo.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = topo;
+      ctx.fillRect(0, 0, w, 260);
+      const g = ctx.createLinearGradient(0, alt * 0.55, 0, alt);
+      g.addColorStop(0, "rgba(0,0,0,0)");
+      g.addColorStop(1, tema.base);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, alt);
+      return alt + 6;
+    }
+    fotoCobrindo(ctx, foto, 0, 0, w, h, zoom);
+    const g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, "rgba(5,6,12,.72)");
+    g.addColorStop(0.45, "rgba(5,6,12,.6)");
+    g.addColorStop(1, "rgba(5,6,12,.88)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    return null;
+  }
+  fundo(ctx, w, h, t, tema);
+  return null;
+}
+
+// ---------- Elementos visuais ----------
+// Pequenas ilustrações animadas: o celular com a conversa, o site carregando, o gráfico subindo...
+
+function caixa(ctx, x, y, w, h, r, cor) {
+  ctx.fillStyle = cor;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  ctx.fill();
+}
+
+const DESENHOS = {
+  celular(ctx, p, l, tema) {
+    caixa(ctx, -105, -190, 210, 380, 34, "#10121c");
+    caixa(ctx, -92, -174, 184, 348, 22, "#f2f4f8");
+    [[-74, -142, 112, "#ffffff"], [-30, -90, 106, tema.a], [-74, -38, 128, "#ffffff"], [-14, 16, 90, tema.b]].forEach(([x, y, largura, cor], k) => {
+      const q = suave((l - 0.2 - k * 0.3) / 0.25);
+      if (q <= 0) return;
+      ctx.save();
+      ctx.globalAlpha *= q;
+      caixa(ctx, x, y + (1 - q) * 14, largura, 42, 14, cor);
+      ctx.restore();
+    });
+  },
+  navegador(ctx, p, l, tema) {
+    caixa(ctx, -220, -130, 440, 270, 20, "#ffffff");
+    caixa(ctx, -220, -130, 440, 42, 20, "#e5e7ef");
+    ["#f43f5e", "#f59e0b", "#22c55e"].forEach((c, k) => { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(-194 + k * 22, -109, 7, 0, Math.PI * 2); ctx.fill(); });
+    const q = suave(l / 1.1);
+    ctx.fillStyle = tema.b;
+    ctx.fillRect(-220, -88, 440 * q, 6);
+    caixa(ctx, -196, -66, 392 * q, 96, 12, tema.a);
+    caixa(ctx, -196, 44, 240 * q, 22, 8, "#c7cbd8");
+    caixa(ctx, -196, 78, 320 * q, 22, 8, "#dfe2ea");
+  },
+  grafico(ctx, p, l, tema) {
+    caixa(ctx, -220, -150, 440, 300, 22, "#ffffff");
+    [0.28, 0.42, 0.36, 0.62, 0.78, 1].forEach((v, k) => {
+      const q = suave((l - k * 0.12) / 0.4);
+      const alt = 230 * v * q;
+      ctx.fillStyle = k === 5 ? tema.b : tema.a;
+      ctx.beginPath();
+      ctx.roundRect(-188 + k * 64, 126 - alt, 44, Math.max(1, alt), 8);
+      ctx.fill();
+    });
+  },
+  calendario(ctx, p, l, tema) {
+    caixa(ctx, -170, -160, 340, 320, 24, "#ffffff");
+    caixa(ctx, -170, -160, 340, 70, 24, tema.a);
+    for (let a = 0; a < 3; a++) for (let b = 0; b < 4; b++) {
+      const marcado = a === 1 && b === 2;
+      const q = marcado ? elastico((l - 0.5) / 0.4) : 1;
+      caixa(ctx, -142 + b * 72, -72 + a * 72, 56, 56, 12, marcado ? tema.b : "#eceef4");
+      if (marcado && q > 0.5) {
+        ctx.strokeStyle = "#fff"; ctx.lineWidth = 7; ctx.lineCap = "round";
+        ctx.beginPath(); ctx.moveTo(-142 + b * 72 + 15, -72 + a * 72 + 29); ctx.lineTo(-142 + b * 72 + 25, -72 + a * 72 + 39); ctx.lineTo(-142 + b * 72 + 42, -72 + a * 72 + 18); ctx.stroke();
+      }
+    }
+  },
+  estrelas(ctx, p, l) {
+    caixa(ctx, -250, -70, 500, 140, 28, "#ffffff");
+    for (let k = 0; k < 5; k++) {
+      const q = elastico((l - k * 0.13) / 0.35);
+      if (q <= 0) continue;
+      ctx.save();
+      ctx.translate(-192 + k * 96, 0);
+      ctx.scale(q, q);
+      ctx.fillStyle = "#f59e0b";
+      ctx.beginPath();
+      for (let n = 0; n < 10; n++) {
+        const r = n % 2 ? 17 : 38;
+        const ang = -Math.PI / 2 + (n * Math.PI) / 5;
+        ctx[n ? "lineTo" : "moveTo"](Math.cos(ang) * r, Math.sin(ang) * r);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+  },
+  notificacao(ctx, p, l, tema) {
+    [0, 1, 2].forEach((k) => {
+      const q = suave((l - k * 0.32) / 0.3);
+      if (q <= 0) return;
+      ctx.save();
+      ctx.globalAlpha *= q;
+      ctx.translate(0, -94 + k * 94 + (1 - q) * 30);
+      caixa(ctx, -240, -38, 480, 80, 20, "#ffffff");
+      ctx.fillStyle = k % 2 ? tema.b : tema.a;
+      ctx.beginPath(); ctx.arc(-196, 2, 24, 0, Math.PI * 2); ctx.fill();
+      caixa(ctx, -156, -18, 250, 16, 6, "#b9bdcb");
+      caixa(ctx, -156, 8, 340, 14, 6, "#dfe2ea");
+      ctx.restore();
+    });
+  },
+};
+
+function desenharElemento(ctx, tipo, cx, cy, escala, local, tema) {
+  const desenho = DESENHOS[tipo];
+  if (!desenho) return;
+  const p = suave(local / 0.35);
+  ctx.save();
+  ctx.globalAlpha *= p;
+  ctx.translate(cx, cy + (1 - p) * 50 + Math.sin(local * 1.6) * 5);
+  ctx.scale(escala, escala);
+  ctx.shadowColor = "rgba(0,0,0,.28)";
+  ctx.shadowBlur = 30;
+  ctx.shadowOffsetY = 12;
+  desenho(ctx, null, local, tema);
+  ctx.restore();
+}
+
+/** O Felipe no vídeo: a foto dele num círculo, com o anel pulsando como quem fala. Com nome na capa e na chamada. */
+function felipeNoVideo(ctx, { w, local, tela, tema }) {
+  const foto = fotos.get(APRESENTADOR);
+  if (!foto) return;
+  const grande = tela.visual === "capa" || tela.visual === "cta";
+  const r = grande ? 96 : 62;
+  const cx = 80 + r;
+  const cy = 1560;
+  const p = elastico(local / 0.45);
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(p, p);
+  [1, 2].forEach((n) => {
+    const o = ((local * 1.1 + n * 0.5) % 1);
+    ctx.strokeStyle = tema.a;
+    ctx.globalAlpha = (1 - o) * 0.55;
+    ctx.lineWidth = 7;
+    ctx.beginPath(); ctx.arc(0, 0, r + 8 + o * 34, 0, Math.PI * 2); ctx.stroke();
+  });
+  ctx.globalAlpha = 1;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.clip();
+  // A foto tem o rosto na parte de cima, um pouco à direita do centro.
+  const lado = Math.min(foto.width, foto.height) * 0.62;
+  ctx.drawImage(foto, foto.width * 0.3, 0, lado, lado, -r, -r, r * 2, r * 2);
+  ctx.restore();
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
+  if (!grande) return;
+  const q = suave((local - 0.25) / 0.35);
+  ctx.save();
+  ctx.globalAlpha *= q;
+  ctx.textAlign = "left";
+  ctx.textBaseline = "middle";
+  const x = cx + r + 26;
+  ctx.font = "800 40px Inter";
+  const largura = Math.max(ctx.measureText("Felipe Holanda").width, 330) + 44;
+  ctx.fillStyle = "rgba(5,6,12,.72)";
+  ctx.beginPath(); ctx.roundRect(x - 22, cy - 56, largura, 112, 22); ctx.fill();
+  ctx.fillStyle = "#fff";
+  ctx.fillText("Felipe Holanda", x, cy - 20);
+  ctx.font = "600 28px Inter";
+  ctx.fillStyle = "rgba(255,255,255,.8)";
+  ctx.fillText("Fundador da FluxDeck", x, cy + 22);
+  ctx.restore();
+}
+
 // ---------- Utilidades ----------
 
 const lim = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
@@ -67,7 +369,7 @@ function fundo(ctx, w, h, t, tema) {
     const x = sorteio(k) * w + Math.sin(t * 0.8 + k) * 18;
     const y = (((sorteio(k + 40) * h - t * (20 + sorteio(k + 80) * 50)) % h) + h) % h;
     ctx.globalAlpha = 0.12 + sorteio(k + 120) * 0.35;
-    ctx.fillStyle = k % 3 ? "#ffffff" : tema.b;
+    ctx.fillStyle = k % 3 ? tinta.grade : tema.b;
     ctx.beginPath();
     ctx.arc(x, y, 1.5 + sorteio(k + 160) * 3.5, 0, Math.PI * 2);
     ctx.fill();
@@ -89,6 +391,16 @@ function gradeDePontos(w, h) {
 }
 
 function logo(ctx, x, y, tamanho = 64) {
+  const real = fotos.get(LOGO);
+  if (real) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, tamanho, tamanho, tamanho * 0.24);
+    ctx.clip();
+    ctx.drawImage(real, x, y, tamanho, tamanho);
+    ctx.restore();
+    return;
+  }
   const g = ctx.createLinearGradient(x, y, x + tamanho, y + tamanho);
   g.addColorStop(0, MARCA.roxo);
   g.addColorStop(1, MARCA.ciano);
@@ -107,7 +419,7 @@ function logo(ctx, x, y, tamanho = 64) {
 
 function marcaNoTopo(ctx, x, y, nome) {
   logo(ctx, x, y);
-  ctx.fillStyle = MARCA.texto;
+  ctx.fillStyle = tinta.forte;
   ctx.font = "800 40px Inter";
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
@@ -135,6 +447,7 @@ export const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ
 
 /** O maior tamanho de título que cabe em `alturaMax` (diminuindo de 4 em 4 até `menor`). */
 function medirTitulo(ctx, { texto, largura, alturaMax, maior, menor }) {
+  alturaMax = Math.min(alturaMax, limiteAltura);
   let tamanho = maior;
   let linhas;
   for (; tamanho >= menor; tamanho -= 4) {
@@ -193,8 +506,8 @@ function tituloAnimado(ctx, { texto, destaque, x, y, largura, alturaMax, maior, 
           ctx.beginPath();
           ctx.roundRect(-larg / 2 - pad, -tamanho * 0.56, (larg + pad * 2) * m, tamanho * 1.08, tamanho * 0.16);
           ctx.fill();
-          ctx.fillStyle = m > 0.4 ? tema.base : "#fff";
-        } else ctx.fillStyle = "#fff";
+          ctx.fillStyle = m > 0.4 ? tema.base : tinta.forte;
+        } else ctx.fillStyle = tinta.forte;
         ctx.font = `800 ${tamanho}px Inter`;
         ctx.fillText(palavra, -larg / 2, tamanho * 0.04);
         ctx.restore();
@@ -205,8 +518,9 @@ function tituloAnimado(ctx, { texto, destaque, x, y, largura, alturaMax, maior, 
   return y + linhas.length * alturaLinha;
 }
 
-function paragrafo(ctx, { texto, x, y, largura, tamanho = 46, cor = MARCA.suave, local = 99, inicio = 0, centro = false }) {
+function paragrafo(ctx, { texto, x, y, largura, tamanho = 46, cor, local = 99, inicio = 0, centro = false }) {
   if (!texto) return y;
+  cor ??= tinta.suave;
   ctx.font = `500 ${tamanho}px Inter`;
   ctx.fillStyle = cor;
   ctx.textBaseline = "top";
@@ -259,6 +573,8 @@ export const telasDoPost = (post) => {
     texto: (s.visual === "contraste" ? semRotulo : String)(semEmoji(s.texto)),
     destaque: semEmoji(s.destaque),
     fala: String(s.fala ?? "").trim(),
+    foto: s.foto ?? null,
+    elemento: ELEMENTOS.includes(s.elemento) ? s.elemento : null,
     // Posts antigos não têm o tipo: capa, itens numerados e a chamada no fim.
     visual: i === 0 ? "capa" : i === fonte.length - 1 && fonte.length > 1 ? "cta" : VISUAIS.has(s.visual) ? s.visual : "lista",
   }));
@@ -440,7 +756,7 @@ function cartao(ctx, { x, y, w, h, alpha, cor, rotulo, icone, texto, tamanho, pa
   ctx.textAlign = "left";
   ctx.fillText(rotulo, pad + 70, pad + 28);
   ctx.font = `800 ${tamanho}px Inter`;
-  ctx.fillStyle = "#fff";
+  ctx.fillStyle = tinta.forte;
   ctx.textBaseline = "top";
   const linhas = quebrarLinhas(ctx, texto, w - pad * 2);
   linhas.forEach((l, i) => {
@@ -450,18 +766,26 @@ function cartao(ctx, { x, y, w, h, alpha, cor, rotulo, icone, texto, tamanho, pa
       const lw = ctx.measureText(l).width;
       ctx.fillStyle = `rgb(${cor})`;
       ctx.fillRect(pad, yy + tamanho * 0.52, lw * lim(risco * linhas.length - i), 6);
-      ctx.fillStyle = "#fff";
+      ctx.fillStyle = tinta.forte;
     }
   });
   ctx.restore();
 }
 
 /** Desenha a cena `i` (sem o fundo), com `local` segundos desde o começo dela. */
-function desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo, estrutura }) {
+function desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo, estrutura, topoLivre = null }) {
   const tela = telas[i];
-  const area = modo === "reels" ? { x: 80, topo: 300, base: 1440, largura: w - 160 } : { x: 80, topo: 210, base: h - 140, largura: w - 160 };
+  const reels = modo === "reels";
+  const area = reels ? { x: 80, topo: 300, base: 1440, largura: w - 160 } : { x: 80, topo: 210, base: h - 140, largura: w - 160 };
+  if (topoLivre) area.topo = Math.max(area.topo, topoLivre);
+  // O elemento visual só entra na tela que não tem foto ocupando o espaço, e abre lugar embaixo no carrossel.
+  const comElemento = tela.elemento && !topoLivre;
+  if (comElemento && !reels) area.base -= 300;
+  limiteAltura = topoLivre || comElemento ? (area.base - area.topo) * 0.74 : Infinity;
   const numero = telas.slice(0, i + 1).filter((t) => t.visual === "lista").length;
   (CENAS[tela.visual] ?? CENAS.texto)(ctx, { w, h, tela, i, local, dur, tema, modo, estrutura, area, numero });
+  limiteAltura = Infinity;
+  if (comElemento) reels ? desenharElemento(ctx, tela.elemento, w * 0.6, 1600, 0.74, local, tema) : desenharElemento(ctx, tela.elemento, w / 2, h - 275, 0.78, local, tema);
 }
 
 // ---------- Carrossel ----------
@@ -470,23 +794,25 @@ function desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo, estrutura }
 export function desenharTelaCarrossel(ctx, post, i, empresa = "FluxDeck") {
   const [w, h] = TAMANHOS_POST.carrossel;
   const telas = telasDoPost(post);
-  const tema = temaDoPost(post);
-  fundo(ctx, w, h, i * 1.7, tema);
+  const { arte, tema, tinta: cor } = aparencia(post);
+  tinta = cor;
+  const topoLivre = fundoDaArte(ctx, { w, h, t: i * 1.7, local: 99, arte, tema, telas, i, modo: "carrossel" });
   marcaNoTopo(ctx, 80, 80, empresa);
   ctx.font = "600 34px Inter";
-  ctx.fillStyle = MARCA.suave;
+  ctx.fillStyle = tinta.suave;
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
   ctx.fillText(`${i + 1}/${telas.length}`, w - 80, 113);
   ctx.textAlign = "left";
-  desenharCena(ctx, { w, h, telas, i, local: 99, dur: 99, tema, modo: "carrossel", estrutura: post.conteudo.estrutura });
+  desenharCena(ctx, { w, h, telas, i, local: 99, dur: 99, tema, modo: "carrossel", estrutura: post.conteudo.estrutura, topoLivre });
   // Pontinhos de progresso no rodapé.
   telas.forEach((_, j) => {
-    ctx.fillStyle = j === i ? "#fff" : "rgba(255,255,255,.28)";
+    ctx.fillStyle = j === i ? tinta.forte : tinta.fraca;
     ctx.beginPath();
     ctx.roundRect(80 + j * 34, h - 80, j === i ? 24 : 12, 12, 6);
     ctx.fill();
   });
+  tinta = TINTA_CLARA;
 }
 
 // ---------- Reels ----------
@@ -513,7 +839,8 @@ export const duracaoReels = (post, duracoes = duracoesDasCenas(post)) => duracoe
 export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duracoes = duracoesDasCenas(post) } = {}) {
   const [w, h] = TAMANHOS_POST.reels;
   const telas = telasDoPost(post);
-  const tema = temaDoPost(post);
+  const { arte, tema, tinta: cor } = aparencia(post);
+  tinta = cor;
   let inicio = 0;
   let i = 0;
   while (i < telas.length - 1 && t >= inicio + duracoes[i]) inicio += duracoes[i++];
@@ -522,7 +849,7 @@ export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duraco
   const ultima = i === telas.length - 1;
   const visual = telas[i].visual;
 
-  fundo(ctx, w, h, t, tema);
+  const topoLivre = fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo: "reels" });
 
   // Entrada e saída de cada cena: chega com zoom e sai encolhendo (a última fica).
   const entra = suave(local / 0.22);
@@ -538,9 +865,10 @@ export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duraco
   ctx.translate(w / 2 + dx, h * 0.45 + dy);
   ctx.scale(escala, escala);
   ctx.translate(-w / 2, -h * 0.45);
-  desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo: "reels", estrutura: post.conteudo.estrutura });
+  desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo: "reels", estrutura: post.conteudo.estrutura, topoLivre });
   ctx.restore();
   ctx.globalAlpha = 1;
+  if (post.conteudo.comFelipe) felipeNoVideo(ctx, { w, local, tela: telas[i], tema });
 
   // Clarão na troca para as cenas fortes.
   if (forte && local < 0.25) {
@@ -552,10 +880,11 @@ export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duraco
   const larg = (w - 120 - (telas.length - 1) * 12) / telas.length;
   telas.forEach((_, j) => {
     const x = 60 + j * (larg + 12);
-    ctx.fillStyle = "rgba(255,255,255,.25)";
+    ctx.fillStyle = tinta.fraca;
     ctx.fillRect(x, 70, larg, 8);
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = tinta.forte;
     ctx.fillRect(x, 70, larg * (j < i ? 1 : j > i ? 0 : lim(local / dur)), 8);
   });
   marcaNoTopo(ctx, 60, 120, empresa);
+  tinta = TINTA_CLARA;
 }

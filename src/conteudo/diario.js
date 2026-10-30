@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { gerarPost, PILARES, ESTRUTURAS } from "../ia/conteudo.js";
+import { gerarPost, PILARES, ESTRUTURAS, PUBLICOS, TONS } from "../ia/conteudo.js";
+import { colocarFotos } from "./fotos.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { lerBaseDeConteudo } from "./base.js";
 import { postarNoInstagram, MAX_TENTATIVAS } from "./instagram.js";
@@ -11,7 +12,7 @@ const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { ti
 
 // Dois posts por dia, às 12h e às 18h (Brasília), alternando Reels e carrossel. Ajustável no painel.
 // Com o Instagram conectado, cada um sai sozinho no perfil no seu horário.
-export const CONTEUDO_PADRAO = { ativo: true, horarios: [12, 18], postarSozinho: true };
+export const CONTEUDO_PADRAO = { ativo: true, horarios: [12, 18], postarSozinho: true, apresentador: true };
 // O agendador do banco passa a cada 15 minutos; o post é criado na passagem logo antes do horário.
 const ANTECEDENCIA_MIN = 15;
 // Se o sistema estava parado no horário, o post ainda é criado até 2 horas depois; mais que isso, pula.
@@ -72,7 +73,7 @@ export function estruturaDoPost(dia, n = 0) {
  * Cria um post para hoje. `formato` fixo serve para "gerar outro" no lugar de um post; `horario`
  * é o horário do dia em que ele sai (sem horário, entra no próximo horário vago).
  */
-export async function criarPostDeHoje(campanha, { formato, horario = null, escrever = gerarPost, agora = new Date(), sorteio = Math.random } = {}) {
+export async function criarPostDeHoje(campanha, { formato, horario = null, escrever = gerarPost, agora = new Date(), sorteio = Math.random, fotos = colocarFotos } = {}) {
   const { dia } = agoraEmBrasilia(agora);
   const recentes = await db.postsRecentes(30);
   const deHoje = await db.postsDoDia(dia);
@@ -80,13 +81,62 @@ export async function criarPostDeHoje(campanha, { formato, horario = null, escre
   const escolhido = formato ?? escolha.formato;
   const { pilar, estrutura } = escolha;
   const base = await lerBaseDeConteudo();
-  const conteudo = await escrever({
-    campanha, formato: escolhido, pilar, estrutura, base, aprendizados: escolha.aprendizados,
+  const conf = await lerConfigConteudo();
+  const variedade = escolherVariedade(recentes, { formato: escolhido, apresentador: conf.apresentador, sorteio });
+  const pedido = {
+    campanha, formato: escolhido, pilar, estrutura, base, aprendizados: escolha.aprendizados, ...variedade,
     recentes: recentes.slice(0, 20).map((p) => ({ tema: p.tema, gancho: p.conteudo?.gancho ?? "" })),
-  });
+  };
+  let escrito = await escrever(pedido);
+  // Saiu parecido demais com um post recente: pede outro, uma vez, dizendo com qual ficou igual.
+  const parecido = ganchoParecido(escrito.gancho, recentes);
+  if (parecido) {
+    log(`🔁 Gancho parecido com um post recente ("${parecido}"); a IA escreve outro`);
+    escrito = await escrever({ ...pedido, aviso: `o gancho "${escrito.gancho}" ficou parecido demais com "${parecido}". Escreva outro assunto, com outro gancho.` });
+  }
+  const conteudo = await fotos({ ...escrito, ...variedade }, { formato: escolhido, dia });
   const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo, horario });
-  log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}, ${estrutura}${escolha.peloDesempenho ? ", pelos insights" : ""}): ${conteudo.tema}`);
+  log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}, ${estrutura}, ${variedade.publico}, ${variedade.tom}, arte ${variedade.arte}${variedade.comFelipe ? ", com Felipe" : ""}${escolha.peloDesempenho ? ", pelos insights" : ""}): ${conteudo.tema}`);
   return db.buscarPost(id);
+}
+
+const ARTES_DOS_POSTS = ["foto_cheia", "dividido", "claro", "cor", "escuro"];
+
+/** Sorteia entre as opções que não apareceram nos últimos posts. */
+function sortearSemRepetir(opcoes, usados, sorteio) {
+  const livres = opcoes.filter((o) => !usados.includes(o));
+  const lista = livres.length ? livres : opcoes;
+  return lista[Math.floor(sorteio() * lista.length) % lista.length];
+}
+
+/**
+ * Para quem o post fala, o tom e o estilo visual: cada um fora dos últimos posts, para o feed não repetir.
+ * O Felipe aparece em um Reels sim, um não.
+ */
+export function escolherVariedade(recentes, { formato, apresentador = true, sorteio = Math.random } = {}) {
+  const de = (campo, n) => recentes.slice(0, n).map((p) => p.conteudo?.[campo]).filter(Boolean);
+  const ultimoReels = recentes.find((p) => p.formato === "reels");
+  return {
+    publico: sortearSemRepetir(Object.keys(PUBLICOS), de("publico", 8), sorteio),
+    tom: sortearSemRepetir(Object.keys(TONS), de("tom", 4), sorteio),
+    arte: sortearSemRepetir(ARTES_DOS_POSTS, de("arte", 3), sorteio),
+    comFelipe: formato === "reels" && apresentador !== false && !ultimoReels?.conteudo?.comFelipe,
+  };
+}
+
+const palavrasDe = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().match(/[a-z0-9]{3,}/g) ?? [];
+
+/** O gancho recente com que este ficou parecido (mesmo começo ou metade das palavras iguais), ou null. */
+export function ganchoParecido(gancho, recentes) {
+  const novo = palavrasDe(gancho);
+  if (!novo.length) return null;
+  for (const p of recentes.slice(0, 14)) {
+    const velho = palavrasDe(p.conteudo?.gancho);
+    if (!velho.length) continue;
+    const comuns = novo.filter((x) => velho.includes(x)).length;
+    if (novo.slice(0, 2).join(" ") === velho.slice(0, 2).join(" ") || comuns / Math.min(novo.length, velho.length) >= 0.5) return p.conteudo.gancho;
+  }
+  return null;
 }
 
 // Mesmo com os insights, 1 em cada 4 posts segue o rodízio normal: assim os assuntos e estruturas que

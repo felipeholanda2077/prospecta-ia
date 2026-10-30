@@ -191,6 +191,14 @@ Em **Configurações → Formulário do site** estão:
 
 O site também pode mandar o próprio formulário para `POST /contato` (JSON, de qualquer domínio) com os campos `nome`, `empresa`, `whatsapp`, `email`, `servico`, `mensagem`, `origem` e `consentimento: true`. Contra robôs: campo escondido (`site`), tempo mínimo de preenchimento (`t`, o horário em que a página abriu), um envio a cada 20 s por IP e a mesma pessoa só uma vez a cada 10 minutos.
 
+## Variedade e fotos nos posts
+
+Cada post novo nasce com um público (clínica, restaurante, loja...), um tom (provocador, história, conta simples...) e um estilo visual (foto de fundo, foto no topo, fundo claro, fundo colorido ou fundo escuro), sempre fora dos usados nos últimos posts. Se o gancho sair parecido com o de um post recente, a IA escreve outro.
+
+- **Fotos reais:** a IA descreve a cena de cada tela e o sistema busca a foto. Com a chave grátis do [Pexels](https://www.pexels.com/api/) (em **Instagram → Configurações** ou `PEXELS_API_KEY`), vêm fotos profissionais. Sem ela, vêm do Wikimedia Commons, só com licença que permite o uso, e o crédito exigido entra na legenda. Foto que não for achada só fica de fora.
+- **Elementos visuais:** ilustrações animadas nas telas sem foto (celular, site, gráfico, agenda, estrelas, notificações).
+- **Felipe nos vídeos:** em um Reels sim, um não, a foto dele aparece com o nome, e as falas são em primeira pessoa. Dá para desligar em **Instagram → Configurações**. Não é um avatar falando: isso exigiria um serviço pago, como HeyGen ou D-ID.
+
 ## Insights do Instagram
 
 Em **Conteúdo → Desempenho no Instagram** aparecem os números do perfil: seguidores (e o ganho na semana), alcance médio, engajamento e, post a post, alcance, curtidas, comentários, salvamentos e compartilhamentos (e o tempo médio assistido nos Reels). Os posts feitos fora do sistema também entram. O sistema lê os insights sozinho a cada 6 horas (ou no botão **Atualizar agora**), pelo mesmo token dos posts, que precisa de `instagram_manage_insights`.

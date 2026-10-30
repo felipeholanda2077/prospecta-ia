@@ -29,6 +29,35 @@ export const ESTRUTURAS = {
   comparacao: "X vs Y: compara duas escolhas (ex.: só Instagram x site próprio, planilha x sistema). Visual \"contraste\" e um veredito honesto no fim.",
 };
 
+// Para quem o post fala: muda o exemplo, a cena e as fotos, e um post não parece o outro.
+export const PUBLICOS = {
+  clinica: "clínicas e consultórios (dentista, estética, médico): agenda, faltas, confirmação de consulta",
+  restaurante: "restaurantes, lanchonetes e delivery: pedidos, cardápio, horário de pico",
+  loja: "lojas de roupas e varejo: vitrine, estoque, venda pelo Instagram",
+  beleza: "salões de beleza e barbearias: agenda cheia, encaixe, cliente que some",
+  oficina: "oficinas mecânicas e autopeças: orçamento, aviso de carro pronto",
+  escritorio: "escritórios de advocacia e contabilidade: prazos, documentos, atendimento",
+  imobiliaria: "imobiliárias e corretores: visitas, leads, fotos de imóveis",
+  academia: "academias e estúdios: matrícula, frequência, renovação",
+  petshop: "pet shops e clínicas veterinárias: banho e tosa, vacina, retorno",
+  escola: "escolas e cursos: matrícula, comunicado aos pais, inadimplência",
+  construtora: "construtoras e prestadores de serviço: obra, orçamento, cronograma",
+  startup: "quem tem uma ideia de app ou sistema e não sabe por onde começar",
+};
+
+// O jeito de falar, em rodízio próprio.
+export const TONS = {
+  provocador: "provocador: contraria o que todo mundo acha, com opinião clara",
+  didatico: "didático: ensina como um professor paciente, com um exemplo do dia a dia",
+  humor: "bem-humorado: situação engraçada que o dono de empresa reconhece na hora",
+  historia: "história curta: começa no meio de uma cena (\"Segunda, 8h. O telefone não para.\") sem inventar cliente real",
+  conta: "conta simples: mostra uma conta de cabeça com números hipotéticos, deixando claro que é um exemplo",
+  bastidor: "bastidor em primeira pessoa: como eu, Felipe, penso e resolvo isso nos projetos",
+  direto: "direto ao ponto: frases curtíssimas, sem rodeio, como um conselho de amigo",
+};
+
+export const ELEMENTOS_VISUAIS = ["celular", "navegador", "grafico", "calendario", "estrelas", "notificacao", "nenhum"];
+
 export const FORMATOS = {
   reels: "Reels (vídeo vertical curto com texto animado, trilha e narração por voz)",
   carrossel: "Carrossel de imagens (o formato que mais gera salvamentos e compartilhamentos)",
@@ -43,7 +72,10 @@ const PostSchema = z.object({
   tema: z.string(),
   gancho: z.string(),
   trilha: z.enum(TRILHAS),
-  slides: z.array(z.object({ visual: z.enum(VISUAIS), titulo: z.string(), texto: z.string(), destaque: z.string(), fala: z.string() })),
+  slides: z.array(z.object({
+    visual: z.enum(VISUAIS), titulo: z.string(), texto: z.string(), destaque: z.string(), fala: z.string(),
+    busca_imagem: z.string(), elemento: z.enum(ELEMENTOS_VISUAIS),
+  })),
   legenda: z.string(),
   hashtags: z.array(z.string()),
   hashtags_extras: z.array(z.string()),
@@ -67,8 +99,10 @@ const POST_JSON_SCHEMA = {
           texto: { type: "string", description: "complemento curto, no máximo 20 palavras (pode ficar vazio na capa e no impacto)" },
           destaque: { type: "string", description: "uma ou duas palavras do título que aparecem coloridas (copiadas exatamente do título)" },
           fala: { type: "string", description: "o que a voz diz nesta cena do Reels: 1 frase falada, natural, que acompanha o que aparece na tela (sem repetir a tela palavra por palavra). Capa e impacto: até 10 palavras; as outras: de 6 a 18. No carrossel: vazio" },
+          busca_imagem: { type: "string", description: "em inglês, de 3 a 6 palavras: a foto real que combina com esta tela, descrevendo uma cena concreta com pessoas ou um lugar do público de hoje (ex.: \"dentist talking to patient clinic\", \"busy restaurant kitchen chef\"). Use em pelo menos 3 telas, sempre cenas diferentes; vazio nas outras. Nada de logos, telas de computador genéricas ou texto na imagem" },
+          elemento: { type: "string", enum: ELEMENTOS_VISUAIS, description: "ilustração animada na tela, em telas sem foto: celular (conversa), navegador (site), grafico (crescimento), calendario (agenda), estrelas (avaliação), notificacao (avisos). Varie; \"nenhum\" se a tela tem busca_imagem" },
         },
-        required: ["visual", "titulo", "texto", "destaque", "fala"],
+        required: ["visual", "titulo", "texto", "destaque", "fala", "busca_imagem", "elemento"],
         additionalProperties: false,
       },
     },
@@ -128,8 +162,9 @@ Hashtags: as de mais alcance no Brasil para o tema, misturando 2 bem amplas (ex.
  * Escreve o post: tema, gancho, telas (do carrossel ou cenas do Reels, com a fala de cada uma),
  * clima da trilha, legenda e hashtags. `recentes` são os posts dos últimos dias, para não repetir.
  */
-export async function gerarPost({ campanha, formato, pilar, estrutura = "lista", base, recentes = [], aprendizados = null }) {
+export async function gerarPost({ campanha, formato, pilar, estrutura = "lista", base, recentes = [], aprendizados = null, publico = null, tom = null, comFelipe = false, aviso = "" }) {
   const usados = recentes.map((r) => (typeof r === "string" ? { tema: r } : r));
+  const primeiras = [...new Set(usados.slice(0, 12).map((p) => String(p.gancho ?? "").split(/\s+/)[0]).filter(Boolean))];
   // O que os insights do perfil mostraram: o que repetir e o que evitar.
   const doPerfil = aprendizados ? `O que os números do Instagram do perfil mostram (siga isto):
 ${aprendizados.fazer_mais.map((x) => `- Faça mais: ${x}`).join("\n")}
@@ -138,7 +173,7 @@ ${aprendizados.ganchosQueFuncionaram?.length ? `Ganchos dos posts que mais deram
   const pedido = `${doPerfil}Formato: ${FORMATOS[formato]}
 Assunto de hoje (linha editorial): ${PILARES[pilar]}
 Estrutura do roteiro: ${ESTRUTURAS[estrutura] ?? ESTRUTURAS.lista}
-${usados.length ? `Posts dos últimos dias (não repita o tema nem o jeito do gancho):\n${usados.map((p) => `- ${p.tema}${p.gancho ? ` | gancho: "${p.gancho}"` : ""}`).join("\n")}\n` : ""}
+${publico ? `Público deste post: ${PUBLICOS[publico] ?? publico}. Os exemplos, as cenas e as fotos são desse tipo de negócio.\n` : ""}${tom ? `Tom deste post: ${TONS[tom] ?? tom}.\n` : ""}${comFelipe ? "Neste Reels o Felipe aparece na tela como apresentador: as falas são dele, em primeira pessoa, como quem conversa com a câmera.\n" : ""}${usados.length ? `Posts dos últimos dias. Este post tem que parecer de outro assunto e de outro jeito: não repita o tema, o jeito do gancho, a chamada final nem as mesmas frases:\n${usados.map((p) => `- ${p.tema}${p.gancho ? ` | gancho: "${p.gancho}"` : ""}`).join("\n")}\n` : ""}${primeiras.length ? `O gancho não pode começar com: ${primeiras.join(", ")}.\n` : ""}${aviso ? `Atenção: ${aviso}\n` : ""}
 Crie o post.`;
   const r = await gerarJson({
     system: montarSistema(campanha, base), pedido, jsonSchema: POST_JSON_SCHEMA, zodSchema: PostSchema, modelo: config.conteudo.model,
@@ -151,6 +186,7 @@ Crie o post.`;
     // A capa e a chamada ficam sempre no começo e no fim, mesmo se a IA trocar.
     visual: i === 0 ? "capa" : i === todas.length - 1 ? "cta" : ["capa", "cta"].includes(s.visual) ? "texto" : s.visual,
     fala: formato === "reels" ? s.fala : "",
+    elemento: s.elemento === "nenhum" || s.busca_imagem ? null : s.elemento,
   }));
   return {
     ...r,

@@ -3,11 +3,12 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
+import { createCanvas, GlobalFonts, loadImage } from "@napi-rs/canvas";
 import ffmpeg from "ffmpeg-static";
 import {
-  usarCanvas, TAMANHOS_POST, telasDoPost, duracoesDasCenas, desenharTelaCarrossel, desenharQuadroReels,
+  usarCanvas, TAMANHOS_POST, telasDoPost, duracoesDasCenas, desenharTelaCarrossel, desenharQuadroReels, carregarFotosDoPost, APRESENTADOR, LOGO,
 } from "../../public/post-desenho.js";
+import * as db from "../db.js";
 import { gerarTrilha, wav, TAXA } from "./trilha.js";
 import { narrarCenas, faixaDaVoz, TAXA_VOZ } from "./narracao.js";
 
@@ -25,9 +26,20 @@ function preparar() {
   preparado = true;
 }
 
+const PUBLICO = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "public");
+
+/** As fotos do post, do banco (o apresentador e a logo vêm de arquivo). */
+const carregarFoto = async (chave) => {
+  if (chave === APRESENTADOR) return loadImage(await fs.readFile(path.join(PUBLICO, "felipe-holanda.jpg")));
+  if (chave === LOGO) return loadImage(await fs.readFile(path.join(PUBLICO, "fluxdeck-logo.jpg")));
+  const midia = await db.lerMidia(chave);
+  return midia ? loadImage(Buffer.from(midia.dados)) : null;
+};
+
 /** As telas do carrossel em JPEG (o único formato de imagem que o Instagram aceita pela API). */
 export async function imagensDoCarrossel(post, empresa) {
   preparar();
+  await carregarFotosDoPost(post, carregarFoto);
   const [w, h] = TAMANHOS_POST.carrossel;
   return Promise.all(telasDoPost(post).map((_, i) => {
     const c = createCanvas(w, h);
@@ -59,6 +71,7 @@ export function duracoesDoVideo(post, falas) {
  */
 export async function videoDoReels(post, empresa, { narrar = narrarCenas } = {}) {
   preparar();
+  await carregarFotosDoPost(post, carregarFoto);
   const falas = await narrar(post).catch((e) => {
     log(`⚠️  Reels sem narração: ${e.message}`);
     return null;
@@ -68,7 +81,7 @@ export async function videoDoReels(post, empresa, { narrar = narrarCenas } = {})
   const duracao = duracoes.reduce((a, b) => a + b, 0);
   const trilha = gerarTrilha({ clima: post.conteudo.trilha, duracao: duracao + 0.2, cortes: inicios, semente: Number(post.id) || 1 });
   const audio = { trilha: wav([trilha.esquerda, trilha.direita], TAXA), voz: falas ? wav([faixaDaVoz(falas, inicios.map((t) => t + 0.12), duracao + 0.2)], TAXA_VOZ) : null };
-  // Texto animado sobre fundo escuro comprime bem; o teto de bitrate garante que cabe no limite.
+  // O teto de bitrate garante que cabe no limite, mesmo com foto em movimento (que comprime pior).
   let kbps = Math.min(3200, Math.floor((TAMANHO_MAXIMO * 8) / duracao / 1000) - AUDIO_KBPS - 40);
   for (let tentativa = 0; tentativa < 3; tentativa++) {
     const video = await gravar(post, empresa, { duracoes, duracao, kbps, audio });

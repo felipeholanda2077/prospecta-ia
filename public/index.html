@@ -1096,7 +1096,12 @@
               <span>Inclusive sábado e domingo. O post fica pronto 15 minutos antes do horário e você recebe um aviso por e-mail.</span></div></label>
             <label class="chave"><input type="checkbox" name="postarSozinho"><div><b>Postar sozinho no Instagram</b>
               <span>Em cada horário abaixo, um post é publicado no perfil conectado. Um post criado pelos botões entra no próximo horário vago do dia.</span></div></label>
+            <label class="chave"><input type="checkbox" name="apresentador"><div><b>Felipe nos vídeos</b>
+              <span>Em um Reels sim, um não, a sua foto aparece no vídeo com o nome, e as falas são escritas em primeira pessoa.</span></div></label>
             <div id="conteudo-voz"></div>
+            <div class="campo"><label for="conteudo-pexels">Chave do Pexels, para fotos profissionais (grátis, opcional) <span id="conteudo-pexels-status"></span></label>
+              <input id="conteudo-pexels" name="pexels" type="password" autocomplete="off">
+              <span class="muted" style="font-size:12.5px">Crie em pexels.com/api. Sem ela, as fotos vêm do Wikimedia Commons: reais e grátis, mas nem sempre tão bonitas.</span></div>
             <div class="campo"><span class="rotulo">Horários dos posts (até 4 por dia)</span>
               <div class="filtros" id="conteudo-horarios" role="group" aria-label="Horários dos posts" style="margin:0;flex-wrap:wrap"></div></div>
             <div class="campo"><label for="conteudo-base">Base de conteúdo (tirada do site fluxdeck.vercel.app)</label>
@@ -3436,8 +3441,16 @@ document.addEventListener("click", (ev) => {
 // ===================== Conteúdo (Instagram) =====================
 // Prévias, downloads e a postagem no Instagram dos posts criados pela IA.
 // O desenho fica em /post-desenho.js: o servidor usa o mesmo arquivo para postar sozinho no Instagram.
-let TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels;
-const desenhoPronto = import("/post-desenho.js").then((m) => ({ TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels } = m));
+let TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels, carregarFotosDoPost, APRESENTADOR, LOGO;
+const desenhoPronto = import("/post-desenho.js").then((m) => ({ TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels, carregarFotosDoPost, APRESENTADOR, LOGO } = m));
+
+/** Uma foto do post, no navegador (a do apresentador é pública; as outras, pela rota com login). */
+const carregarFotoNoPainel = (chave) => new Promise((ok, falhou) => {
+  const img = new Image();
+  img.onload = () => ok(img);
+  img.onerror = falhou;
+  img.src = chave === APRESENTADOR ? "/felipe-holanda.jpg" : chave === LOGO ? "/fluxdeck-logo.jpg" : `/api/foto/${encodeURIComponent(chave)}`;
+});
 const NOMES_ESTRUTURA = { lista: "Lista", pare_de: "Pare de", pov: "POV", pergunta: "Pergunta", mito_verdade: "Mito x verdade",
   antes_depois: "Antes x depois", passo_a_passo: "Passo a passo", segredo: "O que ninguém conta", comparacao: "X vs Y" };
 const NOMES_TRILHA = { energica: "trilha enérgica", tensa: "trilha tensa", inspiradora: "trilha inspiradora", groove: "trilha groove" };
@@ -3521,6 +3534,7 @@ function desenharResumoIg() {
     : "Os posts automáticos estão desligados. Ligue na aba Configurações, ou crie um agora.";
 }
 
+const NOMES_ARTE = { foto_cheia: "foto de fundo", dividido: "foto no topo", claro: "fundo claro", cor: "fundo colorido", escuro: "fundo escuro" };
 const NOMES_FORMATO = { reels: "Reels", carrossel: "Carrossel", imagem: "Imagem" };
 const numero = (n) => (n == null ? "–" : Number(n).toLocaleString("pt-BR"));
 
@@ -3703,7 +3717,7 @@ function cardPost(post, hoje) {
     <div class="cartao-cab"><span class="kpi-ic">${ic(reels ? "video" : "image")}</span>
       <div class="titulos"><h3>${esc(c.gancho)} ${situacao}</h3>
         <div class="meta">${[quando, reels ? "Reels" : `Carrossel com ${telasDoPost(post).length} imagens`, NOMES_PILAR[post.pilar] ?? post.pilar,
-          NOMES_ESTRUTURA[c.estrutura], reels && NOMES_TRILHA[c.trilha], reels && (estadoConteudo.narracao ? "com voz" : "sem voz")].filter(Boolean).map(esc).join(" · ")}</div></div></div>
+          NOMES_ESTRUTURA[c.estrutura], NOMES_ARTE[c.arte], reels && NOMES_TRILHA[c.trilha], reels && (estadoConteudo.narracao ? "com voz" : "sem voz"), c.comFelipe && "com Felipe"].filter(Boolean).map(esc).join(" · ")}</div></div></div>
     <div class="cartao-corpo post-corpo">
       <div class="post-previa">${previa}
         ${reels ? `<span class="post-progresso" data-progresso></span>` : `<span class="muted" style="font-size:12.5px">Arraste para ver todas as imagens</span>`}</div>
@@ -3745,6 +3759,9 @@ async function carregarConteudo() {
     desenharResumoIg();
     f.ativo.checked = r.config.ativo;
     f.postarSozinho.checked = r.config.postarSozinho;
+    f.apresentador.checked = r.config.apresentador !== false;
+    $("#conteudo-pexels-status").innerHTML = r.pexels ? `<span class="pilula ok">${ic("check", "sm")}Salva</span>` : "";
+    f.pexels.placeholder = r.pexels ? "•••••••• já salva (preencha só para trocar)" : "Cole a chave do Pexels";
     $$("#conteudo-horarios [data-hora]").forEach((b) => b.setAttribute("aria-pressed", String(r.config.horarios.includes(Number(b.dataset.hora)))));
     $("#instagram-status").innerHTML = r.instagram.conectado
       ? `<span class="pilula ok">${ic("check", "sm")}@${esc(r.instagram.usuario)}</span>${pilulaDoToken(r.instagram)}`
@@ -3763,6 +3780,7 @@ async function carregarConteudo() {
       ? r.posts.map((p) => cardPost(p, r.hoje)).join("")
       : `<div class="cartao cartao-corpo muted">Ainda não há posts. O primeiro fica pronto hoje às ${listaDeHoras(r.config.horarios)}, ou crie um agora pelos botões acima.</div>`;
     await fontesProntas();
+    await Promise.all(r.posts.map((p) => carregarFotosDoPost(p, carregarFotoNoPainel)));
     $$("canvas[data-tela]").forEach((c) => {
       const [id, i] = c.dataset.tela.split(":");
       desenharTelaCarrossel(c.getContext("2d"), postsCarregados.find((p) => String(p.id) === id), Number(i), sessao?.empresa);
@@ -3845,7 +3863,7 @@ $("#form-conteudo").addEventListener("submit", async (ev) => {
   const f = ev.target;
   const horarios = $$("#conteudo-horarios [aria-pressed=true]").map((b) => Number(b.dataset.hora));
   try {
-    await api("/api/conteudo/config", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, horarios, postarSozinho: f.postarSozinho.checked, base: f.base.value }) });
+    await api("/api/conteudo/config", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, horarios, postarSozinho: f.postarSozinho.checked, apresentador: f.apresentador.checked, pexels: f.pexels.value, base: f.base.value }) });
     const sozinho = f.postarSozinho.checked && estadoConteudo.instagram.conectado;
     const quando = listaDeHoras(horarios);
     avisar(!f.ativo.checked ? "Posts do dia desligados." : sozinho ? `Pronto: todo dia às ${quando} um post novo sai no Instagram.` : `Pronto: todo dia às ${quando} um post novo fica pronto aqui.`, "ok");

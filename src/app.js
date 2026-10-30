@@ -23,6 +23,7 @@ import { rodadaDeConteudo, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia, 
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { narracaoDisponivel } from "./conteudo/narracao.js";
+import { lerChavePexels, salvarChavePexels } from "./conteudo/fotos.js";
 import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados } from "./conteudo/insights.js";
 import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect } from "./envio/instagram.js";
 import { processarWebhookInstagram } from "./respostas/instagram.js";
@@ -763,7 +764,7 @@ app.get("/api/conteudo", async (req, res) => {
   const conf = await lerConfigConteudo();
   res.json({
     config: conf, base: await lerBaseDeConteudo(), hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14),
-    instagram: await statusDaConexao(), narracao: narracaoDisponivel(),
+    instagram: await statusDaConexao(), narracao: narracaoDisponivel(), pexels: Boolean(await lerChavePexels()),
   });
 });
 
@@ -771,7 +772,8 @@ app.put("/api/conteudo/config", async (req, res) => {
   const horarios = normalizarHorarios(req.body?.horarios ?? req.body?.horario);
   if (!horarios.length) return res.status(400).json({ erro: "Escolha ao menos um horário entre 6h e 23h" });
   if (horarios.length > 4) return res.status(400).json({ erro: "Escolha no máximo 4 horários por dia" });
-  await db.gravarConfig("conteudo", { ativo: req.body?.ativo !== false, horarios, postarSozinho: req.body?.postarSozinho !== false });
+  await db.gravarConfig("conteudo", { ativo: req.body?.ativo !== false, horarios, postarSozinho: req.body?.postarSozinho !== false, apresentador: req.body?.apresentador !== false });
+  if (String(req.body?.pexels ?? "").trim()) await salvarChavePexels(req.body.pexels);
   if (typeof req.body?.base === "string") await gravarBaseDeConteudo(req.body.base);
   res.json({ ok: true });
 });
@@ -809,6 +811,14 @@ app.get("/api/conteudo/:id/video", async (req, res) => {
   if (!post || post.formato !== "reels") return res.status(404).json({ erro: "Reels não encontrado" });
   const [video] = await gerarArquivos(post, (await carregarCampanhaCompleta()).empresa.nome);
   res.set({ "Content-Type": "video/mp4", "Content-Disposition": `attachment; filename="fluxdeck-${post.dia}-reels.mp4"` }).send(video.dados);
+});
+
+// As fotos dos posts, para as prévias do painel.
+app.get("/api/foto/:chave", async (req, res) => {
+  if (!req.params.chave.startsWith("foto-")) return res.sendStatus(404);
+  const midia = await db.lerMidia(req.params.chave);
+  if (!midia) return res.sendStatus(404);
+  res.set({ "Content-Type": midia.tipo, "Cache-Control": "private, max-age=86400" }).send(midia.dados);
 });
 
 // Diagnóstico: gera os arquivos do post no servidor (sem publicar) e diz o tamanho e o tempo.
