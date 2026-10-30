@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { z } from "zod";
 import * as db from "../db.js";
 import { gerarJson } from "../ia/cliente.js";
@@ -7,13 +8,14 @@ import { gerarJson } from "../ia/cliente.js";
 //   vêm pedindo de novo sem os que já vieram);
 // - a Minha Receita traz o telefone e o e-mail cadastrados de cada CNPJ; o que ela ainda não tem
 //   (CNPJ aberto este mês) vem da API aberta da CNPJá, que aceita 5 consultas por minuto;
-// - o IBGE dá a lista de atividades (CNAE), para a IA achar a do segmento digitado.
+// - a lista de atividades (CNAE) do IBGE fica em config/cnae.json (a API do IBGE recusa acessos de fora
+//   do Brasil, como o servidor da Vercel), para a IA achar a do segmento digitado.
 const PESQUISA = "https://api.casadosdados.com.br/v5/public/cnpj/pesquisa";
 const CONSULTA = "https://minhareceita.org";
 const CONSULTA_RESERVA = "https://open.cnpja.com/office";
 // Uma consulta à CNPJá a cada 12 s, somando todas as execuções (o limite dela é 5 por minuto).
 const RITMO_RESERVA_MS = 12_000;
-const LISTA_CNAE = "https://servicodados.ibge.gov.br/api/v2/cnae/subclasses";
+const LISTA_CNAE = new URL("../../config/cnae.json", import.meta.url);
 const POR_CONSULTA = 20;
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -52,13 +54,19 @@ export function nomeDaEmpresa({ nome_fantasia, razao_social }) {
 }
 
 let listaCnae = null;
-/** As atividades do CNAE (subclasses) com a descrição, do IBGE. */
+/** As atividades do CNAE (subclasses) com a descrição, da tabela do IBGE. */
 async function atividades() {
-  if (listaCnae) return listaCnae;
-  const r = await fetch(LISTA_CNAE);
-  if (!r.ok) throw new Error(`não foi possível ler a lista de atividades do IBGE (${r.status})`);
-  listaCnae = (await r.json()).map((s) => ({ codigo: String(s.id), descricao: s.descricao }));
+  listaCnae ??= JSON.parse(await readFile(LISTA_CNAE, "utf8")).map(([codigo, descricao]) => ({ codigo, descricao }));
   return listaCnae;
+}
+
+/** fetch que diz qual fonte falhou ("fetch failed" sozinho não ajuda). */
+async function buscar(fonte, url, opcoes) {
+  try {
+    return await fetch(url, opcoes);
+  } catch (e) {
+    throw new Error(`${fonte} não respondeu (${e.cause?.code ?? e.message})`);
+  }
 }
 
 const CnaeSchema = z.object({ codigos: z.array(z.string()) });
@@ -120,15 +128,15 @@ async function pesquisar({ cnaes, municipio, uf, incluirMei, abertasHaDias, excl
     limite: POR_CONSULTA,
     pagina: 1,
   };
-  const r = await fetch(PESQUISA, { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Prospecta IA)" }, body: JSON.stringify(corpo) });
-  if (!r.ok) throw new Error(`a busca de CNPJs respondeu ${r.status}`);
+  const r = await buscar("Casa dos Dados", PESQUISA, { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0 (Prospecta IA)" }, body: JSON.stringify(corpo) });
+  if (!r.ok) throw new Error(`a busca de CNPJs (Casa dos Dados) respondeu ${r.status}`);
   const d = await r.json();
   return { total: d.total ?? 0, cnpjs: d.cnpjs ?? [] };
 }
 
 /** O cadastro completo de um CNPJ (telefone, e-mail, endereço, abertura), pela Minha Receita. */
 export async function dadosDoCnpj(cnpj) {
-  const r = await fetch(`${CONSULTA}/${String(cnpj).replace(/\D/g, "")}`);
+  const r = await buscar("Minha Receita", `${CONSULTA}/${String(cnpj).replace(/\D/g, "")}`);
   if (!r.ok) throw new Error(`a consulta do CNPJ respondeu ${r.status}`);
   const d = await r.json();
   const endereco = [[d.descricao_tipo_de_logradouro, d.logradouro].filter(Boolean).join(" "), d.numero, d.bairro, d.municipio && `${d.municipio} - ${d.uf}`]
@@ -150,7 +158,7 @@ export async function dadosDoCnpj(cnpj) {
  */
 export async function dadosDoCnpjNaReserva(cnpj) {
   if (!(await db.travar("cnpja_aberta", RITMO_RESERVA_MS))) return { semVez: true };
-  const r = await fetch(`${CONSULTA_RESERVA}/${String(cnpj).replace(/\D/g, "")}`);
+  const r = await buscar("CNPJá", `${CONSULTA_RESERVA}/${String(cnpj).replace(/\D/g, "")}`);
   if (!r.ok) throw new Error(`a consulta do CNPJ (reserva) respondeu ${r.status}`);
   const d = await r.json();
   const a = d.address ?? {};

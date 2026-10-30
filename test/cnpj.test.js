@@ -8,12 +8,6 @@ const db = await import("../src/db.js");
 const cnpj = await import("../src/descoberta/cnpj.js");
 const pipeline = await import("../src/pipeline.js");
 
-const CNAES = [
-  { id: "9602501", descricao: "CABELEIREIROS, MANICURE E PEDICURE" },
-  { id: "8630504", descricao: "ATIVIDADE ODONTOLÓGICA" },
-  { id: "4645103", descricao: "COMÉRCIO ATACADISTA DE PRODUTOS ODONTOLÓGICOS" },
-];
-
 /**
  * As três fontes de mentira: a Casa dos Dados devolve até 2 por consulta (sem os excluídos), a Minha
  * Receita tem o cadastro de quase todos e a CNPJá (reserva) tem o CNPJ aberto este mês.
@@ -34,7 +28,6 @@ function fontesFalsas() {
   const original = globalThis.fetch;
   globalThis.fetch = async (url, opcoes = {}) => {
     const u = String(url);
-    if (u.includes("servicodados.ibge.gov.br")) return Response.json(CNAES);
     if (u.includes("casadosdados")) {
       const corpo = JSON.parse(opcoes.body);
       pedidos.push(corpo);
@@ -69,9 +62,10 @@ test("cnpj: a IA acha a atividade do segmento uma vez, e o código informado val
   const fontes = fontesFalsas();
   try {
     let perguntas = 0;
-    const escolher = async ({ lista }) => (perguntas++, { codigos: ["8630504", "9999999", lista[2].codigo] });
+    const escolher = async ({ lista }) => (perguntas++, { codigos: ["8630504", "9999999", lista.find((a) => a.codigo === "4645103").codigo] });
     const achadas = await cnpj.cnaesDoSegmento("Clínica odontológica", { escolher });
     assert.deepEqual(achadas.map((c) => c.codigo), ["8630504", "4645103"]); // o código que não existe fica de fora
+    assert.equal(achadas[0].descricao, "ATIVIDADE ODONTOLÓGICA");
     await cnpj.cnaesDoSegmento("clinica odontologica", { escolher });
     assert.equal(perguntas, 1);
     assert.deepEqual((await cnpj.cnaesDoSegmento("qualquer", { cnae: "9602-5/01" })).map((c) => c.codigo), ["9602501"]);
