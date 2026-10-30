@@ -19,6 +19,10 @@ const CONSULTA_RESERVA = "https://open.cnpja.com/office";
 const RITMO_RESERVA_MS = 12_000;
 const LISTA_CNAE = new URL("../../config/cnae.json", import.meta.url);
 const POR_CONSULTA = 20;
+// A busca traz primeiro os CNPJs mais novos, e os abertos nas últimas semanas ainda não estão na base
+// que tem o telefone e o e-mail: ficam de fora, para a busca trazer empresas com contato.
+const DIAS_ATE_ENTRAR_NA_BASE = 30;
+const diasAtras = (dias) => new Date(Date.now() - dias * 86_400_000).toISOString().slice(0, 10);
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** "Fortaleza - CE", "Fortaleza, CE", "Fortaleza/CE" → { municipio: "fortaleza", uf: "ce" }. */
@@ -74,7 +78,7 @@ async function buscar(fonte, url, opcoes) {
 const CnaeSchema = z.object({ codigos: z.array(z.string()) });
 const CNAE_JSON_SCHEMA = {
   type: "object",
-  properties: { codigos: { type: "array", items: { type: "string" }, description: "1 ou 2 códigos de 7 dígitos, do mais para o menos fiel ao segmento" } },
+  properties: { codigos: { type: "array", items: { type: "string" }, description: "códigos de 7 dígitos, do mais para o menos fiel ao segmento; o primeiro é o que vale" } },
   required: ["codigos"],
   additionalProperties: false,
 };
@@ -85,9 +89,8 @@ async function escolherComIA({ nicho, lista }) {
     system: `Você conhece a tabela CNAE do Brasil. Escolha as atividades (subclasses) que uma empresa desse segmento declara
 como atividade principal no CNPJ. É o negócio que atende o cliente final do segmento: nada de fábrica, atacado,
 representante comercial, laboratório ou fornecedor do segmento, a não ser que o próprio segmento seja isso.
-Na maioria das vezes é UMA atividade. Só inclua uma segunda se ela for o mesmo tipo de negócio com outro nome na
-tabela (ex.: barbearia e salão estão em "cabeleireiros"; loja de roupas pode ser vestuário ou roupas íntimas).
-Use só códigos da lista.`,
+O primeiro código é o que vai ser usado na busca: ponha primeiro a atividade que a maioria das empresas desse
+segmento declara. Use só códigos da lista.`,
     pedido: `Segmento: ${nicho}\n\nAtividades (código: descrição):\n${lista.map((a) => `${a.codigo}: ${a.descricao.slice(0, 90)}`).join("\n")}`,
     jsonSchema: CNAE_JSON_SCHEMA,
     zodSchema: CnaeSchema,
@@ -95,7 +98,7 @@ Use só códigos da lista.`,
   });
 }
 
-const chaveCnae = (nicho) => `cnae_do_segmento_v2:${String(nicho).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()}`;
+const chaveCnae = (nicho) => `cnae_do_segmento_v3:${String(nicho).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim()}`;
 
 /**
  * As atividades (CNAE) do segmento: as que você informou, ou as que a IA escolheu (guardadas
@@ -113,7 +116,7 @@ export async function cnaesDoSegmento(nicho, { cnae = "", escolher = escolherCom
   const salvo = await db.lerEstado(chaveCnae(nicho));
   if (salvo) return JSON.parse(salvo);
   const { codigos } = await escolher({ nicho, lista });
-  const achados = [...new Set(codigos.map((c) => String(c).replace(/\D/g, "")))].filter((c) => porCodigo.has(c)).slice(0, 2).map((c) => porCodigo.get(c));
+  const achados = [...new Set(codigos.map((c) => String(c).replace(/\D/g, "")))].filter((c) => porCodigo.has(c)).slice(0, 1).map((c) => porCodigo.get(c));
   if (!achados.length) throw new Error(`não achei a atividade (CNAE) de "${nicho}"; informe o código do CNAE`);
   await db.gravarEstado(chaveCnae(nicho), JSON.stringify(achados));
   return achados;
@@ -127,7 +130,7 @@ async function pesquisar({ cnaes, municipio, uf, incluirMei, abertasHaDias, excl
     municipio: [municipio],
     ...(uf ? { uf: [uf] } : {}),
     ...(incluirMei ? {} : { mei: { excluir_optante: true } }),
-    ...(abertasHaDias ? { data_abertura: { ultimos_dias: Number(abertasHaDias) } } : {}),
+    data_abertura: { ...(abertasHaDias ? { inicio: diasAtras(Number(abertasHaDias)) } : {}), fim: diasAtras(DIAS_ATE_ENTRAR_NA_BASE) },
     mais_filtros: { com_telefone: true, excluir_email_contab: true },
     ...(excluir.length ? { excluir: { cnpj: excluir } } : {}),
     limite: POR_CONSULTA,

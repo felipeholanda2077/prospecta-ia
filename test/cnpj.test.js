@@ -58,13 +58,13 @@ test("cnpj: cidade, telefone e nome do cadastro no formato certo", () => {
   assert.equal(cnpj.emailDeContador("contato@barbearia.com"), false);
 });
 
-test("cnpj: a IA acha a atividade do segmento uma vez, e o código informado vale sem a IA", async () => {
+test("cnpj: a IA acha a atividade principal do segmento uma vez, e o código informado vale sem a IA", async () => {
   const fontes = fontesFalsas();
   try {
     let perguntas = 0;
     const escolher = async ({ lista }) => (perguntas++, { codigos: ["8630504", "9999999", lista.find((a) => a.codigo === "4645103").codigo] });
     const achadas = await cnpj.cnaesDoSegmento("Clínica odontológica", { escolher });
-    assert.deepEqual(achadas.map((c) => c.codigo), ["8630504", "4645103"]); // o código que não existe fica de fora
+    assert.deepEqual(achadas.map((c) => c.codigo), ["8630504"]); // só a atividade principal
     assert.equal(achadas[0].descricao, "ATIVIDADE ODONTOLÓGICA");
     await cnpj.cnaesDoSegmento("clinica odontologica", { escolher });
     assert.equal(perguntas, 1);
@@ -83,6 +83,8 @@ test("cnpj: busca, completa o contato, tira o do contador e captura só quem tem
     assert.equal(fontes.pedidos.length, 2);
     assert.deepEqual(fontes.pedidos[1].excluir.cnpj, ["11111111000101", "22222222000102"]);
     assert.deepEqual([fontes.pedidos[0].municipio, fontes.pedidos[0].uf, fontes.pedidos[0].mei], [["osasco"], ["sp"], { excluir_optante: true }]);
+    // Sem as abertas nas últimas semanas (ainda sem telefone e e-mail na base).
+    assert.equal(fontes.pedidos[0].data_abertura.fim, new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10));
     const porCnpj = Object.fromEntries(r.empresas.map((e) => [e.cnpj, e]));
 
     assert.equal(porCnpj["11111111000101"].nome, "Barbearia do Zé");
