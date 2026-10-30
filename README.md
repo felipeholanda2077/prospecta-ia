@@ -177,7 +177,9 @@ Com o Instagram conectado em **Conteúdo**, a IA também conversa pelo direct da
 - **Chama no direct quem comenta nos posts**: a IA lê cada comentário e, se a pessoa pediu o que o post prometeu ("Comenta SITE que eu te mando..."), perguntou algo ou mostrou interesse, manda a mensagem privada com o conteúdo prometido e responde o comentário avisando. Elogio solto, emoji e marcação de amigo ficam sem direct.
 - As conversas aparecem em **Respostas**, junto com as do WhatsApp e do e-mail.
 
-Limites da Meta: só dá para responder quem escreveu primeiro (até 24 h depois da última mensagem da pessoa) e mandar uma mensagem privada por comentário (até 7 dias depois). Não existe direct para quem nunca falou com a conta; a prospecção continua pelo WhatsApp e pelo e-mail.
+Limites da Meta: só dá para responder quem escreveu primeiro (até 24 h depois da última mensagem da pessoa) e mandar uma mensagem privada por comentário (até 7 dias depois). A API não manda o primeiro direct para quem nunca falou com a conta.
+
+**Prospecção pelo direct, enviada por você.** Empresas encontradas sem WhatsApp nem e-mail, mas com Instagram, não são mais descartadas: a IA escreve um direct curto e personalizado (pelo perfil e pela bio), que aparece em Aprovar mensagens e na Fila com o botão **Abrir direct**. Ele copia a mensagem e abre a conversa com a empresa no Instagram; você cola, envia e confirma no painel. Quando a empresa responder, a IA continua a conversa pelo direct. O painel mostra quantos directs saíram no dia e avisa a partir de 25, porque mais que isso o Instagram costuma limitar a conta. A fila guarda no máximo 50 directs esperando; as outras empresas esperam a fila andar.
 
 Para ligar:
 1. Gere o token como para os posts, acrescentando `instagram_manage_messages`, `instagram_manage_comments` e `pages_manage_metadata`, e conecte de novo em **Conteúdo → Instagram**.

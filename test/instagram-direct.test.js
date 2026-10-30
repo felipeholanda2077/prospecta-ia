@@ -30,6 +30,7 @@ function metaFalsa({ foraDaJanela = false } = {}) {
     }
     if (u.pathname.endsWith("/replies")) return Response.json({ id: "reply-1" });
     if (u.pathname.endsWith("/1784000001")) return Response.json({ name: "Patrícia", username: "belieze" });
+    if (u.pathname.endsWith("/1784000005")) return Response.json({ name: "Pet Shop Lindo", username: "petshoplindo" });
     return Response.json({ error: { code: 100, message: "Unsupported get request" } }, { status: 400 });
   };
   return { chamadas, restaurar: () => (globalThis.fetch = original), enviados: () => chamadas.filter((c) => c.caminho === "me/messages") };
@@ -181,5 +182,45 @@ test("direct: o webhook só aceita a verificação e os eventos assinados pela M
     assert.equal((await enviar(certa)).status, 200);
   } finally {
     servidor.close();
+  }
+});
+
+test("direct manual: empresa só com Instagram ganha um direct que você envia, e a resposta cai na conversa dela", async () => {
+  const meta = metaFalsa();
+  try {
+    await db.gravarConfig("instagram", { token: "EAApagina", host: "graph.facebook.com", igId: "17841", usuario: "fluxdeck_" });
+    await instagram.salvarConfigDoDirect({ respostas: true });
+    // Descartada antes só por não ter WhatsApp nem e-mail: volta para a fila de propostas.
+    await db.inserirLead({ place_id: "ig:petshoplindo", nome: "Pet Shop Lindo", nicho: "pet shop", cidade: "Osasco", endereco: null,
+                           telefone: null, site: "https://www.instagram.com/petshoplindo/", maps_url: null, avaliacao: null, total_avaliacoes: null });
+    const lead = (await db.leadsPorStatus("novo")).find((l) => l.nome === "Pet Shop Lindo");
+    await db.atualizarLead(lead.id, { instagram: "petshoplindo", status: "descartado", observacao: "sem e-mail nem WhatsApp na bio do Instagram",
+                                      oportunidades: JSON.stringify([{ servico: "site", motivo: "sem site próprio" }]) });
+    assert.equal(await db.recuperarLeadsParaDirect(), 1);
+    assert.equal((await db.buscarLead(lead.id)).status, "analisado");
+
+    // O direct (escrito pela IA no propor) não sai pela API: espera você.
+    const id = await db.criarMensagem({ lead_id: lead.id, canal: "instagram", destino: "@petshoplindo", corpo: "Oi! Adorei os banhos.", etapa: 1, tipo: "inicial", status: "aprovada" });
+    assert.equal(await db.directsPendentes(), 1);
+    const r = await pipeline.enviarMensagem(await db.buscarMensagem(id), campanha);
+    assert.deepEqual([r.enviada, r.manual], [false, true]);
+    assert.equal(meta.enviados().length, 0);
+    assert.equal((await pipeline.enviarInstagram(campanha)).enviadas, 0);
+
+    // Você enviou pelo Instagram: conta no dia e o @ não recebe outra proposta.
+    assert.equal(await pipeline.marcarEnviadaManual(id, campanha), true);
+    assert.equal(await db.enviadasHoje("instagram", { primeiroContato: true }), 1);
+    assert.equal(await db.contatoJaUsado("@PetShopLindo", ["enviada"]), true);
+    assert.equal((await db.buscarLead(lead.id)).status, "contatado");
+
+    // A empresa responde no direct: entra na conversa dela (pelo @) e a IA responde pela API.
+    await processarWebhookInstagram(direct("1784000005", "Oi! Como funciona?", "mid.p"), campanha, { classificar: interessado, apresentar });
+    const conversa = await db.historicoConversa(lead.id);
+    assert.deepEqual(conversa.map((h) => h.autor), ["nos", "lead"]);
+    assert.equal((await db.buscarLead(lead.id)).status, "respondeu");
+    const [resposta] = await db.agendadasDaConversa(lead.id);
+    assert.equal(resposta.contato, "1784000005");
+  } finally {
+    meta.restaurar();
   }
 });

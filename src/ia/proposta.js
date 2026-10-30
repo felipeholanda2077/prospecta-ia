@@ -146,3 +146,60 @@ export async function gerarSequencia(lead, oportunidades, campanha) {
   const lista = (e) => [e.etapa1, e.etapa2, e.etapa3];
   return { ...r, email: lista(r.email), whatsapp: lista(r.whatsapp) };
 }
+
+const DirectSchema = z.object({ servico_principal: z.string(), resumo_interno: z.string(), mensagem: z.string() });
+const DIRECT_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    servico_principal: { type: "string", description: "id do serviço do catálogo mais indicado" },
+    resumo_interno: { type: "string", description: "1 frase para o vendedor explicando o ângulo da abordagem" },
+    mensagem: { type: "string", description: "o primeiro direct, pronto para colar" },
+  },
+  required: ["servico_principal", "resumo_interno", "mensagem"],
+  additionalProperties: false,
+};
+
+/** A bio do perfil, guardada na captura, para a IA citar algo do próprio perfil. */
+function bioDoInstagram(lead) {
+  try {
+    return String(JSON.parse(lead.instagram_dados ?? "{}").bio ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Primeiro direct para uma empresa que só tem o Instagram como contato. Você envia pelo seu
+ * Instagram (não existe envio automático para quem nunca falou com a conta); quando a empresa
+ * responder, a IA continua a conversa pelo direct.
+ */
+export async function escreverDirectDeProspeccao(lead, oportunidades, campanha) {
+  const bio = bioDoInstagram(lead);
+  const r = await gerarJson({
+    system: `${contextoEmpresa(campanha)}
+
+Sua tarefa: escrever o PRIMEIRO direct no Instagram para uma empresa que ainda não conhece vocês. Ele vai ser enviado
+pelo perfil da ${campanha.empresa.nome}, por uma pessoa, para o perfil da empresa. Não haverá outra mensagem se ela não responder.
+- Cumprimente e cite UMA coisa concreta e positiva do perfil dela (a bio, o tipo de trabalho, o que ela oferece).
+- Diga em poucas palavras quem você é.
+- Termine com UMA pergunta simples e aberta, ligada à oportunidade observada (ex.: como os clientes costumam agendar hoje).
+- PROIBIDO: preço, prazo, lista de serviços, link, pedido de reunião, dizer que "falta" algo à empresa, "vi que vocês não têm site".
+- No máximo 3 frases curtas (até ~300 caracteres), tom de quem segue o perfil e puxou conversa, no máximo 1 emoji, sem asteriscos.
+- Nada de cara de mensagem em massa: nada de "Olá, tudo bem? Somos uma empresa de...".`,
+    pedido: `Perfil prospectado:
+- Nome: ${lead.nome}
+- Instagram: @${lead.instagram}${linhaDoInstagram(lead).replace(/^\n- Instagram: @\S+/, "")}
+- Segmento: ${lead.nicho ?? "não informado"}
+- Cidade: ${lead.cidade ?? "não informada"}
+- Bio: ${bio || "(sem bio)"}
+- Site: ${lead.site && !/instagram\.com/.test(lead.site) ? lead.site : "não possui"}
+
+Oportunidades encontradas na análise (da mais para a menos relevante):
+${oportunidades.map((o) => `- [${o.servico}] ${o.motivo}`).join("\n")}
+
+Escreva o direct.`,
+    jsonSchema: DIRECT_JSON_SCHEMA,
+    zodSchema: DirectSchema,
+  });
+  return { ...r, mensagem: r.mensagem.trim() };
+}

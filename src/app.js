@@ -307,6 +307,7 @@ app.get("/api/sessao", async (req, res) => {
     intervaloEmpresas: [campanha.automacao.intervaloEmpresasMin, campanha.automacao.intervaloEmpresasMax],
     calendly: campanha.automacao.calendly || "",
     rodapeWhatsapp: RODAPE_WHATSAPP,
+    directs: { hoje: await db.enviadasHoje("instagram", { primeiroContato: true }), limite: pipeline.LIMITE_DIRECT_DIA },
     modoTeste: Boolean(config.modoTeste.email || config.modoTeste.whatsapp),
     dentroDoHorario: pipeline.dentroDoHorario(campanha.limites),
     nichosSugeridos: campanha.buscas.map((b) => b.nicho),
@@ -362,15 +363,18 @@ app.post("/api/maps/capturar", async (req, res) => {
 
 /** O que a empresa vai receber de fato, com o rodapé que é adicionado no envio. */
 function prepararMensagem({ token, ...m }, modo) {
-  const automatico = m.canal === "email" || modo !== "manual";
-  const rodape = m.tipo === "resposta" ? "" : m.canal === "email" ? rodapeDescadastro(token) : RODAPE_WHATSAPP;
+  // O primeiro direct do Instagram sai sempre pela sua mão: o painel abre a conversa com a empresa.
+  const directManual = m.canal === "instagram" && m.tipo !== "resposta";
+  const automatico = !directManual && (m.canal !== "whatsapp" || modo !== "manual");
+  const rodape = m.tipo === "resposta" || m.canal === "instagram" ? "" : m.canal === "email" ? rodapeDescadastro(token) : RODAPE_WHATSAPP;
   return {
     ...m,
     oportunidades: JSON.parse(m.oportunidades || "[]"),
     rodape,
     previa: m.corpo + rodape,
     envioManual: !automatico,
-    linkWhatsapp: !automatico ? linkWhatsapp(m.destino, m.corpo, m.tipo !== "resposta") : null,
+    linkWhatsapp: directManual ? `https://ig.me/m/${encodeURIComponent(m.destino.replace(/^@/, ""))}`
+      : !automatico ? linkWhatsapp(m.destino, m.corpo, m.tipo !== "resposta") : null,
   };
 }
 
@@ -422,7 +426,7 @@ app.post("/api/mensagens/:id/aprovar", async (req, res) => {
 // Sequência gradual: aprova ou descarta as 3 etapas de um lead em um canal de uma vez.
 app.post("/api/sequencias/:leadId/:canal/:acao", async (req, res) => {
   const { leadId, canal, acao } = req.params;
-  if (!["email", "whatsapp"].includes(canal)) return res.status(400).json({ erro: "Canal inválido" });
+  if (!["email", "whatsapp", "instagram"].includes(canal)) return res.status(400).json({ erro: "Canal inválido" });
   if (acao === "aprovar") return res.json(await pipeline.aprovarSequencia(leadId, canal, await carregarCampanhaCompleta()));
   if (acao === "rejeitar") {
     await pipeline.rejeitarSequencia(leadId, canal);

@@ -1392,8 +1392,33 @@ function vazio(icone, titulo, texto, acao = "") {
 
 const NOMES_ETAPA = { 1: "Primeiro contato", 2: "Se não responder", 3: "Último toque" };
 
+/** Envio pela sua mão: o WhatsApp manual, ou o primeiro direct do Instagram (que a Meta não deixa a API mandar). */
+const botaoManual = (m, atributo) => m.canal === "instagram"
+  ? `<button class="btn wa principal-acao" ${atributo}="whatsapp">${ic("camera")}Abrir direct</button>`
+  : `<button class="btn wa principal-acao" ${atributo}="whatsapp">${ic("message")}Abrir no WhatsApp</button>`;
+const ehDirect = (link) => String(link ?? "").startsWith("https://ig.me/");
+
+/**
+ * Copia o direct e abre a conversa com a empresa no Instagram (o link do direct não leva o texto).
+ * Passou da quantidade segura do dia: pergunta antes.
+ */
+async function abrirDirect(janela, link, texto) {
+  const { hoje = 0, limite = 25 } = sessao.directs ?? {};
+  if (hoje >= limite && !confirm(`Você já mandou ${hoje} directs hoje. Mais que ${limite} por dia para quem não conhece a conta, o Instagram costuma limitar a conta. Abrir mesmo assim?`)) {
+    janela?.close();
+    return false;
+  }
+  await navigator.clipboard.writeText(texto).catch(() => {});
+  if (janela) janela.location = link;
+  avisar("Mensagem copiada: cole no direct e envie", "ok", 5000);
+  return true;
+}
+
+const pilulaDirectsHoje = () => `<span class="pilula">${ic("camera", "sm")}Hoje: ${sessao.directs?.hoje ?? 0} de ${sessao.directs?.limite ?? 25} directs</span>`;
+
 function etiquetaEtapa(m) {
   if (m.tipo === "seq") return "<!--etapa-->";
+  if (m.canal === "instagram" && m.tipo !== "resposta") return `<span class="pilula">${ic("camera", "sm")}Direct único</span>${pilulaDirectsHoje()}`;
   if (m.tipo === "resposta") return `<span class="pilula acc">${ic("message", "sm")}Resposta na conversa</span>`;
   if (m.tipo === "followup") return `<span class="pilula">${ic("repeat", "sm")}Follow-up</span>`;
   return `<span class="pilula">${ic("repeat", "sm")}Etapa ${m.etapa} de 3</span>`;
@@ -1408,6 +1433,7 @@ function comLink(texto) {
 
 /** Quando uma etapa aprovada vai sair. */
 function quandoSai(m) {
+  if (m.canal === "instagram" && m.tipo !== "resposta") return "Você envia pelo botão Abrir direct";
   if (m.etapa > 1 && !m.agendada_para) return "Aguardando a etapa anterior ser enviada";
   if (m.agendada_para && new Date(m.agendada_para) > new Date()) return `Agendada para ${dataHora(m.agendada_para)} (em horário comercial)`;
   if (m.etapa <= 1 && m.tipo !== "resposta") {
@@ -1437,9 +1463,9 @@ function cabecalhoMensagem(m) {
 
 function previaHtml(m) {
   const rodape = esc(String(m.rodape ?? "").replace(/^\s+/, ""));
-  if (m.canal === "whatsapp") {
+  if (m.canal !== "email") {
     return `<div class="previa-wa">
-      <div class="wa-topo"><span class="mini">${inicial(m.empresa)}</span>${esc(m.empresa)}</div>
+      <div class="wa-topo"><span class="mini">${inicial(m.empresa)}</span>${esc(m.canal === "instagram" ? m.destino : m.empresa)}</div>
       <div class="wa-chat"><div class="wa-bolha"><span data-previa-corpo>${esc(comLink(m.corpo))}</span><span class="wa-rodape">${rodape}</span><span class="wa-hora">agora ✓✓</span></div></div>
     </div>`;
   }
@@ -1484,7 +1510,7 @@ function cardMensagem(m) {
   }
 
   const enviar = m.envioManual
-    ? `<button class="btn wa principal-acao" data-acao="whatsapp">${ic("message")}Abrir no WhatsApp</button>`
+    ? botaoManual(m, "data-acao")
     : `<button class="btn ok principal-acao" data-acao="aprovar">${ic("send")}${m.status === "aprovada" ? "Tentar enviar agora" : "Aprovar e enviar"}</button>`;
 
   return `<article class="cartao" data-id="${m.id}" data-link="${esc(m.linkWhatsapp ?? "")}">
@@ -1537,7 +1563,7 @@ function nomeDaEtapa(m) {
 /** Linha de uma etapa dentro do cartão da empresa; abre o editor com a prévia e as ações. */
 function etapaDaFila(m, aberta) {
   const enviar = m.envioManual
-    ? `<button class="btn wa principal-acao" data-acao="whatsapp">${ic("message")}Abrir no WhatsApp</button>`
+    ? botaoManual(m, "data-acao")
     : `<button class="btn ok principal-acao" data-acao="aprovar">${ic("send")}Tentar enviar agora</button>`;
   return `<details class="etapa-fila" data-id="${m.id}" data-link="${esc(m.linkWhatsapp ?? "")}" ${aberta ? "open" : ""}>
     <summary>
@@ -1588,7 +1614,8 @@ function cardFilaEmpresa(ms) {
     </div>
     <div class="fila-resumo">
       <span class="pilula">${ms.length} ${ms.length === 1 ? "mensagem" : "mensagens"} na fila</span>
-      ${canais.map((c) => `<span class="pilula ${c === "whatsapp" ? "wa" : "acc"}">${ic(c === "whatsapp" ? "message" : "mail", "sm")}${CANAL[c]}</span>`).join("")}
+      ${ms.some((x) => x.canal === "instagram" && x.tipo !== "resposta") ? pilulaDirectsHoje() : ""}
+      ${canais.map((c) => `<span class="pilula ${c === "email" ? "acc" : "wa"}">${ic(icCanal(c), "sm")}${CANAL[c]}</span>`).join("")}
       <span class="pilula">${ic("clock", "sm")}Próxima: ${esc(nomeDaEtapa(m).toLowerCase())} · ${esc(quandoSai(m).replace(" (em horário comercial)", "").replace(/^Agendada para /, ""))}</span>
     </div>
     ${oportunidades}
@@ -1634,11 +1661,12 @@ function cardSequencia(ms) {
   const primeira = ms.find((x) => x.etapa === 1) ?? m;
   const resto = ms.filter((x) => x !== primeira);
   const enviar = m.envioManual
-    ? `<button class="btn wa principal-acao" data-seq-acao="whatsapp">${ic("message")}Abrir no WhatsApp</button>`
+    ? botaoManual(m, "data-seq-acao")
     : `<button class="btn ok principal-acao" data-seq-acao="aprovar">${ic("send")}${ms.length > 1 ? "Aprovar sequência" : "Aprovar e enviar"}</button>`;
   const selo = (ms.length > 1 ? `<span class="pilula">${ic("repeat", "sm")}Sequência de ${ms.length} etapas</span>` : "") +
     (m.canal === "whatsapp" && m.whatsapp_status === "fixo" ? `<span class="pilula atencao">${ic("phone", "sm")}Número fixo: confira se tem WhatsApp</span>` : "") +
-    (m.canal === "whatsapp" && m.whatsapp_status === "verificado" ? `<span class="pilula ok">${ic("check", "sm")}WhatsApp confirmado</span>` : "");
+    (m.canal === "whatsapp" && m.whatsapp_status === "verificado" ? `<span class="pilula ok">${ic("check", "sm")}WhatsApp confirmado</span>` : "") +
+    (m.canal === "instagram" ? pilulaDirectsHoje() : "");
   return `<article class="cartao" data-seq data-lead="${m.lead_id}" data-canal="${m.canal}">
     ${cabecalhoMensagem({ ...m, tipo: "seq" }).replace("<!--etapa-->", selo)}
     ${oportunidades}
@@ -1671,12 +1699,18 @@ async function acaoSequencia(btn) {
 
   if (acao === "whatsapp") {
     const janela = window.open("about:blank", "_blank");
+    const direct = ehDirect(primeira.dataset.link);
+    if (direct) navigator.clipboard.writeText($("textarea[name=corpo]", primeira).value).catch(() => {});
     await salvarSequencia(card);
-    const base = primeira.dataset.link.split("?")[0];
-    const texto = $("textarea[name=corpo]", primeira).value + sessao.rodapeWhatsapp;
-    if (janela) janela.location = `${base}?text=${encodeURIComponent(texto)}`;
+    if (direct) {
+      if (!(await abrirDirect(janela, primeira.dataset.link, $("textarea[name=corpo]", primeira).value))) return;
+    } else {
+      const base = primeira.dataset.link.split("?")[0];
+      const texto = $("textarea[name=corpo]", primeira).value + sessao.rodapeWhatsapp;
+      if (janela) janela.location = `${base}?text=${encodeURIComponent(texto)}`;
+    }
     $("[data-botoes]", card).innerHTML = `
-      <span style="font-weight:600">Você enviou a primeira mensagem no WhatsApp?</span><span class="espaco"></span>
+      <span style="font-weight:600">${direct ? "Você enviou o direct?" : "Você enviou a primeira mensagem no WhatsApp?"}</span><span class="espaco"></span>
       <button class="btn ok" data-seq-acao="confirmar-whatsapp">${ic("check")}Sim, enviei</button>
       <button class="btn" data-seq-acao="cancelar-whatsapp">Ainda não</button>`;
     return;
@@ -1693,7 +1727,10 @@ async function acaoSequencia(btn) {
     }
     if (acao === "confirmar-whatsapp") {
       await post(`/api/mensagens/${primeira.dataset.id}/enviada-manual`);
-      avisar("Primeira mensagem registrada. As próximas etapas aparecem na fila quando chegar o dia.", "ok", 7000);
+      if (ehDirect(primeira.dataset.link)) {
+        if (sessao.directs) sessao.directs.hoje++;
+        avisar("Direct registrado. Quando a empresa responder, a IA continua a conversa pelo direct.", "ok", 7000);
+      } else avisar("Primeira mensagem registrada. As próximas etapas aparecem na fila quando chegar o dia.", "ok", 7000);
     } else if (acao === "rejeitar") {
       await post(`/api/sequencias/${lead}/${canal}/rejeitar`);
       avisar("Sequência descartada: nada será enviado");
@@ -3054,12 +3091,18 @@ async function acaoMensagem(btn) {
   if (acao === "whatsapp") {
     // Abre a janela já no clique (senão o navegador bloqueia) e depois coloca o link com o texto editado.
     const janela = window.open("about:blank", "_blank");
+    const direct = ehDirect(card.dataset.link);
+    if (direct) navigator.clipboard.writeText($("textarea[name=corpo]", card).value).catch(() => {});
     await salvar(card);
-    const base = card.dataset.link.split("?")[0];
-    const texto = $("textarea[name=corpo]", card).value + sessao.rodapeWhatsapp;
-    if (janela) janela.location = `${base}?text=${encodeURIComponent(texto)}`;
+    if (direct) {
+      if (!(await abrirDirect(janela, card.dataset.link, $("textarea[name=corpo]", card).value))) return;
+    } else {
+      const base = card.dataset.link.split("?")[0];
+      const texto = $("textarea[name=corpo]", card).value + sessao.rodapeWhatsapp;
+      if (janela) janela.location = `${base}?text=${encodeURIComponent(texto)}`;
+    }
     $("[data-botoes]", card).innerHTML = `
-      <span style="font-weight:600">Você enviou a mensagem no WhatsApp?</span><span class="espaco"></span>
+      <span style="font-weight:600">${direct ? "Você enviou o direct?" : "Você enviou a mensagem no WhatsApp?"}</span><span class="espaco"></span>
       <button class="btn ok" data-acao="confirmar-whatsapp">${ic("check")}Sim, enviei</button>
       <button class="btn" data-acao="cancelar-whatsapp">Ainda não</button>`;
     return;
@@ -3070,6 +3113,7 @@ async function acaoMensagem(btn) {
   try {
     if (acao === "confirmar-whatsapp") {
       await post(`/api/mensagens/${id}/enviada-manual`);
+      if (ehDirect(card.dataset.link) && sessao.directs) sessao.directs.hoje++;
       avisar("Registrada como enviada", "ok");
     } else if (acao === "salvar") {
       await salvar(card);

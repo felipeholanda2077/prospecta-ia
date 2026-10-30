@@ -560,6 +560,25 @@ export async function criarLeadDeContato({ nome, whatsapp = null, instagram = nu
   return linha.id;
 }
 
+/** Directs de prospecção esperando você enviar pelo Instagram. */
+export async function directsPendentes() {
+  return (await um("SELECT count(*)::int AS n FROM mensagens WHERE canal = 'instagram' AND tipo <> 'resposta' AND status IN ('rascunho', 'aprovada')")).n;
+}
+
+/**
+ * Empresas descartadas antes do direct manual só por não terem WhatsApp nem e-mail, mas com Instagram:
+ * voltam para a fila de propostas, agora pelo direct. Retorna quantas voltaram.
+ */
+export async function recuperarLeadsParaDirect() {
+  const r = await q(
+    `UPDATE leads SET status = 'analisado', observacao = NULL, atualizado_em = now()
+      WHERE status = 'descartado' AND instagram IS NOT NULL AND email IS NULL AND whatsapp IS NULL
+        AND observacao LIKE 'sem e-mail%' AND oportunidades IS NOT NULL AND oportunidades <> '[]'
+    RETURNING id`
+  );
+  return r.length;
+}
+
 /** A empresa (a mais recente) com este @ do Instagram. */
 export async function leadPeloInstagram(usuario) {
   if (!usuario) return null;

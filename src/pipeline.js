@@ -5,7 +5,7 @@ import { buscaNoInstagram, buscarEmpresasNoInstagram, instagramDaEmpresa } from 
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
-import { gerarSequencia } from "./ia/proposta.js";
+import { gerarSequencia, escreverDirectDeProspeccao } from "./ia/proposta.js";
 import { enviarEmail, explicarErroEmail, enviarNotificacao } from "./envio/email.js";
 import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import { enviarDirect } from "./envio/instagram.js";
@@ -36,6 +36,9 @@ const MARGEM_FIM_MIN = 15;
 const TEMPO_PARA_SEQUENCIA_MIN = 2 * INTERVALO_MINIMO_MIN + MARGEM_FIM_MIN;
 // Empresas novas por rodada, no mínimo: terminou uma, já vai para a próxima (com intervalo entre elas).
 const LOTE_POR_RODADA = 5;
+// Directs para quem nunca falou com a conta, por dia: mais que isso o Instagram costuma limitar a conta,
+// mesmo enviando na mão. O painel avisa quando você chega nesse número.
+export const LIMITE_DIRECT_DIA = 25;
 // Entre uma empresa nova e a próxima, de 5 a 12 minutos (sorteado a cada vez), para o número
 // e o e-mail não parecerem disparo em massa. Ajustável em Automação.
 const INTERVALO_EMPRESAS_MIN = [5, 12];
@@ -482,7 +485,10 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
 
     let status = "analisado";
     let observacao = null;
-    if (!email && !whatsapp) {
+    const instagram = insta?.usuario ?? lead.instagram ?? null;
+    // Só o Instagram como contato: a IA escreve o direct e você envia pelo Instagram.
+    if (!email && !whatsapp && instagram) observacao = "sem WhatsApp e e-mail: o contato é pelo direct do Instagram";
+    else if (!email && !whatsapp) {
       observacao = whatsapp_status === "sem_whatsapp"
         ? "sem e-mail no site e o telefone não tem WhatsApp"
         : lead.origem === "instagram" ? "sem e-mail nem WhatsApp na bio do Instagram" : "sem e-mail no site e sem telefone no Google";
@@ -528,7 +534,14 @@ export async function reanalisar(leadId) {
  * Tudo fica como rascunho, aguardando sua aprovação no painel.
  */
 export async function propor(campanha, { ate = prazoPadrao(), limite = campanha.limites.maxPropostasPorCiclo } = {}) {
+  // Uma vez só: as empresas descartadas antes por terem só o Instagram voltam, agora pelo direct.
+  if (!(await db.lerEstado("leads_recuperados_para_direct"))) {
+    const voltaram = await db.recuperarLeadsParaDirect();
+    await db.gravarEstado("leads_recuperados_para_direct", new Date().toISOString());
+    if (voltaram) log(`📸 ${voltaram} empresas que só tinham o Instagram voltaram para a fila, agora pelo direct`);
+  }
   const leads = await db.leadsPorStatus("analisado", limite);
+  let directsNaFila = await db.directsPendentes();
   // No modo automático as sequências já nascem aprovadas; senão esperam você no painel.
   const statusInicial = campanha.automacao?.ativo ? "aprovada" : "rascunho";
   let geradas = 0;
@@ -540,6 +553,13 @@ export async function propor(campanha, { ate = prazoPadrao(), limite = campanha.
     const canais = [];
     if (campanha.canais.includes("email") && lead.email) canais.push(["email", lead.email]);
     if (campanha.canais.includes("whatsapp") && lead.whatsapp) canais.push(["whatsapp", lead.whatsapp]);
+    // Sem WhatsApp e e-mail, o direct do Instagram (o @ fica como contato, para não chamar a mesma conta duas vezes).
+    const soDirect = !lead.email && !lead.whatsapp && lead.instagram;
+    if (soDirect) {
+      // Não adianta acumular: você envia uns 25 por dia. O resto espera a fila andar.
+      if (directsNaFila >= LIMITE_DIRECT_DIA * 2) continue;
+      canais.push(["instagram", `@${lead.instagram}`]);
+    }
 
     const destinosLivres = [];
     for (const [canal, destino] of canais) {
@@ -547,7 +567,8 @@ export async function propor(campanha, { ate = prazoPadrao(), limite = campanha.
     }
     if (!destinosLivres.length) {
       // Já existe sequência para estes contatos (ex.: reanálise só para incluir o WhatsApp).
-      const jaTem = await db.contatoJaUsado(lead.email ?? "") || await db.contatoJaUsado(lead.whatsapp ?? "");
+      const jaTem = await db.contatoJaUsado(lead.email ?? "") || await db.contatoJaUsado(lead.whatsapp ?? "")
+        || (soDirect && await db.contatoJaUsado(`@${lead.instagram}`));
       await db.atualizarLead(lead.id, jaTem
         ? { status: "proposta_gerada" }
         : { status: "descartado", observacao: "contato já usado ou descadastrado" });
@@ -555,6 +576,16 @@ export async function propor(campanha, { ate = prazoPadrao(), limite = campanha.
     }
 
     try {
+      if (soDirect) {
+        const d = await escreverDirectDeProspeccao(lead, JSON.parse(lead.oportunidades), campanha);
+        await db.criarMensagem({ lead_id: lead.id, canal: "instagram", destino: destinosLivres[0][1], corpo: d.mensagem, etapa: 1, tipo: "inicial", status: statusInicial });
+        await db.atualizarLead(lead.id, { status: "proposta_gerada", observacao: d.resumo_interno });
+        directsNaFila++;
+        geradas++;
+        prontas.push({ nome: lead.nome, canais: ["instagram"] });
+        log(`✍️  Direct para @${lead.instagram} (${d.servico_principal}); você envia pelo Instagram`);
+        continue;
+      }
       const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades), campanha);
       for (const [canal, destino] of destinosLivres) {
         const textos = canal === "email" ? s.email : s.whatsapp;
@@ -640,6 +671,8 @@ async function registrarEnvio(m, campanha, messageId = null, numeroId = null) {
  */
 export async function enviarMensagem(m, campanha) {
   if (m.status !== "aprovada") return { enviada: false, motivo: `mensagem está como ${m.status}` };
+  // A Meta não deixa a API mandar o primeiro direct: quem envia é você, pelo botão do painel.
+  if (m.canal === "instagram" && m.tipo !== "resposta") return { enviada: false, manual: true, motivo: "direct do Instagram: envie pelo botão Abrir direct" };
   const modo = m.canal === "whatsapp" ? await modoWhatsapp() : null;
   if (modo === "manual") return { enviada: false, motivo: "WhatsApp manual: envie pelo botão do painel" };
 
@@ -738,7 +771,7 @@ export async function rejeitarSequencia(leadId, canal) {
 /** Você enviou pelo seu WhatsApp (botão do painel): registra como enviada e agenda a próxima etapa. */
 export async function marcarEnviadaManual(id, campanha) {
   const m = await db.buscarMensagem(id);
-  if (!m || m.canal !== "whatsapp" || !["rascunho", "aprovada"].includes(m.status)) return false;
+  if (!m || !["whatsapp", "instagram"].includes(m.canal) || !["rascunho", "aprovada"].includes(m.status)) return false;
   const bloqueio = await bloqueioDeEnvio(m);
   if (bloqueio) {
     await db.atualizarMensagem(m.id, { status: "rejeitada", erro: bloqueio });
@@ -746,7 +779,7 @@ export async function marcarEnviadaManual(id, campanha) {
   }
   // Enviar o primeiro contato manualmente também aprova as etapas seguintes da sequência.
   if (m.etapa <= 1 && m.tipo !== "resposta") {
-    for (const x of await db.mensagensDaSequencia(m.lead_id, "whatsapp")) {
+    for (const x of await db.mensagensDaSequencia(m.lead_id, m.canal)) {
       if (x.id !== m.id && x.status === "rascunho") await db.atualizarMensagem(x.id, { status: "aprovada" });
     }
   }
@@ -902,7 +935,7 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
  * (chamado a cada 2 minutos pelo agendador do banco).
  */
 export async function enviarInstagram(campanha) {
-  const fila = (await db.filaDeEnvio(400)).filter((m) => m.canal === "instagram");
+  const fila = (await db.filaDeEnvio(400)).filter((m) => m.canal === "instagram" && m.tipo === "resposta");
   let enviadas = 0;
   for (const m of fila) if ((await enviarMensagem(m, campanha)).enviada) enviadas++;
   return { enviadas, naFila: fila.length - enviadas };
