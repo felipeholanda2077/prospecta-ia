@@ -118,12 +118,17 @@ function linhaDoInstagram(lead) {
   return `\n- Instagram: @${insta.usuario}${partes.length ? ` (${partes.join(", ")})` : ""}`;
 }
 
+// Achada pelo CNPJ: o cadastro não diz se tem site, então a falta de site não é um fato.
+const SEM_SITE_CONHECIDO = (lead) => (lead.origem === "cnpj"
+  ? "não sabemos (a empresa veio do cadastro do CNPJ, que não informa site). NÃO diga nem dê a entender que ela não tem site; fale do digital de forma geral"
+  : "não possui");
+
 function montarPedido(lead, oportunidades) {
   return `Dados da empresa prospectada:
 - Nome: ${lead.nome}
 - Segmento: ${lead.nicho ?? "não informado"}
 - Cidade: ${lead.cidade ?? "não informada"}
-- Site: ${lead.site ?? "não possui"}
+- Site: ${lead.site ?? SEM_SITE_CONHECIDO(lead)}
 - Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "sem dados"}${linhaDoInstagram(lead)}
 
 Oportunidades encontradas na análise (da mais para a menos relevante):
@@ -192,7 +197,7 @@ pelo perfil da ${campanha.empresa.nome}, por uma pessoa, para o perfil da empres
 - Segmento: ${lead.nicho ?? "não informado"}
 - Cidade: ${lead.cidade ?? "não informada"}
 - Bio: ${bio || "(sem bio)"}
-- Site: ${lead.site && !/instagram\.com/.test(lead.site) ? lead.site : "não possui"}
+- Site: ${lead.site && !/instagram\.com/.test(lead.site) ? lead.site : SEM_SITE_CONHECIDO(lead)}
 
 Oportunidades encontradas na análise (da mais para a menos relevante):
 ${oportunidades.map((o) => `- [${o.servico}] ${o.motivo}`).join("\n")}

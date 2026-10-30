@@ -1216,9 +1216,10 @@ function cartaoEmpresaMaps(e, i) {
     ${detalhesDoCnpj(e)}
     ${e.endereco ? `<div class="endereco">${ic("pin", "sm")}<span>${esc(e.endereco)}</span></div>` : ""}
     <div class="pilulas">
-      ${semSite(e) && !e.jaCapturado ? `<span class="pilula atencao">${ic("star", "sm")}Prioridade</span>` : ""}
+      ${semSite(e) && !e.jaCapturado && !e.cnpj ? `<span class="pilula atencao">${ic("star", "sm")}Prioridade</span>` : ""}
       ${e.telefone ? `<span class="pilula ${e.celular ? "wa" : ""}">${ic(e.celular ? "message" : "phone", "sm")}${esc(e.telefone)}</span>` : `<span class="pilula">Sem telefone</span>`}
-      ${!semSite(e) ? `<span class="pilula acc">${ic("globe", "sm")}Tem site</span>` : `<span class="pilula atencao">${ic("globe", "sm")}${e.site ? "Só rede social" : "Sem site"}</span>`}
+      ${e.cnpj ? `<span class="pilula">${ic("globe", "sm")}Site não informado</span>`
+        : !semSite(e) ? `<span class="pilula acc">${ic("globe", "sm")}Tem site</span>` : `<span class="pilula atencao">${ic("globe", "sm")}${e.site ? "Só rede social" : "Sem site"}</span>`}
       ${e.avaliacao ? `<span class="pilula">${ic("star", "sm")}${String(e.avaliacao).replace(".", ",")} · ${e.total_avaliacoes ?? 0}</span>` : ""}
       ${e.instagram_dados?.seguidores != null ? `<span class="pilula">${ic("camera", "sm")}${Number(e.instagram_dados.seguidores).toLocaleString("pt-BR")} seguidores</span>` : ""}
       ${e.email ? `<span class="pilula">${ic("mail", "sm")}${esc(e.email)}</span>` : ""}
@@ -1246,7 +1247,8 @@ function desenharMaps() {
     return;
   }
   const novas = resultadosMaps.filter((e) => !naoSelecionavel(e));
-  const novasSemSite = novas.filter(semSite).length;
+  // Pelo CNPJ não se sabe quem tem site: sem os filtros e o destaque de "sem site".
+  const novasSemSite = buscaMaps.onde === "cnpj" ? 0 : novas.filter(semSite).length;
   const total = { todas: resultadosMaps.length, sem: resultadosMaps.filter(semSite).length };
   total.com = total.todas - total.sem;
   const visiveis = resultadosMaps
@@ -1263,7 +1265,7 @@ function desenharMaps() {
       ${novasSemSite ? `<button class="btn sm primario" data-maps="sem-site">${ic("check", "sm")}Selecionar as sem site</button>` : ""}
       ${novas.length ? `<button class="btn sm" data-maps="todas">${ic("check", "sm")}Todas as novas</button>` : ""}
     </div>
-    <div class="filtros" role="group" aria-label="Filtrar resultados">${filtros}</div>
+    ${buscaMaps.onde === "cnpj" ? "" : `<div class="filtros" role="group" aria-label="Filtrar resultados">${filtros}</div>`}
     ${novasSemSite ? `<p class="muted" style="margin:-4px 0 14px;font-size:13.5px">As empresas sem site aparecem primeiro: são as que mais precisam de um site e as melhores para prospectar.</p>` : ""}
     ${visiveis.length ? `<div class="grade">${visiveis.map(([e, i]) => cartaoEmpresaMaps(e, i)).join("")}</div>`
       : vazio("search", "Nenhuma empresa neste filtro", "Troque o filtro acima para ver as outras.")}`;

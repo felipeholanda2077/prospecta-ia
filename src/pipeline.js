@@ -524,6 +524,8 @@ export async function descobrirWhatsapp(lead, analise) {
   return { whatsapp: telefone, whatsapp_status: ehCelularBR(telefone) ? "celular" : "fixo" };
 }
 
+const WEBMAIL = /^(gmail|googlemail|hotmail|outlook|live|msn|yahoo|ymail|icloud|me|uol|bol|terra|ig|globo|globomail|zipmail|r7|aol|protonmail|proton)\.(com|com\.br|me)(\.br)?$/i;
+
 /** Etapa 2: visita o site de cada empresa nova, encontra contatos e oportunidades. */
 export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
   const leads = await db.leadsPorStatus("novo", limite);
@@ -543,6 +545,14 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
       const doContador = telefone && (await db.telefoneDeOutroCnpj(telefone, lead.place_id));
       Object.assign(lead, { email, telefone: doContador ? null : telefone, endereco: lead.endereco ?? dados?.endereco ?? null });
       await db.atualizarLead(lead.id, { email: lead.email, telefone: lead.telefone, endereco: lead.endereco });
+    }
+    // Do CNPJ não vem o site; um e-mail de domínio próprio (não Gmail, Hotmail...) costuma ser o do site.
+    if (lead.origem === "cnpj" && !lead.site && lead.email) {
+      const dominio = lead.email.split("@")[1];
+      if (dominio && !WEBMAIL.test(dominio)) {
+        const doEmail = await analisarSite(`https://${dominio}`);
+        if (doEmail.temSite) await db.atualizarLead(lead.id, { site: (lead.site = `https://${dominio}`) });
+      }
     }
     let analise = await analisarSite(lead.site);
     // O perfil do Instagram (o do Google, o do site ou o capturado por lá): bio com WhatsApp e
