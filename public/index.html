@@ -1006,7 +1006,7 @@
       <!-- Conteúdo para o Instagram -->
       <section id="view-conteudo" hidden>
         <div class="ig-resumo" id="ig-resumo" aria-label="Resumo do Instagram"></div>
-        <div class="ig-abas" role="tablist" aria-label="Seções do Instagram">
+        <div class="ig-abas" id="ig-abas" role="tablist" aria-label="Seções do Instagram">
           <button type="button" class="ig-aba" role="tab" id="ig-aba-posts" data-ig-aba="posts" aria-controls="ig-painel-posts" aria-selected="true"><span data-ic="image"></span>Posts</button>
           <button type="button" class="ig-aba" role="tab" id="ig-aba-desempenho" data-ig-aba="desempenho" aria-controls="ig-painel-desempenho" aria-selected="false"><span data-ic="trend"></span>Desempenho</button>
           <button type="button" class="ig-aba" role="tab" id="ig-aba-direct" data-ig-aba="direct" aria-controls="ig-painel-direct" aria-selected="false"><span data-ic="message"></span>Direct</button>
@@ -3493,12 +3493,12 @@ function abrirAbaIg(aba, { focar = false } = {}) {
   $$("[data-ig-painel]").forEach((p) => (p.hidden = p.dataset.igPainel !== aba));
   try { localStorage.setItem("aba-instagram", aba); } catch {}
 }
-$(".ig-abas").addEventListener("click", (ev) => {
+$("#ig-abas").addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-ig-aba]");
   if (b) abrirAbaIg(b.dataset.igAba);
 });
 // Setas do teclado entre as abas.
-$(".ig-abas").addEventListener("keydown", (ev) => {
+$("#ig-abas").addEventListener("keydown", (ev) => {
   if (!["ArrowLeft", "ArrowRight"].includes(ev.key)) return;
   const atual = ABAS_IG.indexOf($("[data-ig-aba][aria-selected=true]")?.dataset.igAba);
   abrirAbaIg(ABAS_IG[(atual + (ev.key === "ArrowRight" ? 1 : ABAS_IG.length - 1)) % ABAS_IG.length], { focar: true });
