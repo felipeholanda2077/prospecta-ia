@@ -946,7 +946,9 @@
         </div>
         <div data-ml-painel="perguntas">
           <div class="forn-acoes"><button class="btn" type="button" id="ml-atualizar"><span data-ic="refresh"></span>Buscar perguntas agora</button>
+            <button class="btn" type="button" id="ml-testar"><span data-ic="spark"></span>Testar uma sugestão</button>
             <span class="muted" style="font-size:13px">O sistema também busca sozinho a cada 10 minutos e avisa por e-mail.</span></div>
+          <div id="ml-teste"></div>
           <div class="forn-grade" id="ml-perguntas"></div>
         </div>
         <div data-ml-painel="pedidos" hidden><div class="forn-grade" id="ml-pedidos"></div></div>
@@ -4284,6 +4286,26 @@ $("#ml-atualizar").addEventListener("click", async (ev) => {
   try {
     Object.assign(estadoMl, await post("/api/mercadolivre/atualizar"));
     desenharMercadoLivre();
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#ml-testar").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  $("#ml-teste").innerHTML = "";
+  try {
+    const t = await post("/api/mercadolivre/testar");
+    $("#ml-teste").innerHTML = `<div class="cartao forn-card" style="margin-bottom:14px">
+      <div class="forn-pilulas"><span class="pilula acc">Só um teste: nada foi enviado</span></div>
+      <h3>${esc(t.anuncio)}</h3>
+      <p class="forn-prova" style="color:var(--text)">${esc(t.pergunta)}</p>
+      <div>${esc(t.resposta)}</div>
+      ${t.precisaConferir ? `<div class="alerta info">${ic("alert")}<div><b>O anúncio não responde tudo.</b> ${esc(t.motivo ?? "")}</div></div>` : ""}
+    </div>`;
   } catch (e) {
     avisar(e.message, "perigo", 8000);
   } finally {

@@ -24,7 +24,7 @@ import { postarNoLinkedin, textoDoPost } from "./conteudo/linkedin.js";
 import * as linkedin from "./envio/linkedin.js";
 import { buscarFornecedores, limparParaSalvar } from "./descoberta/fornecedores.js";
 import * as mercadolivre from "./envio/mercadolivre.js";
-import { rodadaDoMercadoLivre, enviarResposta, refazerSugestao } from "./vendas/mercadolivre.js";
+import { rodadaDoMercadoLivre, enviarResposta, refazerSugestao, testarSugestao } from "./vendas/mercadolivre.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { narracaoDisponivel, carregarChaveDaVoz, salvarChaveDoGemini } from "./conteudo/narracao.js";
@@ -433,6 +433,7 @@ const painelDoMl = async () => ({
 });
 app.get("/api/mercadolivre", rotaMl(painelDoMl));
 app.post("/api/mercadolivre/atualizar", rotaMl(async () => ({ rodada: await rodadaDoMercadoLivre(await carregarCampanhaCompleta()), ...(await painelDoMl()) })));
+app.post("/api/mercadolivre/testar", rotaMl(() => testarSugestao()));
 app.get("/api/mercadolivre/pedidos", rotaMl(() => mercadolivre.pedidosRecentes()));
 app.put("/api/mercadolivre/app", rotaMl(async (req) => {
   await mercadolivre.salvarApp(req.body ?? {});

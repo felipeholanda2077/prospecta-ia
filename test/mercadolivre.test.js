@@ -124,6 +124,8 @@ function apiFalsa(perguntas) {
   return {
     respondidas,
     estaConectado: async () => true,
+    apelidoDaLoja: async () => "LOJA DA CONTA",
+    primeiroAnuncio: async () => perguntas.semAnuncio ? null : "MLB9",
     perguntasSemResposta: async () => perguntas.lista,
     dadosDoAnuncio: async (id) => ({ id, titulo: `Anúncio ${id}`, link: `https://produto.mercadolivre.com.br/${id}`, preco: 50, moeda: "BRL", atributos: ["Voltagem: bivolt"], descricao: "Bivolt." }),
     responderPergunta: async (id, texto) => respondidas.push([id, texto]),
@@ -143,6 +145,7 @@ test("mercado livre: pergunta nova ganha sugestão e aviso uma vez só, e nada s
   assert.deepEqual([r.novas, r.sugeridas], [1, 1]);
   assert.deepEqual(avisos, ["Pergunta nova no Mercado Livre"]);
   assert.equal(pedidos[0].anuncio.descricao, "Bivolt.");
+  assert.equal(pedidos[0].loja, "LOJA DA CONTA"); // a loja é a conectada, não a dona do painel
   assert.equal(api.respondidas.length, 0); // a IA nunca responde sozinha
   const p = await db.perguntaML("111");
   assert.deepEqual([p.rascunho, p.status, p.item_titulo], ["Sim, é bivolt.", "pendente", "Anúncio MLB1"]);
@@ -175,6 +178,18 @@ test("mercado livre: se o envio falhar a pergunta continua na fila; respondida n
   perguntas.lista = [];
   await vendas.rodadaDoMercadoLivre({}, o);
   assert.equal((await db.perguntaML("222")).status, "fora");
+});
+
+test("mercado livre: o teste lê um anúncio real e sugere, sem salvar nem enviar nada", async () => {
+  const perguntas = { lista: [] };
+  const api = apiFalsa(perguntas);
+  const antes = (await db.perguntasML("pendente")).length;
+  const t = await vendas.testarSugestao({ api, escrever: async (p) => ({ texto: `Sim: ${p.anuncio.titulo}`, precisa_conferir: true, motivo: "garantia" }), agora: AGORA });
+  assert.deepEqual([t.anuncio, t.resposta, t.precisaConferir, t.barrada], ["Anúncio MLB9", "Sim: Anúncio MLB9", true, null]);
+  assert.equal(api.respondidas.length, 0);
+  assert.equal((await db.perguntasML("pendente")).length, antes);
+  perguntas.semAnuncio = true;
+  await assert.rejects(() => vendas.testarSugestao({ api, escrever: async () => assert.fail(), agora: AGORA }), /anúncio ativo/);
 });
 
 test("mercado livre: a falha da IA não derruba a rodada, e a sugestão sai na próxima", async () => {

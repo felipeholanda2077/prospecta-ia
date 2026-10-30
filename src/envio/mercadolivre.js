@@ -183,6 +183,15 @@ export async function dadosDoAnuncio(itemId, agora) {
   };
 }
 
+/** O primeiro anúncio ativo da conta, ou null. */
+export async function primeiroAnuncio(agora) {
+  const { vendedorId } = await ler();
+  const r = await chamar("GET", `/users/${encodeURIComponent(vendedorId)}/items/search?status=active&limit=1`, null, agora);
+  return r.results?.[0] ?? null;
+}
+
+export const apelidoDaLoja = async () => (await ler()).apelido ?? "";
+
 export const responderPergunta = (perguntaId, texto, agora) => chamar("POST", "/answers", { question_id: Number(perguntaId), text: texto }, agora);
 
 /** As vendas mais recentes, só com o necessário: nem endereço nem documento do comprador entram aqui. */

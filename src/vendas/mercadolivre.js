@@ -53,7 +53,8 @@ export async function rodadaDoMercadoLivre(campanha, { api = ml, escrever = escr
     const pendentes = await db.perguntasML("pendente");
     for (const p of pendentes) if (!idsAbertos.has(p.id)) await db.atualizarPerguntaML(p.id, { status: "fora" });
 
-    const loja = campanha?.empresa?.nome ?? "";
+    // A loja é a da conta conectada, que pode não ser a empresa dona do painel.
+    const loja = await api.apelidoDaLoja();
     let sugeridas = 0;
     for (const p of pendentes.filter((x) => idsAbertos.has(x.id) && !x.rascunho).slice(0, SUGESTOES_POR_PASSAGEM)) {
       try {
@@ -80,8 +81,19 @@ export async function rodadaDoMercadoLivre(campanha, { api = ml, escrever = escr
 export async function refazerSugestao(id, campanha, { api = ml, escrever = escreverRespostaDoMarketplace, agora = new Date() } = {}) {
   const p = await db.perguntaML(id);
   if (!p) throw new Error("Pergunta não encontrada");
-  await sugerir(p, { api, escrever, agora, loja: campanha?.empresa?.nome ?? "" });
+  await sugerir(p, { api, escrever, agora, loja: await api.apelidoDaLoja() });
   return db.perguntaML(id);
+}
+
+const PERGUNTA_DE_TESTE = "Qual é o prazo de garantia e vocês entregam em todo o Brasil?";
+
+/** Testa a leitura do anúncio e a sugestão com uma pergunta de exemplo. Nada é salvo nem enviado ao Mercado Livre. */
+export async function testarSugestao({ api = ml, escrever = escreverRespostaDoMarketplace, agora = new Date() } = {}) {
+  const itemId = await api.primeiroAnuncio(agora);
+  if (!itemId) throw new Error("A conta não tem anúncio ativo para testar.");
+  const anuncio = await api.dadosDoAnuncio(itemId, agora);
+  const s = await escrever({ pergunta: PERGUNTA_DE_TESTE, anuncio, loja: await api.apelidoDaLoja() });
+  return { anuncio: anuncio.titulo, link: anuncio.link, pergunta: PERGUNTA_DE_TESTE, resposta: s.texto, precisaConferir: Boolean(s.precisa_conferir), motivo: s.motivo || null, barrada: problemaNaResposta(s.texto) };
 }
 
 /** Envia ao comprador o texto que o vendedor aprovou. */
