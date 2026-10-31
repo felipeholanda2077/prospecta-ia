@@ -1179,6 +1179,7 @@
               <div class="campo"><label for="of-nome">Nome da oferta</label><input id="of-nome" name="nome" maxlength="80" autocomplete="off" placeholder="Ex.: Diagnóstico completo do site" required></div>
               <div class="campo"><label for="of-valor">Preço (R$)</label><input id="of-valor" name="valor" inputmode="decimal" autocomplete="off" required></div>
               <div class="campo"><label for="of-mensal">Cobrança</label><select id="of-mensal" name="mensal"><option value="false">Pagamento único (PIX)</option><option value="true">Mensal (assinatura no cartão)</option></select></div>
+              <div class="campo"><label for="of-diagnostico">Entrega</label><select id="of-diagnostico" name="diagnostico"><option value="false">Serviço combinado com o cliente</option><option value="true">Relatório automático do site, liberado ao pagar</option></select></div>
               <div class="campo" style="grid-column:1/-1"><label for="of-descricao">O que está incluído (aparece na página de pagamento)</label><input id="of-descricao" name="descricao" maxlength="500" autocomplete="off"></div>
             </div>
             <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Adicionar oferta</button></div>
@@ -3724,7 +3725,7 @@ const STATUS_VENDA = { aguardando: ["Aguardando pagamento", "acc"], paga: ["Paga
 
 function mostrarVendas(ofertas, vendas) {
   $("#of-lista").innerHTML = ofertas.length ? `<div style="display:grid;gap:8px">${ofertas.map((o) => `<div class="cb-linha" style="padding:0">
-      <span class="ct-linha-texto"><b>${esc(o.nome)}</b><span class="muted">${esc(emReais(o.valor))}${o.mensal ? " por mês" : ""}${o.descricao ? ` · ${esc(o.descricao)}` : ""}</span></span>
+      <span class="ct-linha-texto"><b>${esc(o.nome)}</b><span class="muted">${esc(emReais(o.valor))}${o.mensal ? " por mês" : ""}${o.diagnostico ? " · relatório automático" : ""}${o.descricao ? ` · ${esc(o.descricao)}` : ""}</span></span>
       <button type="button" class="btn fantasma sm" data-of-remover="${esc(o.id)}">Remover</button></div>`).join("")}</div>`
     : `<span class="muted">Nenhuma oferta ainda. Sem ela, o botão da conversa não tem o que vender.</span>`;
   $("#vd-lista").innerHTML = vendas.map((v) => {
@@ -3732,7 +3733,9 @@ function mostrarVendas(ofertas, vendas) {
     return `<article class="cartao"><div class="cb-linha">
       <span class="ct-linha-texto"><b>${esc(v.oferta)}</b><span class="muted">${esc(v.empresa ?? "Empresa removida")} · ${esc(emReais(v.valor))}${v.mensal ? " por mês" : ""}${v.pago_em ? ` · ${v.mensal ? "último pagamento" : "paga"} em ${esc(dataCurta(v.pago_em))}` : ""}</span></span>
       <span class="pilula ${cor}">${rotulo}</span>
-      ${v.status === "aguardando" && v.link ? `<button type="button" class="btn sm" data-vd-copiar="${esc(v.link)}">${ic("copy", "sm")}Copiar link</button>
+      ${v.diagnostico ? `<a class="btn sm" href="/api/vendas/${v.id}/relatorio" target="_blank" rel="noopener">${ic("external", "sm")}Ver relatório</a>` : ""}
+      ${v.pagina && ["aguardando", "paga"].includes(v.status) ? `<button type="button" class="btn sm" data-vd-copiar="${esc(v.pagina)}">${ic("copy", "sm")}Copiar página do cliente</button>` : ""}
+      ${v.status === "aguardando" && v.link ? `${v.pagina ? "" : `<button type="button" class="btn sm" data-vd-copiar="${esc(v.link)}">${ic("copy", "sm")}Copiar link</button>`}
         <button type="button" class="btn fantasma sm" data-vd-cancelar="${v.id}">Cancelar</button>` : ""}
       ${v.mensal && ["paga", "atrasada"].includes(v.status) ? `<button type="button" class="btn fantasma sm" data-vd-cancelar="${v.id}" data-assinatura="1">Cancelar assinatura</button>` : ""}
     </div></article>`;

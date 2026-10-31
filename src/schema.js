@@ -300,6 +300,10 @@ ALTER TABLE produtos ADD COLUMN IF NOT EXISTS custo double precision;
 -- Oferta mensal: o link cria uma assinatura, e pago_em fica com o último pagamento dela.
 ALTER TABLE vendas ADD COLUMN IF NOT EXISTS mensal boolean NOT NULL DEFAULT false;
 ALTER TABLE vendas ADD COLUMN IF NOT EXISTS asaas_assinatura text;
+-- Diagnóstico: o token abre a página do cliente, que libera o relatório depois do pagamento.
+ALTER TABLE vendas ADD COLUMN IF NOT EXISTS diagnostico boolean NOT NULL DEFAULT false;
+ALTER TABLE vendas ADD COLUMN IF NOT EXISTS token text;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vendas_token ON vendas(token) WHERE token IS NOT NULL;
 
 -- No Supabase as tabelas do schema public ficam expostas pela API REST.
 -- RLS ligado e sem políticas = ninguém acessa por ela; o sistema conecta direto no Postgres.

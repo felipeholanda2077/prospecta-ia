@@ -17,6 +17,10 @@
       "destination": "/api"
     },
     {
+      "source": "/diagnostico/(.*)",
+      "destination": "/api"
+    },
+    {
       "source": "/contato",
       "destination": "/api"
     }

@@ -3,6 +3,7 @@ import * as db from "../db.js";
 import * as asaas from "../contratos/asaas.js";
 import { hojeNoFuso } from "../contratos/cobranca.js";
 import { lerValor, reais } from "../contratos/valores.js";
+import { enderecoDaPagina, mensagemDoDiagnostico, previa } from "./diagnostico.js";
 
 // Oferta de entrada: um serviço pequeno, de preço fixo, pago por PIX na própria conversa, sem contrato. O link é
 // do Asaas e é um por empresa, então o pagamento chega sabendo quem pagou; é o cliente quem preenche os dados dele
@@ -16,12 +17,14 @@ const PAGINAS_DA_CONSULTA = 5;
 
 export const lerOfertas = async () => (await db.lerConfig(CHAVE_OFERTAS))?.lista ?? [];
 
-export async function criarOferta({ nome, descricao, valor, mensal } = {}) {
+export async function criarOferta({ nome, descricao, valor, mensal, diagnostico } = {}) {
   const limpo = String(nome ?? "").replace(/\s+/g, " ").trim().slice(0, 80);
   const preco = lerValor(valor);
   if (!limpo) return { erro: "Informe o nome da oferta" };
   if (!preco || preco <= 0) return { erro: "Informe o preço da oferta" };
-  const oferta = { id: crypto.randomUUID(), nome: limpo, descricao: String(descricao ?? "").trim().slice(0, 500), valor: preco, mensal: mensal === true || mensal === "true" };
+  const oferta = { id: crypto.randomUUID(), nome: limpo, descricao: String(descricao ?? "").trim().slice(0, 500), valor: preco, mensal: false, diagnostico: diagnostico === true || diagnostico === "true" };
+  // O relatório é entregue uma vez: não tem como ser mensal.
+  oferta.mensal = !oferta.diagnostico && (mensal === true || mensal === "true");
   await db.gravarConfig(CHAVE_OFERTAS, { lista: [...(await lerOfertas()), oferta] });
   return oferta;
 }
@@ -45,11 +48,17 @@ export async function gerarLink({ leadId, ofertaId } = {}, agora = new Date()) {
   const oferta = (await lerOfertas()).find((o) => o.id === ofertaId);
   if (!oferta) return { erro: "Oferta não encontrada" };
 
-  const id = await db.criarVenda({ lead_id: lead.id, oferta: oferta.nome, descricao: oferta.descricao, valor: oferta.valor, mensal: Boolean(oferta.mensal) });
+  const pontos = oferta.diagnostico ? await previa(lead) : null;
+  if (pontos?.erro) return pontos;
+  const mensagem = (v) => (oferta.diagnostico ? mensagemDoDiagnostico(lead, v, pontos.problemas) : mensagemDoLink(v));
+  const id = await db.criarVenda({
+    lead_id: lead.id, oferta: oferta.nome, descricao: oferta.descricao, valor: oferta.valor, mensal: Boolean(oferta.mensal),
+    diagnostico: Boolean(oferta.diagnostico), token: oferta.diagnostico ? crypto.randomBytes(24).toString("hex") : null,
+  });
   if (!id) {
     const aberta = await db.vendaAberta(lead.id, oferta.nome);
     if (!aberta?.link) return { erro: "O link desta oferta já está sendo gerado. Tente de novo em instantes." };
-    return { venda: aberta, mensagem: mensagemDoLink(aberta) };
+    return { venda: aberta, mensagem: mensagem(aberta) };
   }
   try {
     const link = await asaas.criarLink({
@@ -65,7 +74,7 @@ export async function gerarLink({ leadId, ofertaId } = {}, agora = new Date()) {
     return { erro: `O Asaas não gerou o link: ${e.message}` };
   }
   const venda = await db.buscarVenda(id);
-  return { venda, mensagem: mensagemDoLink(venda) };
+  return { venda, mensagem: mensagem(venda) };
 }
 
 const dataDoPagamento = (p, hoje) => p.clientPaymentDate ?? p.paymentDate ?? hoje;
@@ -163,7 +172,7 @@ export async function painelDeVendas(agora = new Date()) {
   const vendas = await db.listarVendas();
   const mes = hojeNoFuso(agora).slice(0, 7);
   return {
-    ofertas: await lerOfertas(), vendas,
+    ofertas: await lerOfertas(), vendas: vendas.map((v) => ({ ...v, pagina: v.token ? enderecoDaPagina(v.token) : null })),
     recebidoNoMes: vendas.filter((v) => v.status === "paga" && v.pago_em?.startsWith(mes)).reduce((t, v) => t + v.valor, 0),
     mensalidades: vendas.filter((v) => v.mensal && ["paga", "atrasada"].includes(v.status)).reduce((t, v) => t + v.valor, 0),
   };

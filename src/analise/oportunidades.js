@@ -1,7 +1,7 @@
-const NICHOS_VAREJO =
+export const NICHOS_VAREJO =
   /loja|boutique|moda|roupa|cal[cç]ado|pet ?shop|farm[aá]cia|perfumaria|cosm[eé]tico|m[oó]veis|decora|materia(l|is) de constru|papelaria|[oó]tica|joalheria|suplemento|distribuidora|atacad|padaria|confeitaria|doceria|floricultura|brinquedo|eletr[oô]nico|autope[cç]a/i;
 
-const NICHOS_AGENDA =
+export const NICHOS_AGENDA =
   /cl[ií]nica|odonto|dentista|consult[oó]rio|m[eé]dic|fisioterap|psic[oó]log|nutricion|est[eé]tica|sal[aã]o|barbearia|manicure|spa|academia|personal|pet ?shop|veterin[aá]ri|oficina|lava ?jato|tatuagem|studio|est[uú]dio/i;
 
 const NICHOS_GESTAO =

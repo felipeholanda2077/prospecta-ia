@@ -41,6 +41,7 @@ import * as contratos from "./contratos/contrato.js";
 import * as asaas from "./contratos/asaas.js";
 import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
+import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
@@ -132,6 +133,51 @@ app.post("/contato", async (req, res) => {
   res.status(r.erro ? 400 : 200).send(r.erro
     ? paginaDoFormulario({ empresa: campanha.empresa.nome, servicos: campanha.servicos, origem: req.body?.origem, embed, erro: r.erro })
     : paginaDeObrigado({ empresa: campanha.empresa.nome, embed }));
+});
+
+// ---------- Diagnóstico do site (público: quem tem o link vê a página, e o relatório só depois de pago) ----------
+
+const vendaDoLink = async (req) => {
+  const v = await db.vendaPorToken(String(req.params.token ?? ""));
+  return v?.diagnostico ? v : null;
+};
+
+const SEM_CACHE = { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" };
+
+app.get("/diagnostico/:token", async (req, res) => {
+  const venda = await vendaDoLink(req);
+  if (!venda) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
+  const lead = await db.buscarLead(venda.lead_id);
+  const pontos = venda.status === "aguardando" && lead ? await previa(lead).catch(() => ({})) : {};
+  const marca = (await carregarCampanhaCompleta()).empresa.nome;
+  res.set(SEM_CACHE).send(paginaDoDiagnostico({ venda, lead, problemas: pontos.problemas ?? [], marca }));
+});
+
+// A página pergunta de tempos em tempos. Se o aviso do Asaas atrasar, confere lá, no máximo a cada 30 segundos.
+app.get("/diagnostico/:token/situacao", async (req, res) => {
+  let venda = await vendaDoLink(req);
+  if (!venda) return res.sendStatus(404);
+  if (venda.status === "aguardando" && (await db.travar("diagnostico_conferir", 30_000))) {
+    await entrada.conferirVendas();
+    venda = await db.buscarVenda(venda.id);
+  }
+  res.set(SEM_CACHE).json({ status: venda.status });
+});
+
+/** Responde o PDF da venda, ou diz para tentar de novo se ele estiver sendo gerado. */
+async function enviarRelatorio(venda, res) {
+  const campanha = await carregarCampanhaCompleta();
+  const contratada = await contratos.lerContratada(campanha);
+  const pdf = await pdfDoRelatorio(venda, campanha, contratada);
+  if (!pdf) return res.status(503).set({ ...SEM_CACHE, "Retry-After": "30" }).send("O relatório está sendo gerado. Tente de novo em 30 segundos.");
+  res.set({ ...SEM_CACHE, "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="diagnostico-do-site-${venda.id}.pdf"` }).send(pdf);
+}
+
+app.get("/diagnostico/:token/relatorio.pdf", async (req, res) => {
+  const venda = await vendaDoLink(req);
+  if (!venda) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
+  if (venda.status !== "paga") return res.redirect(`/diagnostico/${venda.token}`);
+  await enviarRelatorio(venda, res);
 });
 
 // ---------- Webhook do WhatsApp (público, validado pela assinatura da Meta) ----------
@@ -1175,6 +1221,13 @@ app.delete("/api/ofertas/:id", async (req, res) => res.json(await entrada.remove
 app.post("/api/vendas", async (req, res) => {
   const r = await entrada.gerarLink(req.body);
   res.status(r.erro ? 400 : 200).json(r);
+});
+
+// Para você conferir o relatório no painel, antes ou depois da venda.
+app.get("/api/vendas/:id/relatorio", async (req, res) => {
+  const venda = await db.buscarVenda(req.params.id);
+  if (!venda?.diagnostico) return res.status(404).json({ erro: "Esta venda não tem relatório" });
+  await enviarRelatorio(venda, res);
 });
 
 app.post("/api/vendas/:id/cancelar", async (req, res) => {

@@ -217,7 +217,7 @@ export async function lerMidia(chave) {
 /** Apaga as mídias de um post (e as esquecidas há mais de 3 dias). */
 export async function apagarMidias(prefixo) {
   // As fotos dos produtos ficam: elas são o cadastro, não um arquivo temporário de post.
-  await q("DELETE FROM midias WHERE starts_with(chave, $1) OR (criada_em < now() - interval '3 days' AND NOT starts_with(chave, 'produto-'))", [prefixo]);
+  await q("DELETE FROM midias WHERE starts_with(chave, $1) OR (criada_em < now() - interval '3 days' AND NOT starts_with(chave, 'produto-') AND NOT starts_with(chave, 'relatorio-'))", [prefixo]);
 }
 
 // ---------- Fornecedores de dropshipping ----------
@@ -797,17 +797,18 @@ export const excluirCobrancasDoContrato = (contratoId) => q("DELETE FROM cobranc
 // ---------- Vendas (ofertas de entrada) ----------
 
 /** Retorna o id, ou null se a empresa já tem um link em aberto desta oferta. */
-export async function criarVenda({ lead_id, oferta, descricao, valor, mensal = false }) {
+export async function criarVenda({ lead_id, oferta, descricao, valor, mensal = false, diagnostico = false, token = null }) {
   const r = await um(
-    `INSERT INTO vendas (lead_id, oferta, descricao, valor, mensal) VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO vendas (lead_id, oferta, descricao, valor, mensal, diagnostico, token) VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (lead_id, oferta) WHERE status = 'aguardando' DO NOTHING RETURNING id`,
-    [lead_id, oferta, descricao, valor, mensal]
+    [lead_id, oferta, descricao, valor, mensal, diagnostico, token]
   );
   return r?.id ?? null;
 }
 
 export const buscarVenda = (id) => um("SELECT * FROM vendas WHERE id = $1", [id]);
 export const vendaPorLink = (link) => um("SELECT * FROM vendas WHERE asaas_link = $1", [link]);
+export const vendaPorToken = (token) => um("SELECT * FROM vendas WHERE token = $1", [token]);
 export const vendaPorAssinatura = (assinatura) => um("SELECT * FROM vendas WHERE asaas_assinatura = $1", [assinatura]);
 export const vendaAberta = (leadId, oferta) => um("SELECT * FROM vendas WHERE lead_id = $1 AND oferta = $2 AND status = 'aguardando'", [leadId, oferta]);
 export const excluirVenda = (id) => q("DELETE FROM vendas WHERE id = $1", [id]);

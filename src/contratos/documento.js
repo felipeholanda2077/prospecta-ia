@@ -174,12 +174,12 @@ function tabela(doc, b, largura) {
 }
 
 /** O PDF do contrato (Buffer), com a logo no cabeçalho e o rodapé em todas as páginas. */
-export function documentoEmPdf(texto, { marca = "", projeto = "", cnpj = "" } = {}) {
+export function documentoEmPdf(texto, { marca = "", projeto = "", cnpj = "", tipo = "Contrato de Prestação de Serviços" } = {}) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: "A4", bufferPages: true,
       margins: { top: MARGEM.topo, bottom: MARGEM.base, left: MARGEM.x, right: MARGEM.x },
-      info: { Title: `Contrato ${projeto}`.trim(), Author: marca },
+      info: { Title: `${tipo} ${projeto}`.trim(), Author: marca },
     });
     const partes = [];
     doc.on("data", (d) => partes.push(d));
@@ -270,10 +270,10 @@ export function documentoEmPdf(texto, { marca = "", projeto = "", cnpj = "" } = 
       if (capa && cnpj) doc.font("Helvetica").fontSize(8.5).fillColor("#9fb3c8").text(`CNPJ ${cnpj}`, xMarca, 52, { width: largura / 2, lineBreak: false });
       const xDireita = MARGEM.x + largura / 2;
       if (capa) {
-        doc.font("Helvetica").fontSize(8.5).fillColor("#9fb3c8").text("Contrato de Prestação de Serviços", xDireita, 32, { width: largura / 2, align: "right", lineBreak: false });
+        doc.font("Helvetica").fontSize(8.5).fillColor("#9fb3c8").text(tipo, xDireita, 32, { width: largura / 2, align: "right", lineBreak: false });
         doc.font("Helvetica-Bold").fontSize(12).fillColor(COR.claro).text(projeto, xDireita, 46, { width: largura / 2, align: "right", lineBreak: false });
       } else {
-        doc.font("Helvetica").fontSize(8.5).fillColor("#9fb3c8").text(`Contrato de Prestação de Serviços${projeto ? ` | ${projeto}` : ""}`, xDireita, alto / 2 - 5, { width: largura / 2, align: "right", lineBreak: false });
+        doc.font("Helvetica").fontSize(8.5).fillColor("#9fb3c8").text(`${tipo}${projeto ? ` | ${projeto}` : ""}`, xDireita, alto / 2 - 5, { width: largura / 2, align: "right", lineBreak: false });
       }
       doc.moveTo(MARGEM.x, doc.page.height - 44).lineTo(MARGEM.x + largura, doc.page.height - 44).lineWidth(0.5).strokeColor(COR.linha).stroke();
       doc.font("Helvetica").fontSize(8).fillColor(COR.suave)
