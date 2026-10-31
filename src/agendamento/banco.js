@@ -23,6 +23,8 @@ const JOBS = [
   { nome: "prospecta-ia-linkedin", agenda: "*/5 * * * *", tarefa: "linkedin" },
   // A cada 10 minutos, todos os dias: as perguntas novas do Mercado Livre (e mantém o acesso em dia).
   { nome: "prospecta-ia-mercadolivre", agenda: "*/10 * * * *", tarefa: "mercadolivre" },
+  // A cada hora, todos os dias: emite as parcelas perto de vencer e confere o que foi pago no Asaas.
+  { nome: "prospecta-ia-cobrancas", agenda: "17 * * * *", tarefa: "cobrancas" },
 ];
 
 export const resumoDaChave = (chave) => crypto.createHash("sha256").update(`prospecta-banco:${chave}`).digest("hex");

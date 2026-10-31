@@ -747,6 +747,47 @@ export async function atualizarContrato(id, campos) {
 
 export const excluirContrato = (id) => q("DELETE FROM contratos WHERE id = $1", [id]);
 
+// ---------- Cobranças ----------
+
+/** Grava as parcelas juntas: ou entram todas, ou nenhuma. */
+export async function criarCobrancas(parcelas) {
+  const colunas = ["contrato_id", "descricao", "valor", "vencimento", "multa", "juros", "cliente_asaas"];
+  const linhas = parcelas.map((_, i) => `(${colunas.map((_, j) => `$${i * colunas.length + j + 1}`).join(", ")})`);
+  await q(`INSERT INTO cobrancas (${colunas.join(", ")}) VALUES ${linhas.join(", ")}`, parcelas.flatMap((p) => colunas.map((c) => p[c])));
+}
+
+export const buscarCobranca = (id) => um("SELECT * FROM cobrancas WHERE id = $1", [id]);
+
+/** As parcelas, a mais próxima de vencer primeiro, com o nome do projeto e do cliente. */
+export function listarCobrancas({ contratoId = null } = {}) {
+  return q(
+    `SELECT b.*, c.projeto, c.contratante FROM cobrancas b JOIN contratos c ON c.id = b.contrato_id
+      WHERE ($1::integer IS NULL OR b.contrato_id = $1::integer) ORDER BY b.vencimento, b.id LIMIT 1000`,
+    [contratoId]
+  );
+}
+
+/** As agendadas que vencem até a data, só de contrato que continua assinado. */
+export const cobrancasParaEmitir = (ate) => q(
+  `SELECT b.* FROM cobrancas b JOIN contratos c ON c.id = b.contrato_id
+    WHERE b.status = 'agendada' AND b.vencimento <= $1 AND c.status = 'assinado' ORDER BY b.vencimento, b.id LIMIT 100`,
+  [ate]
+);
+
+/** As que já estão no Asaas e ainda podem mudar. Paga continua na lista por um tempo, por causa de estorno. */
+export const cobrancasParaConferir = () => q(
+  `SELECT * FROM cobrancas WHERE asaas_id IS NOT NULL
+      AND (status IN ('emitida', 'atrasada') OR (status = 'paga' AND atualizado_em > now() - interval '90 days'))
+    ORDER BY id LIMIT 300`
+);
+
+export async function atualizarCobranca(id, campos) {
+  const chaves = Object.keys(campos);
+  await q(`UPDATE cobrancas SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")}, atualizado_em = now() WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
+}
+
+export const excluirCobrancasDoContrato = (contratoId) => q("DELETE FROM cobrancas WHERE contrato_id = $1", [contratoId]);
+
 /** As empresas mais recentes que chegaram por uma origem (ex.: o formulário do site). */
 export async function leadsDaOrigem(origem, limite = 10) {
   return q(

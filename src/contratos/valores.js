@@ -72,7 +72,7 @@ export function documentoFormatado(valor) {
   return null;
 }
 
-const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+export const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
 /** "2026-12-05" → { dia: 5, mes: 11, ano: 2026 }, ou null se não for uma data de verdade. */
 export function lerData(iso) {

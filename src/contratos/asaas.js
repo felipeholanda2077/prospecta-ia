@@ -1,0 +1,68 @@
+import * as db from "../db.js";
+import { cifrar, decifrar } from "../segredos.js";
+
+// Asaas: emite PIX e boleto e avisa o cliente (e-mail e SMS, com as notificações padrão de cada cliente).
+// A chave de API fica cifrada no banco; o ambiente sai do começo dela, para nunca misturar teste e produção.
+const ENDERECOS = { producao: "https://api.asaas.com/v3", sandbox: "https://api-sandbox.asaas.com/v3" };
+const CHAVE_CONFIG = "asaas";
+
+export const ambienteDaChave = (chave) => (chave.startsWith("$aact_prod_") ? "producao" : chave.startsWith("$aact_hmlg_") ? "sandbox" : null);
+
+async function requisitar(chave, metodo, caminho, corpo) {
+  const r = await fetch(`${ENDERECOS[ambienteDaChave(chave)]}${caminho}`, {
+    method: metodo,
+    headers: { access_token: chave, "User-Agent": "FluxDeck-Prospecta", ...(corpo ? { "Content-Type": "application/json" } : {}) },
+    ...(corpo ? { body: JSON.stringify(corpo) } : {}),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (r.status === 404) return null;
+  const dados = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(dados.errors?.[0]?.description || `O Asaas respondeu com erro ${r.status}`);
+  return dados;
+}
+
+async function chamar(metodo, caminho, corpo) {
+  const { chave } = (await db.lerConfig(CHAVE_CONFIG)) ?? {};
+  const aberta = chave && decifrar(chave);
+  if (!aberta) throw new Error("Cole de novo a chave de API do Asaas");
+  return requisitar(aberta, metodo, caminho, corpo);
+}
+
+export async function situacao() {
+  const c = (await db.lerConfig(CHAVE_CONFIG)) ?? {};
+  return { conectado: Boolean(c.chave), ambiente: c.ambiente ?? null };
+}
+
+/** Confere a chave no próprio Asaas antes de guardar. Sem chave, desconecta. */
+export async function conectar(chave) {
+  const texto = String(chave ?? "").trim();
+  if (!texto) {
+    await db.gravarConfig(CHAVE_CONFIG, {});
+    return situacao();
+  }
+  const ambiente = ambienteDaChave(texto);
+  if (!ambiente) return { erro: "Cole a chave de API do Asaas: ela começa com $aact_prod_ ou $aact_hmlg_" };
+  try {
+    await requisitar(texto, "GET", "/customers?limit=1");
+  } catch (e) {
+    return { erro: e.message };
+  }
+  await db.gravarConfig(CHAVE_CONFIG, { chave: cifrar(texto), ambiente });
+  return situacao();
+}
+
+/** O cliente de um contrato no Asaas: reaproveita o que já existe, para repetir o pedido sem criar outro. */
+export async function garantirCliente({ referencia, nome, documento, email, celular }) {
+  const achados = await chamar("GET", `/customers?externalReference=${encodeURIComponent(referencia)}&limit=1`);
+  if (achados?.data?.[0]) return achados.data[0].id;
+  const novo = await chamar("POST", "/customers", {
+    name: nome, cpfCnpj: documento, externalReference: referencia,
+    ...(email ? { email } : {}), ...(celular ? { mobilePhone: celular } : {}),
+  });
+  return novo.id;
+}
+
+export const cobrancaPorReferencia = async (referencia) => (await chamar("GET", `/payments?externalReference=${encodeURIComponent(referencia)}&limit=1`))?.data?.[0] ?? null;
+export const criarCobranca = (dados) => chamar("POST", "/payments", dados);
+export const lerCobranca = (id) => chamar("GET", `/payments/${encodeURIComponent(id)}`);
+export const removerCobranca = (id) => chamar("DELETE", `/payments/${encodeURIComponent(id)}`);

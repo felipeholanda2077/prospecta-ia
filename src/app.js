@@ -38,6 +38,8 @@ import { processarWebhookInstagram } from "./respostas/instagram.js";
 import { receberFormulario, lerConfigFormulario, salvarConfigFormulario } from "./respostas/formulario.js";
 import { paginaDoFormulario, paginaDeObrigado } from "./paginaContato.js";
 import * as contratos from "./contratos/contrato.js";
+import * as asaas from "./contratos/asaas.js";
+import * as cobrancas from "./contratos/cobranca.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
@@ -249,6 +251,8 @@ const TAREFAS_CRON = {
   linkedin: (c) => rodadaDoLinkedin(c),
   // A cada 10 minutos: as perguntas novas do Mercado Livre, com a resposta sugerida.
   mercadolivre: (c) => rodadaDoMercadoLivre(c),
+  // A cada hora: as parcelas perto de vencer e o que já foi pago.
+  cobrancas: () => cobrancas.rodadaDeCobrancas(),
 };
 
 const resumoChave = (v) => crypto.createHash("sha256").update(`prospecta-cron:${v}`).digest("hex");
@@ -274,7 +278,7 @@ app.get("/api/cron/:tarefa", async (req, res) => {
   if (!tarefa) return res.sendStatus(404);
   const recebido = String(req.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!(await chaveDoCronValida(recebido))) return res.sendStatus(401);
-  if (!["novas", "conteudo", "instagram", "linkedin", "mercadolivre"].includes(req.params.tarefa)) await db.gravarEstado("ultima_rodada", new Date().toISOString());
+  if (!["novas", "conteudo", "instagram", "linkedin", "mercadolivre", "cobrancas"].includes(req.params.tarefa)) await db.gravarEstado("ultima_rodada", new Date().toISOString());
   // Se o agendador do banco ainda não estiver ligado, liga (na primeira rodada que chegar).
   const agendador = await garantirAgendamentoNoBanco().catch((e) => {
     console.error("⚠️  Agendador do banco:", e.message);
@@ -1118,12 +1122,43 @@ app.put("/api/contratos/:id", async (req, res) => {
   if (corpo !== undefined && !String(corpo).trim()) return res.status(400).json({ erro: "O contrato não pode ficar vazio" });
   if (status !== undefined && !contratos.STATUS_CONTRATO.includes(status)) return res.status(400).json({ erro: "Situação inválida" });
   await db.atualizarContrato(contrato.id, { ...(corpo !== undefined ? { corpo: String(corpo) } : {}), ...(status !== undefined ? { status } : {}) });
-  res.json(await db.buscarContrato(contrato.id));
+  const cobranca = status === "cancelado" ? await cobrancas.cancelarCobrancasDoContrato(contrato.id) : undefined;
+  res.json({ ...(await db.buscarContrato(contrato.id)), cobranca });
 });
 
 app.delete("/api/contratos/:id", async (req, res) => {
+  // O histórico do que foi cobrado não some junto com o contrato.
+  if ((await db.listarCobrancas({ contratoId: req.params.id })).some((p) => p.status !== "cancelada")) {
+    return res.status(400).json({ erro: "Este contrato tem cobranças. Cancele o contrato em vez de excluir." });
+  }
+  await db.excluirCobrancasDoContrato(req.params.id);
   await db.excluirContrato(req.params.id);
   res.json({ ok: true });
+});
+
+// Cobranças: as parcelas dos contratos assinados, emitidas pelo Asaas.
+app.get("/api/cobrancas", async (req, res) => res.json(await cobrancas.painelDeCobrancas()));
+
+app.get("/api/cobrancas/padroes", async (req, res) => {
+  const p = await cobrancas.padroesDaCobranca(req.query.contrato);
+  res.status(p.erro ? 404 : 200).json(p);
+});
+
+app.put("/api/cobrancas/asaas", async (req, res) => {
+  const r = await asaas.conectar(req.body?.chave);
+  res.status(r.erro ? 400 : 200).json(r);
+});
+
+app.post("/api/cobrancas", async (req, res) => {
+  const r = await cobrancas.gerarCobrancas(req.body ?? {});
+  res.status(r.erro ? 400 : 200).json(r);
+});
+
+app.post("/api/cobrancas/atualizar", async (req, res) => res.json(await cobrancas.rodadaDeCobrancas()));
+
+app.post("/api/cobrancas/:id/cancelar", async (req, res) => {
+  const r = await cobrancas.cancelarCobranca(req.params.id);
+  res.status(r.erro ? 400 : 200).json(r);
 });
 
 app.get("/api/contratos/:id/pdf", async (req, res) => {

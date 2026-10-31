@@ -550,6 +550,11 @@
   }
 
   /* Página do Instagram: resumo, abas e painéis */
+  .cb-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 4px 0 16px; }
+  .cb-resumo .ig-card { cursor: default; transform: none; border-color: var(--border); }
+  #form-cobranca, #form-asaas { margin: 16px 0; }
+  .cb-linha { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 14px 16px; }
+  .cb-linha .ct-linha-texto { flex: 1 1 220px; }
   .ig-resumo { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 4px 0 16px; }
   .ig-card { font: inherit; color: inherit; text-align: left; cursor: pointer; background: var(--surface); border: 1px solid var(--border);
              border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 6px; box-shadow: var(--shadow-sm); min-width: 0;
@@ -1055,6 +1060,7 @@
       <section id="view-contratos" hidden>
         <div class="ig-abas" role="tablist" aria-label="Seções de contratos" id="ct-abas">
           <button type="button" class="ig-aba" role="tab" data-ct-aba="lista" aria-selected="true"><span data-ic="file"></span>Contratos</button>
+          <button type="button" class="ig-aba" role="tab" data-ct-aba="cobrancas" aria-selected="false"><span data-ic="checkCircle"></span>Cobranças</button>
           <button type="button" class="ig-aba" role="tab" data-ct-aba="modelo" aria-selected="false"><span data-ic="settings"></span>Modelo</button>
           <button type="button" class="ig-aba" role="tab" data-ct-aba="dados" aria-selected="false"><span data-ic="users"></span><span class="so-largo">Seus dados</span><span class="so-estreito">Dados</span></button>
         </div>
@@ -1126,6 +1132,47 @@
           </div>
           <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar</button></div>
         </form>
+
+        <div class="ig-painel" data-ct-painel="cobrancas" hidden>
+          <div class="ig-barra">
+            <div class="ig-barra-texto"><h3>Cobranças</h3><p class="muted">As parcelas dos contratos assinados. Cada uma vai para o Asaas 15 dias antes de vencer, e o cliente paga por PIX ou boleto. O que foi pago é conferido a cada hora.</p></div>
+            <div class="ig-barra-botoes">
+              <button class="btn fantasma" type="button" id="cb-atualizar"><span data-ic="refresh"></span>Atualizar</button>
+              <button class="btn primario" type="button" id="cb-nova"><span data-ic="check"></span>Gerar cobranças</button>
+            </div>
+          </div>
+          <div class="cb-resumo" id="cb-resumo" aria-label="Totais das cobranças"></div>
+
+          <form class="cartao" id="form-cobranca" hidden>
+            <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="checkCircle"></span><div class="titulos"><h3>Gerar cobranças</h3>
+              <div class="meta">Os campos vêm do contrato. Confira antes de gerar: o cliente é avisado por e-mail e SMS quando cada parcela é emitida.</div></div></div>
+            <div class="cartao-corpo config-grade">
+              <div class="campo"><label for="cb-contrato">Contrato assinado</label><select id="cb-contrato" name="contratoId" required></select></div>
+              <div class="campo"><label for="cb-nome">Nome do cliente</label><input id="cb-nome" name="nome" autocomplete="off" required></div>
+              <div class="campo"><label for="cb-documento">CNPJ ou CPF</label><input id="cb-documento" name="documento" autocomplete="off" required></div>
+              <div class="campo"><label for="cb-email">E-mail</label><input id="cb-email" name="email" type="email" autocomplete="off"></div>
+              <div class="campo"><label for="cb-celular">Celular com DDD</label><input id="cb-celular" name="celular" inputmode="tel" autocomplete="off"></div>
+              <div class="campo"><label for="cb-valor">Valor de cada parcela (R$)</label><input id="cb-valor" name="valor" inputmode="decimal" autocomplete="off" required></div>
+              <div class="campo"><label for="cb-parcelas">Parcelas</label><input id="cb-parcelas" name="parcelas" type="number" min="1" max="120" value="1" required></div>
+              <div class="campo"><label for="cb-vencimento">Primeiro vencimento</label><input id="cb-vencimento" name="vencimento" type="date" required></div>
+              <div class="campo"><label for="cb-multa">Multa por atraso (%)</label><input id="cb-multa" name="multa" inputmode="decimal" autocomplete="off"></div>
+              <div class="campo"><label for="cb-juros">Juros ao mês (%)</label><input id="cb-juros" name="juros" inputmode="decimal" autocomplete="off"></div>
+            </div>
+            <div class="acoes"><button class="btn primario" type="submit"><span data-ic="check"></span>Gerar</button>
+              <button class="btn fantasma" type="button" id="cb-fechar">Fechar</button></div>
+          </form>
+
+          <div id="cb-lista" class="lista"></div>
+
+          <form class="cartao" id="form-asaas">
+            <div class="cartao-cab"><span class="kpi-ic" data-ic-span="settings"></span><div class="titulos"><h3>Conta do Asaas <span id="cb-asaas-status"></span></h3>
+              <div class="meta">No Asaas, abra Integrações, depois Chaves de API, e cole a chave aqui. Ela fica cifrada no banco e não volta a aparecer.</div></div></div>
+            <div class="cartao-corpo config-grade">
+              <div class="campo"><label for="cb-chave">Chave de API</label><input id="cb-chave" name="chave" type="password" autocomplete="new-password" spellcheck="false"></div>
+            </div>
+            <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar chave</button></div>
+          </form>
+        </div>
       </section>
 
       <!-- Conteúdo para o Instagram -->
@@ -3232,7 +3279,7 @@ let previaCt = null;
 
 function abrirAbaCt(aba) {
   salvarFolhaAgora();
-  if (["lista", "dados"].includes(aba)) folhaAtual = null;
+  if (["lista", "dados", "cobrancas"].includes(aba)) folhaAtual = null;
   const daLista = ["novo", "editor"].includes(aba) ? "lista" : aba;
   $$("[data-ct-aba]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.ctAba === daLista)));
   $$("[data-ct-painel]").forEach((p) => (p.hidden = p.dataset.ctPainel !== aba));
@@ -3240,6 +3287,7 @@ function abrirAbaCt(aba) {
   if (aba === "lista") carregarListaContratos();
   if (aba === "modelo") carregarModeloCt();
   if (aba === "dados") carregarDadosCt();
+  if (aba === "cobrancas") carregarCobrancas();
 }
 
 async function carregarContratos() {
@@ -3597,12 +3645,121 @@ $("#view-contratos").addEventListener("click", async (ev) => {
 $("#view-contratos").addEventListener("change", async (ev) => {
   if (ev.target.id !== "ct-status") return;
   try {
-    await api(`/api/contratos/${contratoAberto.id}`, { method: "PUT", body: JSON.stringify({ status: ev.target.value }) });
-    avisar("Situação atualizada", "ok", 1800);
+    const { status, cobranca } = await api(`/api/contratos/${contratoAberto.id}`, { method: "PUT", body: JSON.stringify({ status: ev.target.value }) });
+    if (cobranca?.falhas) avisar(`O Asaas não cancelou ${cobranca.falhas} cobrança(s). Veja a aba Cobranças.`, "perigo", 7000);
+    else if (cobranca?.canceladas) avisar(`Situação atualizada. ${cobranca.canceladas} cobrança(s) em aberto foram canceladas.`, "ok", 6000);
+    else if (status === "assinado") avisar("Contrato assinado. Gere as parcelas na aba Cobranças.", "ok", 6000);
+    else avisar("Situação atualizada", "ok", 1800);
   } catch (e) {
     avisar(e.message, "perigo");
   }
 });
+// Cobranças: as parcelas dos contratos assinados, emitidas pelo Asaas.
+const STATUS_COBRANCA = { agendada: ["Agendada", ""], emitida: ["Emitida", "acc"], atrasada: ["Em atraso", "perigo"], paga: ["Paga", "ok"], estornada: ["Estornada", "atencao"], cancelada: ["Cancelada", ""] };
+const ORDEM_COBRANCA = ["atrasada", "emitida", "agendada", "paga", "estornada", "cancelada"];
+const emReais = (v) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const dataCurta = (iso) => String(iso ?? "").split("-").reverse().join("/");
+let contratosCobraveis = [];
+
+async function carregarCobrancas() {
+  try {
+    const { asaas, resumo, parcelas, contratos } = await api("/api/cobrancas");
+    contratosCobraveis = contratos;
+    $("#cb-asaas-status").innerHTML = !asaas.conectado ? `<span class="pilula">Não conectado</span>`
+      : asaas.ambiente === "sandbox" ? `<span class="pilula atencao">Modo de teste</span>` : `<span class="pilula ok">Conectado</span>`;
+    const total = (rotulo, valor, sub) => `<div class="ig-card"><span class="ig-card-cab">${rotulo}</span><b>${esc(emReais(valor))}</b><span class="ig-card-sub">${sub}</span></div>`;
+    $("#cb-resumo").innerHTML = total("Recebido no mês", resumo.recebidoNoMes, "Pagamentos deste mês")
+      + total("A receber", resumo.aReceber, "Parcelas ainda no prazo") + total("Em atraso", resumo.emAtraso, "Já venceram sem pagamento");
+    const ordenadas = [...parcelas].sort((a, b) => ORDEM_COBRANCA.indexOf(a.status) - ORDEM_COBRANCA.indexOf(b.status));
+    $("#cb-lista").innerHTML = ordenadas.length ? ordenadas.map((p) => {
+      const [rotulo, cor] = STATUS_COBRANCA[p.status] ?? [p.status, ""];
+      const aberta = ["agendada", "emitida", "atrasada"].includes(p.status);
+      return `<article class="cartao"><div class="cb-linha">
+        <span class="ct-linha-texto"><b>${esc(p.descricao)}</b><span class="muted">${esc(p.contratante)} · ${esc(emReais(p.valor))} · vence em ${esc(dataCurta(p.vencimento))}${p.pago_em ? ` · paga em ${esc(dataCurta(p.pago_em))}` : ""}</span>
+          ${p.erro ? `<span class="muted" style="color:var(--danger)">${esc(p.erro)}</span>` : ""}</span>
+        <span class="pilula ${cor}">${rotulo}</span>
+        ${p.link ? `<a class="btn sm" href="${esc(p.link)}" target="_blank" rel="noopener">${ic("external", "sm")}Página de pagamento</a>` : ""}
+        ${aberta ? `<button class="btn fantasma sm" type="button" data-cb-cancelar="${p.id}">Cancelar</button>` : ""}
+      </div></article>`;
+    }).join("") : vazio("checkCircle", "Nenhuma cobrança ainda", "Marque um contrato como assinado e clique em Gerar cobranças.");
+  } catch (e) {
+    $("#cb-lista").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+async function preencherCobranca(contratoId) {
+  if (!contratoId) return;
+  try {
+    const p = await api(`/api/cobrancas/padroes?contrato=${encodeURIComponent(contratoId)}`);
+    const f = $("#form-cobranca");
+    for (const k of ["nome", "documento", "email", "celular", "valor", "parcelas", "vencimento", "multa", "juros"]) f[k].value = p[k] ?? "";
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+}
+
+$("#cb-nova").addEventListener("click", () => {
+  if (!contratosCobraveis.length) return avisar("Nenhum contrato assinado ainda. Marque a situação do contrato como Assinado.", "perigo", 6000);
+  const f = $("#form-cobranca");
+  f.contratoId.innerHTML = contratosCobraveis.map((c) => `<option value="${c.id}">${esc(c.projeto)} · ${esc(c.contratante)}</option>`).join("");
+  f.hidden = false;
+  preencherCobranca(f.contratoId.value);
+  f.scrollIntoView({ behavior: "smooth", block: "start" });
+});
+$("#cb-fechar").addEventListener("click", () => { $("#form-cobranca").hidden = true; });
+$("#cb-contrato").addEventListener("change", (ev) => preencherCobranca(ev.target.value));
+$("#form-cobranca").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const d = Object.fromEntries(new FormData(ev.target));
+  if (!confirm(`Gerar ${d.parcelas} cobrança(s) de R$ ${d.valor} para ${d.nome}, a primeira em ${dataCurta(d.vencimento)}?`)) return;
+  const btn = $("button[type=submit]", ev.target);
+  btn.disabled = true;
+  try {
+    await post("/api/cobrancas", d);
+    ev.target.hidden = true;
+    avisar("Cobranças geradas", "ok");
+    await carregarCobrancas();
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  } finally {
+    btn.disabled = false;
+  }
+});
+$("#form-asaas").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  try {
+    const { conectado } = await api("/api/cobrancas/asaas", { method: "PUT", body: JSON.stringify({ chave: ev.target.chave.value }) });
+    ev.target.chave.value = "";
+    avisar(conectado ? "Asaas conectado" : "Asaas desconectado", "ok");
+    await carregarCobrancas();
+  } catch (e) {
+    avisar(e.message, "perigo", 7000);
+  }
+});
+$("#cb-atualizar").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  try {
+    await post("/api/cobrancas/atualizar");
+    await carregarCobrancas();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+});
+$("#cb-lista").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-cb-cancelar]");
+  if (!btn || !confirm("Cancelar esta cobrança? Se já foi emitida, o cliente não poderá mais pagá-la.")) return;
+  try {
+    await post(`/api/cobrancas/${btn.dataset.cbCancelar}/cancelar`);
+    avisar("Cobrança cancelada", "ok");
+    await carregarCobrancas();
+  } catch (e) {
+    avisar(e.message, "perigo", 7000);
+  }
+});
+
 // Barra de formatação da folha.
 $("#view-contratos").addEventListener("click", (ev) => {
   const cmd = ev.target.closest("[data-folha-cmd]");
