@@ -174,7 +174,7 @@ function tabela(doc, b, largura) {
 }
 
 /** O PDF do contrato (Buffer), com a logo no cabeçalho e o rodapé em todas as páginas. */
-export function documentoEmPdf(texto, { marca = "", projeto = "", cnpj = "", tipo = "Contrato de Prestação de Serviços" } = {}) {
+export function documentoEmPdf(texto, { marca = "", projeto = "", cnpj = "", tipo = "Contrato de Prestação de Serviços", marcaDagua = "" } = {}) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: "A4", bufferPages: true,
@@ -279,6 +279,12 @@ export function documentoEmPdf(texto, { marca = "", projeto = "", cnpj = "", tip
       doc.font("Helvetica").fontSize(8).fillColor(COR.suave)
         .text(`${marca}${cnpj ? ` · CNPJ ${cnpj}` : ""}`, MARGEM.x, doc.page.height - 36, { width: largura / 2, lineBreak: false })
         .text(`Página ${i - start + 1} de ${count}`, MARGEM.x + largura / 2, doc.page.height - 36, { width: largura / 2, align: "right", lineBreak: false });
+      if (marcaDagua) {
+        const meioX = doc.page.width / 2;
+        const meioY = doc.page.height / 2;
+        doc.save().rotate(-38, { origin: [meioX, meioY] }).fillOpacity(0.09).fillColor(COR.marca).font("Helvetica-Bold").fontSize(40)
+          .text(marcaDagua, 0, meioY - 24, { width: doc.page.width, align: "center", lineBreak: false }).restore();
+      }
       doc.page.margins.bottom = base;
     }
     doc.end();

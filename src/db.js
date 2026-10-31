@@ -528,7 +528,8 @@ export async function mensagensPorStatus(status, limite = 1000) {
 
 /** As etapas de um lead em um canal (a sequência inteira). */
 export async function mensagensDaSequencia(leadId, canal) {
-  return q(`${SELECT_MENSAGEM} WHERE m.lead_id = $1 AND m.canal = $2 AND m.tipo <> 'resposta' ORDER BY m.etapa, m.id`, [leadId, canal]);
+  // Resposta só nasce como rascunho na campanha, que passa pela mesma aprovação.
+  return q(`${SELECT_MENSAGEM} WHERE m.lead_id = $1 AND m.canal = $2 AND (m.tipo <> 'resposta' OR m.status = 'rascunho') ORDER BY m.etapa, m.id`, [leadId, canal]);
 }
 
 /**
@@ -825,6 +826,16 @@ export const vendasAguardando = () => q(
 /** Paga continua sendo olhada por um tempo, por causa de estorno. */
 export const vendasPagasRecentes = () => q(
   `SELECT * FROM vendas WHERE status = 'paga' AND NOT mensal AND asaas_cobranca IS NOT NULL AND atualizado_em > now() - interval '90 days' ORDER BY id LIMIT 200`
+);
+
+/** Quem demonstrou interesse e não encerrou a conversa, com o canal e o contato da resposta mais recente. */
+export const interessadosDaCampanha = () => q(
+  `SELECT DISTINCT ON (l.id) l.id, l.nome, l.token, l.email, l.whatsapp, r.canal, r.de, r.recebida_em,
+          (SELECT max(x.recebida_em) FROM respostas x WHERE x.lead_id = l.id AND x.classificacao IS DISTINCT FROM 'automatica') AS ultima_resposta,
+          (SELECT max(m.enviada_em) FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada') AS ultimo_envio
+     FROM leads l JOIN respostas r ON r.lead_id = l.id AND r.classificacao IN ('interessado', 'quer_informacoes')
+    WHERE l.status NOT IN ('sem_interesse', 'descadastrado', 'fechado', 'descartado')
+    ORDER BY l.id, r.recebida_em DESC`
 );
 
 /** As mensalidades em andamento. */

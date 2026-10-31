@@ -41,6 +41,7 @@ import * as contratos from "./contratos/contrato.js";
 import * as asaas from "./contratos/asaas.js";
 import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
+import { pdfDoGuia, prepararCampanha } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
@@ -133,6 +134,15 @@ app.post("/contato", async (req, res) => {
   res.status(r.erro ? 400 : 200).send(r.erro
     ? paginaDoFormulario({ empresa: campanha.empresa.nome, servicos: campanha.servicos, origem: req.body?.origem, embed, erro: r.erro })
     : paginaDeObrigado({ empresa: campanha.empresa.nome, embed }));
+});
+
+// ---------- Guia gratuito (público: o link é de cada empresa) ----------
+
+app.get("/guia/:token", async (req, res) => {
+  const lead = await db.buscarLeadPorToken(req.params.token);
+  if (!lead) return res.status(404).send(LINK_INVALIDO);
+  const pdf = await pdfDoGuia(lead, await contratos.lerContratada(await carregarCampanhaCompleta()));
+  res.set({ "Cache-Control": "no-store", "X-Robots-Tag": "noindex", "Content-Type": "application/pdf", "Content-Disposition": 'inline; filename="guia-mais-clientes.pdf"' }).send(pdf);
 });
 
 // ---------- Diagnóstico do site (público: quem tem o link vê a página, e o relatório só depois de pago) ----------
@@ -1220,6 +1230,12 @@ app.delete("/api/ofertas/:id", async (req, res) => res.json(await entrada.remove
 
 app.post("/api/vendas", async (req, res) => {
   const r = await entrada.gerarLink(req.body);
+  res.status(r.erro ? 400 : 200).json(r);
+});
+
+// Campanha de Black Friday: prepara as mensagens para aprovação.
+app.post("/api/campanha/black-friday", async (req, res) => {
+  const r = await prepararCampanha(await carregarCampanhaCompleta());
   res.status(r.erro ? 400 : 200).json(r);
 });
 

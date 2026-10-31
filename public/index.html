@@ -1188,6 +1188,13 @@
 
           <div id="vd-lista" class="lista"></div>
 
+          <div class="cartao" id="cb-campanha" style="margin:16px 0">
+            <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="spark"></span><div class="titulos"><h3>Campanha de Black Friday</h3>
+              <div class="meta">Para quem demonstrou interesse: avisa que o Professional com IA sai de R$ 4.500 por R$ 3.000/mês em novembro. Quem parou de responder recebe também um guia gratuito, com o nome da empresa na marca-d'água. As mensagens vão para Aprovar mensagens, e a IA passa a informar o novo valor nas conversas.</div></div></div>
+            <div class="acoes"><button class="btn primario" type="button" id="cb-preparar-campanha"><span data-ic="send"></span>Preparar mensagens</button>
+              <span class="muted" id="cb-campanha-resultado" style="font-size:13px"></span></div>
+          </div>
+
           <form class="cartao" id="form-asaas">
             <div class="cartao-cab"><span class="kpi-ic" data-ic-span="settings"></span><div class="titulos"><h3>Conta do Asaas <span id="cb-asaas-status"></span></h3>
               <div class="meta">No Asaas, abra Integrações, depois Chaves de API, e cole a chave aqui. Ela fica cifrada no banco e não volta a aparecer.</div></div></div>
@@ -3741,6 +3748,22 @@ function mostrarVendas(ofertas, vendas) {
     </div></article>`;
   }).join("");
 }
+
+$("#cb-preparar-campanha").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  try {
+    const { criadas, fora } = await post("/api/campanha/black-friday");
+    const partes = [criadas.length ? `${criadas.length} ${criadas.length === 1 ? "mensagem pronta" : "mensagens prontas"} em Aprovar mensagens.` : "Nenhuma mensagem nova: quem demonstrou interesse já entrou na campanha."];
+    if (fora.length) partes.push(`Fora: ${fora.map((f) => `${f.empresa} (${f.motivo})`).join("; ")}.`);
+    $("#cb-campanha-resultado").textContent = partes.join(" ");
+    carregarStats();
+  } catch (e) {
+    avisar(e.message, "perigo", 7000);
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 $("#form-oferta").addEventListener("submit", async (ev) => {
   ev.preventDefault();

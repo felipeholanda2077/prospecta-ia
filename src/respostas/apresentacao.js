@@ -18,6 +18,7 @@ Planos (todos sem fidelidade, com setup rápido e suporte humano; garantia de re
 - Correções avulsas (R$ 1.000/mês): manutenção e melhorias em site ou sistema que já existe.
 
 Promoção de Black Friday (só em novembro de 2026): criação de site ou de e-commerce por R$ 1.500/mês.
+Promoção de Black Friday (só em novembro de 2026): Professional com IA de atendimento no WhatsApp de R$ 4.500/mês por R$ 3.000/mês.
 
 Prazo: projetos simples ficam prontos em 2 a 4 semanas; sistemas mais complexos levam de 2 a 3 meses. O cronograma exato sai na reunião inicial.`;
 
