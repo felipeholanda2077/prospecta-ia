@@ -788,6 +788,42 @@ export async function atualizarCobranca(id, campos) {
 
 export const excluirCobrancasDoContrato = (contratoId) => q("DELETE FROM cobrancas WHERE contrato_id = $1", [contratoId]);
 
+// ---------- Vendas (ofertas de entrada) ----------
+
+/** Retorna o id, ou null se a empresa já tem um link em aberto desta oferta. */
+export async function criarVenda({ lead_id, oferta, descricao, valor }) {
+  const r = await um(
+    `INSERT INTO vendas (lead_id, oferta, descricao, valor) VALUES ($1, $2, $3, $4)
+     ON CONFLICT (lead_id, oferta) WHERE status = 'aguardando' DO NOTHING RETURNING id`,
+    [lead_id, oferta, descricao, valor]
+  );
+  return r?.id ?? null;
+}
+
+export const buscarVenda = (id) => um("SELECT * FROM vendas WHERE id = $1", [id]);
+export const vendaPorLink = (link) => um("SELECT * FROM vendas WHERE asaas_link = $1", [link]);
+export const vendaAberta = (leadId, oferta) => um("SELECT * FROM vendas WHERE lead_id = $1 AND oferta = $2 AND status = 'aguardando'", [leadId, oferta]);
+export const excluirVenda = (id) => q("DELETE FROM vendas WHERE id = $1", [id]);
+
+export const listarVendas = () => q(
+  `SELECT v.*, l.nome AS empresa FROM vendas v LEFT JOIN leads l ON l.id = v.lead_id ORDER BY v.id DESC LIMIT 200`
+);
+
+/** Os links em aberto, o mais antigo primeiro. Depois de 45 dias o link já venceu e sai da conferência. */
+export const vendasAguardando = () => q(
+  `SELECT * FROM vendas WHERE status = 'aguardando' AND asaas_link IS NOT NULL AND criado_em > now() - interval '45 days' ORDER BY criado_em LIMIT 200`
+);
+
+/** Paga continua sendo olhada por um tempo, por causa de estorno. */
+export const vendasPagasRecentes = () => q(
+  `SELECT * FROM vendas WHERE status = 'paga' AND asaas_cobranca IS NOT NULL AND atualizado_em > now() - interval '90 days' ORDER BY id LIMIT 200`
+);
+
+export async function atualizarVenda(id, campos) {
+  const chaves = Object.keys(campos);
+  await q(`UPDATE vendas SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")}, atualizado_em = now() WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
+}
+
 /** As empresas mais recentes que chegaram por uma origem (ex.: o formulário do site). */
 export async function leadsDaOrigem(origem, limite = 10) {
   return q(

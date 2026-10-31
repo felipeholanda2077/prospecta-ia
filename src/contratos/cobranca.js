@@ -12,16 +12,8 @@ const ESTADO_ULTIMO_AVISO = "asaas_ultimo_aviso";
 const MULTA_PADRAO = 2;
 const JUROS_PADRAO = 1;
 
-const SITUACOES = {
-  PENDING: "emitida", AWAITING_RISK_ANALYSIS: "emitida",
-  OVERDUE: "atrasada", DUNNING_REQUESTED: "atrasada",
-  RECEIVED: "paga", CONFIRMED: "paga", RECEIVED_IN_CASH: "paga", DUNNING_RECEIVED: "paga",
-  REFUNDED: "estornada", REFUND_REQUESTED: "estornada", REFUND_IN_PROGRESS: "estornada",
-  CHARGEBACK_REQUESTED: "estornada", CHARGEBACK_DISPUTE: "estornada", AWAITING_CHARGEBACK_REVERSAL: "estornada",
-};
-
 const dataIso = (d) => d.toISOString().slice(0, 10);
-const hojeNoFuso = (agora) => new Date(agora).toLocaleDateString("en-CA", { timeZone: config.timezone });
+export const hojeNoFuso = (agora) => new Date(agora).toLocaleDateString("en-CA", { timeZone: config.timezone });
 const referenciaDaParcela = (id) => `parcela-${id}`;
 
 /** A data de cada parcela: mesmo dia todo mês; dia 29 a 31 cai no último dia dos meses mais curtos. */
@@ -114,7 +106,7 @@ async function emitir(p) {
 async function conferir(p, hoje) {
   const pagamento = await asaas.lerCobranca(p.asaas_id);
   // Removida no próprio Asaas: aqui também deixa de valer.
-  const status = !pagamento || pagamento.deleted ? "cancelada" : SITUACOES[pagamento.status] ?? p.status;
+  const status = !pagamento || pagamento.deleted ? "cancelada" : asaas.SITUACOES[pagamento.status] ?? p.status;
   const pago_em = status === "paga" ? (pagamento.clientPaymentDate ?? pagamento.paymentDate ?? p.pago_em ?? hoje) : null;
   if (status !== p.status || pago_em !== p.pago_em || p.erro) await db.atualizarCobranca(p.id, { status, pago_em, erro: null });
 }

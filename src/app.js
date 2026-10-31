@@ -40,6 +40,7 @@ import { paginaDoFormulario, paginaDeObrigado } from "./paginaContato.js";
 import * as contratos from "./contratos/contrato.js";
 import * as asaas from "./contratos/asaas.js";
 import * as cobrancas from "./contratos/cobranca.js";
+import * as entrada from "./vendas/entrada.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
@@ -236,6 +237,7 @@ app.post("/webhooks/asaas", async (req, res) => {
   try {
     await cobrancas.registrarAviso();
     await cobrancas.processarAvisoDoAsaas(req.body);
+    await entrada.processarAvisoDeVenda(req.body);
   } catch (e) {
     console.error("Erro no webhook do Asaas:", e.message);
   }
@@ -266,8 +268,8 @@ const TAREFAS_CRON = {
   linkedin: (c) => rodadaDoLinkedin(c),
   // A cada 10 minutos: as perguntas novas do Mercado Livre, com a resposta sugerida.
   mercadolivre: (c) => rodadaDoMercadoLivre(c),
-  // A cada hora: as parcelas perto de vencer e o que já foi pago.
-  cobrancas: () => cobrancas.rodadaDeCobrancas(),
+  // A cada hora: as parcelas perto de vencer e o que já foi pago, inclusive pelos links de pagamento.
+  cobrancas: async () => ({ ...(await cobrancas.rodadaDeCobrancas()), ...(await entrada.conferirVendas()) }),
 };
 
 const resumoChave = (v) => crypto.createHash("sha256").update(`prospecta-cron:${v}`).digest("hex");
@@ -1152,7 +1154,30 @@ app.delete("/api/contratos/:id", async (req, res) => {
 });
 
 // Cobranças: as parcelas dos contratos assinados, emitidas pelo Asaas.
-app.get("/api/cobrancas", async (req, res) => res.json(await cobrancas.painelDeCobrancas()));
+app.get("/api/cobrancas", async (req, res) => {
+  const [parcelas, vendas] = [await cobrancas.painelDeCobrancas(), await entrada.painelDeVendas()];
+  res.json({ ...parcelas, ofertas: vendas.ofertas, vendas: vendas.vendas, resumo: { ...parcelas.resumo, recebidoNoMes: parcelas.resumo.recebidoNoMes + vendas.recebidoNoMes } });
+});
+
+// Ofertas de entrada: o que se vende pela conversa, com o link de pagamento do Asaas.
+app.get("/api/ofertas", async (req, res) => res.json(await entrada.lerOfertas()));
+
+app.post("/api/ofertas", async (req, res) => {
+  const r = await entrada.criarOferta(req.body);
+  res.status(r.erro ? 400 : 200).json(r);
+});
+
+app.delete("/api/ofertas/:id", async (req, res) => res.json(await entrada.removerOferta(req.params.id)));
+
+app.post("/api/vendas", async (req, res) => {
+  const r = await entrada.gerarLink(req.body);
+  res.status(r.erro ? 400 : 200).json(r);
+});
+
+app.post("/api/vendas/:id/cancelar", async (req, res) => {
+  const r = await entrada.cancelarVenda(req.params.id);
+  res.status(r.erro ? 400 : 200).json(r);
+});
 
 app.get("/api/cobrancas/padroes", async (req, res) => {
   const p = await cobrancas.padroesDaCobranca(req.query.contrato);
@@ -1172,7 +1197,7 @@ app.post("/api/cobrancas", async (req, res) => {
   res.status(r.erro ? 400 : 200).json(r);
 });
 
-app.post("/api/cobrancas/atualizar", async (req, res) => res.json(await cobrancas.rodadaDeCobrancas()));
+app.post("/api/cobrancas/atualizar", async (req, res) => res.json({ ...(await cobrancas.rodadaDeCobrancas()), ...(await entrada.conferirVendas()) }));
 
 app.post("/api/cobrancas/:id/cancelar", async (req, res) => {
   const r = await cobrancas.cancelarCobranca(req.params.id);

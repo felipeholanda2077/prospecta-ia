@@ -8,7 +8,16 @@ const ENDERECOS = { producao: "https://api.asaas.com/v3", sandbox: "https://api-
 const CHAVE_CONFIG = "asaas";
 const CHAVE_WEBHOOK = "asaas_webhook";
 
-export const ambienteDaChave = (chave) => (chave.startsWith("$aact_prod_") ? "producao" : chave.startsWith("$aact_hmlg_") ? "sandbox" : null);
+/** O que cada situação do Asaas quer dizer aqui. */
+export const SITUACOES = {
+  PENDING: "emitida", AWAITING_RISK_ANALYSIS: "emitida",
+  OVERDUE: "atrasada", DUNNING_REQUESTED: "atrasada",
+  RECEIVED: "paga", CONFIRMED: "paga", RECEIVED_IN_CASH: "paga", DUNNING_RECEIVED: "paga",
+  REFUNDED: "estornada", REFUND_REQUESTED: "estornada", REFUND_IN_PROGRESS: "estornada",
+  CHARGEBACK_REQUESTED: "estornada", CHARGEBACK_DISPUTE: "estornada", AWAITING_CHARGEBACK_REVERSAL: "estornada",
+};
+
+export const ambienteDaChave =(chave) => (chave.startsWith("$aact_prod_") ? "producao" : chave.startsWith("$aact_hmlg_") ? "sandbox" : null);
 
 async function requisitar(chave, metodo, caminho, corpo) {
   const r = await fetch(`${ENDERECOS[ambienteDaChave(chave)]}${caminho}`, {
@@ -86,3 +95,6 @@ export const cobrancaPorReferencia = async (referencia) => (await chamar("GET", 
 export const criarCobranca = (dados) => chamar("POST", "/payments", dados);
 export const lerCobranca = (id) => chamar("GET", `/payments/${encodeURIComponent(id)}`);
 export const removerCobranca = (id) => chamar("DELETE", `/payments/${encodeURIComponent(id)}`);
+export const pagamentosDesde = (data, offset = 0) => chamar("GET", `/payments?${new URLSearchParams({ "dateCreated[ge]": data, limit: "100", offset: String(offset) })}`);
+export const criarLink = (dados) => chamar("POST", "/paymentLinks", dados);
+export const removerLink = (id) => chamar("DELETE", `/paymentLinks/${encodeURIComponent(id)}`);

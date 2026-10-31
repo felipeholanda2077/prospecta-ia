@@ -372,6 +372,9 @@
   .dia { align-self: center; background: var(--surface); color: var(--muted); font-size: 12px; padding: 4px 10px; border-radius: 8px; margin: 8px 0; box-shadow: var(--shadow-sm); }
   .chat-escrever { border-top: 1px solid var(--border); padding: 10px 12px; display: grid; gap: 8px; }
   .chat-escrever textarea { min-height: 64px; max-height: 200px; resize: vertical; }
+  .chat-oferta:not([hidden]) { border-top: 1px solid var(--border); padding: 10px 12px; display: flex; gap: 8px; align-items: center; }
+  .chat-oferta select { flex: 1; min-width: 0; }
+  .chat-oferta .btn { flex: none; }
   .chat-escrever .espaco { flex: 1; }
   .chat-escrever .linha { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); }
   .chat-vazio { flex: 1; display: grid; place-items: center; text-align: center; padding: 30px; color: var(--muted); background: var(--wa-chat); }
@@ -552,7 +555,7 @@
   /* Página do Instagram: resumo, abas e painéis */
   .cb-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 4px 0 16px; }
   .cb-resumo .ig-card { cursor: default; transform: none; border-color: var(--border); }
-  #form-cobranca, #form-asaas { margin: 16px 0; }
+  #form-cobranca, #form-asaas, #form-oferta { margin: 16px 0; }
   .cb-linha { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 14px 16px; }
   .cb-linha .ct-linha-texto { flex: 1 1 220px; }
   .ig-resumo { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; margin: 4px 0 16px; }
@@ -1163,6 +1166,20 @@
           </form>
 
           <div id="cb-lista" class="lista"></div>
+
+          <form class="cartao" id="form-oferta">
+            <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="send"></span><div class="titulos"><h3>Ofertas de entrada</h3>
+              <div class="meta">Um serviço pequeno, de preço fixo, sem contrato. Na conversa, o botão Link de pagamento gera um PIX para aquela empresa; quando ela paga, vira cliente sozinha.</div></div></div>
+            <div class="cartao-corpo config-grade">
+              <div class="campo"><label for="of-nome">Nome da oferta</label><input id="of-nome" name="nome" maxlength="80" autocomplete="off" placeholder="Ex.: Diagnóstico completo do site" required></div>
+              <div class="campo"><label for="of-valor">Preço (R$)</label><input id="of-valor" name="valor" inputmode="decimal" autocomplete="off" required></div>
+              <div class="campo" style="grid-column:1/-1"><label for="of-descricao">O que está incluído (aparece na página de pagamento)</label><input id="of-descricao" name="descricao" maxlength="500" autocomplete="off"></div>
+            </div>
+            <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Adicionar oferta</button></div>
+            <div class="cartao-corpo" id="of-lista"></div>
+          </form>
+
+          <div id="vd-lista" class="lista"></div>
 
           <form class="cartao" id="form-asaas">
             <div class="cartao-cab"><span class="kpi-ic" data-ic-span="settings"></span><div class="titulos"><h3>Conta do Asaas <span id="cb-asaas-status"></span></h3>
@@ -2524,10 +2541,12 @@ async function abrirConversa(id, { atualizar = false } = {}) {
       <div class="titulos"><h3>${esc(d.lead.nome)}${d.interessado ? ` ${pilulaInteresse()}` : ""}</h3>
         <div class="meta">${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}${d.lead.instagram ? `<a href="https://www.instagram.com/${esc(d.lead.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(d.lead.instagram)}</a>` : ""}</div></div>
       ${a ? pilulaChance(a) : ""}
-      ${!encerrada && d.lead.status !== "fechado" ? `<button class="btn ok sm" data-cliente-aceitou="${d.lead.id}" title="Gera o contrato desta empresa">${ic("file", "sm")}Aceitou: gerar contrato</button>` : ""}
+      ${!encerrada && d.lead.status !== "fechado" ? `<button class="btn ok sm" data-cliente-aceitou="${d.lead.id}" title="Gera o contrato desta empresa">${ic("file", "sm")}Aceitou: gerar contrato</button>
+        <button class="btn sm" data-link-pagamento="${d.lead.id}" title="Gera um link de PIX de uma oferta de entrada">${ic("send", "sm")}Link de pagamento</button>` : ""}
     </div>
     <div class="chat-andamento" id="chat-andamento">${a ? htmlAndamento(d) : ""}</div>
     <div class="chat-msgs" id="chat-msgs">${msgs}</div>
+    <div class="chat-oferta" id="chat-oferta" hidden></div>
     ${r && !encerrada ? `<div class="chat-escrever" data-resposta="${r.id}" data-canal="${r.canal}">
       <textarea id="chat-texto" aria-label="Mensagem para ${esc(d.lead.nome)}" placeholder="Escreva como Felipe, pelo ${canal}…">${esc(r.sugestao ?? "")}</textarea>
       <div class="linha">${r.sugestao ? `${ic("spark", "sm")}Sugestão da IA (revise antes de enviar) ·` : ""} Responde pelo ${canal}${r.de && r.canal !== "instagram" ? ` para ${esc(r.de)}` : ""}${r.canal === "whatsapp" && d.numeroWhatsapp ? ` · pelo número ${esc(d.numeroWhatsapp)}` : ""}${r.canal === "instagram" ? " (até 24 h depois da última mensagem da pessoa)" : ""}
@@ -3669,9 +3688,10 @@ let contratosCobraveis = [];
 
 async function carregarCobrancas() {
   try {
-    const [{ asaas, resumo, parcelas, contratos }, webhook] = await Promise.all([api("/api/cobrancas"), api("/api/cobrancas/webhook")]);
+    const [{ asaas, resumo, parcelas, contratos, ofertas, vendas }, webhook] = await Promise.all([api("/api/cobrancas"), api("/api/cobrancas/webhook")]);
     contratosCobraveis = contratos;
     mostrarWebhookAsaas(webhook);
+    mostrarVendas(ofertas, vendas);
     $("#cb-asaas-status").innerHTML = !asaas.conectado ? `<span class="pilula">Não conectado</span>`
       : asaas.ambiente === "sandbox" ? `<span class="pilula atencao">Modo de teste</span>` : `<span class="pilula ok">Conectado</span>`;
     const total = (rotulo, valor, sub) => `<div class="ig-card"><span class="ig-card-cab">${rotulo}</span><b>${esc(emReais(valor))}</b><span class="ig-card-sub">${sub}</span></div>`;
@@ -3693,6 +3713,94 @@ async function carregarCobrancas() {
     $("#cb-lista").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
 }
+
+const STATUS_VENDA = { aguardando: ["Aguardando pagamento", "acc"], paga: ["Paga", "ok"], estornada: ["Estornada", "atencao"], cancelada: ["Cancelada", ""] };
+
+function mostrarVendas(ofertas, vendas) {
+  $("#of-lista").innerHTML = ofertas.length ? `<div style="display:grid;gap:8px">${ofertas.map((o) => `<div class="cb-linha" style="padding:0">
+      <span class="ct-linha-texto"><b>${esc(o.nome)}</b><span class="muted">${esc(emReais(o.valor))}${o.descricao ? ` · ${esc(o.descricao)}` : ""}</span></span>
+      <button type="button" class="btn fantasma sm" data-of-remover="${esc(o.id)}">Remover</button></div>`).join("")}</div>`
+    : `<span class="muted">Nenhuma oferta ainda. Sem ela, o botão da conversa não tem o que vender.</span>`;
+  $("#vd-lista").innerHTML = vendas.map((v) => {
+    const [rotulo, cor] = STATUS_VENDA[v.status] ?? [v.status, ""];
+    return `<article class="cartao"><div class="cb-linha">
+      <span class="ct-linha-texto"><b>${esc(v.oferta)}</b><span class="muted">${esc(v.empresa ?? "Empresa removida")} · ${esc(emReais(v.valor))}${v.pago_em ? ` · paga em ${esc(dataCurta(v.pago_em))}` : ""}</span></span>
+      <span class="pilula ${cor}">${rotulo}</span>
+      ${v.status === "aguardando" && v.link ? `<button type="button" class="btn sm" data-vd-copiar="${esc(v.link)}">${ic("copy", "sm")}Copiar link</button>
+        <button type="button" class="btn fantasma sm" data-vd-cancelar="${v.id}">Cancelar</button>` : ""}
+    </div></article>`;
+  }).join("");
+}
+
+$("#form-oferta").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  try {
+    await post("/api/ofertas", Object.fromEntries(new FormData(ev.target)));
+    ev.target.reset();
+    avisar("Oferta adicionada", "ok");
+    await carregarCobrancas();
+  } catch (e) {
+    avisar(e.message, "perigo", 6000);
+  }
+});
+$("#of-lista").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-of-remover]");
+  if (!b) return;
+  try {
+    await api(`/api/ofertas/${b.dataset.ofRemover}`, { method: "DELETE" });
+    await carregarCobrancas();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+});
+$("#vd-lista").addEventListener("click", async (ev) => {
+  const copiar = ev.target.closest("[data-vd-copiar]");
+  if (copiar) {
+    await navigator.clipboard.writeText(copiar.dataset.vdCopiar).catch(() => {});
+    return avisar("Link copiado", "ok", 1500);
+  }
+  const cancelar = ev.target.closest("[data-vd-cancelar]");
+  if (!cancelar || !confirm("Cancelar este link? O cliente não poderá mais pagar por ele.")) return;
+  try {
+    await post(`/api/vendas/${cancelar.dataset.vdCancelar}/cancelar`);
+    avisar("Link cancelado", "ok");
+    await carregarCobrancas();
+  } catch (e) {
+    avisar(e.message, "perigo", 7000);
+  }
+});
+
+// Na conversa: escolhe a oferta, gera o link e deixa a mensagem na caixa de texto, para revisar e enviar.
+document.addEventListener("click", async (ev) => {
+  const abrir = ev.target.closest("[data-link-pagamento]");
+  const gerar = ev.target.closest("[data-gerar-link]");
+  if (!abrir && !gerar) return;
+  try {
+    if (abrir) {
+      const ofertas = await api("/api/ofertas");
+      if (!ofertas.length) return avisar("Cadastre uma oferta em Contratos → Cobranças primeiro.", "perigo", 6000);
+      $("#chat-oferta").innerHTML = `<select aria-label="Oferta" id="chat-oferta-escolha">${ofertas.map((o) => `<option value="${esc(o.id)}">${esc(o.nome)} · ${esc(emReais(o.valor))}</option>`).join("")}</select>
+        <button type="button" class="btn primario sm" data-gerar-link="${abrir.dataset.linkPagamento}">Gerar link</button>`;
+      $("#chat-oferta").hidden = false;
+      return;
+    }
+    gerar.disabled = true;
+    const { mensagem } = await post("/api/vendas", { leadId: Number(gerar.dataset.gerarLink), ofertaId: $("#chat-oferta-escolha").value });
+    await navigator.clipboard.writeText(mensagem).catch(() => {});
+    $("#chat-oferta").hidden = true;
+    const caixa = $("#chat-texto");
+    if (caixa) {
+      caixa.value = caixa.value.trim() ? `${caixa.value.trim()}\n\n${mensagem}` : mensagem;
+      caixa.focus();
+      avisar("Link pronto. Revise a mensagem e clique em Enviar. Ela também foi copiada.", "ok", 7000);
+    } else {
+      avisar("Link pronto e copiado. Cole a mensagem na conversa com a empresa.", "ok", 7000);
+    }
+  } catch (e) {
+    if (gerar) gerar.disabled = false;
+    avisar(e.message, "perigo", 8000);
+  }
+});
 
 function mostrarWebhookAsaas({ url, token, ultimoAviso }) {
   $("#cb-webhook-corpo").innerHTML = `<div style="display:grid;gap:8px">

@@ -180,6 +180,7 @@ A página **Contratos** do painel guarda o modelo e o contrato de cada cliente:
 - **Pagamento por contrato:** por mês (valor, meses de vigência e data do primeiro pagamento) ou entrada e saldo. O resumo, o valor total por extenso, a tabela de parcelas e a cláusula de rescisão saem de acordo.
 - **Cada contrato** pode ser editado à vontade, com situação (rascunho, enviado, assinado, cancelado) e **Baixar PDF**, pronto para assinar pelo gov.br.
 - **Cobranças:** com a chave de API do Asaas colada na aba **Cobranças**, um contrato assinado gera as parcelas. Cada uma é emitida 15 dias antes de vencer, com PIX e boleto na mesma página de pagamento, e os lembretes por e-mail e SMS são os do próprio Asaas. O webhook (URL e token na mesma aba) mostra o pagamento na hora, e a conferência de cada hora cobre o aviso que se perder. Cancelar o contrato cancela o que está em aberto.
+- **Ofertas de entrada:** serviços pequenos, de preço fixo e sem contrato, cadastrados na aba **Cobranças**. Na conversa, o botão **Link de pagamento** gera um link de PIX do Asaas para aquela empresa e deixa a mensagem na caixa de texto, para revisar e enviar. Quando o pagamento entra, a empresa passa a **Cliente fechado**, as mensagens na fila são canceladas e o link é removido.
 
 ## Formulário do site
 
