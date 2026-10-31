@@ -289,6 +289,18 @@ CREATE INDEX IF NOT EXISTS idx_mensagens_lead ON mensagens(lead_id);
 CREATE INDEX IF NOT EXISTS idx_mensagens_responde_a ON mensagens(responde_a);
 CREATE INDEX IF NOT EXISTS idx_respostas_lead ON respostas(lead_id);
 
+-- Sem estoque: o produto é vendido como afiliado da Shopee ou por dropshipping.
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS modo text NOT NULL DEFAULT 'dropshipping'; -- afiliado | dropshipping
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS link_afiliado text;
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS comissao double precision;  -- % que a Shopee paga, só para referência
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS fornecedor text;
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS link_fornecedor text;
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS custo double precision;
+
+-- Oferta mensal: o link cria uma assinatura, e pago_em fica com o último pagamento dela.
+ALTER TABLE vendas ADD COLUMN IF NOT EXISTS mensal boolean NOT NULL DEFAULT false;
+ALTER TABLE vendas ADD COLUMN IF NOT EXISTS asaas_assinatura text;
+
 -- No Supabase as tabelas do schema public ficam expostas pela API REST.
 -- RLS ligado e sem políticas = ninguém acessa por ela; o sistema conecta direto no Postgres.
 ALTER TABLE leads ENABLE ROW LEVEL SECURITY;

@@ -23,7 +23,7 @@ async function comFetch(falso, fazer) {
   }
 }
 const FOTO = "produto-11111111-2222-3333-4444-555555555555.jpg";
-const base = (extra = {}) => ({ nome: "Máquina de corte profissional", preco: "199,90", estoque: "5", descricao: "Máquina de corte sem fio, com bateria de longa duração e 4 pentes.", marca: "Wahl", modelo: "X1", sku: "MQ-1", peso_g: "500", altura_cm: "10", largura_cm: "15", comprimento_cm: "20", fotos: [FOTO], ...extra });
+const base = (extra = {}) => ({ nome: "Máquina de corte profissional", preco: "199,90", modo: "dropshipping", fornecedor: "Fornecedor Teste", link_fornecedor: "https://fornecedor.exemplo.com/maquina", custo: "120,00", descricao: "Máquina de corte sem fio, com bateria de longa duração e 4 pentes.", marca: "Wahl", modelo: "X1", sku: "MQ-1", peso_g: "500", altura_cm: "10", largura_cm: "15", comprimento_cm: "20", fotos: [FOTO], ...extra });
 const criar = async (extra) => db.criarProduto(produtos.limparProduto(base(extra)));
 
 function apiMl({ falhar = null, statusCriado = "active", familia = false } = {}) {
@@ -42,11 +42,34 @@ function apiMl({ falhar = null, statusCriado = "active", familia = false } = {})
 const link = (f) => `https://painel.exemplo.com/api/midia/${f}`;
 
 test("produtos: confere o cadastro e só aceita foto do próprio sistema", () => {
-  assert.throws(() => produtos.limparProduto({ nome: "A", preco: "10", estoque: "1" }), /nome/);
+  assert.throws(() => produtos.limparProduto({ nome: "A", preco: "10" }), /nome/);
   assert.throws(() => produtos.limparProduto(base({ preco: "0" })), /preço/);
-  assert.throws(() => produtos.limparProduto(base({ estoque: "" })), /estoque/);
+  assert.throws(() => produtos.limparProduto(base({ fornecedor: "", link_fornecedor: "" })), /fornecedor/);
+  assert.throws(() => produtos.limparProduto(base({ link_fornecedor: "isso não é link" })), /link do fornecedor/);
+  assert.throws(() => produtos.limparProduto(base({ custo: "199,90" })), /maior que o custo/);
   const p = produtos.limparProduto(base({ gtin: "78-9123", fotos: [FOTO, "https://malicioso.com/x.jpg", "../segredo"], extra: "x" }));
-  assert.deepEqual([p.preco, p.estoque, p.gtin, p.fotos, p.condicao, p.extra], [199.9, 5, "789123", [FOTO], "new", undefined]);
+  assert.deepEqual([p.preco, p.modo, p.custo, p.gtin, p.fotos, p.condicao, p.extra], [199.9, "dropshipping", 120, "789123", [FOTO], "new", undefined]);
+});
+
+test("produtos: afiliado só aceita link da Shopee e não vira anúncio", async () => {
+  const afiliado = { nome: "Fone sem fio", preco: "89,90", modo: "afiliado", fotos: [FOTO] };
+  assert.throws(() => produtos.limparProduto(afiliado), /link de afiliado/);
+  assert.throws(() => produtos.limparProduto({ ...afiliado, link_afiliado: "https://shopee.com.br.golpe.com/x" }), /link de afiliado/);
+  assert.throws(() => produtos.limparProduto({ ...afiliado, link_afiliado: "ftp://s.shopee.com.br/x" }), /link de afiliado/);
+  const p = produtos.limparProduto({ ...afiliado, link_afiliado: "https://s.shopee.com.br/abc123", comissao: "7,5", fornecedor: "ignorado", custo: "10" });
+  assert.deepEqual([p.modo, p.link_afiliado, p.comissao, p.fornecedor, p.custo], ["afiliado", "https://s.shopee.com.br/abc123", 7.5, null, null]);
+
+  const id = await db.criarProduto(p);
+  assert.equal((await db.buscarProduto(id)).link_afiliado, "https://s.shopee.com.br/abc123");
+  await assert.rejects(() => produtos.prepararPublicacao(id, { canal: "mercadolivre", conta: "1" }, { apis: { mercadolivre: {} } }), /não é publicado/);
+  await assert.rejects(() => produtos.publicarProduto(id, { canal: "shopee", conta: "7", categoria: 5 }, { apis: { shopee: {} } }), /não é publicado/);
+});
+
+test("produtos: o anúncio de dropshipping leva a quantidade fixa, sem pedir estoque", () => {
+  const p = produtos.limparProduto(base());
+  assert.equal(p.estoque, undefined);
+  assert.equal(produtos.anuncioDoMercadoLivre(p, { categoria: "MLB1", fotos: [] }).available_quantity, 10);
+  assert.deepEqual(produtos.itemDaShopee({ ...p, peso_g: 500 }, { categoria: "5", imagens: [], canais: [] }).seller_stock, [{ stock: 10 }]);
 });
 
 test("produtos: a foto precisa ser JPEG, e fotos não somem na limpeza das mídias antigas", async () => {

@@ -957,21 +957,26 @@
           <div class="forn-acoes"><button class="btn primario" type="button" id="prod-novo"><span data-ic="spark"></span>Novo produto</button></div>
           <form class="cartao" id="form-produto" hidden style="margin-bottom:14px">
             <div class="cartao-cab"><span class="kpi-ic" data-ic-span="box"></span><div class="titulos"><h3 id="prod-titulo">Novo produto</h3>
-              <div class="meta">Esses dados valem para todas as contas. Na hora de publicar, cada marketplace pede a categoria e os campos dele.</div></div></div>
+              <div class="meta">Sem estoque: como afiliado você só divulga o link da Shopee; no dropshipping você anuncia e compra do fornecedor depois de cada venda.</div></div></div>
             <div class="cartao-corpo config-grade">
               <div class="campo" style="grid-column:1/-1"><label for="prod-nome">Nome do produto</label><input id="prod-nome" name="nome" maxlength="120" required placeholder="Ex.: Máquina de corte de cabelo profissional sem fio"></div>
               <div class="campo"><label for="prod-preco">Preço (R$)</label><input id="prod-preco" name="preco" inputmode="decimal" required></div>
-              <div class="campo"><label for="prod-estoque">Estoque</label><input id="prod-estoque" name="estoque" inputmode="numeric" required></div>
-              <div class="campo"><label for="prod-condicao">Condição</label><select id="prod-condicao" name="condicao"><option value="new">Novo</option><option value="used">Usado</option></select></div>
-              <div class="campo"><label for="prod-sku">Código interno (SKU)</label><input id="prod-sku" name="sku" maxlength="60"></div>
-              <div class="campo"><label for="prod-marca">Marca</label><input id="prod-marca" name="marca" maxlength="60"></div>
-              <div class="campo"><label for="prod-modelo">Modelo</label><input id="prod-modelo" name="modelo" maxlength="60"></div>
-              <div class="campo"><label for="prod-gtin">Código de barras (GTIN/EAN)</label><input id="prod-gtin" name="gtin" inputmode="numeric" maxlength="14"></div>
+              <div class="campo"><label for="prod-modo">Como vender</label><select id="prod-modo" name="modo"><option value="afiliado">Afiliado da Shopee</option><option value="dropshipping">Dropshipping</option></select></div>
+              <div class="campo" data-so-afiliado style="grid-column:1/-1"><label for="prod-link-afiliado">Link de afiliado da Shopee</label><input id="prod-link-afiliado" name="link_afiliado" inputmode="url" autocomplete="off" placeholder="https://s.shopee.com.br/..."></div>
+              <div class="campo" data-so-afiliado><label for="prod-comissao">Comissão (%), opcional</label><input id="prod-comissao" name="comissao" inputmode="decimal" autocomplete="off"></div>
+              <div class="campo" data-so-drop><label for="prod-fornecedor">Fornecedor</label><input id="prod-fornecedor" name="fornecedor" maxlength="120" autocomplete="off"></div>
+              <div class="campo" data-so-drop><label for="prod-link-fornecedor">Link do produto no fornecedor</label><input id="prod-link-fornecedor" name="link_fornecedor" inputmode="url" autocomplete="off" placeholder="https://..."></div>
+              <div class="campo" data-so-drop><label for="prod-custo">Custo no fornecedor (R$)</label><input id="prod-custo" name="custo" inputmode="decimal" autocomplete="off"></div>
+              <div class="campo" data-so-drop><label for="prod-condicao">Condição</label><select id="prod-condicao" name="condicao"><option value="new">Novo</option><option value="used">Usado</option></select></div>
+              <div class="campo" data-so-drop><label for="prod-sku">Código interno (SKU)</label><input id="prod-sku" name="sku" maxlength="60"></div>
+              <div class="campo" data-so-drop><label for="prod-marca">Marca</label><input id="prod-marca" name="marca" maxlength="60"></div>
+              <div class="campo" data-so-drop><label for="prod-modelo">Modelo</label><input id="prod-modelo" name="modelo" maxlength="60"></div>
+              <div class="campo" data-so-drop><label for="prod-gtin">Código de barras (GTIN/EAN)</label><input id="prod-gtin" name="gtin" inputmode="numeric" maxlength="14"></div>
               <div class="campo" style="grid-column:1/-1"><label for="prod-descricao">Descrição</label><textarea id="prod-descricao" name="descricao" rows="5" maxlength="5000"></textarea></div>
-              <div class="campo"><label for="prod-peso">Peso com embalagem (g)</label><input id="prod-peso" name="peso_g" inputmode="numeric"></div>
-              <div class="campo"><label for="prod-altura">Altura (cm)</label><input id="prod-altura" name="altura_cm" inputmode="numeric"></div>
-              <div class="campo"><label for="prod-largura">Largura (cm)</label><input id="prod-largura" name="largura_cm" inputmode="numeric"></div>
-              <div class="campo"><label for="prod-comprimento">Comprimento (cm)</label><input id="prod-comprimento" name="comprimento_cm" inputmode="numeric"></div>
+              <div class="campo" data-so-drop><label for="prod-peso">Peso com embalagem (g)</label><input id="prod-peso" name="peso_g" inputmode="numeric"></div>
+              <div class="campo" data-so-drop><label for="prod-altura">Altura (cm)</label><input id="prod-altura" name="altura_cm" inputmode="numeric"></div>
+              <div class="campo" data-so-drop><label for="prod-largura">Largura (cm)</label><input id="prod-largura" name="largura_cm" inputmode="numeric"></div>
+              <div class="campo" data-so-drop><label for="prod-comprimento">Comprimento (cm)</label><input id="prod-comprimento" name="comprimento_cm" inputmode="numeric"></div>
               <div class="campo" style="grid-column:1/-1"><label for="prod-fotos">Fotos (até 9)</label><input id="prod-fotos" type="file" accept="image/*" multiple>
                 <div class="forn-pilulas" id="prod-fotos-lista" style="margin-top:8px"></div></div>
               <details class="ajuda" style="grid-column:1/-1"><summary>Dados fiscais para a Shopee (peça ao seu contador)</summary>
@@ -1168,11 +1173,12 @@
           <div id="cb-lista" class="lista"></div>
 
           <form class="cartao" id="form-oferta">
-            <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="send"></span><div class="titulos"><h3>Ofertas de entrada</h3>
-              <div class="meta">Um serviço pequeno, de preço fixo, sem contrato. Na conversa, o botão Link de pagamento gera um PIX para aquela empresa; quando ela paga, vira cliente sozinha.</div></div></div>
+            <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="send"></span><div class="titulos"><h3>Ofertas</h3>
+              <div class="meta">Na conversa, o botão Link de pagamento gera o link daquela empresa; quando ela paga, vira cliente sozinha. Pagamento único é por PIX. Mensal é uma assinatura no cartão, que o Asaas cobra sozinho todo mês; para mensalidade por PIX ou boleto, use o contrato e gere as parcelas acima.</div></div></div>
             <div class="cartao-corpo config-grade">
               <div class="campo"><label for="of-nome">Nome da oferta</label><input id="of-nome" name="nome" maxlength="80" autocomplete="off" placeholder="Ex.: Diagnóstico completo do site" required></div>
               <div class="campo"><label for="of-valor">Preço (R$)</label><input id="of-valor" name="valor" inputmode="decimal" autocomplete="off" required></div>
+              <div class="campo"><label for="of-mensal">Cobrança</label><select id="of-mensal" name="mensal"><option value="false">Pagamento único (PIX)</option><option value="true">Mensal (assinatura no cartão)</option></select></div>
               <div class="campo" style="grid-column:1/-1"><label for="of-descricao">O que está incluído (aparece na página de pagamento)</label><input id="of-descricao" name="descricao" maxlength="500" autocomplete="off"></div>
             </div>
             <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Adicionar oferta</button></div>
@@ -2542,7 +2548,7 @@ async function abrirConversa(id, { atualizar = false } = {}) {
         <div class="meta">${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}${d.lead.instagram ? `<a href="https://www.instagram.com/${esc(d.lead.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(d.lead.instagram)}</a>` : ""}</div></div>
       ${a ? pilulaChance(a) : ""}
       ${!encerrada && d.lead.status !== "fechado" ? `<button class="btn ok sm" data-cliente-aceitou="${d.lead.id}" title="Gera o contrato desta empresa">${ic("file", "sm")}Aceitou: gerar contrato</button>
-        <button class="btn sm" data-link-pagamento="${d.lead.id}" title="Gera um link de PIX de uma oferta de entrada">${ic("send", "sm")}Link de pagamento</button>` : ""}
+        <button class="btn sm" data-link-pagamento="${d.lead.id}" title="Gera o link de pagamento de uma oferta">${ic("send", "sm")}Link de pagamento</button>` : ""}
     </div>
     <div class="chat-andamento" id="chat-andamento">${a ? htmlAndamento(d) : ""}</div>
     <div class="chat-msgs" id="chat-msgs">${msgs}</div>
@@ -3696,7 +3702,7 @@ async function carregarCobrancas() {
       : asaas.ambiente === "sandbox" ? `<span class="pilula atencao">Modo de teste</span>` : `<span class="pilula ok">Conectado</span>`;
     const total = (rotulo, valor, sub) => `<div class="ig-card"><span class="ig-card-cab">${rotulo}</span><b>${esc(emReais(valor))}</b><span class="ig-card-sub">${sub}</span></div>`;
     $("#cb-resumo").innerHTML = total("Recebido no mês", resumo.recebidoNoMes, "Pagamentos deste mês")
-      + total("A receber", resumo.aReceber, "Parcelas ainda no prazo") + total("Em atraso", resumo.emAtraso, "Já venceram sem pagamento");
+      + total("Mensalidades", resumo.mensalidades ?? 0, "Assinaturas em andamento, por mês") + total("A receber", resumo.aReceber, "Parcelas ainda no prazo") + total("Em atraso", resumo.emAtraso, "Já venceram sem pagamento");
     const ordenadas = [...parcelas].sort((a, b) => ORDEM_COBRANCA.indexOf(a.status) - ORDEM_COBRANCA.indexOf(b.status));
     $("#cb-lista").innerHTML = ordenadas.length ? ordenadas.map((p) => {
       const [rotulo, cor] = STATUS_COBRANCA[p.status] ?? [p.status, ""];
@@ -3714,20 +3720,21 @@ async function carregarCobrancas() {
   }
 }
 
-const STATUS_VENDA = { aguardando: ["Aguardando pagamento", "acc"], paga: ["Paga", "ok"], estornada: ["Estornada", "atencao"], cancelada: ["Cancelada", ""] };
+const STATUS_VENDA = { aguardando: ["Aguardando pagamento", "acc"], paga: ["Paga", "ok"], atrasada: ["Mensalidade em atraso", "perigo"], estornada: ["Estornada", "atencao"], cancelada: ["Cancelada", ""] };
 
 function mostrarVendas(ofertas, vendas) {
   $("#of-lista").innerHTML = ofertas.length ? `<div style="display:grid;gap:8px">${ofertas.map((o) => `<div class="cb-linha" style="padding:0">
-      <span class="ct-linha-texto"><b>${esc(o.nome)}</b><span class="muted">${esc(emReais(o.valor))}${o.descricao ? ` · ${esc(o.descricao)}` : ""}</span></span>
+      <span class="ct-linha-texto"><b>${esc(o.nome)}</b><span class="muted">${esc(emReais(o.valor))}${o.mensal ? " por mês" : ""}${o.descricao ? ` · ${esc(o.descricao)}` : ""}</span></span>
       <button type="button" class="btn fantasma sm" data-of-remover="${esc(o.id)}">Remover</button></div>`).join("")}</div>`
     : `<span class="muted">Nenhuma oferta ainda. Sem ela, o botão da conversa não tem o que vender.</span>`;
   $("#vd-lista").innerHTML = vendas.map((v) => {
-    const [rotulo, cor] = STATUS_VENDA[v.status] ?? [v.status, ""];
+    const [rotulo, cor] = v.mensal && v.status === "paga" ? ["Assinatura ativa", "ok"] : STATUS_VENDA[v.status] ?? [v.status, ""];
     return `<article class="cartao"><div class="cb-linha">
-      <span class="ct-linha-texto"><b>${esc(v.oferta)}</b><span class="muted">${esc(v.empresa ?? "Empresa removida")} · ${esc(emReais(v.valor))}${v.pago_em ? ` · paga em ${esc(dataCurta(v.pago_em))}` : ""}</span></span>
+      <span class="ct-linha-texto"><b>${esc(v.oferta)}</b><span class="muted">${esc(v.empresa ?? "Empresa removida")} · ${esc(emReais(v.valor))}${v.mensal ? " por mês" : ""}${v.pago_em ? ` · ${v.mensal ? "último pagamento" : "paga"} em ${esc(dataCurta(v.pago_em))}` : ""}</span></span>
       <span class="pilula ${cor}">${rotulo}</span>
       ${v.status === "aguardando" && v.link ? `<button type="button" class="btn sm" data-vd-copiar="${esc(v.link)}">${ic("copy", "sm")}Copiar link</button>
         <button type="button" class="btn fantasma sm" data-vd-cancelar="${v.id}">Cancelar</button>` : ""}
+      ${v.mensal && ["paga", "atrasada"].includes(v.status) ? `<button type="button" class="btn fantasma sm" data-vd-cancelar="${v.id}" data-assinatura="1">Cancelar assinatura</button>` : ""}
     </div></article>`;
   }).join("");
 }
@@ -3760,10 +3767,10 @@ $("#vd-lista").addEventListener("click", async (ev) => {
     return avisar("Link copiado", "ok", 1500);
   }
   const cancelar = ev.target.closest("[data-vd-cancelar]");
-  if (!cancelar || !confirm("Cancelar este link? O cliente não poderá mais pagar por ele.")) return;
+  if (!cancelar || !confirm(cancelar.dataset.assinatura ? "Cancelar esta assinatura? O Asaas para de cobrar, e as cobranças em aberto são removidas." : "Cancelar este link? O cliente não poderá mais pagar por ele.")) return;
   try {
     await post(`/api/vendas/${cancelar.dataset.vdCancelar}/cancelar`);
-    avisar("Link cancelado", "ok");
+    avisar("Cancelado", "ok");
     await carregarCobrancas();
   } catch (e) {
     avisar(e.message, "perigo", 7000);
@@ -3779,7 +3786,7 @@ document.addEventListener("click", async (ev) => {
     if (abrir) {
       const ofertas = await api("/api/ofertas");
       if (!ofertas.length) return avisar("Cadastre uma oferta em Contratos → Cobranças primeiro.", "perigo", 6000);
-      $("#chat-oferta").innerHTML = `<select aria-label="Oferta" id="chat-oferta-escolha">${ofertas.map((o) => `<option value="${esc(o.id)}">${esc(o.nome)} · ${esc(emReais(o.valor))}</option>`).join("")}</select>
+      $("#chat-oferta").innerHTML = `<select aria-label="Oferta" id="chat-oferta-escolha">${ofertas.map((o) => `<option value="${esc(o.id)}">${esc(o.nome)} · ${esc(emReais(o.valor))}${o.mensal ? " por mês" : ""}</option>`).join("")}</select>
         <button type="button" class="btn primario sm" data-gerar-link="${abrir.dataset.linkPagamento}">Gerar link</button>`;
       $("#chat-oferta").hidden = false;
       return;
@@ -4593,6 +4600,7 @@ function cardDoPedido(o) {
   return `<article class="cartao forn-card">
     <div class="forn-pilulas"><span class="pilula ${cor}">${esc(texto)}</span><span class="pilula">${esc(NOME_MARKETPLACE[o.canal] ?? o.canal)}</span></div>
     ${o.itens?.length ? `<h3>${o.itens.map((i) => `${i.quantidade}× ${esc(i.titulo)}`).join("<br>")}</h3>` : `<h3>Pedido ${esc(o.id)}</h3>`}
+    ${(o.itens ?? []).filter((i) => i.compra).map((i) => `<div class="forn-botoes"><span class="muted" style="font-size:13px">Comprar ${i.quantidade}× de ${esc(i.compra.fornecedor ?? "fornecedor")}${i.compra.custo != null ? ` · custo ${esc(dinheiro(i.compra.custo))} cada` : ""}</span>${i.compra.link_fornecedor ? `<a class="btn" href="${esc(i.compra.link_fornecedor)}" target="_blank" rel="noopener noreferrer">${ic("external")}Comprar no fornecedor</a>` : ""}</div>`).join("")}
     <div class="meta">${[o.conta, o.criadoEm && new Date(o.criadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }), o.comprador, o.itens?.length && `Pedido ${o.id}`].filter(Boolean).map(esc).join(" · ")}</div>
     ${o.total != null ? `<b>${esc(dinheiro(o.total, o.moeda))}</b>` : ""}
   </article>`;
@@ -4626,11 +4634,17 @@ function cardDoProduto(p) {
     ${x.externo_id ? `<button class="btn" style="min-height:30px;padding:2px 10px;font-size:13px" type="button" data-prod-acao="${x.status === "ativo" ? "pausar" : "ativar"}">${x.status === "ativo" ? "Pausar" : "Ativar"}</button>` : ""}
     ${x.status === "erro" && x.erro ? `<div class="muted" style="font-size:13px;flex-basis:100%">${esc(x.erro)}</div>` : ""}</div>`).join("");
   return `<article class="cartao forn-card" data-produto="${p.id}">
-    ${p.fotos[0] ? `<img src="${esc(fotoDoProduto(p.fotos[0]))}" alt="" loading="lazy" style="width:100%;height:170px;object-fit:contain;background:var(--bg);border-radius:10px">` : `<div class="muted" style="font-size:13px">Sem foto: adicione ao menos uma para publicar.</div>`}
+    ${p.fotos[0] ? `<img src="${esc(fotoDoProduto(p.fotos[0]))}" alt="" loading="lazy" style="width:100%;height:170px;object-fit:contain;background:var(--bg);border-radius:10px">` : p.modo === "afiliado" ? "" : `<div class="muted" style="font-size:13px">Sem foto: adicione ao menos uma para publicar.</div>`}
     <h3>${esc(p.nome)}</h3>
-    <div class="meta">${[dinheiro(p.preco), `${p.estoque} em estoque`, p.sku].filter(Boolean).map(esc).join(" · ")}</div>
+    <div class="forn-pilulas"><span class="pilula ${p.modo === "afiliado" ? "wa" : "acc"}">${p.modo === "afiliado" ? "Afiliado Shopee" : "Dropshipping"}</span></div>
+    <div class="meta">${(p.modo === "afiliado"
+      ? [dinheiro(p.preco), p.comissao != null && `comissão de ${String(p.comissao).replace(".", ",")}%`]
+      : [dinheiro(p.preco), p.custo != null && `custo ${dinheiro(p.custo)}`, p.custo != null && `sobra ${dinheiro(p.preco - p.custo)} antes das taxas`, p.fornecedor, p.sku]
+    ).filter(Boolean).map(esc).join(" · ")}</div>
     ${publicacoes}
-    ${estadoMl.publicar[p.id] ? formularioDePublicacao(p) : `<div class="forn-botoes"><button class="btn primario" type="button" data-prod-acao="abrir-publicar">${ic("send")}Publicar</button>
+    ${estadoMl.publicar[p.id] ? formularioDePublicacao(p) : `<div class="forn-botoes">${p.modo === "afiliado"
+      ? `<button class="btn primario" type="button" data-prod-acao="copiar-afiliado">${ic("copy")}Copiar divulgação</button><a class="btn" href="${esc(p.link_afiliado)}" target="_blank" rel="noopener noreferrer">Abrir</a>`
+      : `<button class="btn primario" type="button" data-prod-acao="abrir-publicar">${ic("send")}Publicar</button>${p.link_fornecedor ? `<a class="btn" href="${esc(p.link_fornecedor)}" target="_blank" rel="noopener noreferrer">Fornecedor</a>` : ""}`}
       <button class="btn" type="button" data-prod-acao="editar">Editar</button>
       <button class="btn fantasma" type="button" data-prod-acao="apagar">Apagar</button></div>`}
   </article>`;
@@ -4807,7 +4821,8 @@ function abrirFormProduto(p = null) {
   estadoMl.editando = p?.id ?? null;
   estadoMl.fotos = [...(p?.fotos ?? [])];
   $("#prod-titulo").textContent = p ? "Editar produto" : "Novo produto";
-  if (p) for (const c of ["nome", "preco", "estoque", "condicao", "sku", "marca", "modelo", "gtin", "descricao", "peso_g", "altura_cm", "largura_cm", "comprimento_cm", "ncm", "cfop_mesmo_estado", "cfop_outro_estado", "csosn", "origem"]) f[c].value = p[c] ?? "";
+  if (p) for (const c of ["nome", "preco", "modo", "link_afiliado", "comissao", "fornecedor", "link_fornecedor", "custo", "condicao", "sku", "marca", "modelo", "gtin", "descricao", "peso_g", "altura_cm", "largura_cm", "comprimento_cm", "ncm", "cfop_mesmo_estado", "cfop_outro_estado", "csosn", "origem"]) f[c].value = p[c] ?? "";
+  mostrarCamposDoModo();
   desenharFotosDoProduto();
   f.hidden = false;
   f.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -4827,6 +4842,15 @@ async function fotoReduzida(arquivo) {
   return c.toDataURL("image/jpeg", 0.82);
 }
 
+/** Afiliado só pede o link; o resto do cadastro é de quem publica anúncio. */
+function mostrarCamposDoModo() {
+  const afiliado = $("#prod-modo").value === "afiliado";
+  $$("[data-so-afiliado]").forEach((el) => (el.hidden = !afiliado));
+  $$("[data-so-drop]").forEach((el) => (el.hidden = afiliado));
+  $("#prod-link-afiliado").required = afiliado;
+}
+
+$("#prod-modo").addEventListener("change", mostrarCamposDoModo);
 $("#prod-novo").addEventListener("click", () => abrirFormProduto());
 $("#prod-cancelar").addEventListener("click", () => ($("#form-produto").hidden = true));
 $("#prod-fotos").addEventListener("change", async (ev) => {
@@ -4921,6 +4945,10 @@ $("#prod-lista").addEventListener("click", async (ev) => {
   if (acao === "fechar-publicar") {
     delete estadoMl.publicar[id];
     return desenharMercadoLivre();
+  }
+  if (acao === "copiar-afiliado") {
+    await navigator.clipboard.writeText([p.nome, p.descricao, p.link_afiliado, "Link de afiliado: posso receber comissão pelas compras."].filter(Boolean).join("\n\n")).catch(() => {});
+    return avisar("Divulgação copiada", "ok", 2500);
   }
   btn.disabled = true;
   try {

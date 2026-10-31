@@ -12,6 +12,10 @@ const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { ti
 export const CANAIS = ["mercadolivre", "shopee"];
 const MAX_FOTOS = 9;
 const TIPOS_DE_ANUNCIO = ["gold_special", "gold_pro", "free"];
+// Sem estoque próprio: o afiliado só divulga o link da Shopee, e o dropshipping compra do fornecedor depois de cada
+// venda. Os marketplaces exigem uma quantidade no anúncio, então ela é sempre esta, e nunca é pedida no painel.
+const QUANTIDADE_NO_ANUNCIO = 10;
+const HOST_DE_AFILIADO = /(^|\.)(shopee\.com\.br|shope\.ee)$/i;
 
 const texto = (v, max) => {
   const t = String(v ?? "").trim();
@@ -22,6 +26,37 @@ const inteiro = (v) => {
   return Number.isFinite(n) && n >= 0 ? n : null;
 };
 const soDigitos = (v, max) => texto(String(v ?? "").replace(/\D/g, ""), max);
+const urlValida = (v) => {
+  try {
+    const u = new URL(String(v ?? "").trim());
+    return /^https?:$/.test(u.protocol) ? u : null;
+  } catch {
+    return null;
+  }
+};
+const numeroOpcional = (v, erro) => {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(String(v).replace(",", "."));
+  if (!Number.isFinite(n) || n < 0) throw new Error(erro);
+  return n;
+};
+
+/** Como o produto é vendido: pelo link de afiliado da Shopee ou por dropshipping, com o fornecedor que entrega. */
+function dadosDeVenda(d, preco) {
+  const vazio = { link_afiliado: null, comissao: null, fornecedor: null, link_fornecedor: null, custo: null };
+  if (d.modo === "afiliado") {
+    const link = urlValida(d.link_afiliado);
+    if (!link || !HOST_DE_AFILIADO.test(link.hostname)) throw new Error("Cole o link de afiliado da Shopee.");
+    return { ...vazio, modo: "afiliado", link_afiliado: link.href, comissao: numeroOpcional(d.comissao, "Confira a comissão.") };
+  }
+  const fornecedor = texto(d.fornecedor, 120);
+  const link = texto(d.link_fornecedor, 500) && urlValida(d.link_fornecedor);
+  if (texto(d.link_fornecedor, 500) && !link) throw new Error("Confira o link do fornecedor.");
+  if (!fornecedor && !link) throw new Error("Informe o fornecedor: é dele que você compra depois de cada venda.");
+  const custo = numeroOpcional(d.custo, "Confira o custo do fornecedor.");
+  if (custo != null && custo >= preco) throw new Error("O preço de venda precisa ser maior que o custo do fornecedor.");
+  return { ...vazio, modo: "dropshipping", fornecedor, link_fornecedor: link ? link.href : null, custo };
+}
 
 /** Confere o que veio do painel. Retorna os dados limpos ou lança com o que corrigir. */
 export function limparProduto(d = {}) {
@@ -29,11 +64,10 @@ export function limparProduto(d = {}) {
   const preco = Number(String(d.preco ?? "").replace(",", "."));
   if (!nome || nome.length < 3) throw new Error("Escreva o nome do produto.");
   if (!Number.isFinite(preco) || preco <= 0) throw new Error("Informe um preço maior que zero.");
-  const estoque = inteiro(d.estoque);
-  if (estoque == null) throw new Error("Informe o estoque.");
+  const venda = dadosDeVenda(d, preco);
   const fotos = (Array.isArray(d.fotos) ? d.fotos : []).filter((f) => /^produto-[0-9a-f-]+\.jpg$/.test(String(f))).slice(0, MAX_FOTOS);
   return {
-    nome, preco: Math.round(preco * 100) / 100, estoque, descricao: texto(d.descricao, 5000), sku: texto(d.sku, 60), marca: texto(d.marca, 60), modelo: texto(d.modelo, 60),
+    nome, preco: Math.round(preco * 100) / 100, ...venda, descricao: texto(d.descricao, 5000), sku: texto(d.sku, 60), marca: texto(d.marca, 60), modelo: texto(d.modelo, 60),
     gtin: soDigitos(d.gtin, 14), condicao: d.condicao === "used" ? "used" : "new",
     peso_g: inteiro(d.peso_g), altura_cm: inteiro(d.altura_cm), largura_cm: inteiro(d.largura_cm), comprimento_cm: inteiro(d.comprimento_cm),
     ncm: soDigitos(d.ncm, 8), cfop_mesmo_estado: soDigitos(d.cfop_mesmo_estado, 4), cfop_outro_estado: soDigitos(d.cfop_outro_estado, 4), csosn: soDigitos(d.csosn, 3), origem: soDigitos(d.origem, 1),
@@ -53,6 +87,8 @@ export async function salvarFoto(base64) {
 /** O que falta para publicar em qualquer canal. */
 function exigirBasico(p, canal) {
   if (!p) throw new Error("Produto não encontrado");
+  if (p.modo === "afiliado") throw new Error("Produto de afiliado não é publicado: quem vende é a loja na Shopee. Divulgue o link.");
+  if (!p.fornecedor && !p.link_fornecedor) throw new Error("Informe o fornecedor do produto antes de publicar.");
   if (!p.fotos.length) throw new Error("Adicione ao menos uma foto ao produto.");
   if (canal === "shopee") {
     if (!p.descricao || p.descricao.length < 20) throw new Error("A Shopee pede uma descrição: escreva pelo menos 20 caracteres.");
@@ -90,7 +126,7 @@ export function anuncioDoMercadoLivre(p, { categoria, atributos = [], tipoAnunci
   for (const [id, valor] of [["BRAND", p.marca], ["MODEL", p.modelo], ["GTIN", p.gtin], ["SELLER_SKU", p.sku]]) if (valor && !usados.has(id)) lista.push({ id, value_name: valor });
   return {
     ...(familia ? { family_name: p.nome.slice(0, 60) } : { title: p.nome.slice(0, 60) }),
-    category_id: categoria, price: p.preco, currency_id: "BRL", available_quantity: p.estoque, buying_mode: "buy_it_now",
+    category_id: categoria, price: p.preco, currency_id: "BRL", available_quantity: QUANTIDADE_NO_ANUNCIO, buying_mode: "buy_it_now",
     listing_type_id: TIPOS_DE_ANUNCIO.includes(tipoAnuncio) ? tipoAnuncio : "gold_special", condition: p.condicao, pictures: fotos.map((source) => ({ source })), attributes: lista,
   };
 }
@@ -118,7 +154,7 @@ export function itemDaShopee(p, { categoria, atributos = [], imagens, canais, ma
     item_name: p.nome, description: p.descricao, original_price: p.preco, weight: p.peso_g / 1000, category_id: Number(categoria), condition: p.condicao === "used" ? "USED" : "NEW",
     item_status: pausado ? "UNLIST" : "NORMAL", item_sku: p.sku ?? undefined,
     dimension: { package_height: p.altura_cm, package_length: p.comprimento_cm, package_width: p.largura_cm },
-    image: { image_id_list: imagens }, logistic_info: canais.map((logistic_id) => ({ logistic_id, enabled: true })), seller_stock: [{ stock: p.estoque }],
+    image: { image_id_list: imagens }, logistic_info: canais.map((logistic_id) => ({ logistic_id, enabled: true })), seller_stock: [{ stock: QUANTIDADE_NO_ANUNCIO }],
     // A marca 0 é "sem marca" na Shopee.
     brand: marca ? { brand_id: marca.brand_id, original_brand_name: marca.original_brand_name } : { brand_id: 0, original_brand_name: "NoBrand" },
     attribute_list: atributos.filter((a) => a.id && (a.value_id || a.value_name)).map((a) => ({

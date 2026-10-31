@@ -180,7 +180,7 @@ A página **Contratos** do painel guarda o modelo e o contrato de cada cliente:
 - **Pagamento por contrato:** por mês (valor, meses de vigência e data do primeiro pagamento) ou entrada e saldo. O resumo, o valor total por extenso, a tabela de parcelas e a cláusula de rescisão saem de acordo.
 - **Cada contrato** pode ser editado à vontade, com situação (rascunho, enviado, assinado, cancelado) e **Baixar PDF**, pronto para assinar pelo gov.br.
 - **Cobranças:** com a chave de API do Asaas colada na aba **Cobranças**, um contrato assinado gera as parcelas. Cada uma é emitida 15 dias antes de vencer, com PIX e boleto na mesma página de pagamento, e os lembretes por e-mail e SMS são os do próprio Asaas. O webhook (URL e token na mesma aba) mostra o pagamento na hora, e a conferência de cada hora cobre o aviso que se perder. Cancelar o contrato cancela o que está em aberto.
-- **Ofertas de entrada:** serviços pequenos, de preço fixo e sem contrato, cadastrados na aba **Cobranças**. Na conversa, o botão **Link de pagamento** gera um link de PIX do Asaas para aquela empresa e deixa a mensagem na caixa de texto, para revisar e enviar. Quando o pagamento entra, a empresa passa a **Cliente fechado**, as mensagens na fila são canceladas e o link é removido.
+- **Ofertas:** serviços de preço fixo, cadastrados na aba **Cobranças**, com pagamento único por PIX ou mensal (assinatura no cartão, cobrada pelo Asaas todo mês). Na conversa, o botão **Link de pagamento** gera o link daquela empresa e deixa a mensagem na caixa de texto, para revisar e enviar. Quando o pagamento entra, a empresa passa a **Cliente fechado**, as mensagens na fila são canceladas e o link é removido.
 
 ## Formulário do site
 
@@ -206,7 +206,8 @@ Cada post novo nasce com um público (clínica, restaurante, loja...), um tom (p
 
 A página **Marketplaces** liga as contas de vendedor pelas APIs oficiais, na aba **Contas**. Dá para ligar várias contas do Mercado Livre no mesmo app e várias lojas da Shopee.
 
-- **Produtos:** um cadastro único, com fotos, que pode ser publicado em cada conta. O sistema sugere a categoria e pede os campos obrigatórios dela. Por padrão o anúncio sai pausado, para revisar no marketplace antes de ativar. No Mercado Livre, **Conferir** valida sem criar nada; a Shopee não tem essa opção.
+- **Sem estoque:** cada produto é **Afiliado da Shopee** (cole o link de afiliado e copie a divulgação; não há anúncio próprio) ou **Dropshipping** (informe o fornecedor; o pedido do Mercado Livre mostra de onde comprar).
+- **Produtos de dropshipping:** um cadastro único, com fotos, que pode ser publicado em cada conta. A quantidade do anúncio é fixa, porque os marketplaces exigem uma. O sistema sugere a categoria e pede os campos obrigatórios dela. Por padrão o anúncio sai pausado, para revisar no marketplace antes de ativar. No Mercado Livre, **Conferir** valida sem criar nada; a Shopee não tem essa opção.
 - **Perguntas (Mercado Livre):** a cada 10 minutos o sistema traz as novas, a IA sugere a resposta só com o que está no anúncio e você recebe um e-mail. **A resposta só sai quando você aprova.** Texto com telefone, link, e-mail ou WhatsApp é barrado, porque contato fora da plataforma costuma ser punido.
 - **Pedidos:** as vendas recentes, consultadas na hora. Endereço e dados pessoais do comprador não entram no sistema.
 - **Segurança:** os acessos ficam criptografados (AES-256-GCM), com a chave derivada de `PAINEL_SENHA`. Trocar essa senha obriga a conectar de novo.

@@ -476,6 +476,9 @@ app.get("/api/marketplaces/pedidos", rotaMl(async () => {
     ...(await deCada(ml.contas.map((c) => c.id), mercadolivre.pedidosRecentes, "mercadolivre", Object.fromEntries(ml.contas.map((c) => [c.id, c.apelido])))),
     ...(await deCada(sp.lojas.map((l) => l.id), shopee.pedidosRecentes, "shopee", Object.fromEntries(sp.lojas.map((l) => [l.id, l.nome])))),
   ];
+  // Venda de dropshipping: o pedido mostra de quem comprar.
+  const fornecedores = new Map((await db.fornecedoresDosAnuncios()).map((f) => [f.externo_id, f]));
+  for (const o of pedidos) for (const i of o.itens ?? []) if (fornecedores.has(i.itemId)) i.compra = fornecedores.get(i.itemId);
   return { pedidos, erros };
 }));
 app.put("/api/mercadolivre/app", rotaMl(async (req) => {
@@ -1156,7 +1159,7 @@ app.delete("/api/contratos/:id", async (req, res) => {
 // Cobranças: as parcelas dos contratos assinados, emitidas pelo Asaas.
 app.get("/api/cobrancas", async (req, res) => {
   const [parcelas, vendas] = [await cobrancas.painelDeCobrancas(), await entrada.painelDeVendas()];
-  res.json({ ...parcelas, ofertas: vendas.ofertas, vendas: vendas.vendas, resumo: { ...parcelas.resumo, recebidoNoMes: parcelas.resumo.recebidoNoMes + vendas.recebidoNoMes } });
+  res.json({ ...parcelas, ofertas: vendas.ofertas, vendas: vendas.vendas, resumo: { ...parcelas.resumo, recebidoNoMes: parcelas.resumo.recebidoNoMes + vendas.recebidoNoMes, mensalidades: vendas.mensalidades } });
 });
 
 // Ofertas de entrada: o que se vende pela conversa, com o link de pagamento do Asaas.

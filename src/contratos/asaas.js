@@ -98,3 +98,6 @@ export const removerCobranca = (id) => chamar("DELETE", `/payments/${encodeURICo
 export const pagamentosDesde = (data, offset = 0) => chamar("GET", `/payments?${new URLSearchParams({ "dateCreated[ge]": data, limit: "100", offset: String(offset) })}`);
 export const criarLink = (dados) => chamar("POST", "/paymentLinks", dados);
 export const removerLink = (id) => chamar("DELETE", `/paymentLinks/${encodeURIComponent(id)}`);
+export const desativarLink = (id) => chamar("PUT", `/paymentLinks/${encodeURIComponent(id)}`, { active: false });
+export const pagamentosDaAssinatura = (id) => chamar("GET", `/payments?${new URLSearchParams({ subscription: id, limit: "100" })}`);
+export const removerAssinatura = (id) => chamar("DELETE", `/subscriptions/${encodeURIComponent(id)}`);

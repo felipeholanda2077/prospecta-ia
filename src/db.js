@@ -273,7 +273,7 @@ export async function atualizarPerguntaML(id, campos) {
 
 // ---------- Produtos dos marketplaces ----------
 
-const CAMPOS_PRODUTO = ["nome", "descricao", "preco", "estoque", "sku", "marca", "modelo", "gtin", "condicao", "peso_g", "altura_cm", "largura_cm", "comprimento_cm", "ncm", "cfop_mesmo_estado", "cfop_outro_estado", "csosn", "origem", "fotos"];
+const CAMPOS_PRODUTO = ["nome", "descricao", "preco", "modo", "link_afiliado", "comissao", "fornecedor", "link_fornecedor", "custo", "sku", "marca", "modelo", "gtin", "condicao", "peso_g", "altura_cm", "largura_cm", "comprimento_cm", "ncm", "cfop_mesmo_estado", "cfop_outro_estado", "csosn", "origem", "fotos"];
 const lerProduto = (p) => p && { ...p, preco: Number(p.preco), fotos: JSON.parse(p.fotos ?? "[]") };
 const valorDoProduto = (p, c) => (c === "fotos" ? JSON.stringify(p.fotos ?? []) : p[c] ?? null);
 
@@ -296,6 +296,12 @@ export async function produtosCadastrados() {
   const publicacoes = await q("SELECT * FROM produto_publicacoes ORDER BY id");
   return produtos.map((p) => ({ ...p, publicacoes: publicacoes.filter((x) => x.produto_id === p.id) }));
 }
+
+/** De quem comprar o que foi vendido: o fornecedor de cada anúncio publicado de dropshipping. */
+export const fornecedoresDosAnuncios = () => q(
+  `SELECT pub.externo_id, p.fornecedor, p.link_fornecedor, p.custo FROM produto_publicacoes pub JOIN produtos p ON p.id = pub.produto_id
+    WHERE pub.externo_id IS NOT NULL AND p.modo = 'dropshipping'`
+);
 
 export async function apagarProduto(id) {
   await q("DELETE FROM produto_publicacoes WHERE produto_id = $1", [id]);
@@ -791,17 +797,18 @@ export const excluirCobrancasDoContrato = (contratoId) => q("DELETE FROM cobranc
 // ---------- Vendas (ofertas de entrada) ----------
 
 /** Retorna o id, ou null se a empresa já tem um link em aberto desta oferta. */
-export async function criarVenda({ lead_id, oferta, descricao, valor }) {
+export async function criarVenda({ lead_id, oferta, descricao, valor, mensal = false }) {
   const r = await um(
-    `INSERT INTO vendas (lead_id, oferta, descricao, valor) VALUES ($1, $2, $3, $4)
+    `INSERT INTO vendas (lead_id, oferta, descricao, valor, mensal) VALUES ($1, $2, $3, $4, $5)
      ON CONFLICT (lead_id, oferta) WHERE status = 'aguardando' DO NOTHING RETURNING id`,
-    [lead_id, oferta, descricao, valor]
+    [lead_id, oferta, descricao, valor, mensal]
   );
   return r?.id ?? null;
 }
 
 export const buscarVenda = (id) => um("SELECT * FROM vendas WHERE id = $1", [id]);
 export const vendaPorLink = (link) => um("SELECT * FROM vendas WHERE asaas_link = $1", [link]);
+export const vendaPorAssinatura = (assinatura) => um("SELECT * FROM vendas WHERE asaas_assinatura = $1", [assinatura]);
 export const vendaAberta = (leadId, oferta) => um("SELECT * FROM vendas WHERE lead_id = $1 AND oferta = $2 AND status = 'aguardando'", [leadId, oferta]);
 export const excluirVenda = (id) => q("DELETE FROM vendas WHERE id = $1", [id]);
 
@@ -816,7 +823,12 @@ export const vendasAguardando = () => q(
 
 /** Paga continua sendo olhada por um tempo, por causa de estorno. */
 export const vendasPagasRecentes = () => q(
-  `SELECT * FROM vendas WHERE status = 'paga' AND asaas_cobranca IS NOT NULL AND atualizado_em > now() - interval '90 days' ORDER BY id LIMIT 200`
+  `SELECT * FROM vendas WHERE status = 'paga' AND NOT mensal AND asaas_cobranca IS NOT NULL AND atualizado_em > now() - interval '90 days' ORDER BY id LIMIT 200`
+);
+
+/** As mensalidades em andamento. */
+export const assinaturasAtivas = () => q(
+  `SELECT * FROM vendas WHERE mensal AND status IN ('paga', 'atrasada') AND asaas_assinatura IS NOT NULL ORDER BY id LIMIT 200`
 );
 
 export async function atualizarVenda(id, campos) {

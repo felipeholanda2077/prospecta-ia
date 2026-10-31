@@ -33,7 +33,15 @@ function apiFalsa({ falhar = null } = {}) {
       if (l) l.deleted = true;
       return responde({ deleted: true });
     }
-    if (caminho === "/payments") return responde({ data: estado.pagamentos, hasMore: false });
+    if (caminho === "/payments") {
+      const assinatura = u.searchParams.get("subscription");
+      return responde({ data: estado.pagamentos.filter((p) => !assinatura || p.subscription === assinatura), hasMore: false });
+    }
+    if (caminho.startsWith("/paymentLinks/") && metodo === "PUT") {
+      Object.assign(estado.links.find((x) => x.id === caminho.split("/")[2]), corpo);
+      return responde({});
+    }
+    if (caminho.startsWith("/subscriptions/")) return responde({ deleted: true });
     const p = estado.pagamentos.find((x) => x.id === caminho.split("/")[2]);
     return p ? responde(p) : responde({}, 404);
   };
@@ -186,6 +194,46 @@ test("cancelar: remove o link; link pago não cancela; depois dá para gerar out
     assert.notEqual(nova.venda.id, venda.id);
     await db.atualizarVenda(nova.venda.id, { status: "paga" });
     assert.match((await entrada.cancelarVenda(nova.venda.id)).erro, /ainda não foi pago/);
+  });
+});
+
+test("oferta mensal: o link cria assinatura no cartão, e o aviso mantém a situação em dia", async () => {
+  const api = apiFalsa();
+  await comApi(api, async () => {
+    const { leadId } = await preparar();
+    const oferta = await entrada.criarOferta({ nome: "Plano Professional", valor: "4.500,00", mensal: "true" });
+    assert.equal(oferta.mensal, true);
+    const { venda, mensagem } = await entrada.gerarLink({ leadId, ofertaId: oferta.id }, AGORA);
+    assert.match(mensagem, /assinar Plano Professional \(R\$.4\.500,00 por mês\), no cartão/);
+    const l = api.estado.links[0];
+    assert.deepEqual([l.billingType, l.chargeType, l.subscriptionCycle, l.value, l.dueDateLimitDays], ["CREDIT_CARD", "RECURRENT", "MONTHLY", 4500, undefined]);
+
+    // Primeira cobrança: a empresa vira cliente, e o link é desativado, não removido.
+    const primeira = { id: "pay_1", status: "RECEIVED", paymentDate: "2026-11-20", paymentLink: venda.asaas_link, subscription: "sub_1" };
+    api.estado.pagamentos.push(primeira);
+    await entrada.processarAvisoDeVenda({ payment: primeira }, AGORA);
+    let v = await db.buscarVenda(venda.id);
+    assert.deepEqual([v.status, v.asaas_assinatura, v.pago_em], ["paga", "sub_1", "2026-11-20"]);
+    assert.equal((await db.buscarLead(leadId)).status, "fechado");
+    assert.equal(api.estado.links[0].active, false);
+    assert.notEqual(api.estado.links[0].deleted, true);
+    assert.equal((await entrada.painelDeVendas(AGORA)).mensalidades, 4500);
+
+    // A cobrança do mês seguinte pode vir só com a assinatura: vencida, depois paga.
+    const segunda = { id: "pay_2", status: "OVERDUE", subscription: "sub_1" };
+    api.estado.pagamentos.push(segunda);
+    await entrada.processarAvisoDeVenda({ payment: segunda }, AGORA);
+    assert.equal((await db.buscarVenda(venda.id)).status, "atrasada");
+    Object.assign(segunda, { status: "RECEIVED", clientPaymentDate: "2026-12-22" });
+    await entrada.conferirVendas(AGORA);
+    v = await db.buscarVenda(venda.id);
+    assert.deepEqual([v.status, v.pago_em], ["paga", "2026-12-22"]);
+    assert.equal((await entrada.painelDeVendas(new Date("2026-12-23T15:00:00Z"))).recebidoNoMes, 4500);
+
+    // Cancelar encerra a assinatura no Asaas.
+    assert.equal((await entrada.cancelarVenda(venda.id)).status, "cancelada");
+    assert.ok(api.estado.chamadas.some((c) => c.metodo === "DELETE" && c.caminho === "/subscriptions/sub_1"));
+    assert.equal((await entrada.painelDeVendas(AGORA)).mensalidades, 0);
   });
 });
 

@@ -221,7 +221,7 @@ export async function pedidosRecentes(id, agora) {
   return (r.results ?? []).map((o) => ({
     id: String(o.id), criadoEm: o.date_created ?? null, status: o.status ?? null, total: o.total_amount ?? null, moeda: o.currency_id ?? "BRL",
     comprador: o.buyer?.nickname ?? null, envio: o.shipping?.id ? String(o.shipping.id) : null,
-    itens: (o.order_items ?? []).map((i) => ({ titulo: i.item?.title ?? "", quantidade: i.quantity ?? 1, preco: i.unit_price ?? null })),
+    itens: (o.order_items ?? []).map((i) => ({ itemId: i.item?.id ? String(i.item.id) : null, titulo: i.item?.title ?? "", quantidade: i.quantity ?? 1, preco: i.unit_price ?? null })),
   }));
 }
 

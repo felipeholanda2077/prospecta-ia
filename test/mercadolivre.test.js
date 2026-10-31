@@ -217,7 +217,7 @@ test("mercado livre: spam fica de fora e os pedidos não trazem dados pessoais d
       order_items: [{ item: { id: "MLB1", title: "Camiseta" }, quantity: 2, unit_price: 25 }] }] });
   }, () => ml.pedidosRecentes("999", AGORA));
   assert.equal(pedidos[0].id, "2000003508897196");
-  assert.deepEqual(pedidos[0].itens, [{ titulo: "Camiseta", quantidade: 2, preco: 25 }]);
+  assert.deepEqual(pedidos[0].itens, [{ itemId: "MLB1", titulo: "Camiseta", quantidade: 2, preco: 25 }]);
   assert.equal(pedidos[0].comprador, "COMPRADOR1");
   assert.doesNotMatch(JSON.stringify(pedidos), /pessoa@exemplo|Rua X|Ana/);
 });
