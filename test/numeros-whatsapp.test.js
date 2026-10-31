@@ -108,3 +108,46 @@ test("vários números: as empresas novas se dividem e cada conversa fica no seu
     falsa.restaurar();
   }
 });
+
+test("uazap: lê a conversa no formato da avaliação de contato novo, do mais novo para o mais antigo", async () => {
+  await db.gravarConfig("uazap", { numeros: [{ id: "n1", nome: "Um", url: "https://x.uazapi.com", token: "tk", segredoWebhook: "s1" }] });
+  const agora = Date.now();
+  const original = globalThis.fetch;
+  const chamadas = [];
+  globalThis.fetch = async (url, o = {}) => {
+    chamadas.push({ url: String(url), corpo: o.body ? JSON.parse(o.body) : null });
+    if (String(url).endsWith("/instance/status")) return new Response(JSON.stringify({ instance: { status: "connected" } }), { status: 200 });
+    return new Response(JSON.stringify({ messages: [
+      { messageid: "A", fromMe: false, text: "Oi", messageTimestamp: agora - 60_000 },
+      { messageid: "B", fromMe: true, text: "Olá", messageTimestamp: agora - 30_000 },
+      { messageid: "C", fromMe: false, text: "muito antiga", messageTimestamp: agora - 40 * 86_400_000 },
+    ] }), { status: 200 });
+  };
+  try {
+    await uazap.salvarNumero({ id: "n1", nome: "Um", url: "https://x.uazapi.com", token: "tk2" });
+    const lista = await uazap.buscarMensagens("n1", { horas: 24, remoteJid: "5511999998888", limite: 60 });
+    assert.deepEqual(lista.map((m) => [m.key.id, m.key.fromMe, m.message.conversation]), [["B", true, "Olá"], ["A", false, "Oi"]]);
+    const pedido = chamadas.find((c) => c.url.endsWith("/message/find"));
+    assert.deepEqual(pedido.corpo, { chatid: "5511999998888@s.whatsapp.net", limit: 60 });
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("uazap: contato novo é avaliado; cliente vira lead, e conversa pessoal ou com você fica de fora", async () => {
+  const { processarWebhookUazap } = await import("../src/respostas/whatsapp.js");
+  const campanha = { empresa: { nome: "FluxDeck", responsavel: "Felipe" }, servicos: [], limites: {}, automacao: {} };
+  const aviso = (id, de, texto) => ({ EventType: "messages", message: { messageid: id, chatid: `${de}@s.whatsapp.net`, sender: "1@lid", text: texto, senderName: "Fulano" } });
+  const antes = (await db.consultar("SELECT count(*)::int AS n FROM leads"))[0].n;
+  const base = { esperar: 0, buscar: async () => [] };
+
+  assert.equal(await processarWebhookUazap(aviso("U1", "5511900000001", "e aí, bora?"), campanha, "n1", { ...base, avaliar: async () => ({ tipo: "pessoal" }) }), 0);
+  const comVoce = [{ key: { id: "X", fromMe: true }, message: { conversation: "oi" }, messageTimestamp: 1 }];
+  assert.equal(await processarWebhookUazap(aviso("U2", "5511900000002", "e aí"), campanha, "n1", { esperar: 0, buscar: async () => comVoce, avaliar: async () => { throw new Error("não deveria gastar IA"); } }), 0);
+  assert.equal((await db.consultar("SELECT count(*)::int AS n FROM leads"))[0].n, antes);
+
+  await processarWebhookUazap(aviso("U3", "5511900000003", "Quanto custa um site?"), campanha, "n1", { ...base, avaliar: async () => ({ tipo: "cliente", nome_pessoa: "Fulano", resumo: "Quer um site" }) }).catch(() => {});
+  const novos = await db.consultar("SELECT nome, whatsapp FROM leads WHERE whatsapp = $1", ["5511900000003"]);
+  assert.equal(novos.length, 1);
+  assert.equal(novos[0].nome, "Fulano");
+});

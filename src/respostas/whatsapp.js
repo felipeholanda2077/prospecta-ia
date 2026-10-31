@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import { variantesWhatsappBR } from "../analise/telefone.js";
 import { registrarResposta } from "./processar.js";
-import { extrairMensagemUazap } from "../envio/uazap.js";
+import { extrairMensagemUazap, buscarMensagens as buscarMensagensUazap } from "../envio/uazap.js";
 import { extrairMensagemEvolution, baixarAudio } from "../envio/evolution.js";
 import { transcrever } from "../ia/transcricao.js";
 import { extrairContatosVcard } from "./indicacao.js";
@@ -63,9 +63,14 @@ export async function processarWebhookWhatsapp(payload, campanha) {
   return registradas;
 }
 
-/** Respostas que chegam pelo webhook da UAZap; `numeroId` é o número que recebeu a mensagem. */
-export function processarWebhookUazap(payload, campanha, numeroId = null) {
-  return registrarMensagemWhatsappWeb(extrairMensagemUazap(payload), campanha, null, { numeroId });
+/**
+ * Respostas que chegam pelo webhook da UAZap; `numeroId` é o número que recebeu a mensagem. Como na Evolution,
+ * contato novo é avaliado: quem chamou por conta própria e é cliente entra, e conversa pessoal fica de fora.
+ */
+export function processarWebhookUazap(payload, campanha, numeroId = null, opcoes = {}) {
+  return registrarMensagemWhatsappWeb(extrairMensagemUazap(payload), campanha, null, {
+    numeroId, avaliarNovo: avaliarContato, buscar: (filtro) => buscarMensagensUazap(numeroId, filtro), ...opcoes,
+  });
 }
 
 /**

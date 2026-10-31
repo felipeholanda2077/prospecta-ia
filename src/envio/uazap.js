@@ -187,6 +187,25 @@ export async function desconectar(id) {
   conexoes.delete(id ?? PRINCIPAL);
 }
 
+/**
+ * As mensagens de uma conversa, da mais nova para a mais antiga, no formato que a avaliação de contato novo lê
+ * (o mesmo da Evolution): { key: { id, fromMe }, message: { conversation }, messageTimestamp }.
+ */
+export async function buscarMensagens(numeroId, { horas = 6, remoteJid, limite = 200 } = {}) {
+  const chatid = String(remoteJid).includes("@") ? String(remoteJid) : `${remoteJid}@s.whatsapp.net`;
+  const dados = await chamar(numeroId, "/message/find", { method: "POST", corpo: { chatid, limit: limite } });
+  const desde = Math.floor(Date.now() / 1000) - horas * 3600;
+  return (dados?.messages ?? [])
+    .map((m) => ({
+      key: { id: String(m.messageid ?? m.id), fromMe: Boolean(m.fromMe) },
+      message: { conversation: String(m.text ?? "") },
+      // A UAZap manda em milissegundos.
+      messageTimestamp: Number(m.messageTimestamp) > 1e11 ? Math.floor(Number(m.messageTimestamp) / 1000) : Number(m.messageTimestamp),
+    }))
+    .filter((m) => m.messageTimestamp >= desde)
+    .sort((a, b) => b.messageTimestamp - a.messageTimestamp);
+}
+
 /** Aponta o webhook da instância para este sistema (só mensagens recebidas de contatos). */
 export async function configurarWebhook(id) {
   const n = id ? await numero(id) : (await numeros())[0];

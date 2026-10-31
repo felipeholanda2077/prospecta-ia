@@ -217,6 +217,8 @@ app.post("/webhooks/whatsapp", async (req, res) => {
 app.post("/webhooks/uazap/:segredo", async (req, res) => {
   const numero = await uazap.webhookValido(req.params.segredo, req.body);
   if (!numero) return res.sendStatus(401);
+  // Marca a chegada: é o que prova no painel que o webhook funciona, mesmo quando a conversa é pessoal e fica de fora.
+  await db.gravarEstado(`uazap_ultimo_aviso:${numero.id}`, new Date().toISOString());
   // A UAZap espera resposta rápida; a classificação com IA continua depois (waitUntil na Vercel).
   res.sendStatus(200);
   waitUntil(
@@ -1397,6 +1399,7 @@ app.get("/api/uazap/numeros", comErro(async () => {
     hoje: await db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id }),
     limite: await pipeline.limiteDoNumero(campanha, n.id),
     conversas: await db.conversasDoNumero(n.id),
+    ultimoAviso: await db.lerEstado(`uazap_ultimo_aviso:${n.id}`),
   })));
 }));
 

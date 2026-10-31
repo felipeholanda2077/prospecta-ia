@@ -3192,7 +3192,7 @@ async function carregarNumerosUazap() {
     const botao = (acao, icone, texto, classe = "") => `<button class="btn sm ${classe}" data-wa-acao="${acao}" data-wa-p="${p}">${ic(icone, "sm")}${texto}</button>`;
     return `<div class="numero-wa" style="border:1px solid var(--border);border-radius:12px;padding:14px;display:grid;gap:10px">
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><b>${esc(n.nome)}</b><span id="${p}-status"></span>
-        <span class="muted" style="font-size:13px">Hoje: ${n.hoje} de ${n.limite} empresas novas · ${n.conversas} conversa${n.conversas === 1 ? "" : "s"}</span></div>
+        <span class="muted" style="font-size:13px">Hoje: ${n.hoje} de ${n.limite} empresas novas · ${n.conversas} conversa${n.conversas === 1 ? "" : "s"} · ${n.ultimoAviso ? `último aviso recebido em ${esc(dataHora(n.ultimoAviso))}` : "nenhum aviso recebido ainda"}</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         ${botao("qr", "grid", "QR code")}${botao("codigo", "phone", "Código")}${botao("status", "refresh", "Atualizar", "fantasma")}
         ${botao("editar", "settings", "Editar", "fantasma")}${botao("desconectar", "x", "Desconectar", "fantasma")}${botao("remover", "ban", "Remover", "perigo")}
