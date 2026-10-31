@@ -232,6 +232,106 @@ test("shopee: duas lojas, cada uma no próprio registro, e desconectar uma não 
   assert.deepEqual((await sp.statusDaConexao()).lojas.map((l) => l.nome), ["Outra Loja"]);
 });
 
+test("shopee: a conta principal liga várias lojas de uma vez, com o acesso de cada uma guardado separado", async () => {
+  await sp.salvarApp({ partnerId: "123", partnerKey: "chave-secreta" });
+  const state = new URL(await sp.urlDeEntrada(AGORA)).searchParams.get("state");
+  const renovadas = [];
+  await comFetch(async (u, o) => {
+    const url = String(u);
+    if (url.includes("/auth/token/get")) {
+      assert.deepEqual(JSON.parse(o.body), { code: "c9", main_account_id: 900, partner_id: 123 });
+      return resposta({ access_token: "AT-CONTA", refresh_token: "RT-CONTA", expire_in: 14400, shop_id_list: [21, 22, 23], merchant_id_list: [5], error: "" });
+    }
+    if (url.includes("/auth/access_token/get")) {
+      const corpo = JSON.parse(o.body);
+      renovadas.push(corpo.shop_id);
+      assert.equal(corpo.refresh_token, "RT-CONTA");
+      if (corpo.shop_id === 23) return resposta({ error: "error_auth", message: "negada" });
+      return resposta({ access_token: `AT-${corpo.shop_id}`, refresh_token: `RT-${corpo.shop_id}`, expire_in: 14400, error: "" });
+    }
+    const loja = new URL(url).searchParams.get("shop_id");
+    assert.equal(new URL(url).searchParams.get("access_token"), `AT-${loja}`);
+    return resposta({ shop_name: `Loja ${loja} da conta`, error: "" });
+  }, () => sp.concluirEntrada({ code: "c9", main_account_id: "900", state }, AGORA));
+  assert.deepEqual(renovadas, [21, 22, 23]);
+
+  const s = await sp.statusDaConexao();
+  assert.deepEqual(s.lojas.filter((l) => ["21", "22", "23"].includes(l.id)).map((l) => l.nome), ["Loja 21 da conta", "Loja 22 da conta"]);
+  assert.match(s.erro, /23 .*negada/);
+  assert.doesNotMatch(JSON.stringify(await db.lerConfig("shopee_loja_21")), /AT-21|RT-21/);
+
+  // Sem nenhuma loja marcada, o erro explica o que fazer, e o state só vale uma vez.
+  const outro = new URL(await sp.urlDeEntrada(AGORA)).searchParams.get("state");
+  await comFetch(async () => resposta({ access_token: "A", refresh_token: "R", shop_id_list: [], error: "" }), () => assert.rejects(() => sp.concluirEntrada({ code: "c", main_account_id: "900", state: outro }, AGORA), /marque as lojas/));
+  await assert.rejects(() => sp.concluirEntrada({ code: "c", main_account_id: "900", state: outro }, AGORA), /expirou/);
+  for (const id of ["21", "22"]) await sp.desconectar(id);
+  await sp.salvarApp({ partnerId: "123" }); // limpa o erro para os próximos testes
+});
+
+test("shopee: lojas de apps diferentes convivem, cada uma assinada e renovada pelo próprio app", async () => {
+  const assinatura = (chave, parceiro, caminho, ts, token, loja) => crypto.createHmac("sha256", chave).update(`${parceiro}${caminho}${ts}${token}${loja}`).digest("hex");
+  const ts = Math.floor(+AGORA / 1000);
+  const ligar = async (loja) => {
+    const state = new URL(await sp.urlDeEntrada(AGORA)).searchParams.get("state");
+    await comFetch(async (u) => (String(u).includes("/auth/token/get") ? resposta({ access_token: `AT-${loja}`, refresh_token: `RT-${loja}`, expire_in: 14400, error: "" }) : resposta({ shop_name: `Loja ${loja}`, error: "" })), () => sp.concluirEntrada({ code: "c", shop_id: String(loja), state }, AGORA));
+  };
+  await sp.salvarApp({ partnerId: "111", partnerKey: "chave-um" });
+  await ligar(31);
+  // Em outro app, a chave do anterior não serve.
+  await assert.rejects(() => sp.salvarApp({ partnerId: "222" }), /Partner Key/);
+  await sp.salvarApp({ partnerId: "222", partnerKey: "chave-dois" });
+  await ligar(32);
+
+  const chamadas = {};
+  const pedir = (loja, quando = AGORA) => comFetch(async (u, o) => {
+    const url = new URL(u);
+    if (url.pathname.endsWith("/auth/access_token/get")) {
+      chamadas[`renovou-${loja}`] = { parceiro: url.searchParams.get("partner_id"), corpo: JSON.parse(o.body), sign: url.searchParams.get("sign") };
+      return resposta({ access_token: `NOVO-${loja}`, refresh_token: `RN-${loja}`, expire_in: 14400, error: "" });
+    }
+    chamadas[loja] = { parceiro: url.searchParams.get("partner_id"), sign: url.searchParams.get("sign") };
+    return resposta({ error: "", response: { order_list: [] } });
+  }, () => sp.pedidosRecentes(String(loja), quando));
+  await pedir(31);
+  await pedir(32);
+  const caminho = "/api/v2/order/get_order_list";
+  assert.deepEqual(chamadas[31], { parceiro: "111", sign: assinatura("chave-um", "111", caminho, ts, "AT-31", "31") });
+  assert.deepEqual(chamadas[32], { parceiro: "222", sign: assinatura("chave-dois", "222", caminho, ts, "AT-32", "32") });
+
+  // A renovação da loja antiga continua no app dela, mesmo com outro app em uso.
+  const depois = new Date(+AGORA + 4 * 3600_000);
+  await pedir(31, depois);
+  assert.equal(chamadas["renovou-31"].parceiro, "111");
+  assert.equal(chamadas["renovou-31"].corpo.partner_id, 111);
+  assert.equal(chamadas["renovou-31"].sign, crypto.createHmac("sha256", "chave-um").update(`111/api/v2/auth/access_token/get${Math.floor(+depois / 1000)}`).digest("hex"));
+
+  // Voltar a um app conhecido aproveita a chave salva, e trocar a chave vale para as lojas dele.
+  await sp.salvarApp({ partnerId: "111" });
+  await sp.salvarApp({ partnerId: "111", partnerKey: "chave-um-nova" });
+  await pedir(31, depois);
+  assert.equal(chamadas[31].sign, assinatura("chave-um-nova", "111", caminho, Math.floor(+depois / 1000), "NOVO-31", "31"));
+  assert.doesNotMatch(JSON.stringify(await db.lerConfig("shopee")), /chave-um|chave-dois/);
+
+  // A imagem sobe pelo app da loja do produto.
+  await comFetch(async (u) => {
+    assert.equal(new URL(u).searchParams.get("partner_id"), "222");
+    return resposta({ error: "", response: { image_info: { image_id: "img" } } });
+  }, async () => assert.equal(await sp.subirImagem("32", Buffer.from("x"), "image/jpeg", AGORA), "img"));
+  for (const id of ["31", "32"]) await sp.desconectar(id);
+});
+
+test("shopee: loja ligada antes de cada uma guardar o app continua no app que usava", async () => {
+  await sp.salvarApp({ partnerId: "333", partnerKey: "chave-tres" });
+  await db.gravarConfig("shopee_loja_41", { lojaId: "41", token: (await import("../src/segredos.js")).cifrar("AT-41"), expiraEm: new Date(+AGORA + 3600_000).toISOString() });
+  await db.gravarConfig("shopee", { ...(await db.lerConfig("shopee")), lojas: [...((await db.lerConfig("shopee")).lojas ?? []), "41"] });
+  await sp.salvarApp({ partnerId: "444", partnerKey: "chave-quatro" });
+  await comFetch(async (u) => {
+    assert.equal(new URL(u).searchParams.get("partner_id"), "333");
+    return resposta({ error: "", response: { order_list: [] } });
+  }, () => sp.pedidosRecentes("41", AGORA));
+  await sp.desconectar("41");
+});
+
 test("mercado livre: campo livre aceita digitar, e falta de permissão explica o que fazer", async () => {
   const ml = await import("../src/envio/mercadolivre.js");
   const { cifrar } = await import("../src/segredos.js");

@@ -1007,7 +1007,7 @@
           </form>
           <form class="cartao" id="form-shopee">
             <div class="cartao-cab"><span class="kpi-ic" data-ic-span="store"></span><div class="titulos"><h3>Shopee <span id="sp-status"></span></h3>
-              <div class="meta">Dá para ligar várias lojas. A autorização da Shopee vence e precisa ser renovada: o próprio vendedor escolhe o prazo ao autorizar.</div></div></div>
+              <div class="meta">Dá para ligar várias lojas e várias contas, no mesmo app ou em apps diferentes. A autorização da Shopee vence e precisa ser renovada: o próprio vendedor escolhe o prazo ao autorizar.</div></div></div>
             <div class="cartao-corpo" id="sp-lojas" style="display:grid;gap:8px"></div>
             <div class="cartao-corpo config-grade">
               <div class="campo"><label for="sp-id">Partner ID</label><input id="sp-id" name="partnerId" inputmode="numeric" autocomplete="off" required></div>
@@ -1018,7 +1018,11 @@
                   <ol><li>Crie a conta de desenvolvedor em <b>open.shopee.com</b> e aguarde a aprovação da Shopee.</li>
                     <li>Em <b>Console</b>, crie um app do tipo para sistema próprio do vendedor e informe o domínio da URL acima em <b>Redirect URL Domain</b>.</li>
                     <li>Quando a Shopee liberar, copie o <b>Partner ID</b> e a <b>Partner Key</b> para cá. A chave de teste só funciona com o ambiente de teste.</li>
-                    <li>Clique em <b>Adicionar loja</b> e autorize com a conta da loja. Subconta não consegue autorizar.</li></ol></details></div>
+                    <li>Clique em <b>Adicionar loja</b> e autorize com a conta da loja. Subconta não consegue autorizar.</li></ol></details>
+                <details class="ajuda"><summary>Como ligar outra loja ou outra conta</summary>
+                  <ol><li><b>Várias lojas da mesma conta principal:</b> clique em <b>Adicionar loja</b>, escolha <b>Switch to Sub Account</b> na tela de login, entre com a conta principal e marque as lojas. Todas entram de uma vez.</li>
+                    <li><b>Outra conta, no mesmo app:</b> saia da Shopee neste navegador e clique em <b>Adicionar loja</b>. O login usa a conta que estiver aberta.</li>
+                    <li><b>Outra conta, com outro app:</b> troque o Partner ID e a Partner Key acima e clique em <b>Adicionar loja</b>. As lojas já ligadas continuam funcionando pelo app delas.</li></ol></details></div>
             </div>
             <div class="acoes"><button class="btn primario" type="submit" id="sp-entrar"><span data-ic="store"></span>Adicionar loja</button></div>
           </form>

@@ -136,7 +136,7 @@ async function publicarNaShopee(p, { conta, categoria, atributos, pausado, soCon
   const imagens = [];
   for (const chave of p.fotos) {
     const midia = await db.lerMidia(chave);
-    if (midia) imagens.push(await api.subirImagem(midia.dados, midia.tipo, agora));
+    if (midia) imagens.push(await api.subirImagem(conta, midia.dados, midia.tipo, agora));
   }
   if (!imagens.length) throw new Error("As fotos do produto não foram encontradas. Adicione de novo.");
   const marca = await api.acharMarca(conta, categoria, p.marca, agora);

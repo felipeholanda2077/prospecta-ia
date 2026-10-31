@@ -5,7 +5,8 @@ import { cifrar, decifrar } from "../segredos.js";
 
 // As lojas na Shopee, pela Open Platform v2. Toda chamada é assinada com HMAC-SHA256 usando a Partner Key.
 // O acesso dura 4 horas e a renovação vale 30 dias e muda a cada uso: há trava por loja, e cada loja fica em
-// um registro próprio. O ambiente de teste (sandbox) usa outros endereços e outra chave.
+// um registro próprio. O ambiente de teste (sandbox) usa outros endereços e outra chave. Cada loja lembra de
+// qual app veio: dá para ligar lojas de apps diferentes, e trocar o app em uso não derruba as que já estão ligadas.
 const ENDERECOS = {
   live: { api: "https://openplatform.shopee.com.br", login: "https://open.shopee.com.br/auth" },
   sandbox: { api: "https://openplatform.sandbox.test-stable.shopee.sg", login: "https://open.sandbox.test-stable.shopee.com/auth" },
@@ -18,6 +19,8 @@ const ler = async () => (await db.lerConfig(CONFIG)) ?? {};
 const gravar = (c) => db.gravarConfig(CONFIG, c);
 const lerLoja = async (id) => (await db.lerConfig(`${CONFIG}_loja_${id}`)) ?? {};
 const gravarLoja = (l) => db.gravarConfig(`${CONFIG}_loja_${l.lojaId}`, l);
+/** As credenciais de um app. Sem o `partnerId`, as do app em uso. */
+const appDe = (c, partnerId = c.partnerId) => (c.apps?.[partnerId] ? { partnerId, ...c.apps[partnerId] } : c);
 
 export const enderecoDeRetorno = () => `${config.painel.urlPublica}/api/shopee/retorno`;
 export const idsDasLojas = async () => (await ler()).lojas ?? [];
@@ -39,8 +42,23 @@ export async function salvarApp({ partnerId, partnerKey, ambiente }) {
   const id = String(partnerId ?? "").trim();
   const chave = String(partnerKey ?? "").trim();
   if (!/^\d+$/.test(id)) throw new Error("Cole o Partner ID da Shopee (só números)");
-  if (!chave && !c.partnerKey) throw new Error("Cole a Partner Key da Shopee");
-  await gravar({ ...c, partnerId: id, partnerKey: chave ? cifrar(chave) : c.partnerKey, ambiente: ambiente === "sandbox" ? "sandbox" : "live", erro: null });
+  const mudou = Boolean(c.partnerId) && id !== c.partnerId;
+  // A chave de um app nunca serve para outro: num Partner ID novo, ela precisa vir junto.
+  const salva = c.apps?.[id]?.partnerKey ?? (mudou ? null : c.partnerKey);
+  if (!chave && !salva) throw new Error("Cole a Partner Key deste app da Shopee");
+  const apps = { ...c.apps };
+  if (c.partnerId && !apps[c.partnerId]) apps[c.partnerId] = { partnerKey: c.partnerKey, ambiente: c.ambiente ?? "live" };
+  const partnerKeyNova = chave ? cifrar(chave) : salva;
+  const ambienteNovo = ambiente === "sandbox" ? "sandbox" : "live";
+  apps[id] = { partnerKey: partnerKeyNova, ambiente: ambienteNovo };
+  // Lojas de antes de cada uma guardar o seu app ficam presas ao app que estava em uso.
+  if (mudou) {
+    for (const loja of c.lojas ?? []) {
+      const l = await lerLoja(loja);
+      if (l.lojaId && !l.partnerId) await gravarLoja({ ...l, partnerId: c.partnerId });
+    }
+  }
+  await gravar({ ...c, apps, partnerId: id, partnerKey: partnerKeyNova, ambiente: ambienteNovo, erro: null });
 }
 
 const assinar = (chave, ...partes) => crypto.createHmac("sha256", chave).update(partes.join("")).digest("hex");
@@ -91,20 +109,45 @@ const iguais = (a, b) => {
   return x.length === y.length && crypto.timingSafeEqual(x, y);
 };
 
-/** A volta da autorização: confere o `state`, troca o código pelo acesso e descobre o nome da loja. */
+const somenteDigitos = (v) => /^\d+$/.test(String(v ?? ""));
+
+/**
+ * A autorização pela conta principal traz um único acesso e a lista das lojas marcadas. A Shopee manda renovar
+ * esse acesso uma vez por loja e guardar o resultado de cada uma separado. Se uma falhar, as outras continuam.
+ */
+async function lojasDaContaPrincipal(c, code, contaPrincipal, agora) {
+  const t = await chamarPublica(c, "/api/v2/auth/token/get", { code, main_account_id: Number(contaPrincipal), partner_id: Number(c.partnerId) }, agora);
+  const ids = (t.shop_id_list ?? []).map(String);
+  if (!ids.length) throw new Error("Shopee: a conta principal não autorizou nenhuma loja. Autorize de novo e marque as lojas.");
+  const lojas = [];
+  const falhas = [];
+  for (const id of ids) {
+    try {
+      lojas.push({ id, token: await chamarPublica(c, "/api/v2/auth/access_token/get", { refresh_token: t.refresh_token, partner_id: Number(c.partnerId), shop_id: Number(id) }, agora) });
+    } catch (e) {
+      falhas.push(`${id} (${e.message})`);
+    }
+  }
+  if (!lojas.length) throw new Error(`Shopee: não consegui ligar nenhuma loja da conta principal: ${falhas.join("; ")}`);
+  return { lojas, erro: falhas.length ? `Shopee: estas lojas não entraram, autorize de novo: ${falhas.join("; ")}` : null };
+}
+
+/** A volta da autorização: confere o `state`, troca o código pelo acesso e descobre o nome de cada loja. */
 export async function concluirEntrada({ code, shop_id: lojaId, state, main_account_id: contaPrincipal }, agora = new Date()) {
   const c = await ler();
   if (!c.estado || !iguais(state, c.estado) || agora - new Date(c.estadoEm) > ESTADO_VALE_MS) throw new Error("Esse login expirou. Clique em Entrar com a Shopee de novo.");
   const { estado, estadoEm, ...semEstado } = c;
   try {
-    if (contaPrincipal && !lojaId) throw new Error("Shopee: autorize com a conta da loja, não com a conta principal.");
-    if (!code || !/^\d+$/.test(String(lojaId ?? ""))) throw new Error("Shopee: a autorização não trouxe a loja. Tente de novo.");
-    const t = await chamarPublica(c, "/api/v2/auth/token/get", { code, shop_id: Number(lojaId), partner_id: Number(c.partnerId) }, agora);
-    const loja = { ...camposDoToken(t, agora), lojaId: String(lojaId), conectadoEm: agora.toISOString(), erro: null };
-    await gravarLoja(loja);
-    await gravar({ ...semEstado, lojas: [...new Set([...(semEstado.lojas ?? []), String(lojaId)])], erro: null });
-    const info = await chamar(lojaId, "GET", "/api/v2/shop/get_shop_info", {}, null, agora).catch(() => ({}));
-    if (info.shop_name) await gravarLoja({ ...(await lerLoja(lojaId)), nome: info.shop_name });
+    if (!code || !(somenteDigitos(lojaId) || somenteDigitos(contaPrincipal))) throw new Error("Shopee: a autorização não trouxe a loja. Tente de novo.");
+    const { lojas, erro } = somenteDigitos(lojaId)
+      ? { lojas: [{ id: String(lojaId), token: await chamarPublica(c, "/api/v2/auth/token/get", { code, shop_id: Number(lojaId), partner_id: Number(c.partnerId) }, agora) }], erro: null }
+      : await lojasDaContaPrincipal(c, code, contaPrincipal, agora);
+    for (const { id, token } of lojas) await gravarLoja({ ...camposDoToken(token, agora), lojaId: id, partnerId: c.partnerId, conectadoEm: agora.toISOString(), erro: null });
+    await gravar({ ...semEstado, lojas: [...new Set([...(semEstado.lojas ?? []), ...lojas.map((l) => l.id)])], erro });
+    for (const { id } of lojas) {
+      const info = await chamar(id, "GET", "/api/v2/shop/get_shop_info", {}, null, agora).catch(() => ({}));
+      if (info.shop_name) await gravarLoja({ ...(await lerLoja(id)), nome: info.shop_name });
+    }
   } catch (e) {
     await gravar({ ...semEstado, erro: e.message });
     throw e;
@@ -135,7 +178,7 @@ async function lojaValida(id, agora = new Date()) {
     if (new Date(l.expiraEm) - agora > RENOVAR_ANTES_MS) return l;
     const renovacao = decifrar(l.renovacao);
     if (!renovacao) throw new Error("Shopee: entre de novo (a senha do painel mudou)");
-    const c = await ler();
+    const c = appDe(await ler(), l.partnerId);
     const t = await chamarPublica(c, "/api/v2/auth/access_token/get", { refresh_token: renovacao, partner_id: Number(c.partnerId), shop_id: Number(id) }, agora);
     const novo = { ...l, ...camposDoToken(t, agora), erro: null };
     await gravarLoja(novo);
@@ -150,7 +193,7 @@ async function lojaValida(id, agora = new Date()) {
 
 async function chamar(id, metodo, caminho, params = {}, corpo = null, agora = new Date()) {
   const l = await lojaValida(id, agora);
-  const c = await ler();
+  const c = appDe(await ler(), l.partnerId);
   const token = decifrar(l.token);
   const timestamp = Math.floor(+agora / 1000);
   const url = new URL(`${ENDERECOS[c.ambiente ?? "live"].api}${caminho}`);
@@ -163,15 +206,15 @@ async function chamar(id, metodo, caminho, params = {}, corpo = null, agora = ne
   return dados.response ?? dados;
 }
 
-/** Sobe uma imagem para a Shopee e devolve o ID dela. */
-export async function subirImagem(dados, tipo = "image/jpeg", agora) {
-  const c = await ler();
+/** Sobe uma imagem para a Shopee, pelo app da loja, e devolve o ID dela. */
+export async function subirImagem(id, dados, tipo = "image/jpeg", agora) {
+  const c = appDe(await ler(), (await lerLoja(id)).partnerId);
   const form = new FormData();
   form.append("image", new Blob([dados], { type: tipo }), "produto.jpg");
   const r = await chamarPublica(c, "/api/v2/media_space/upload_image", form, agora);
-  const id = r.response?.image_info?.image_id ?? r.response?.image_info_list?.[0]?.image_info?.image_id;
-  if (!id) throw new Error("Shopee: não devolveu o ID da imagem");
-  return id;
+  const imagem = r.response?.image_info?.image_id ?? r.response?.image_info_list?.[0]?.image_info?.image_id;
+  if (!imagem) throw new Error("Shopee: não devolveu o ID da imagem");
+  return imagem;
 }
 
 const nomeEmPortugues = (a) => a.multi_lang?.find((x) => /^pt/i.test(x.language ?? ""))?.value || a.name || a.display_attribute_name || a.original_attribute_name;
