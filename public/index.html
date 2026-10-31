@@ -3698,7 +3698,7 @@ function mostrarWebhookAsaas({ url, token, ultimoAviso }) {
   $("#cb-webhook-corpo").innerHTML = `<div style="display:grid;gap:8px">
       <div>URL do Webhook: <code style="overflow-wrap:anywhere">${esc(url)}</code> <button type="button" class="btn fantasma sm" data-cb-copiar="${esc(url)}">${ic("copy", "sm")}Copiar</button></div>
       <div>Token de autenticação: <code style="overflow-wrap:anywhere">${esc(token)}</code> <button type="button" class="btn fantasma sm" data-cb-copiar="${esc(token)}">${ic("copy", "sm")}Copiar</button></div>
-      <div class="muted">No Asaas: webhook ativo, versão v3, envio não sequencial, fila de sincronização ativada. Eventos: PAYMENT_CONFIRMED, PAYMENT_RECEIVED, PAYMENT_OVERDUE, PAYMENT_DELETED, PAYMENT_REFUNDED, PAYMENT_REFUND_IN_PROGRESS e PAYMENT_CHARGEBACK_REQUESTED.</div>
+      <div class="muted">No Asaas: webhook ativo, versão v3, envio não sequencial, fila de sincronização ativada. Eventos: PAYMENT_CREATED, PAYMENT_CONFIRMED, PAYMENT_RECEIVED, PAYMENT_OVERDUE, PAYMENT_DELETED, PAYMENT_REFUNDED, PAYMENT_REFUND_IN_PROGRESS e PAYMENT_CHARGEBACK_REQUESTED.</div>
       <div class="muted">${ultimoAviso ? `Último aviso recebido em ${esc(dataHora(ultimoAviso))}.` : "Nenhum aviso recebido ainda."}</div>
       <div><button type="button" class="btn fantasma sm" id="cb-novo-token">${ic("refresh", "sm")}Trocar o token</button></div>
     </div>`;
