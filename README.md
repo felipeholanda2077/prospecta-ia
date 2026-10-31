@@ -179,7 +179,7 @@ A página **Contratos** do painel guarda o modelo e o contrato de cada cliente:
 - **Quando o cliente aceita:** o botão **Cliente aceitou: gerar contrato** (na conversa ou na lista de empresas) abre o formulário já com os dados da empresa. Ao gerar, a empresa passa a **Cliente fechado**, as mensagens de prospecção na fila são canceladas e, se o cliente escrever, a IA não vende nada e passa a conversa para você. O **Novo contrato** cria um contrato para quem não veio de uma conversa.
 - **Pagamento por contrato:** por mês (valor, meses de vigência e data do primeiro pagamento) ou entrada e saldo. O resumo, o valor total por extenso, a tabela de parcelas e a cláusula de rescisão saem de acordo.
 - **Cada contrato** pode ser editado à vontade, com situação (rascunho, enviado, assinado, cancelado) e **Baixar PDF**, pronto para assinar pelo gov.br.
-- **Cobranças:** com a chave de API do Asaas colada na aba **Cobranças**, um contrato assinado gera as parcelas. Cada uma é emitida 15 dias antes de vencer, com PIX e boleto na mesma página de pagamento, e os lembretes por e-mail e SMS são os do próprio Asaas. O que foi pago é conferido a cada hora. Cancelar o contrato cancela o que está em aberto.
+- **Cobranças:** com a chave de API do Asaas colada na aba **Cobranças**, um contrato assinado gera as parcelas. Cada uma é emitida 15 dias antes de vencer, com PIX e boleto na mesma página de pagamento, e os lembretes por e-mail e SMS são os do próprio Asaas. O webhook (URL e token na mesma aba) mostra o pagamento na hora, e a conferência de cada hora cobre o aviso que se perder. Cancelar o contrato cancela o que está em aberto.
 
 ## Formulário do site
 

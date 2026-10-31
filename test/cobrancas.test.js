@@ -247,6 +247,79 @@ test("cobrança: cancelar remove do Asaas; paga não cancela; contrato cancelado
   });
 });
 
+/** Sobe o app de verdade e manda um aviso para a rota, com o fetch real para chegar nela. */
+async function avisar(corpo, token) {
+  const { app } = await import("../src/app.js");
+  const servidor = await new Promise((ok) => { const s = app.listen(0, () => ok(s)); });
+  try {
+    const r = await original(`http://127.0.0.1:${servidor.address().port}/webhooks/asaas`, {
+      method: "POST", headers: { "Content-Type": "application/json", ...(token ? { "asaas-access-token": token } : {}) }, body: JSON.stringify(corpo),
+    });
+    return r.status;
+  } finally {
+    await new Promise((ok) => servidor.close(ok));
+  }
+}
+
+test("webhook do Asaas: o token é recusado se errado, é o mesmo até ser trocado e fica cifrado", async () => {
+  const { token, url } = await cobranca.dadosDoWebhook();
+  assert.ok(token.length >= 32 && token.length <= 255);
+  assert.match(url, /\/webhooks\/asaas$/);
+  assert.equal((await cobranca.dadosDoWebhook()).token, token);
+  assert.ok(!JSON.stringify(await db.lerConfig("asaas_webhook")).includes(token));
+
+  assert.equal(await avisar({ event: "PAYMENT_RECEIVED" }), 401);
+  assert.equal(await avisar({ event: "PAYMENT_RECEIVED" }, "token-errado"), 401);
+  assert.equal(await avisar({ event: "PAYMENT_RECEIVED" }, token), 200);
+
+  const novo = (await cobranca.dadosDoWebhook({ novo: true })).token;
+  assert.notEqual(novo, token);
+  assert.equal(await avisar({ event: "PAYMENT_RECEIVED" }, token), 401);
+  assert.ok((await cobranca.dadosDoWebhook()).ultimoAviso);
+});
+
+test("webhook do Asaas: o aviso atualiza a parcela pela situação lida na hora", async () => {
+  const api = apiFalsa();
+  await comApi(api, async () => {
+    await asaas.conectar(CHAVE);
+    const id = await contratoAssinado();
+    await cobranca.gerarCobrancas(pedido(id, { vencimento: "2026-11-25", parcelas: "1" }), AGORA);
+    const pago = api.estado.pagamentos[0];
+    Object.assign(pago, { status: "RECEIVED", clientPaymentDate: "2026-11-21" });
+    const token = (await cobranca.dadosDoWebhook()).token;
+
+    assert.equal(await avisar({ id: "evt_1", event: "PAYMENT_RECEIVED", payment: pago }, token), 200);
+    const [p] = await db.listarCobrancas({ contratoId: id });
+    assert.deepEqual([p.status, p.pago_em], ["paga", "2026-11-21"]);
+
+    // Aviso atrasado de vencimento, com o conteúdo velho: quem vale é o que o Asaas diz agora.
+    await avisar({ id: "evt_0", event: "PAYMENT_OVERDUE", payment: { ...pago, status: "OVERDUE" } }, token);
+    assert.equal((await db.listarCobrancas({ contratoId: id }))[0].status, "paga");
+  });
+});
+
+test("webhook do Asaas: cobrança de fora do sistema, id trocado ou Asaas fora do ar não mudam nada", async () => {
+  let fora = false;
+  const api = apiFalsa({ falhar: (metodo, caminho) => fora && caminho.startsWith("/payments/") });
+  await comApi(api, async () => {
+    await asaas.conectar(CHAVE);
+    const id = await contratoAssinado();
+    await cobranca.gerarCobrancas(pedido(id, { vencimento: "2026-11-25", parcelas: "1" }), AGORA);
+    const [p] = await db.listarCobrancas({ contratoId: id });
+    const antes = api.estado.chamadas.length;
+    assert.deepEqual(await cobranca.processarAvisoDoAsaas({ payment: { id: "pay_x" } }), { ignorado: true });
+    assert.deepEqual(await cobranca.processarAvisoDoAsaas({ payment: { id: "pay_x", externalReference: `parcela-${p.id}` } }), { ignorado: true });
+    assert.deepEqual(await cobranca.processarAvisoDoAsaas({ event: "ACCOUNT_STATUS_UPDATED" }), { ignorado: true });
+    assert.equal(api.estado.chamadas.length, antes);
+
+    // Responde 200 para não pausar a fila; a parcela fica como estava até a próxima conferência.
+    fora = true;
+    const token = (await cobranca.dadosDoWebhook()).token;
+    assert.equal(await avisar({ payment: { id: p.asaas_id, externalReference: `parcela-${p.id}` } }, token), 200);
+    assert.equal((await db.listarCobrancas({ contratoId: id }))[0].status, "emitida");
+  });
+});
+
 test("cobrança: sem Asaas conectado, a rodada não faz nada", async () => {
   const api = apiFalsa();
   assert.deepEqual(await comApi(api, () => cobranca.rodadaDeCobrancas(AGORA)), { cobrancas: "sem Asaas" });

@@ -1135,7 +1135,7 @@
 
         <div class="ig-painel" data-ct-painel="cobrancas" hidden>
           <div class="ig-barra">
-            <div class="ig-barra-texto"><h3>Cobranças</h3><p class="muted">As parcelas dos contratos assinados. Cada uma vai para o Asaas 15 dias antes de vencer, e o cliente paga por PIX ou boleto. O que foi pago é conferido a cada hora.</p></div>
+            <div class="ig-barra-texto"><h3>Cobranças</h3><p class="muted">As parcelas dos contratos assinados. Cada uma vai para o Asaas 15 dias antes de vencer, e o cliente paga por PIX ou boleto. O pagamento aparece na hora pelo webhook e também é conferido a cada hora.</p></div>
             <div class="ig-barra-botoes">
               <button class="btn fantasma" type="button" id="cb-atualizar"><span data-ic="refresh"></span>Atualizar</button>
               <button class="btn primario" type="button" id="cb-nova"><span data-ic="check"></span>Gerar cobranças</button>
@@ -1172,6 +1172,12 @@
             </div>
             <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar chave</button></div>
           </form>
+
+          <div class="cartao" id="cb-webhook">
+            <div class="cartao-cab"><span class="kpi-ic" data-ic-span="globe"></span><div class="titulos"><h3>Webhook do Asaas</h3>
+              <div class="meta">Avisa na hora quando uma cobrança é paga. Sem ele, o sistema descobre na conferência de cada hora.</div></div></div>
+            <div class="cartao-corpo" id="cb-webhook-corpo"></div>
+          </div>
         </div>
       </section>
 
@@ -3663,8 +3669,9 @@ let contratosCobraveis = [];
 
 async function carregarCobrancas() {
   try {
-    const { asaas, resumo, parcelas, contratos } = await api("/api/cobrancas");
+    const [{ asaas, resumo, parcelas, contratos }, webhook] = await Promise.all([api("/api/cobrancas"), api("/api/cobrancas/webhook")]);
     contratosCobraveis = contratos;
+    mostrarWebhookAsaas(webhook);
     $("#cb-asaas-status").innerHTML = !asaas.conectado ? `<span class="pilula">Não conectado</span>`
       : asaas.ambiente === "sandbox" ? `<span class="pilula atencao">Modo de teste</span>` : `<span class="pilula ok">Conectado</span>`;
     const total = (rotulo, valor, sub) => `<div class="ig-card"><span class="ig-card-cab">${rotulo}</span><b>${esc(emReais(valor))}</b><span class="ig-card-sub">${sub}</span></div>`;
@@ -3686,6 +3693,31 @@ async function carregarCobrancas() {
     $("#cb-lista").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
 }
+
+function mostrarWebhookAsaas({ url, token, ultimoAviso }) {
+  $("#cb-webhook-corpo").innerHTML = `<div style="display:grid;gap:8px">
+      <div>URL do Webhook: <code style="overflow-wrap:anywhere">${esc(url)}</code> <button type="button" class="btn fantasma sm" data-cb-copiar="${esc(url)}">${ic("copy", "sm")}Copiar</button></div>
+      <div>Token de autenticação: <code style="overflow-wrap:anywhere">${esc(token)}</code> <button type="button" class="btn fantasma sm" data-cb-copiar="${esc(token)}">${ic("copy", "sm")}Copiar</button></div>
+      <div class="muted">No Asaas: webhook ativo, versão v3, envio não sequencial, fila de sincronização ativada. Eventos: PAYMENT_CONFIRMED, PAYMENT_RECEIVED, PAYMENT_OVERDUE, PAYMENT_DELETED, PAYMENT_REFUNDED, PAYMENT_REFUND_IN_PROGRESS e PAYMENT_CHARGEBACK_REQUESTED.</div>
+      <div class="muted">${ultimoAviso ? `Último aviso recebido em ${esc(dataHora(ultimoAviso))}.` : "Nenhum aviso recebido ainda."}</div>
+      <div><button type="button" class="btn fantasma sm" id="cb-novo-token">${ic("refresh", "sm")}Trocar o token</button></div>
+    </div>`;
+}
+
+$("#cb-webhook").addEventListener("click", async (ev) => {
+  const copiar = ev.target.closest("[data-cb-copiar]");
+  if (copiar) {
+    await navigator.clipboard.writeText(copiar.dataset.cbCopiar).catch(() => {});
+    return avisar("Copiado", "ok", 1500);
+  }
+  if (!ev.target.closest("#cb-novo-token") || !confirm("Trocar o token? Os avisos do Asaas só voltam a valer depois de colar o novo token no cadastro do webhook.")) return;
+  try {
+    mostrarWebhookAsaas(await post("/api/cobrancas/webhook/token"));
+    avisar("Token trocado. Cole o novo no Asaas.", "ok", 6000);
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+});
 
 async function preencherCobranca(contratoId) {
   if (!contratoId) return;

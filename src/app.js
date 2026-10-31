@@ -227,6 +227,21 @@ app.post("/webhooks/calendly", async (req, res) => {
   res.sendStatus(200);
 });
 
+// ---------- Webhook do Asaas (público, validado pelo token) ----------
+
+app.post("/webhooks/asaas", async (req, res) => {
+  if (!(await asaas.tokenValido(req.get("asaas-access-token")))) return res.sendStatus(401);
+  // Processa antes de responder: em ambiente serverless nada roda depois da resposta. Se falhar, a
+  // consulta de cada hora acerta a parcela; responder erro só faria o Asaas pausar a fila de avisos.
+  try {
+    await cobrancas.registrarAviso();
+    await cobrancas.processarAvisoDoAsaas(req.body);
+  } catch (e) {
+    console.error("Erro no webhook do Asaas:", e.message);
+  }
+  res.sendStatus(200);
+});
+
 // ---------- Cron da Vercel (protegido pelo CRON_SECRET) ----------
 
 const TAREFAS_CRON = {
@@ -1148,6 +1163,9 @@ app.put("/api/cobrancas/asaas", async (req, res) => {
   const r = await asaas.conectar(req.body?.chave);
   res.status(r.erro ? 400 : 200).json(r);
 });
+
+app.get("/api/cobrancas/webhook", async (req, res) => res.json(await cobrancas.dadosDoWebhook()));
+app.post("/api/cobrancas/webhook/token", async (req, res) => res.json(await cobrancas.dadosDoWebhook({ novo: true })));
 
 app.post("/api/cobrancas", async (req, res) => {
   const r = await cobrancas.gerarCobrancas(req.body ?? {});

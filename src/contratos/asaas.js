@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import * as db from "../db.js";
 import { cifrar, decifrar } from "../segredos.js";
 
@@ -5,6 +6,7 @@ import { cifrar, decifrar } from "../segredos.js";
 // A chave de API fica cifrada no banco; o ambiente sai do começo dela, para nunca misturar teste e produção.
 const ENDERECOS = { producao: "https://api.asaas.com/v3", sandbox: "https://api-sandbox.asaas.com/v3" };
 const CHAVE_CONFIG = "asaas";
+const CHAVE_WEBHOOK = "asaas_webhook";
 
 export const ambienteDaChave = (chave) => (chave.startsWith("$aact_prod_") ? "producao" : chave.startsWith("$aact_hmlg_") ? "sandbox" : null);
 
@@ -49,6 +51,24 @@ export async function conectar(chave) {
   }
   await db.gravarConfig(CHAVE_CONFIG, { chave: cifrar(texto), ambiente });
   return situacao();
+}
+
+/** O token que o Asaas manda em cada aviso. Criado aqui e colado lá, no cadastro do webhook. */
+export async function tokenDoWebhook({ novo = false } = {}) {
+  const guardado = (await db.lerConfig(CHAVE_WEBHOOK))?.token;
+  const aberto = guardado && !novo ? decifrar(guardado) : null;
+  if (aberto) return aberto;
+  const token = crypto.randomBytes(32).toString("hex");
+  await db.gravarConfig(CHAVE_WEBHOOK, { token: cifrar(token) });
+  return token;
+}
+
+export async function tokenValido(recebido) {
+  const guardado = (await db.lerConfig(CHAVE_WEBHOOK))?.token;
+  const aberto = guardado && decifrar(guardado);
+  if (!aberto || !recebido) return false;
+  const [a, b] = [aberto, String(recebido)].map((t) => crypto.createHash("sha256").update(t).digest());
+  return crypto.timingSafeEqual(a, b);
 }
 
 /** O cliente de um contrato no Asaas: reaproveita o que já existe, para repetir o pedido sem criar outro. */

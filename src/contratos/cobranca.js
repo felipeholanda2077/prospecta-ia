@@ -4,10 +4,11 @@ import * as asaas from "./asaas.js";
 import { documentoFormatado, lerData, lerValor, MESES } from "./valores.js";
 
 // As parcelas de um contrato assinado ficam guardadas aqui e só vão para o Asaas perto do vencimento: emitir
-// as 12 de uma vez mandaria 12 avisos de "cobrança criada" ao cliente no mesmo dia. A situação vem de uma
-// consulta a cada hora, então o Asaas continua sendo a fonte da verdade sobre o que foi pago.
+// as 12 de uma vez mandaria 12 avisos de "cobrança criada" ao cliente no mesmo dia. O webhook avisa na hora o
+// que mudou, e a consulta de cada hora cobre o aviso que se perder: o Asaas é a fonte da verdade sobre o que foi pago.
 const DIAS_ANTES_DE_EMITIR = 15;
 const TRAVA = "cobrancas_rodada";
+const ESTADO_ULTIMO_AVISO = "asaas_ultimo_aviso";
 const MULTA_PADRAO = 2;
 const JUROS_PADRAO = 1;
 
@@ -117,6 +118,26 @@ async function conferir(p, hoje) {
   const pago_em = status === "paga" ? (pagamento.clientPaymentDate ?? pagamento.paymentDate ?? p.pago_em ?? hoje) : null;
   if (status !== p.status || pago_em !== p.pago_em || p.erro) await db.atualizarCobranca(p.id, { status, pago_em, erro: null });
 }
+
+/**
+ * Um aviso do Asaas. Ele só diz qual parcela olhar: a situação vem de uma leitura na hora, então aviso repetido
+ * ou fora de ordem não atrasa a parcela de novo depois de paga. Cobrança feita fora do sistema é ignorada.
+ */
+export async function processarAvisoDoAsaas(corpo, agora = new Date()) {
+  const { id: asaasId, externalReference } = corpo?.payment ?? {};
+  const id = String(externalReference ?? "").match(/^parcela-(\d+)$/)?.[1];
+  const p = id && asaasId ? await db.buscarCobranca(id) : null;
+  if (!p || p.asaas_id !== asaasId || p.status === "cancelada") return { ignorado: true };
+  await conferir(p, hojeNoFuso(agora));
+  return { conferida: p.id };
+}
+
+/** O que colar no cadastro do webhook do Asaas e quando chegou o último aviso. */
+export async function dadosDoWebhook({ novo = false } = {}) {
+  return { url: `${config.painel.urlPublica}/webhooks/asaas`, token: await asaas.tokenDoWebhook({ novo }), ultimoAviso: await db.lerEstado(ESTADO_ULTIMO_AVISO) };
+}
+
+export const registrarAviso = (agora = new Date()) => db.gravarEstado(ESTADO_ULTIMO_AVISO, new Date(agora).toISOString());
 
 /** Emite o que está perto de vencer e atualiza o que já foi emitido. Roda a cada hora; uma parcela com erro não para as outras. */
 export async function rodadaDeCobrancas(agora = new Date()) {
