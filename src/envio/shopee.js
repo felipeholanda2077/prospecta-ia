@@ -259,9 +259,29 @@ export async function canaisDeEnvio(id, agora) {
 export const criarItem = (id, corpo, agora) => chamar(id, "POST", "/api/v2/product/add_item", {}, corpo, agora);
 export const mudarListagem = (id, itemId, ocultar, agora) => chamar(id, "POST", "/api/v2/product/unlist_item", {}, { item_list: [{ item_id: Number(itemId), unlist: ocultar }] }, agora);
 
-/** Os pedidos dos últimos 15 dias (o máximo que a Shopee aceita de uma vez): só número e situação. */
+/**
+ * Os pedidos dos últimos 15 dias (o máximo que a Shopee aceita de uma vez), com o que foi vendido e nada do
+ * comprador. Se os detalhes falharem, a lista continua com número e situação.
+ */
 export async function pedidosRecentes(id, agora = new Date()) {
   const fim = Math.floor(+agora / 1000);
   const r = await chamar(id, "GET", "/api/v2/order/get_order_list", { time_range_field: "create_time", time_from: fim - 15 * 86_400, time_to: fim, page_size: 50 }, null, agora);
-  return (r.order_list ?? []).map((o) => ({ id: String(o.order_sn), status: o.order_status ?? null }));
+  const lista = r.order_list ?? [];
+  if (!lista.length) return [];
+  const detalhes = await chamar(id, "GET", "/api/v2/order/get_order_detail", { order_sn_list: lista.map((o) => o.order_sn).join(","), response_optional_fields: "item_list,total_amount" }, null, agora)
+    .then((d) => new Map((d.order_list ?? []).map((o) => [String(o.order_sn), o])))
+    .catch((e) => {
+      console.error("Shopee: detalhes dos pedidos:", e.message);
+      return new Map();
+    });
+  return lista.map((o) => {
+    const d = detalhes.get(String(o.order_sn));
+    return {
+      id: String(o.order_sn), status: o.order_status ?? null,
+      ...(d?.item_list ? {
+        criadoEm: d.create_time ? new Date(d.create_time * 1000).toISOString() : null, total: d.total_amount ?? null, moeda: "BRL",
+        itens: d.item_list.map((i) => ({ itemId: String(i.item_id), titulo: i.item_name ?? "", quantidade: i.model_quantity_purchased ?? 1, preco: i.model_discounted_price ?? null })),
+      } : {}),
+    };
+  });
 }

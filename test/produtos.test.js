@@ -384,3 +384,41 @@ test("as rotas de produtos e da Shopee exigem login", async () => {
     servidor.close();
   }
 });
+
+test("shopee: o pedido traz o que foi vendido, sem dados do comprador, e sobrevive à falha dos detalhes", async () => {
+  await sp.salvarApp({ partnerId: "555", partnerKey: "chave-pedidos" });
+  const state = new URL(await sp.urlDeEntrada(AGORA)).searchParams.get("state");
+  await comFetch(async (u) => (String(u).includes("/auth/token/get")
+    ? resposta({ access_token: "AT-71", refresh_token: "RT-71", expire_in: 14400, error: "" })
+    : resposta({ shop_name: "Loja 71", error: "" })), () => sp.concluirEntrada({ code: "c", shop_id: "71", state }, AGORA));
+
+  const lista = { error: "", response: { order_list: [{ order_sn: "A1", order_status: "READY_TO_SHIP" }] } };
+  const detalhe = { error: "", response: { order_list: [{ order_sn: "A1", create_time: 1793000000, total_amount: 99.9, buyer_username: "comprador", recipient_address: { name: "Nome" }, item_list: [{ item_id: 555, item_name: "Mochila", model_quantity_purchased: 2, model_discounted_price: 49.95 }] }] } };
+  const chamadas = [];
+  const pedidos = await comFetch(async (u) => {
+    const url = new URL(u);
+    chamadas.push(url);
+    return resposta(url.pathname.endsWith("/get_order_detail") ? detalhe : lista);
+  }, () => sp.pedidosRecentes("71", AGORA));
+  const pedido = chamadas.find((u) => u.pathname.endsWith("/get_order_detail"));
+  assert.equal(pedido.searchParams.get("order_sn_list"), "A1");
+  assert.equal(pedido.searchParams.get("response_optional_fields"), "item_list,total_amount");
+  assert.deepEqual(pedidos[0].itens, [{ itemId: "555", titulo: "Mochila", quantidade: 2, preco: 49.95 }]);
+  assert.equal(pedidos[0].total, 99.9);
+  assert.ok(!/comprador|Nome/.test(JSON.stringify(pedidos)));
+
+  // Os detalhes falharam: o pedido ainda aparece, com número e situação.
+  const semDetalhes = await comFetch(async (u) => (new URL(u).pathname.endsWith("/get_order_detail")
+    ? resposta({ error: "error_server", message: "falhou" })
+    : resposta(lista)), () => sp.pedidosRecentes("71", AGORA));
+  assert.deepEqual(semDetalhes, [{ id: "A1", status: "READY_TO_SHIP" }]);
+
+  // Sem pedido, nem chama os detalhes.
+  const vazio = [];
+  await comFetch(async (u) => {
+    vazio.push(new URL(u).pathname);
+    return resposta({ error: "", response: { order_list: [] } });
+  }, () => sp.pedidosRecentes("71", AGORA));
+  assert.deepEqual(vazio, ["/api/v2/order/get_order_list"]);
+  await sp.desconectar("71");
+});
