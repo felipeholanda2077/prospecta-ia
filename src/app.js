@@ -1450,6 +1450,15 @@ app.get("/api/whatsapp-oficial/status", async (req, res) => {
   }
 });
 
+app.post("/api/whatsapp-oficial/registrar", async (req, res) => {
+  try {
+    await whatsappOficial.registrarNumero(req.body?.pin);
+    res.json({ ok: true, status: await whatsappOficial.statusOficial() });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.put("/api/whatsapp-oficial/ativo", async (req, res) => {
   try {
     await whatsappOficial.definirAtivo(Boolean(req.body?.ativo));

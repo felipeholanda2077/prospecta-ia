@@ -887,6 +887,16 @@
           </form>
           <div class="cartao-corpo" style="border-top:1px solid var(--border);display:grid;gap:14px">
             <div id="oficial-conexao"></div>
+            <form id="form-registro-oficial" class="alerta atencao" hidden>
+              <span data-ic="alert"></span>
+              <div style="display:grid;gap:10px;flex:1">
+                <div><b>Registrar este número para enviar pela API</b><br>Escolha um PIN de 6 números. Se o número já tem verificação em duas etapas, use o PIN dela; se não tem, este passa a ser o PIN. Anote: o sistema não guarda. A Meta aceita até 10 tentativas a cada 72 horas.</div>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                  <input id="oficial-pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="off" placeholder="PIN de 6 números" aria-label="PIN de 6 números" required style="max-width:180px">
+                  <button class="btn primario" type="submit">Registrar número</button>
+                </div>
+              </div>
+            </form>
             <div id="oficial-webhook"></div>
             <details><summary class="muted" style="cursor:pointer;font-size:13px">Onde pegar cada dado na Meta</summary>
               <ol class="muted" style="font-size:13px;margin:8px 0 0;padding-left:18px;display:grid;gap:6px">
@@ -3078,6 +3088,18 @@ const SITUACAO_TEMPLATE = {
   PAUSED: ["pausado pela Meta", "perigo"], DISABLED: ["desativado pela Meta", "perigo"],
   NAO_ENCONTRADO: ["não encontrado na sua conta", "perigo"], IDIOMA_DIFERENTE: ["existe, mas em outro idioma", "atencao"],
 };
+const SITUACAO_NUMERO_WA = {
+  CONNECTED: ["conectado", "ok"], PENDING: ["pendente", "atencao"], UNVERIFIED: ["não verificado", "atencao"],
+  DISCONNECTED: ["desconectado", "perigo"], BANNED: ["banido", "perigo"], RESTRICTED: ["restrito", "perigo"],
+  RATE_LIMITED: ["limitado", "atencao"], FLAGGED: ["sinalizado pela Meta", "atencao"], WARNED: ["com aviso da Meta", "atencao"],
+  MIGRATED: ["migrado", "atencao"], DELETED: ["excluído", "perigo"],
+};
+const VERIFICACAO_WA = { VERIFIED: "posse verificada", NOT_VERIFIED: "posse não verificada", EXPIRED: "verificação vencida" };
+const NOME_WA = {
+  APPROVED: "nome aprovado", AVAILABLE_WITHOUT_REVIEW: "nome aprovado", PENDING_REVIEW: "nome em análise",
+  DECLINED: "nome recusado", EXPIRED: "certificado do nome vencido", NONE: "nome sem certificado",
+};
+let oficialNaoLiberada = false;
 
 /** Campos, webhook e chave liga/desliga do cartão da API oficial (o status da Meta vem à parte). */
 function mostrarConfigOficial(o) {
@@ -3115,19 +3137,51 @@ function mostrarStatusOficial(st) {
   if (!st.configurada) {
     $("#oficial-status").innerHTML = `<span class="pilula">Não configurado</span>`;
     $("#oficial-conexao").innerHTML = "";
+    $("#form-registro-oficial").hidden = true;
+    oficialNaoLiberada = false;
     return;
   }
-  $("#oficial-status").innerHTML = st.ativo
-    ? `<span class="pilula ok">Enviando por aqui${st.numero ? ` · ${esc(st.numero)}` : ""}</span>`
-    : `<span class="pilula">Conectado, desligado${st.numero ? ` · ${esc(st.numero)}` : ""}</span>`;
+  const s = st.situacao;
+  const numero = st.numero ? ` · ${esc(st.numero)}` : "";
+  oficialNaoLiberada = Boolean(s && !s.pronto);
+  $("#oficial-status").innerHTML = oficialNaoLiberada
+    ? `<span class="pilula ${st.ativo ? "perigo" : "atencao"}">${st.ativo ? "Ligado, mas não liberado na Meta" : "Não liberado na Meta"}${numero}</span>`
+    : st.ativo
+      ? `<span class="pilula ${s ? "ok" : ""}">${s ? "Enviando por aqui" : "Ligado"}${numero}</span>`
+      : `<span class="pilula">${s ? "Conectado, desligado" : "Desligado"}${numero}</span>`;
+  $("#form-registro-oficial").hidden = s?.status === "CONNECTED";
   const [qualidade, corQ] = QUALIDADE_WA[st.qualidade] ?? [null, ""];
   const t = st.template;
   const [situacao, corT] = t ? SITUACAO_TEMPLATE[t.status] ?? [t.status, ""] : [null, ""];
-  $("#oficial-conexao").innerHTML = `<div class="alerta ${corT === "perigo" ? "perigo" : "info"}">${ic(corT === "perigo" ? "alert" : "checkCircle")}<div>
-    Número <b>${esc(st.numero ?? "")}</b>${st.nome ? ` (${esc(st.nome)})` : ""} conectado à Meta${qualidade ? ` · <span class="pilula ${corQ}">${qualidade}</span>` : ""}.
+  const [rotuloNumero, corNumero] = SITUACAO_NUMERO_WA[s?.status] ?? [s?.status ?? "desconhecida", "atencao"];
+  const detalhesNumero = [VERIFICACAO_WA[s?.verificacao], NOME_WA[s?.nome]].filter(Boolean).join(" · ");
+  const errosNumero = (s?.erros ?? []).map((e) => `<br>${e.codigo ? `<code>${esc(String(e.codigo))}</code> ` : ""}${esc(e.descricao)}${e.solucao ? ` ${esc(e.solucao)}` : ""}`).join("");
+  const comProblema = corT === "perigo" || oficialNaoLiberada;
+  $("#oficial-conexao").innerHTML = `<div class="alerta ${comProblema ? "perigo" : "info"}">${ic(comProblema ? "alert" : "checkCircle")}<div>
+    Número <b>${esc(st.numero ?? "")}</b>${st.nome ? ` (${esc(st.nome)})` : ""} ${oficialNaoLiberada ? "encontrado na Meta, mas ainda não liberado para enviar" : s ? "conectado à Meta" : "encontrado na Meta"}${qualidade ? ` · <span class="pilula ${corQ}">${qualidade}</span>` : ""}.
+    ${s ? `<br>Situação na Meta: <span class="pilula ${corNumero}">${esc(rotuloNumero)}</span>${detalhesNumero ? ` · ${esc(detalhesNumero)}` : ""}${errosNumero}` : "<br>Não deu para conferir com a Meta se este número já pode enviar; confira no Gerenciador do WhatsApp."}
     ${t ? `<br>Template <code>${esc(t.nome)}</code> (${esc(t.idioma)}): <span class="pilula ${corT}">${esc(situacao)}</span>${t.idiomas?.length && t.status === "IDIOMA_DIFERENTE" ? ` · idiomas na Meta: ${esc(t.idiomas.join(", "))}` : ""}` : "<br>Não deu para conferir o template com este token; confira no WhatsApp Manager se ele está aprovado."}
-    ${st.ativo ? "" : "<br>Ligue <b>Enviar o WhatsApp pela API oficial</b> para as mensagens saírem por este número."}</div></div>`;
+    ${oficialNaoLiberada
+      ? (st.ativo ? "<br><b>Desligue Enviar o WhatsApp pela API oficial</b> até o número ser liberado: as mensagens podem não sair." : "<br><b>Ainda não ligue Enviar o WhatsApp pela API oficial:</b> as mensagens podem não sair.")
+      : st.ativo ? "" : "<br>Ligue <b>Enviar o WhatsApp pela API oficial</b> para as mensagens saírem por este número."}</div></div>`;
 }
+
+$("#form-registro-oficial").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (!confirm("Registrar este número na API oficial? Se ele estiver em uso em um celular ou na UAZap, pode parar de funcionar lá.")) return;
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    const r = await post("/api/whatsapp-oficial/registrar", { pin: $("#oficial-pin").value });
+    $("#oficial-pin").value = "";
+    await carregarStatusOficial(r.status);
+    avisar(r.status?.situacao?.pronto ? "Número registrado e liberado para enviar" : "A Meta aceitou o registro. Confira a situação do número neste cartão.", "ok");
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 $("#form-oficial").addEventListener("submit", async (ev) => {
   ev.preventDefault();
@@ -3152,6 +3206,10 @@ $("#form-oficial").addEventListener("submit", async (ev) => {
 // A chave liga/desliga salva na hora quando a conexão já existe (sem precisar colar o token de novo).
 $("#oficial-ativo").addEventListener("change", async (ev) => {
   if ($("#oficial-token").required) return;
+  if (ev.target.checked && oficialNaoLiberada && !confirm("A Meta ainda não liberou este número e as mensagens podem não sair, porque o envio deixa de usar a UAZap. Ligar mesmo assim?")) {
+    ev.target.checked = false;
+    return;
+  }
   try {
     await api("/api/whatsapp-oficial/ativo", { method: "PUT", body: JSON.stringify({ ativo: ev.target.checked }) });
     await atualizarSessao();

@@ -8,7 +8,7 @@ const wa = await import("../src/envio/whatsapp.js");
 const pipeline = await import("../src/pipeline.js");
 
 /** Graph API de mentira: guarda as chamadas e responde conforme o caminho. */
-function metaFalsa({ tokenValido = "EAAtoken", template = { name: "proposta_inicial", status: "APPROVED", language: "pt_BR" } } = {}) {
+function metaFalsa({ tokenValido = "EAAtoken", template = { name: "proposta_inicial", status: "APPROVED", language: "pt_BR" }, situacao = { status: "CONNECTED", code_verification_status: "VERIFIED", name_status: "APPROVED", health_status: { can_send_message: "AVAILABLE", entities: [] } }, erroRegistro = null, recusaSituacao = false } = {}) {
   const chamadas = [];
   const fetchAntes = globalThis.fetch;
   globalThis.fetch = async (url, opcoes = {}) => {
@@ -22,6 +22,12 @@ function metaFalsa({ tokenValido = "EAAtoken", template = { name: "proposta_inic
     }
     if (u.pathname.endsWith("/waba1/message_templates")) return Response.json({ data: template ? [template] : [] });
     if (u.pathname.endsWith("/messages")) return Response.json({ messages: [{ id: "wamid.1" }] });
+    if (u.pathname.endsWith("/5551/register")) {
+      return erroRegistro ? Response.json({ error: erroRegistro }, { status: 400 }) : Response.json({ success: true });
+    }
+    if (u.pathname.endsWith("/5551") && u.searchParams.get("fields")?.includes("health_status")) {
+      return recusaSituacao ? Response.json({ error: { code: 100, message: "Tried accessing nonexisting field" } }, { status: 400 }) : Response.json(situacao);
+    }
     if (u.pathname.endsWith("/5551")) {
       return Response.json({ display_phone_number: "+55 11 99999-0000", verified_name: "FluxDeck", quality_rating: "GREEN" });
     }
@@ -85,6 +91,93 @@ test("whatsapp oficial: o primeiro contato sai pelo template salvo e a resposta 
     await assert.rejects(wa.enviarWhatsapp({ para: "55119", empresa: "X", corpo: "Oi" }), /desligada/);
   } finally {
     meta.restaurar();
+  }
+});
+
+test("whatsapp oficial: número pendente aparece como não liberado, com o motivo da Meta", async () => {
+  const meta = metaFalsa({
+    situacao: {
+      status: "PENDING",
+      code_verification_status: "VERIFIED",
+      name_status: "PENDING_REVIEW",
+      health_status: {
+        can_send_message: "BLOCKED",
+        entities: [{ entity_type: "PHONE_NUMBER", can_send_message: "BLOCKED", errors: [{ error_code: 141000, error_description: "Not registered", possible_solution: "Register it" }] }],
+      },
+    },
+  });
+  try {
+    await wa.salvarConfig({ token: "EAAtoken", phoneNumberId: "5551" });
+    const { situacao } = await wa.statusOficial();
+    assert.equal(situacao.pronto, false);
+    assert.deepEqual([situacao.status, situacao.verificacao, situacao.nome, situacao.podeEnviar], ["PENDING", "VERIFIED", "PENDING_REVIEW", "BLOCKED"]);
+    assert.deepEqual(situacao.erros, [{ codigo: 141000, descricao: "Not registered", solucao: "Register it" }]);
+  } finally {
+    meta.restaurar();
+  }
+});
+
+test("whatsapp oficial: número conectado está pronto, e bloqueado não", async () => {
+  const conectado = metaFalsa();
+  try {
+    await wa.salvarConfig({ token: "EAAtoken", phoneNumberId: "5551" });
+    assert.equal((await wa.statusOficial()).situacao.pronto, true);
+  } finally {
+    conectado.restaurar();
+  }
+  const bloqueado = metaFalsa({ situacao: { status: "CONNECTED", health_status: { can_send_message: "BLOCKED", entities: [] } } });
+  try {
+    assert.equal((await wa.statusOficial()).situacao.pronto, false);
+  } finally {
+    bloqueado.restaurar();
+  }
+});
+
+test("whatsapp oficial: sem conseguir conferir a situação, o resto do status continua", async () => {
+  const meta = metaFalsa({ recusaSituacao: true });
+  try {
+    await wa.salvarConfig({ token: "EAAtoken", phoneNumberId: "5551" });
+    const st = await wa.statusOficial();
+    assert.equal(st.situacao, null);
+    assert.equal(st.numero, "+55 11 99999-0000");
+    assert.equal(st.template.status, "APPROVED");
+  } finally {
+    meta.restaurar();
+  }
+});
+
+test("whatsapp oficial: registra o número com o PIN sem guardá-lo", async () => {
+  const meta = metaFalsa();
+  try {
+    await wa.salvarConfig({ token: "EAAtoken", phoneNumberId: "5551" });
+    await assert.rejects(wa.registrarNumero("123"), /6 números/);
+    await assert.rejects(wa.registrarNumero("abcdef"), /6 números/);
+    assert.equal(meta.chamadas.some((c) => c.caminho.endsWith("/register")), false);
+
+    await wa.registrarNumero(" 212834 ");
+    const registro = meta.chamadas.at(-1);
+    assert.match(registro.caminho, /\/5551\/register$/);
+    assert.equal(registro.metodo, "POST");
+    assert.deepEqual(registro.corpo, { messaging_product: "whatsapp", pin: "212834" });
+    assert.equal(JSON.stringify(await wa.obterConfig()).includes("212834"), false);
+  } finally {
+    meta.restaurar();
+  }
+});
+
+test("whatsapp oficial: os erros do registro saem em português, com o que fazer", async () => {
+  for (const [erro, esperado] of [
+    [{ code: 133005, message: "Two step verification PIN Mismatch" }, /PIN não confere/],
+    [{ code: 133016, message: "Too many" }, /72 horas/],
+    [{ code: 131000, message: "Something", error_data: { details: "Detalhe da Meta" } }, /Detalhe da Meta/],
+  ]) {
+    const meta = metaFalsa({ erroRegistro: erro });
+    try {
+      await wa.salvarConfig({ token: "EAAtoken", phoneNumberId: "5551" });
+      await assert.rejects(wa.registrarNumero("212834"), esperado);
+    } finally {
+      meta.restaurar();
+    }
   }
 });
 

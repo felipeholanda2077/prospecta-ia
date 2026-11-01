@@ -80,8 +80,67 @@ export async function statusOficial() {
     numero: n.display_phone_number ?? null,
     nome: n.verified_name ?? null,
     qualidade: n.quality_rating ?? null,
+    situacao: await situacaoDoNumero(c),
     template: await situacaoDoTemplate(c),
   };
+}
+
+/**
+ * Se o número já pode enviar: token e ID válidos não garantem isso, ele pode estar pendente na Meta.
+ * Perguntado à parte porque um campo que a Meta recuse não pode derrubar o resto do status.
+ * Retorna null quando não dá para conferir.
+ */
+async function situacaoDoNumero(c) {
+  const n = await graph(c, `${c.phoneNumberId}?fields=status,code_verification_status,name_status,health_status`).catch(() => null);
+  if (!n) return null;
+  const saude = n.health_status ?? {};
+  const erros = (saude.entities ?? []).flatMap((e) => e.errors ?? []).map((e) => ({
+    codigo: e.error_code ?? null,
+    descricao: e.error_description ?? "",
+    solucao: e.possible_solution ?? "",
+  }));
+  return {
+    status: n.status ?? null,
+    verificacao: n.code_verification_status ?? null,
+    nome: n.name_status ?? null,
+    podeEnviar: saude.can_send_message ?? null,
+    erros,
+    pronto: n.status === "CONNECTED" && saude.can_send_message !== "BLOCKED",
+  };
+}
+
+const ERROS_DO_REGISTRO = {
+  190: "A Meta recusou o token de acesso (inválido ou vencido). Gere um token permanente de usuário do sistema.",
+  200: "Este token não tem permissão para registrar o número. Ele precisa de whatsapp_business_management e whatsapp_business_messaging.",
+  133005: "O PIN não confere com o da verificação em duas etapas deste número. Se não lembrar, troque o PIN no Gerenciador do WhatsApp.",
+  133006: "A Meta ainda precisa verificar este número. Conclua a verificação no Gerenciador do WhatsApp e tente de novo.",
+  133008: "Muitas tentativas com o PIN errado. A Meta bloqueou novas tentativas por um tempo.",
+  133009: "Tentativas rápidas demais. Espere um minuto e tente de novo.",
+  133016: "Limite de tentativas da Meta atingido: 10 a cada 72 horas. Novas tentativas ficam bloqueadas por 72 horas.",
+};
+
+/** Registra o número na API oficial, passo que a Meta só aceita pela API. O PIN não é guardado. */
+export async function registrarNumero(pin) {
+  const c = await obterConfig();
+  if (!c.token || !c.phoneNumberId) throw new Error("Salve o token e o número da Meta antes de registrar");
+  const limpo = String(pin ?? "").trim();
+  if (!/^\d{6}$/.test(limpo)) throw new Error("O PIN precisa ter 6 números");
+  let resp;
+  try {
+    resp = await fetch(`https://graph.facebook.com/${c.apiVersion}/${c.phoneNumberId}/register`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${c.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", pin: limpo }),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    throw new Error("Não foi possível falar com a Meta agora. Tente de novo em instantes.");
+  }
+  const dados = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const erro = dados.error ?? {};
+    throw new Error(ERROS_DO_REGISTRO[erro.code] ?? `A Meta não registrou o número: ${erro.error_data?.details ?? erro.message ?? `erro ${resp.status}`}`);
+  }
 }
 
 /**
