@@ -230,6 +230,9 @@ Adapte para o LinkedIn.`;
   };
 }
 
+/** Na tela de lista, o desenho já mostra o número grande: "3. Reunião marcada" repetiria. */
+export const tituloSemNumero = (titulo) => String(titulo).replace(/^\s*\d+\s*[.)º:-]\s*/, "");
+
 /**
  * Escreve o post: tema, gancho, telas (do carrossel ou cenas do Reels, com a fala de cada uma),
  * clima da trilha, legenda e hashtags. `recentes` são os posts dos últimos dias, para não repetir.
@@ -245,7 +248,7 @@ ${aprendizados.ganchosQueFuncionaram?.length ? `Ganchos dos posts que mais deram
   const pedido = `${doPerfil}Formato: ${FORMATOS[formato]}
 Assunto de hoje (linha editorial): ${pilar === PILAR_BLACK_FRIDAY ? TEXTO_BLACK_FRIDAY : PILARES[pilar]}
 Estrutura do roteiro: ${ESTRUTURAS[estrutura] ?? ESTRUTURAS.lista}
-${publico ? `Público deste post: ${PUBLICOS[publico] ?? publico}. Os exemplos, as cenas e as fotos são desse tipo de negócio.\n` : ""}${tom ? `Tom deste post: ${TONS[tom] ?? tom}.\n` : ""}${comFelipe ? "Neste Reels o Felipe aparece na tela como apresentador: as falas são dele, em primeira pessoa, como quem conversa com a câmera.\n" : ""}${usados.length ? `Posts dos últimos dias. Este post tem que parecer de outro assunto e de outro jeito: não repita o tema, o jeito do gancho, a chamada final nem as mesmas frases:\n${usados.map((p) => `- ${p.tema}${p.gancho ? ` | gancho: "${p.gancho}"` : ""}`).join("\n")}\n` : ""}${primeiras.length ? `O gancho não pode começar com: ${primeiras.join(", ")}.\n` : ""}${aviso ? `Atenção: ${aviso}\n` : ""}
+${publico ? `Público deste post: ${PUBLICOS[publico] ?? publico}. Os exemplos, as cenas e as fotos são desse tipo de negócio.\n` : ""}${tom ? `Tom deste post: ${TONS[tom] ?? tom}.\n` : ""}${comFelipe ? "Neste Reels o Felipe aparece na tela como apresentador: as falas são dele, em primeira pessoa, como quem conversa com a câmera. Use no máximo 6 cenas, contando a capa e a chamada, porque ele fala em todas.\n" : ""}${usados.length ? `Posts dos últimos dias. Este post tem que parecer de outro assunto e de outro jeito: não repita o tema, o jeito do gancho, a chamada final nem as mesmas frases:\n${usados.map((p) => `- ${p.tema}${p.gancho ? ` | gancho: "${p.gancho}"` : ""}`).join("\n")}\n` : ""}${primeiras.length ? `O gancho não pode começar com: ${primeiras.join(", ")}.\n` : ""}${aviso ? `Atenção: ${aviso}\n` : ""}
 Crie o post.`;
   const r = await gerarJson({
     system: montarSistema(campanha, base), pedido, jsonSchema: POST_JSON_SCHEMA, zodSchema: PostSchema, modelo: config.conteudo.model,
@@ -253,8 +256,11 @@ Crie o post.`;
   const tag = (t) => String(t).replace(/^#+/, "").replace(/[^\p{L}\p{N}_]/gu, "").toLowerCase();
   const unicas = (lista) => [...new Set(lista.map(tag).filter(Boolean))];
   const hashtags = unicas(r.hashtags).slice(0, 5);
-  const slides = r.slides.slice(0, 8).map((s, i, todas) => ({
+  // Com o Felipe, são no máximo 6 cenas, as que ele consegue falar. Se vier mais, a chamada final fica.
+  const cenas = comFelipe && r.slides.length > 6 ? [...r.slides.slice(0, 5), r.slides.at(-1)] : r.slides.slice(0, 8);
+  const slides = cenas.map((s, i, todas) => ({
     ...s,
+    titulo: s.visual === "lista" ? tituloSemNumero(s.titulo) : s.titulo,
     // A capa e a chamada ficam sempre no começo e no fim, mesmo se a IA trocar.
     visual: i === 0 ? "capa" : i === todas.length - 1 ? "cta" : ["capa", "cta"].includes(s.visual) ? "texto" : s.visual,
     fala: formato === "reels" ? s.fala : "",

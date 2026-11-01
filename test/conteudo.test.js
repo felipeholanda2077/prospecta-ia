@@ -110,3 +110,10 @@ test("post do dia: com o apresentador, todo post é Reels com o Felipe; a Black 
   assert.equal((await criar("2026-11-30T14:45:00Z")).pilar, "black_friday");
   assert.notEqual((await criar("2026-12-01T14:45:00Z")).pilar, "black_friday");
 });
+
+test("post: a tela de lista não repete o número que o desenho já mostra", async () => {
+  const { tituloSemNumero } = await import("../src/ia/conteudo.js");
+  assert.equal(tituloSemNumero("3. Reunião marcada"), "Reunião marcada");
+  assert.equal(tituloSemNumero("1) Cliente pergunta"), "Cliente pergunta");
+  assert.equal(tituloSemNumero("3 sinais de que algo vai mal"), "3 sinais de que algo vai mal");
+});
