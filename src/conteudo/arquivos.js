@@ -11,7 +11,8 @@ import {
 import * as db from "../db.js";
 import { gerarTrilha, wav, TAXA } from "./trilha.js";
 import { narrarCenas, faixaDaVoz, TAXA_VOZ } from "./narracao.js";
-import { baixarClipes } from "./avatar.js";
+import { baixarClipes, cenasDoAvatar } from "./avatar.js";
+import { MAX_TENTATIVAS } from "./instagram.js";
 
 // Os arquivos que vão para o Instagram saem do mesmo desenho das prévias do painel,
 // agora num canvas do Node com as fontes Inter e Source Serif 4 (as mesmas que o painel carrega do Google Fonts).
@@ -79,7 +80,7 @@ export function duracoesDoVideo(post, falas) {
   return base.map((d, i) => (falas[i] ? Math.max(MINIMO_COM_VOZ[telas[i].visual] ?? 2, falas[i].duracao + RESPIRO) : d));
 }
 
-/** Vídeo nunca sai sem voz: toda fala do roteiro precisa de um clipe do avatar ou da narração. Lança se faltar. */
+/** Toda fala do roteiro precisa de um clipe do avatar ou da narração. Lança se faltar. */
 export function exigirNarracao(telas, clipes, falas, motivo = "nenhum serviço de voz respondeu") {
   const semVoz = telas.filter((t, i) => t.fala && !clipes[i] && !falas?.[i]).length;
   const algumaFala = Object.keys(clipes).length > 0 || falas?.some(Boolean);
@@ -90,7 +91,9 @@ export function exigirNarracao(telas, clipes, falas, motivo = "nenhum serviço d
 
 /**
  * O Reels em MP4 (H.264 + AAC): os quadros animados, a trilha sintetizada no clima do post, os
- * efeitos nas trocas de cena e a voz, do avatar ou da narração. Sem voz, lança em vez de gerar.
+ * efeitos nas trocas de cena e a voz, do avatar ou da narração. Sem o avatar, o vídeo sai só com a narração.
+ * Sem nenhuma voz, lança para a próxima rodada tentar de novo; na última tentativa sai sem voz, porque
+ * o horário do post não pode ficar vazio.
  */
 export async function videoDoReels(post, empresa, { narrar = narrarCenas, clipes: baixar = baixarClipes } = {}) {
   preparar();
@@ -98,20 +101,38 @@ export async function videoDoReels(post, empresa, { narrar = narrarCenas, clipes
   const pasta = await fs.mkdtemp(path.join(os.tmpdir(), "reels-"));
   try {
     // Os clipes do avatar, se houver: nas telas com clipe quem fala é ele, então a voz não narra.
-    const clipes = await baixar(post, pasta).catch((e) => {
+    const pendentes = [];
+    let clipes = await baixar(post, pasta, { pendentes }).catch((e) => {
       log(`⚠️  Reels sem o avatar: ${e.message}`);
       return {};
     });
-    // Todo clipe pedido ao HeyGen tem que estar aqui: o avatar fala o vídeo inteiro, sem cena com outra voz nem foto.
-    const faltam = (post.conteudo.slides ?? []).filter((s, i) => s.avatar?.id && !clipes[i]).length;
-    if (faltam) throw new Error(`O vídeo não foi gerado porque o avatar não ficou pronto em ${faltam} cena(s). O sistema tenta de novo na próxima rodada.`);
+    // O avatar fala o vídeo inteiro ou não aparece, para não trocar de voz no meio.
+    const slides = post.conteudo.slides ?? [];
+    if (slides.some((s) => s.avatar?.id)) {
+      const faltam = cenasDoAvatar(slides).filter((i) => (slides[i].fala || slides[i].titulo) && !clipes[i]).length;
+      if (faltam) {
+        // Clipe ainda em produção ganha mais uma rodada (15 minutos). Clipe que falhou, como por falta de crédito, não vai chegar.
+        if (pendentes.length && !(post.instagram_tentativas > 0)) {
+          throw new Error(`O avatar ainda não ficou pronto em ${pendentes.length} cena(s). O sistema tenta de novo na próxima rodada.`);
+        }
+        log(`⚠️  Post ${post.id}: sem o avatar em ${faltam} cena(s), o Reels sai só com a narração.`);
+        clipes = {};
+        // Tira o avatar do post nesta execução: a legenda não pode avisar de um avatar que não aparece.
+        post.conteudo.slides = slides.map(({ avatar, ...s }) => s);
+      }
+    }
     const semFalaNoClipe = { ...post, conteudo: { ...post.conteudo, slides: (post.conteudo.slides ?? []).map((s, i) => (clipes[i] ? { ...s, fala: "" } : s)) } };
     let motivo;
     const falas = await narrar(semFalaNoClipe).catch((e) => {
       motivo = e.message;
       return null;
     });
-    exigirNarracao(telasDoPost(post), clipes, falas, motivo);
+    try {
+      exigirNarracao(telasDoPost(post), clipes, falas, motivo);
+    } catch (e) {
+      if ((post.instagram_tentativas ?? 0) < MAX_TENTATIVAS - 1) throw e;
+      log(`⚠️  Post ${post.id}: última tentativa, o Reels sai sem voz. ${e.message}`);
+    }
     const duracoes = duracoesDoVideo(post, falas);
     for (const [i, c] of Object.entries(clipes)) duracoes[i] = c.duracao + 0.15;
     const inicios = duracoes.map((_, i) => duracoes.slice(0, i).reduce((a, b) => a + b, 0));

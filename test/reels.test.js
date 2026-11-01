@@ -6,7 +6,7 @@ process.env.DB_PATH = ":memory:";
 const desenho = await import("../public/post-desenho.js");
 const { gerarTrilha, wav, CLIMAS, TAXA } = await import("../src/conteudo/trilha.js");
 const { duracoesDoVideo } = await import("../src/conteudo/arquivos.js");
-const { faixaDaVoz, narracaoDisponivel, narrarCenas, TAXA_VOZ } = await import("../src/conteudo/narracao.js");
+const { faixaDaVoz, narracaoDisponivel, narrarCenas, pedacosDaFala, TAXA_VOZ } = await import("../src/conteudo/narracao.js");
 
 desenho.usarCanvas((w, h) => createCanvas(w, h));
 
@@ -80,7 +80,7 @@ test("reels: as falas entram na faixa da voz no começo de cada cena", () => {
   const antes = process.env.OPENAI_API_KEY;
   delete process.env.OPENAI_API_KEY;
   delete process.env.ELEVENLABS_API_KEY;
-  assert.equal(narracaoDisponivel(), null);
+  assert.equal(narracaoDisponivel(), "voz grátis");
   process.env.OPENAI_API_KEY = "sk-teste";
   assert.equal(narracaoDisponivel(), "OpenAI");
   if (antes === undefined) delete process.env.OPENAI_API_KEY;
@@ -117,6 +117,28 @@ test("reels: o Gemini narra cena por cena, tira o cabeçalho WAV e espera quando
     globalThis.fetch = fetchAntes;
     chaves.forEach((k) => (antes[k] === undefined ? delete process.env[k] : (process.env[k] = antes[k])));
   }
+});
+
+test("reels: se um serviço de voz falha, o próximo narra o vídeo inteiro", async () => {
+  const post = { id: 3, formato: "reels", conteudo: { gancho: "G", arte: "cor", trilha: "tensa", estrutura: "lista", hashtags: [], legenda: "", slides: [
+    { visual: "capa", titulo: "Um", texto: "", destaque: "", fala: "Um." }, { visual: "cta", titulo: "Dois", texto: "", destaque: "", fala: "Dois." }] } };
+  const usadas = [];
+  const falas = await narrarCenas(post, { servicos: [
+    { nome: "Fora do ar", gerarPcm: async () => { throw new Error("caiu"); } },
+    { nome: "Reserva", gerarPcm: async (texto) => { usadas.push(texto); return Buffer.alloc(TAXA_VOZ * 2); } },
+  ] });
+  assert.deepEqual(usadas, ["Um.", "Dois."]);
+  assert.ok(falas.every((f) => Math.abs(f.duracao - 1) < 0.01));
+  await assert.rejects(narrarCenas(post, { servicos: [{ nome: "Fora", gerarPcm: async () => { throw new Error("caiu"); } }] }), /caiu/);
+});
+
+test("reels: a fala longa é cortada em pedaços que a voz grátis aceita, sem perder palavra", () => {
+  const texto = `${"palavra ".repeat(30)}fim. ${"outra ".repeat(40)}final.`;
+  const pedacos = pedacosDaFala(texto);
+  assert.ok(pedacos.length > 1);
+  assert.ok(pedacos.every((p) => p.length <= 190));
+  assert.equal(pedacos.join(" "), texto.trim());
+  assert.deepEqual(pedacosDaFala("Curta."), ["Curta."]);
 });
 
 test("reels: a capa traz o gancho inteiro, e não o começo da animação", () => {

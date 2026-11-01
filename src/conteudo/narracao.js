@@ -1,6 +1,9 @@
 // Voz que narra o Reels, cena por cena, pela OpenAI, pela ElevenLabs ou pelo Gemini (o que tiver a
-// chave cadastrada nas variáveis de ambiente). Sem voz nenhuma, o vídeo não é gerado (veja exigirNarracao).
-// Os três devolvem PCM de 16 bits, mono, 24 kHz: dá para medir a duração sem decodificar.
+// chave cadastrada nas variáveis de ambiente). Se eles falharem ou não houver chave, entram as vozes
+// grátis, que não pedem chave nem crédito: o vídeo não pode deixar de sair por falta de voz.
+// Todos devolvem PCM de 16 bits, mono, 24 kHz: dá para medir a duração sem decodificar.
+import { spawn } from "node:child_process";
+import ffmpeg from "ffmpeg-static";
 import { telasDoPost } from "../../public/post-desenho.js";
 import * as db from "../db.js";
 
@@ -74,8 +77,77 @@ const PROVEDORES = [
 
 const esperar = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
+function pcmDoMp3(mp3) {
+  return new Promise((ok, falhou) => {
+    const p = spawn(ffmpeg, ["-loglevel", "error", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", String(TAXA_VOZ), "pipe:1"]);
+    const partes = [];
+    let erros = "";
+    p.stdout.on("data", (d) => partes.push(d));
+    p.stderr.on("data", (d) => (erros += d));
+    p.on("error", falhou);
+    p.on("close", (codigo) => {
+      const pcm = Buffer.concat(partes);
+      if (codigo === 0 && pcm.length) ok(pcm);
+      else falhou(new Error(`não deu para ler o áudio: ${erros.trim() || `ffmpeg saiu com ${codigo}`}`));
+    });
+    p.stdin.on("error", () => {});
+    p.stdin.end(mp3);
+  });
+}
+
+async function mp3DoEdge(texto, post) {
+  const { MsEdgeTTS, OUTPUT_FORMAT } = await import("msedge-tts");
+  const tts = new MsEdgeTTS();
+  let limite;
+  try {
+    const gerar = (async () => {
+      await tts.setMetadata(["pt-BR-AntonioNeural", "pt-BR-FranciscaNeural"][Math.abs(Number(post.id) || 0) % 2], OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+      const partes = [];
+      for await (const parte of tts.toStream(texto, { rate: "+8%" }).audioStream) partes.push(parte);
+      return Buffer.concat(partes);
+    })();
+    return await Promise.race([gerar, new Promise((_, falhou) => { limite = setTimeout(() => falhou(new Error("sem resposta")), 30_000); })]);
+  } finally {
+    clearTimeout(limite);
+    tts.close();
+  }
+}
+
+/** O Google só lê até 200 caracteres por pedido: corta a fala nas pausas e, se precisar, nos espaços. */
+export function pedacosDaFala(texto, limite = 190) {
+  const pedacos = [];
+  let atual = "";
+  for (const palavra of String(texto).trim().split(/\s+/)) {
+    if (atual && (atual.length + palavra.length + 1 > limite || (/[.!?]$/.test(atual) && atual.length > limite / 2))) {
+      pedacos.push(atual);
+      atual = palavra;
+    } else atual = atual ? `${atual} ${palavra}` : palavra;
+  }
+  return atual ? [...pedacos, atual] : pedacos;
+}
+
+async function mp3DoGoogle(texto) {
+  const partes = [];
+  for (const pedaco of pedacosDaFala(texto)) {
+    const r = await fetch(`https://translate.google.com/translate_tts?ie=UTF-8&tl=pt-BR&client=tw-ob&q=${encodeURIComponent(pedaco)}`, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!r.ok) throw new Error(`respondeu ${r.status}`);
+    partes.push(Buffer.from(await r.arrayBuffer()));
+  }
+  return Buffer.concat(partes);
+}
+
+// Nenhuma pede chave ou conta. São serviços não oficiais, por isso são duas e vêm depois dos serviços com chave.
+const VOZES_GRATIS = [
+  { nome: "Edge", umaPorVez: true, gerarPcm: async (texto, post) => pcmDoMp3(await mp3DoEdge(texto, post)) },
+  { nome: "Google", umaPorVez: true, gerarPcm: async (texto) => pcmDoMp3(await mp3DoGoogle(texto)) },
+];
+
 // Uma fala em PCM. Quando o serviço recusa por limite de pedidos (429), espera e tenta de novo.
 async function falarCena(p, texto, post) {
+  if (p.gerarPcm) return p.gerarPcm(texto, post);
   for (let tentativa = 0; ; tentativa++) {
     const r = await p.falar(texto, post);
     if (r.ok) return p.pcm ? p.pcm(r) : Buffer.from(await r.arrayBuffer());
@@ -89,7 +161,7 @@ async function falarCena(p, texto, post) {
   }
 }
 
-const provedor = () => PROVEDORES.find((p) => process.env[p.chave]);
+const provedores = () => [...PROVEDORES.filter((p) => process.env[p.chave]), ...VOZES_GRATIS];
 
 /** A chave do Gemini colada no painel vale no lugar da variável de ambiente. */
 export async function carregarChaveDaVoz() {
@@ -105,17 +177,10 @@ export async function salvarChaveDoGemini(chave) {
     .then(() => ({ ok: true }), (e) => ({ ok: false, erro: e.message }));
 }
 
-/** Qual serviço narra os Reels (o nome), ou null se nenhuma chave estiver cadastrada. */
-export const narracaoDisponivel = () => provedor()?.nome ?? null;
+/** Qual serviço narra os Reels (o nome). Sem chave cadastrada, a narração sai pelas vozes grátis. */
+export const narracaoDisponivel = () => PROVEDORES.find((p) => process.env[p.chave])?.nome ?? "voz grátis";
 
-/**
- * A fala de cada cena em áudio. Retorna uma lista na ordem das cenas, com { pcm, duracao } (ou null
- * para cena sem fala), ou null quando não há serviço de voz configurado.
- */
-export async function narrarCenas(post) {
-  await carregarChaveDaVoz();
-  const p = provedor();
-  if (!p || post.formato !== "reels") return null;
+async function narrarCom(p, post) {
   const narrar = async (tela) => {
     if (!tela.fala) return null;
     const pcm = await falarCena(p, tela.fala, post);
@@ -126,6 +191,26 @@ export async function narrarCenas(post) {
   const falas = [];
   for (const tela of telas) falas.push(await narrar(tela));
   return falas;
+}
+
+/**
+ * A fala de cada cena em áudio. Retorna uma lista na ordem das cenas, com { pcm, duracao } (ou null
+ * para cena sem fala). Um só serviço narra o vídeo inteiro: se ele falhar, o próximo refaz tudo,
+ * para não trocar de voz no meio. Lança só quando nenhum conseguiu.
+ */
+export async function narrarCenas(post, { servicos = null } = {}) {
+  if (post.formato !== "reels") return null;
+  await carregarChaveDaVoz();
+  let erro;
+  for (const p of servicos ?? provedores()) {
+    try {
+      return await narrarCom(p, post);
+    } catch (e) {
+      erro = e;
+      console.log(new Date().toISOString(), `⚠️  Voz: ${p.nome} falhou (${e.message}). Tentando o próximo serviço.`);
+    }
+  }
+  throw erro;
 }
 
 /** Junta as falas numa faixa só, cada uma começando em `inicios[i]` segundos. */

@@ -8,7 +8,7 @@ import { FUNDOS } from "../../public/post-desenho.js";
 
 // O avatar de IA do Felipe (HeyGen) falando em todas as cenas dos Reels. Os clipes são pedidos
 // quando o post é criado (o HeyGen leva alguns minutos) e baixados na hora de gerar o vídeo. Tudo aqui é
-// opcional: sem configuração, o Reels sai com a voz da narração. Com avatar, clipe que faltar impede o vídeo.
+// opcional: sem configuração ou sem crédito no HeyGen, o Reels sai sem avatar, com a voz da narração.
 const API = "https://api.heygen.com";
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 const TEMPO_MS = 20_000;
@@ -114,6 +114,8 @@ export function duracaoDoClipe(arquivo) {
   });
 }
 
+const AINDA_NAO_FICOU_PRONTO = "o clipe ainda não ficou pronto";
+
 async function baixarClipe(chave, id, destino, { esperaMs, tentativas }) {
   for (let n = 0; ; n++) {
     const d = await chamar(chave, "GET", `/v3/videos/${encodeURIComponent(id)}`);
@@ -124,16 +126,16 @@ async function baixarClipe(chave, id, destino, { esperaMs, tentativas }) {
       await fs.writeFile(destino, Buffer.from(await r.arrayBuffer()));
       return;
     }
-    if (n + 1 >= tentativas) throw new Error("o clipe ainda não ficou pronto");
+    if (n + 1 >= tentativas) throw new Error(AINDA_NAO_FICOU_PRONTO);
     await new Promise((res) => setTimeout(res, esperaMs));
   }
 }
 
 /**
  * Baixa os clipes prontos do post para `pasta`. Retorna { índice da tela: { arquivo, duracao } }.
- * Clipe que falhar ou ainda não estiver pronto fica de fora, e o vídeo espera a próxima tentativa.
+ * Clipe que falhar ou ainda não estiver pronto fica de fora; os que ainda estão no HeyGen entram em `pendentes`.
  */
-export async function baixarClipes(post, pasta, { esperaMs = 10_000, tentativas = 6 } = {}) {
+export async function baixarClipes(post, pasta, { esperaMs = 10_000, tentativas = 6, pendentes = [] } = {}) {
   const pedidos = (post.conteudo?.slides ?? []).map((s, i) => ({ i, id: s.avatar?.id })).filter((p) => p.id);
   if (!pedidos.length) return {};
   const { chave } = await lerConfigAvatar();
@@ -146,6 +148,7 @@ export async function baixarClipes(post, pasta, { esperaMs = 10_000, tentativas 
       const duracao = await duracaoDoClipe(arquivo);
       if (duracao) clipes[i] = { arquivo, duracao };
     } catch (e) {
+      if (e.message === AINDA_NAO_FICOU_PRONTO) pendentes.push(i);
       log(`⚠️  Avatar: o Reels sai sem o clipe da tela ${i + 1}: ${e.message}`);
     }
   }));

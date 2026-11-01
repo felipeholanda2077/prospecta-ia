@@ -136,6 +136,44 @@ test("avatar: clipe que falhou ou não ficou pronto fica de fora", async () => {
   await fs.rm(pasta, { recursive: true, force: true });
 });
 
+test("avatar: sem crédito no HeyGen o vídeo sai com a narração, sem avisar de avatar", async () => {
+  const comPedidos = () => ({ id: 6, formato: "reels", conteudo: { ...conteudo, slides: conteudo.slides.map((s) => ({ ...s, avatar: { id: "a" } })) } });
+  const narrar = async (p) => p.conteudo.slides.map((s) => (s.fala ? { pcm: Buffer.alloc(24000), duracao: 0.5 } : null));
+  const post = comPedidos();
+  let narrou = null;
+  const video = await videoDoReels(post, "FluxDeck", {
+    clipes: async () => ({}),
+    narrar: (p) => { narrou = p; return narrar(p); },
+  });
+  assert.ok(video.length > 1000);
+  assert.deepEqual(narrou.conteudo.slides.map((s) => s.fala), conteudo.slides.map((s) => s.fala)); // a voz fala tudo
+  assert.ok(post.conteudo.slides.every((s) => !s.avatar));
+
+  // Clipe que chegou não entra sozinho: o avatar fala o vídeo inteiro ou não aparece.
+  const parcial = comPedidos();
+  await videoDoReels(parcial, "FluxDeck", {
+    clipes: async () => ({ 0: { arquivo: "nao-existe.mp4", duracao: 1 } }),
+    narrar,
+  });
+  assert.ok(parcial.conteudo.slides.every((s) => !s.avatar));
+});
+
+test("avatar: clipe ainda em produção espera uma rodada e, depois, o vídeo sai sem ele", async () => {
+  const clipes = async (_p, _pasta, { pendentes }) => { pendentes.push(0); return {}; };
+  const narrar = async (p) => p.conteudo.slides.map((s) => (s.fala ? { pcm: Buffer.alloc(24000), duracao: 0.5 } : null));
+  const post = (tentativas) => ({ id: 6, formato: "reels", instagram_tentativas: tentativas, conteudo: { ...conteudo, slides: conteudo.slides.map((s) => ({ ...s, avatar: { id: "a" } })) } });
+  await assert.rejects(videoDoReels(post(0), "FluxDeck", { clipes, narrar }), /ainda não ficou pronto/);
+  assert.ok((await videoDoReels(post(1), "FluxDeck", { clipes, narrar })).length > 1000);
+});
+
+test("avatar: sem nenhuma voz, tenta de novo e só sai sem voz na última tentativa", async () => {
+  const narrar = async () => { throw new Error("nenhuma voz"); };
+  const post = (tentativas) => ({ id: 6, formato: "reels", instagram_tentativas: tentativas, conteudo });
+  await assert.rejects(videoDoReels(post(0), "FluxDeck", { clipes: async () => ({}), narrar }), /sem narração/);
+  await assert.rejects(videoDoReels(post(1), "FluxDeck", { clipes: async () => ({}), narrar }), /sem narração/);
+  assert.ok((await videoDoReels(post(2), "FluxDeck", { clipes: async () => ({}), narrar })).length > 1000);
+});
+
 test("avatar: o filtro do vídeo coloca o clipe por baixo e abaixa a música quando ele fala", () => {
   const f = montarFiltro({ w: 1080, h: 1920, duracao: 10, comClipe: [{ inicio: 0, fim: 3, janela: { x: 620, y: 130, w: 400, h: 500, dx: 520, dy: 0 } }, { inicio: 7, fim: 10, janela: { x: 60, y: 130, w: 400, h: 500, dx: -520, dy: 0 } }], temVoz: false });
   assert.equal(f.imagem, "[v]");
