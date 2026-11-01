@@ -91,8 +91,11 @@ export const enderecoDaPagina = (token) => `${config.painel.urlPublica}/diagnost
 export function mensagemDoDiagnostico(lead, venda, problemas) {
   const destaques = problemas.slice(0, 2).map((p) => `• ${p.titulo}`).join("\n");
   const total = problemas.length;
+  const preco = venda.mensal
+    ? `Custa ${reais(venda.valor)} por mês, no cartão, sem fidelidade. Sai na hora depois do pagamento, e todo mês tem um relatório novo no mesmo link`
+    : `Custa ${reais(venda.valor)} por PIX, e sai na hora depois do pagamento`;
   return `Olhei o site da ${lead.nome} e encontrei ${total === 1 ? "um ponto que pode estar" : `${total} pontos que podem estar`} afastando clientes:\n\n${destaques}\n\n`
-    + `O relatório completo traz ${total === 1 ? "esse ponto" : "todos eles"}, como resolver e um plano do que fazer primeiro. Custa ${reais(venda.valor)} por PIX, e sai na hora depois do pagamento: ${enderecoDaPagina(venda.token)}`;
+    + `O relatório completo traz ${total === 1 ? "esse ponto" : "todos eles"}, como resolver e um plano do que fazer primeiro. ${preco}: ${enderecoDaPagina(venda.token)}`;
 }
 
 const PlanoSchema = z.object({
@@ -134,6 +137,7 @@ Monte o plano com uma ação por ponto a corrigir, começando pelo que mais pesa
 }
 
 function planoPadrao({ problemas }) {
+  if (!problemas.length) return { resumo: "Neste mês não encontramos pontos a corrigir na página inicial.", plano: [] };
   const prazo = { alta: "Esta semana", media: "Este mês", baixa: "Próximos 3 meses" };
   const motivo = { alta: "Afeta diretamente quem chega ao site.", media: "Melhora a forma como o site convence e aparece no Google.", baixa: "É simples e completa a revisão." };
   const altos = problemas.filter((p) => p.prioridade === "alta").length;
@@ -153,26 +157,27 @@ export function textoDoRelatorio({ lead, url, data, achado, escrito, servicos = 
     `# ${TIPO_DO_DOCUMENTO}`, `## ${linha(lead.nome)}`,
     "::resumo", `Site | ${celula(url)}`, `Verificado em | ${data}`, `Pontos a corrigir | ${achado.problemas.length}`, "::",
     "### Resumo", linha(escrito.resumo),
-    "### O que encontramos",
+    ...(achado.problemas.length ? ["### O que encontramos"] : []),
     ...achado.problemas.map((p) => [`::aviso ${linha(p.titulo)} (prioridade ${NOME_PRIORIDADE[p.prioridade]})`, `${p.porque} Como resolver: ${p.como}`, "::"].join("\n")),
     ...(achado.bons.length ? ["### O que já está bom", ...achado.bons.map((b) => `• ${b}`)] : []),
-    "### Plano de ação",
-    ["| Quando | O que fazer | Por quê |", "|---|---|---|", ...escrito.plano.map((p) => `| ${celula(p.quando)} | ${celula(p.acao)} | ${celula(p.motivo)} |`)].join("\n"),
+    ...(escrito.plano.length ? ["### Plano de ação", ["| Quando | O que fazer | Por quê |", "|---|---|---|", ...escrito.plano.map((p) => `| ${celula(p.quando)} | ${celula(p.acao)} | ${celula(p.motivo)} |`)].join("\n")] : []),
     "### Como este diagnóstico foi feito",
     `Verificação automática da página inicial, feita em ${data}: cadeado de segurança, configuração para celular, tempo de resposta, descrição para o Google, ano no rodapé, quantidade de texto e formas de contato e venda. Ela não testa compras, formulários nem as outras páginas do site, e o tempo de resposta pode variar de um momento para outro.`,
-    ...(servicos.length ? ["### Se preferir que a gente resolva", ...servicos.map((s) => `• **${linha(s.nome)}:** ${linha(s.descricao)}${s.aPartirDe ? ` A partir de ${s.aPartirDe}.` : ""}`)] : []),
+    // Sem preço: os serviços são mensais, e o valor é combinado na conversa.
+    ...(servicos.length ? ["### Se preferir que a gente resolva", ...servicos.map((s) => `• **${linha(s.nome)}:** ${linha(s.descricao)}`)] : []),
   ];
   return partes.join("\n\n");
 }
 
-const chaveDoRelatorio = (id) => `relatorio-${id}.pdf`;
+// Um relatório por mês: o da assinatura é refeito no primeiro acesso de cada mês, com uma leitura nova do site.
+const chaveDoRelatorio = (id, agora) => `relatorio-${id}-${agora.toLocaleDateString("en-CA", { timeZone: config.timezone }).slice(0, 7)}.pdf`;
 
 /**
- * O PDF de uma venda. Uma vez pronto, fica guardado: quem pagou recebe sempre o mesmo documento.
+ * O PDF de uma venda no mês. Uma vez pronto, fica guardado: dentro do mês, quem pagou recebe sempre o mesmo documento.
  * Retorna null se ele já estiver sendo gerado por outra chamada.
  */
 export async function pdfDoRelatorio(venda, campanha, marca, { escrever = planoDaIA, agora = new Date() } = {}) {
-  const pronto = await db.lerMidia(chaveDoRelatorio(venda.id));
+  const pronto = await db.lerMidia(chaveDoRelatorio(venda.id, agora));
   if (pronto) return pronto.dados;
   const trava = `relatorio_${venda.id}`;
   if (!(await db.travar(trava, 150_000))) return null;
@@ -196,7 +201,7 @@ export async function pdfDoRelatorio(venda, campanha, marca, { escrever = planoD
     const servicos = (campanha?.servicos ?? []).filter((s) => ids.has(s.id)).slice(0, 3);
     const data = agora.toLocaleDateString("pt-BR", { timeZone: config.timezone });
     const pdf = await documentoEmPdf(textoDoRelatorio({ lead, url: analise.url ?? endereco, data, achado, escrito, servicos }), { marca: marca.marca, cnpj: marca.cnpj, projeto: lead.nome, tipo: TIPO_DO_DOCUMENTO });
-    await db.gravarMidia(chaveDoRelatorio(venda.id), "application/pdf", pdf);
+    await db.gravarMidia(chaveDoRelatorio(venda.id, agora), "application/pdf", pdf);
     return pdf;
   } finally {
     await db.destravar(trava);
@@ -209,18 +214,21 @@ const escapar = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;
 export function paginaDoDiagnostico({ venda, lead, problemas = [], marca }) {
   const paga = venda.status === "paga";
   const encerrada = ["cancelada", "estornada"].includes(venda.status);
+  const atrasada = venda.status === "atrasada";
   const destaques = problemas.slice(0, 2);
   const corpo = encerrada
     ? `<h1>Este link não está mais ativo</h1><p>Fale com a ${escapar(marca)} para receber um novo.</p>`
+    : atrasada
+      ? `<h1>Mensalidade em atraso</h1><p>O relatório volta a ser liberado aqui assim que o pagamento for confirmado. O link para pagar está na mensagem de cobrança.</p>`
     : paga
       ? `<h1>Pagamento confirmado</h1><p>O diagnóstico de <b>${escapar(lead?.nome)}</b> está pronto. A primeira abertura pode levar até um minuto.</p>
          <a class="botao" href="/diagnostico/${escapar(venda.token)}/relatorio.pdf">Baixar o relatório em PDF</a>
-         <p class="nota">Guarde este link: o relatório continua disponível aqui.</p>`
+         <p class="nota">${venda.mensal ? "Guarde este link: todo mês tem um relatório novo aqui, com uma leitura atualizada do site." : "Guarde este link: o relatório continua disponível aqui."}</p>`
       : `<h1>Diagnóstico do site de ${escapar(lead?.nome)}</h1>
          <p>${problemas.length === 1 ? "Encontramos um ponto que pode estar" : `Encontramos ${problemas.length} pontos que podem estar`} afastando clientes do seu site. ${problemas.length > 2 ? "Dois deles:" : ""}</p>
          <ul>${destaques.map((p) => `<li><b>${escapar(p.titulo)}</b><br>${escapar(p.porque)}</li>`).join("")}</ul>
-         <p>O relatório em PDF traz ${problemas.length === 1 ? "esse ponto" : "todos os pontos"}, como resolver cada um e um plano do que fazer primeiro.</p>
-         <a class="botao" href="${escapar(venda.link)}" target="_blank" rel="noopener">Pagar ${escapar(reais(venda.valor))} por PIX</a>
+         <p>O relatório em PDF traz ${problemas.length === 1 ? "esse ponto" : "todos os pontos"}, como resolver cada um e um plano do que fazer primeiro.${venda.mensal ? " Todo mês, um relatório novo." : ""}</p>
+         <a class="botao" href="${escapar(venda.link)}" target="_blank" rel="noopener">${venda.mensal ? `Assinar por ${escapar(reais(venda.valor))} por mês, no cartão` : `Pagar ${escapar(reais(venda.valor))} por PIX`}</a>
          <p class="nota" id="aviso">O pagamento abre em outra aba. Depois de pagar, volte aqui: o relatório é liberado sozinho.</p>
          <script>setInterval(async()=>{try{const r=await fetch(location.pathname+"/situacao");const d=await r.json();if(d.status!=="aguardando")location.reload()}catch{}},8000)</script>`;
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">

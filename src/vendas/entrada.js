@@ -22,9 +22,7 @@ export async function criarOferta({ nome, descricao, valor, mensal, diagnostico 
   const preco = lerValor(valor);
   if (!limpo) return { erro: "Informe o nome da oferta" };
   if (!preco || preco <= 0) return { erro: "Informe o preço da oferta" };
-  const oferta = { id: crypto.randomUUID(), nome: limpo, descricao: String(descricao ?? "").trim().slice(0, 500), valor: preco, mensal: false, diagnostico: diagnostico === true || diagnostico === "true" };
-  // O relatório é entregue uma vez: não tem como ser mensal.
-  oferta.mensal = !oferta.diagnostico && (mensal === true || mensal === "true");
+  const oferta = { id: crypto.randomUUID(), nome: limpo, descricao: String(descricao ?? "").trim().slice(0, 500), valor: preco, mensal: mensal === true || mensal === "true", diagnostico: diagnostico === true || diagnostico === "true" };
   await db.gravarConfig(CHAVE_OFERTAS, { lista: [...(await lerOfertas()), oferta] });
   return oferta;
 }

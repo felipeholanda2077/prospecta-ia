@@ -94,9 +94,9 @@ test("achados: só aponta o que a auditoria viu, do mais grave para o mais leve"
   assert.match(diagnostico.achados({ temSite: true, fora: true }).problemas[0].titulo, /não abriu/);
 });
 
-test("oferta: o relatório nunca é mensal, e só vende quando há site e problema", async () => {
+test("oferta: o relatório pode ser mensal, e só vende quando há site e problema", async () => {
   const o = await entrada.criarOferta({ nome: "D", valor: "197", diagnostico: "true", mensal: "true" });
-  assert.deepEqual([o.diagnostico, o.mensal], [true, false]);
+  assert.deepEqual([o.diagnostico, o.mensal], [true, true]);
 
   const api = apiFalsa();
   await comServidor(api, async () => {
@@ -191,6 +191,13 @@ test("relatório: usa o texto da IA, e sai igual se ela falhar; o que veio dela 
     const semIa = await diagnostico.pdfDoRelatorio(outra.venda, { servicos: [] }, { marca: "FluxDeck" }, { agora: AGORA, escrever: async () => { throw new Error("IA fora do ar"); } });
     assert.equal(semIa.subarray(0, 4).toString(), "%PDF");
 
+    // No mês seguinte sai outro relatório, com leitura nova do site; dentro do mês, o mesmo.
+    const leituras = api.estado.leiturasDoSite;
+    await diagnostico.pdfDoRelatorio(outra.venda, { servicos: [] }, { marca: "FluxDeck" }, { agora: new Date("2026-11-28T15:00:00Z"), escrever: async () => { throw new Error("guardado"); } });
+    assert.equal(api.estado.leiturasDoSite, leituras);
+    await diagnostico.pdfDoRelatorio(outra.venda, { servicos: [] }, { marca: "FluxDeck" }, { agora: new Date("2026-12-02T15:00:00Z"), escrever: async () => { throw new Error("novo"); } });
+    assert.ok(api.estado.leiturasDoSite > leituras);
+
     // O site caiu na hora de gerar: quem pagou recebe os pontos vistos antes, não só "o site não abriu".
     api.estado.siteFora = true;
     const terceira = await entrada.gerarLink({ leadId: await db.criarLeadDeContato({ nome: "Terceira", whatsapp: "5511977777777" }).then(async (id) => { await db.atualizarLead(id, { site: SITE_RUIM.url, analise: JSON.stringify(SITE_RUIM) }); return id; }), ofertaId: oferta.id }, AGORA);
@@ -214,6 +221,36 @@ test("relatório: usa o texto da IA, e sai igual se ela falhar; o que veio dela 
   assert.deepEqual(tabela.linhas[0], ["Esta semana", "Trocar / isso agora", "Porque"]);
   assert.deepEqual(blocos.find((b) => b.tipo === "resumo").linhas[2], ["Pontos a corrigir", String(achado.problemas.length)]);
   assert.match(texto, /não testa compras/);
-  assert.match(texto, /A partir de R\$ 1\.500/);
+  assert.ok(!texto.includes("R$ 1.500"), "o relatório não cita preço de serviço");
+  assert.match(texto, /Modernização:/);
+
+  // Site sem problemas no mês: sem seções vazias.
+  const limpo = lerBlocos(diagnostico.textoDoRelatorio({ lead: { nome: "E" }, url: "https://e.com", data: "01/12/2026", achado: { problemas: [], bons: ["Tudo certo."] }, escrito: { resumo: "Nada a corrigir.", plano: [] } }));
+  assert.ok(!limpo.some((b) => b.tipo === "tabela"));
+  assert.ok(!limpo.some((b) => b.texto === "O que encontramos" || b.texto === "Plano de ação"));
   assert.ok(!/\d+%/.test(texto), "nenhuma porcentagem inventada");
+});
+
+test("assinatura do diagnóstico: mensagem e página falam em mês e cartão; atraso bloqueia, e pagar libera de novo", async () => {
+  const api = apiFalsa();
+  await comServidor(api, async (base) => {
+    const { leadId } = await preparar();
+    const oferta = await entrada.criarOferta({ nome: "Diagnóstico mensal", valor: "197,00", diagnostico: "true", mensal: "true" });
+    const { venda, mensagem } = await entrada.gerarLink({ leadId, ofertaId: oferta.id }, AGORA);
+    assert.match(mensagem, /R\$.197,00 por mês, no cartão, sem fidelidade/);
+    assert.match(mensagem, /todo mês tem um relatório novo/);
+    const l = api.estado.links.at(-1);
+    assert.deepEqual([l.billingType, l.chargeType, l.subscriptionCycle], ["CREDIT_CARD", "RECURRENT", "MONTHLY"]);
+    assert.match(await original(`${base}/diagnostico/${venda.token}`).then((r) => r.text()), /Assinar por R\$.197,00 por mês, no cartão/);
+
+    const primeira = { id: "pay_m1", status: "RECEIVED", paymentDate: "2026-11-20", paymentLink: venda.asaas_link, subscription: "sub_d" };
+    api.estado.pagamentos.push(primeira);
+    await entrada.processarAvisoDeVenda({ payment: primeira }, AGORA);
+    assert.match(await original(`${base}/diagnostico/${venda.token}`).then((r) => r.text()), /todo mês tem um relatório novo aqui/);
+    assert.equal((await original(`${base}/diagnostico/${venda.token}/relatorio.pdf`)).status, 200);
+
+    await db.atualizarVenda(venda.id, { status: "atrasada" });
+    assert.match(await original(`${base}/diagnostico/${venda.token}`).then((r) => r.text()), /Mensalidade em atraso/);
+    assert.equal((await original(`${base}/diagnostico/${venda.token}/relatorio.pdf`, { redirect: "manual" })).status, 302);
+  });
 });
