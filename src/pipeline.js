@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { config } from "./config.js";
 import * as db from "./db.js";
 import { buscarEmpresas } from "./descoberta/googlePlaces.js";
@@ -14,7 +15,7 @@ import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { imagemDaMensagem, legendaDaArte, roteiroDoAudio } from "./vendas/campanha.js";
 import { audioDoTexto, oggDoAudio } from "./conteudo/narracao.js";
-import { falarPelaRunway } from "./conteudo/avatar.js";
+import { falarPelaRunway, lerConfigAvatar } from "./conteudo/avatar.js";
 import { linkDaMidia } from "./conteudo/instagram.js";
 import { verificarAgendamentos, aplicarLinkAgendamento } from "./agenda/calendly.js";
 import { semSiteProprio, potencialDaEmpresa } from "./analise/prioridade.js";
@@ -83,6 +84,26 @@ const QUEDA_DO_WHATSAPP = /connection closed|not connected|disconnected|desconec
 const AVISO_DESCONECTADO_MS = 6 * 3600 * 1000;
 
 /**
+ * O áudio de uma mensagem. Fica guardado enquanto o texto e a voz forem os mesmos: quem ouve no painel
+ * ouve exatamente o que vai sair, sem gastar crédito duas vezes.
+ */
+export async function audioDaMensagem(id, corpo) {
+  const roteiro = roteiroDoAudio(corpo);
+  const { vozDasMensagens } = await lerConfigAvatar();
+  const prefixo = `audio-mensagem-${id}-`;
+  const chave = `${prefixo}${crypto.createHash("sha256").update(`${vozDasMensagens}:${roteiro}`).digest("hex").slice(0, 12)}.ogg`;
+  const guardado = await db.lerMidia(chave);
+  if (guardado) return { chave, dados: Buffer.from(guardado.dados) };
+  const dados = await falarPelaRunway(roteiro).then(oggDoAudio).catch((e) => {
+    log(`⚠️  Voz da Runway indisponível (${e.message}); o áudio sai pelas outras vozes.`);
+    return audioDoTexto(roteiro);
+  });
+  await db.apagarMidias(prefixo);
+  await db.gravarMidia(chave, "audio/ogg", dados);
+  return { chave, dados };
+}
+
+/**
  * A mensagem da campanha: a arte, com o link na legenda, e o texto em mensagem de voz.
  * Se a imagem falhar, o áudio sai mesmo assim; se o áudio falhar, a mensagem sai em texto para não se perder.
  */
@@ -93,13 +114,7 @@ async function enviarCampanhaEmAudio(integracao, destino, m, texto, imagem, opco
   };
   await integracao.enviarImagem(destino, imagem, legendaDaArte(m.corpo), opcoes).catch((e) => semQueda(e, "A arte"));
   try {
-    const chave = `audio-mensagem-${m.id}.ogg`;
-    const roteiro = roteiroDoAudio(m.corpo);
-    const audio = await falarPelaRunway(roteiro).then(oggDoAudio).catch((e) => {
-      log(`⚠️  Voz da Runway indisponível (${e.message}); o áudio sai pelas outras vozes.`);
-      return audioDoTexto(roteiro);
-    });
-    await db.gravarMidia(chave, "audio/ogg", audio);
+    const { chave } = await audioDaMensagem(m.id, m.corpo);
     return await integracao.enviarAudio(destino, linkDaMidia(chave), opcoes);
   } catch (e) {
     semQueda(e, "O áudio");

@@ -714,6 +714,20 @@ app.put("/api/mensagens/:id", async (req, res) => {
   res.json(prepararMensagem(await db.buscarMensagem(m.id), await pipeline.modoWhatsapp()));
 });
 
+// O áudio que a mensagem vai levar, para ouvir antes de aprovar. Com o texto da tela, mesmo sem salvar.
+app.post("/api/mensagens/:id/audio", async (req, res) => {
+  const m = await db.buscarMensagem(req.params.id);
+  if (!m) return res.status(404).json({ erro: "Mensagem não encontrada" });
+  const corpo = String(req.body?.corpo ?? "").trim() || m.corpo;
+  if (!imagemDaMensagem({ ...m, corpo })) return res.status(400).json({ erro: "Esta mensagem não vai por áudio" });
+  try {
+    const { dados } = await pipeline.audioDaMensagem(m.id, corpo);
+    res.set("Content-Type", "audio/ogg").send(dados);
+  } catch (e) {
+    res.status(502).json({ erro: `Não foi possível gerar o áudio: ${e.message}` });
+  }
+});
+
 // Aprovar = autorizar o envio. Se estiver no horário e dentro do limite, já envia na hora.
 app.post("/api/mensagens/:id/aprovar", async (req, res) => {
   const m = await db.buscarMensagem(req.params.id);
@@ -1020,10 +1034,18 @@ app.put("/api/conteudo/config", async (req, res) => {
   res.json({ ok: true, voz });
 });
 
-// Cria agora um post para hoje (além do que já existir).
+// Cria agora um post para hoje (além do que já existir), ou deixa pronto o do primeiro horário de amanhã.
 app.post("/api/conteudo/gerar", async (req, res) => {
   const formato = ["reels", "carrossel"].includes(req.body?.formato) ? req.body.formato : undefined;
-  res.json(await criarPostDeHoje(await carregarCampanhaCompleta(), { formato }));
+  const campanha = await carregarCampanhaCompleta();
+  if (!req.body?.amanha) return res.json(await criarPostDeHoje(campanha, { formato }));
+  const amanha = new Date(Date.now() + 86_400_000);
+  const { horarios } = await lerConfigConteudo();
+  const { dia } = agoraEmBrasilia(amanha);
+  const ocupados = (await db.postsDoDia(dia)).filter((p) => p.status !== "descartado").map((p) => p.horario);
+  const horario = horarios.find((h) => !ocupados.includes(h));
+  if (horario === undefined) return res.status(400).json({ erro: "Os horários de amanhã já têm post" });
+  res.json(await criarPostDeHoje(campanha, { formato, horario, agora: amanha }));
 });
 
 // Descarta o post e cria outro do mesmo formato no lugar.
@@ -1031,7 +1053,11 @@ app.post("/api/conteudo/:id/refazer", async (req, res) => {
   const post = await db.buscarPost(req.params.id);
   if (!post) return res.status(404).json({ erro: "Post não encontrado" });
   // O post refeito continua sobre o mesmo assunto quando é o da campanha, para o dia não ficar sem ela.
-  const novo = await criarPostDeHoje(await carregarCampanhaCompleta(), { formato: post.formato, horario: post.horario, pilar: post.pilar === PILAR_BLACK_FRIDAY ? post.pilar : null });
+  const novo = await criarPostDeHoje(await carregarCampanhaCompleta(), {
+    formato: post.formato, horario: post.horario, pilar: post.pilar === PILAR_BLACK_FRIDAY ? post.pilar : null,
+    // O post preparado para outro dia é refeito para o mesmo dia.
+    ...(post.dia > agoraEmBrasilia().dia ? { agora: new Date(`${post.dia}T12:00:00-03:00`) } : {}),
+  });
   await db.atualizarStatusPost(post.id, "descartado");
   res.json(novo);
 });

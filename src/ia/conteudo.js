@@ -17,7 +17,7 @@ export const PILARES = {
 
 // Campanha com data para acabar: fica fora do rodízio, e quem decide quando sai é o agendamento dos posts.
 export const PILAR_BLACK_FRIDAY = "black_friday";
-const TEXTO_BLACK_FRIDAY = `Promoção de Black Friday da FluxDeck, válida só em novembro de 2026, no plano Professional com IA de atendimento no WhatsApp. Ele inclui site, painel administrativo, automações e uma IA própria que atende, vende e agenda pelo WhatsApp.
+const TEXTO_BLACK_FRIDAY = `Promoção de Black Friday da FluxDeck, válida só em novembro de 2026, no plano Professional com IA de atendimento no WhatsApp. Ele inclui site, a criação de um sistema próprio, automações, uma IA própria que atende, vende e agenda pelo WhatsApp e também um aplicativo da empresa, se ela desejar: tudo de TI que a empresa precisa para se modernizar. Não é só a IA: deixe isso claro. Na legenda, diga que o desconto de R$ 1.500 por mês equivale a um funcionário.
 Este post é sobre essa promoção. Mostre o problema que ela resolve para o público do post e diga que o plano fica mais barato em novembro. No vídeo e nas telas, nunca diga nem escreva o valor: nada de "R$", "reais" ou números de preço, em nenhuma fala, título ou texto. Quem quiser saber o valor pergunta no direct ou nos comentários. O valor, de R$ 4.500 por R$ 3.000 por mês, aparece só na legenda do post.
 Não invente desconto em porcentagem, vagas limitadas, bônus, contagem regressiva ou resultado de cliente. A única urgência verdadeira é que a promoção vale só até 30 de novembro.
 A última tela chama para o direct ou para comentar uma palavra, para saber mais sobre a promoção.`;

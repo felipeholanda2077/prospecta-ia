@@ -1238,6 +1238,7 @@
             <div class="ig-barra-botoes">
               <button class="btn" type="button" data-conteudo-gerar="reels"><span data-ic="video"></span>Criar Reels agora</button>
               <button class="btn" type="button" data-conteudo-gerar="carrossel"><span data-ic="image"></span>Criar carrossel agora</button>
+              <button class="btn" type="button" id="conteudo-amanha"><span data-ic="clock"></span>Deixar post pronto para amanhã</button>
             </div>
           </div>
           <div id="lista-posts" class="lista"></div>
@@ -2086,7 +2087,7 @@ function previaHtml(m) {
   if (m.canal !== "email") {
     return `<div class="previa-wa">
       <div class="wa-topo"><span class="mini">${inicial(m.empresa)}</span>${esc(m.canal === "instagram" ? m.destino : m.empresa)}</div>
-      <div class="wa-chat"><div class="wa-bolha">${m.imagem ? `<img src="/whatsapp-black-friday.jpg" alt="Arte da Black Friday, enviada junto com a mensagem" style="display:block;width:100%;max-width:320px;border-radius:8px;margin-bottom:8px"><div class="rotulo" style="margin-bottom:6px">${ic("message", "sm")} O texto abaixo vai como mensagem de voz, e o link vai na legenda da arte</div>` : ""}<span data-previa-corpo>${esc(comLink(m.corpo))}</span><span class="wa-rodape">${rodape}</span><span class="wa-hora">agora ✓✓</span></div></div>
+      <div class="wa-chat"><div class="wa-bolha">${m.imagem ? `<img src="/whatsapp-black-friday.jpg" alt="Arte da Black Friday, enviada junto com a mensagem" style="display:block;width:100%;max-width:320px;border-radius:8px;margin-bottom:8px"><div class="rotulo" style="margin-bottom:6px">${ic("message", "sm")} O texto abaixo vai como mensagem de voz, e o link vai na legenda da arte</div><div style="margin-bottom:8px"><button class="btn" type="button" data-ouvir-audio="${m.id}">${ic("message", "sm")}Ouvir o áudio</button><div data-audio style="margin-top:6px"></div></div>` : ""}<span data-previa-corpo>${esc(comLink(m.corpo))}</span><span class="wa-rodape">${rodape}</span><span class="wa-hora">agora ✓✓</span></div></div>
     </div>`;
   }
   return `<div class="previa-email">
@@ -4294,7 +4295,7 @@ function cardPost(post, hoje) {
     : `<div class="post-thumbs">${telasDoPost(post).map((_, i) => `<canvas data-tela="${post.id}:${i}" width="1080" height="1350" aria-label="Tela ${i + 1}"></canvas>`).join("")}</div>`;
   const { instagram, config: conf } = estadoConteudo;
   const noInstagram = Boolean(post.instagram_id);
-  const vaiSairSozinho = instagram.conectado && conf.ativo && conf.postarSozinho && post.dia === hoje && post.horario != null;
+  const vaiSairSozinho = instagram.conectado && conf.ativo && conf.postarSozinho && post.dia >= hoje && post.horario != null;
   const situacao = noInstagram ? `<span class="pilula ok">${ic("check", "sm")}No Instagram</span>`
     : post.status === "postado" ? `<span class="pilula ok">${ic("check", "sm")}Postado</span>`
     : post.instagram_container ? `<span class="pilula acc">Publicando no Instagram…</span>`
@@ -4449,6 +4450,24 @@ function mostrarAvatar(a) {
   $("#avatar-runway-status").innerHTML = a.runwayChaveDefinida ? `<span class="pilula ok">${ic("check", "sm")}Chave salva</span>` : `<span class="pilula">Sem chave</span>`;
   $("#avatar-status").innerHTML = a.ativo && (a.runwayChaveDefinida || (a.chaveDefinida && a.avatarId)) ? `<span class="pilula ok">${ic("check", "sm")}Ligado</span>` : `<span class="pilula">Desligado</span>`;
 }
+// Ouvir, na aprovação, o áudio que a mensagem vai levar. Fica guardado: ouvir de novo não gasta crédito.
+document.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-ouvir-audio]");
+  if (!btn) return;
+  const alvo = btn.parentElement.querySelector("[data-audio]");
+  const corpo = btn.closest(".cartao")?.querySelector('[name="corpo"]')?.value;
+  btn.disabled = true;
+  alvo.textContent = "Gerando o áudio. Pode levar até 1 minuto.";
+  try {
+    const r = await fetch(`/api/mensagens/${btn.dataset.ouvirAudio}/audio`, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ corpo }) });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).erro ?? `Erro ${r.status}`);
+    alvo.innerHTML = `<audio controls autoplay src="${URL.createObjectURL(await r.blob())}" style="width:100%;min-width:220px"></audio>`;
+  } catch (e) {
+    alvo.textContent = e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
 $("#avatar-voz-mensagens").addEventListener("change", (ev) => {
   api("/api/avatar", { method: "PUT", body: JSON.stringify({ vozDasMensagens: ev.target.value }) })
     .then(() => avisar(`As mensagens em áudio passam a usar a voz ${ev.target.value}`, "ok"))
@@ -4599,6 +4618,20 @@ $("#form-conteudo").addEventListener("submit", async (ev) => {
     carregarConteudo();
   } catch (e) {
     avisar(e.message, "perigo");
+  }
+});
+
+$("#conteudo-amanha").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  try {
+    const p = await post("/api/conteudo/gerar", { amanha: true });
+    avisar(`Post pronto: sai amanhã às ${p.horario}h. Ele aparece aqui na lista.`, "ok", 6000);
+    await carregarConteudo();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
   }
 });
 

@@ -180,9 +180,12 @@ test("campanha: a arte e o áudio vão juntos, com o link na legenda, e sem eles
   process.env.GEMINI_API_KEY = "teste";
   const comVoz = (falsa) => {
     const anterior = globalThis.fetch;
-    globalThis.fetch = async (url, op) => (String(url).includes("generativelanguage")
-      ? Response.json({ steps: [{ type: "model_output", content: [{ type: "audio", data: Buffer.alloc(9600).toString("base64") }] }] })
-      : anterior(url, op));
+    falsa.vozes = 0;
+    globalThis.fetch = async (url, op) => {
+      if (!String(url).includes("generativelanguage")) return anterior(url, op);
+      falsa.vozes++;
+      return Response.json({ steps: [{ type: "model_output", content: [{ type: "audio", data: Buffer.alloc(9600).toString("base64") }] }] });
+    };
     return falsa;
   };
   const criar = async (lead) => db.buscarMensagem(await db.criarMensagem({ lead_id: lead, canal: "whatsapp", destino: "5511988881001", corpo, status: "aprovada", tipo: "resposta", etapa: 0 }));
@@ -197,11 +200,23 @@ test("campanha: a arte e o áudio vão juntos, com o link na legenda, e sem eles
     assert.equal(r.enviada, true, r.motivo);
     assert.deepEqual(falsa.envios.map((e) => e.type), ["image", "ptt"]);
     assert.equal(falsa.envios[0].text, `Seu guia gratuito: ${link}`);
-    assert.match(falsa.envios[1].file, /\/api\/midia\/audio-mensagem-\d+\.ogg\?a=/);
-    const chave = falsa.envios[1].file.match(/audio-mensagem-\d+\.ogg/)[0];
+    assert.match(falsa.envios[1].file, /\/api\/midia\/audio-mensagem-\d+-[0-9a-f]{12}\.ogg\?a=/);
+    const chave = falsa.envios[1].file.match(/audio-mensagem-\d+-[0-9a-f]{12}\.ogg/)[0];
     const audio = await db.lerMidia(chave);
     assert.equal(audio.tipo, "audio/ogg");
     assert.equal(Buffer.from(audio.dados).toString("ascii", 0, 4), "OggS");
+
+    // O que se ouve no painel é o que sai: mesmo texto e mesma voz, mesmo áudio, sem gerar de novo.
+    const id = Number(chave.match(/mensagem-(\d+)-/)[1]);
+    const pedidosDeVoz = () => falsa.vozes;
+    const antes = pedidosDeVoz();
+    assert.equal((await pipeline.audioDaMensagem(id, corpo)).chave, chave);
+    assert.equal(pedidosDeVoz(), antes);
+    // Texto editado gera outro áudio, e o antigo sai do banco.
+    const outro = await pipeline.audioDaMensagem(id, `${corpo} Valeu!`);
+    assert.notEqual(outro.chave, chave);
+    assert.equal(pedidosDeVoz(), antes + 1);
+    assert.equal(await db.lerMidia(chave), null);
   } finally {
     falsa.restaurar();
   }
