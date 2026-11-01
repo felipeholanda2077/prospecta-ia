@@ -31,7 +31,7 @@ import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { narracaoDisponivel, carregarChaveDaVoz, salvarChaveDoGemini } from "./conteudo/narracao.js";
 import { lerChavePexels, salvarChavePexels } from "./conteudo/fotos.js";
-import { lerConfigAvatar, salvarConfigAvatar, testarAvatar } from "./conteudo/avatar.js";
+import { lerConfigAvatar, salvarConfigAvatar, testarAvatar, testarRunway } from "./conteudo/avatar.js";
 import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados } from "./conteudo/insights.js";
 import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect } from "./envio/instagram.js";
 import { processarWebhookInstagram } from "./respostas/instagram.js";
@@ -1089,16 +1089,24 @@ app.get("/api/conteudo/:id/video", async (req, res) => {
   res.set({ "Content-Type": "video/mp4", "Content-Disposition": `attachment; filename="fluxdeck-${post.dia}-reels.mp4"` }).send(video.dados);
 });
 
-// O avatar de IA do Felipe (HeyGen). A chave nunca volta para o navegador.
-const avatarParaPainel = ({ chave, ...c }) => ({ ...c, chaveDefinida: Boolean(chave) });
+// O avatar de IA do Felipe (HeyGen, com a Runway de reserva). As chaves nunca voltam para o navegador.
+const avatarParaPainel = ({ chave, runwayChave, ...c }) => ({ ...c, chaveDefinida: Boolean(chave), runwayChaveDefinida: Boolean(runwayChave) });
 app.get("/api/avatar", async (req, res) => res.json(avatarParaPainel(await lerConfigAvatar())));
 app.put("/api/avatar", async (req, res) => {
-  const { ativo, chave, avatarId, vozId } = req.body ?? {};
-  res.json(avatarParaPainel(await salvarConfigAvatar({ ativo, chave, avatarId, vozId })));
+  const { ativo, chave, avatarId, vozId, runwayChave } = req.body ?? {};
+  res.json(avatarParaPainel(await salvarConfigAvatar({ ativo, chave, avatarId, vozId, runwayChave })));
 });
 app.post("/api/avatar/testar", async (req, res) => {
   try {
     res.json(await testarAvatar());
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.post("/api/avatar/testar-runway", async (req, res) => {
+  try {
+    res.json(await testarRunway());
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }

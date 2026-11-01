@@ -1,26 +1,33 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import ffmpeg from "ffmpeg-static";
 import { config } from "../config.js";
 import * as db from "../db.js";
 import { FUNDOS } from "../../public/post-desenho.js";
+import { narrarCenas, TAXA_VOZ } from "./narracao.js";
 
 // O avatar de IA do Felipe (HeyGen) falando em todas as cenas dos Reels. Os clipes são pedidos
 // quando o post é criado (o HeyGen leva alguns minutos) e baixados na hora de gerar o vídeo. Tudo aqui é
-// opcional: sem configuração ou sem crédito no HeyGen, o Reels sai sem avatar, com a voz da narração.
+// opcional: se o HeyGen falhar ao pedir (como por falta de crédito), a Runway faz os clipes no lugar dele.
+// Sem nenhum dos dois, o Reels sai sem avatar, com a voz da narração.
 const API = "https://api.heygen.com";
+const RUNWAY = "https://api.dev.runwayml.com";
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 const TEMPO_MS = 20_000;
 const CHAVE = "avatar";
 
 export async function lerConfigAvatar() {
   const c = (await db.lerConfig(CHAVE)) ?? {};
-  return { ativo: Boolean(c.ativo), chave: process.env.HEYGEN_API_KEY || c.chave || "", avatarId: c.avatarId ?? "", vozId: c.vozId ?? "" };
+  return {
+    ativo: Boolean(c.ativo), chave: process.env.HEYGEN_API_KEY || c.chave || "", avatarId: c.avatarId ?? "", vozId: c.vozId ?? "",
+    runwayChave: process.env.RUNWAY_API_KEY || c.runwayChave || "", runwayAvatarId: c.runwayAvatarId ?? "",
+  };
 }
 
 /** Salva só o que veio; a chave vazia mantém a que já estava salva. */
-export async function salvarConfigAvatar({ ativo, chave, avatarId, vozId } = {}) {
+export async function salvarConfigAvatar({ ativo, chave, avatarId, vozId, runwayChave } = {}) {
   const atual = (await db.lerConfig(CHAVE)) ?? {};
   const limpo = (v) => String(v ?? "").trim();
   await db.gravarConfig(CHAVE, {
@@ -29,6 +36,8 @@ export async function salvarConfigAvatar({ ativo, chave, avatarId, vozId } = {})
     ...(limpo(chave) ? { chave: limpo(chave) } : {}),
     ...(avatarId !== undefined ? { avatarId: limpo(avatarId) } : {}),
     ...(vozId !== undefined ? { vozId: limpo(vozId) } : {}),
+    // Chave nova pode ser de outra conta da Runway, onde o avatar salvo não existe.
+    ...(limpo(runwayChave) ? { runwayChave: limpo(runwayChave), runwayAvatarId: "" } : {}),
   });
   return lerConfigAvatar();
 }
@@ -46,6 +55,18 @@ async function chamar(chave, metodo, caminho, corpo) {
     throw new Error(r.status === 401 ? "o HeyGen recusou a chave da API" : `HeyGen: ${motivo}`);
   }
   return d.data ?? d;
+}
+
+async function chamarRunway(chave, metodo, caminho, corpo) {
+  const r = await fetch(`${RUNWAY}${caminho}`, {
+    method: metodo,
+    headers: { Authorization: `Bearer ${chave}`, "X-Runway-Version": "2024-11-06", ...(corpo ? { "Content-Type": "application/json" } : {}) },
+    body: corpo ? JSON.stringify(corpo) : undefined,
+    signal: AbortSignal.timeout(TEMPO_MS),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(r.status === 401 ? "a Runway recusou a chave da API" : `Runway: ${d.error ?? d.message ?? `respondeu ${r.status}`}`);
+  return d;
 }
 
 /** Confere a chave e o avatar no HeyGen. Retorna { creditos, avatar }, ou lança com o motivo. */
@@ -67,14 +88,133 @@ export function cenasDoAvatar(slides) {
   return total > MAX_CENAS_COM_AVATAR ? [...indices.slice(0, MAX_CENAS_COM_AVATAR - 1), total - 1] : indices;
 }
 
+/** O rosto do avatar da Runway: a imagem do look do HeyGen, de frente para a câmera; sem ela, o topo da foto do Felipe. */
+async function fotoDeReferencia(c) {
+  const look = c.chave && c.avatarId ? await chamar(c.chave, "GET", `/v3/avatars/looks/${encodeURIComponent(c.avatarId)}`).catch(() => null) : null;
+  if (look?.preview_image_url) return look.preview_image_url;
+  const foto = fileURLToPath(new URL("../../public/felipe-holanda.jpg", import.meta.url));
+  const jpeg = await new Promise((ok, falhou) => {
+    const p = spawn(ffmpeg, ["-loglevel", "error", "-i", foto, "-vf", "crop=400:259:0:0,scale=1088:704", "-f", "mjpeg", "-q:v", "3", "pipe:1"], { stdio: ["ignore", "pipe", "ignore"] });
+    const partes = [];
+    p.stdout.on("data", (d) => partes.push(d));
+    p.on("error", falhou);
+    p.on("close", (codigo) => (codigo === 0 ? ok(Buffer.concat(partes)) : falhou(new Error("não deu para preparar a foto do avatar"))));
+  });
+  return `data:image/jpeg;base64,${jpeg.toString("base64")}`;
+}
+
+/** O avatar do Felipe na Runway, criado na primeira vez. Retorna { id, status, motivo }. */
+async function avatarDaRunway(c) {
+  if (c.runwayAvatarId) {
+    const a = await chamarRunway(c.runwayChave, "GET", `/v1/avatars/${encodeURIComponent(c.runwayAvatarId)}`).catch(() => null);
+    if (a && a.status !== "FAILED") return { id: a.id, status: a.status };
+  }
+  const a = await chamarRunway(c.runwayChave, "POST", "/v1/avatars", {
+    name: "Felipe Holanda",
+    referenceImage: await fotoDeReferencia(c),
+    personality: "Felipe Holanda, fundador da FluxDeck. Fala português do Brasil, de forma direta e natural, com donos de empresa.",
+    voice: { type: "runway-live-preset", presetId: "vincent" },
+  });
+  await db.gravarConfig(CHAVE, { ...((await db.lerConfig(CHAVE)) ?? {}), runwayAvatarId: a.id });
+  return { id: a.id, status: a.status, motivo: a.failureReason };
+}
+
+function wavDoPcm(pcm) {
+  const h = Buffer.alloc(44);
+  h.write("RIFF", 0, "ascii");
+  h.writeUInt32LE(36 + pcm.length, 4);
+  h.write("WAVEfmt ", 8, "ascii");
+  h.writeUInt32LE(16, 16);
+  h.writeUInt16LE(1, 20);
+  h.writeUInt16LE(1, 22);
+  h.writeUInt32LE(TAXA_VOZ, 24);
+  h.writeUInt32LE(TAXA_VOZ * 2, 28);
+  h.writeUInt16LE(2, 32);
+  h.writeUInt16LE(16, 34);
+  h.write("data", 36, "ascii");
+  h.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([h, pcm]);
+}
+
+const pedirClipeDaRunway = (chave, avatarId, pcm) => chamarRunway(chave, "POST", "/v1/avatar_videos", {
+  model: "gwm1_avatars",
+  avatar: { type: "custom", avatarId },
+  speech: { type: "audio", audio: `data:audio/wav;base64,${wavDoPcm(pcm).toString("base64")}` },
+});
+
+/** Pede os clipes de todas as cenas à Runway, com a voz da narração. Lança se faltar algum: o avatar fala o vídeo inteiro ou não aparece. */
+async function pedirClipesDaRunway(conteudo, c, narrar) {
+  const avatar = await avatarDaRunway(c);
+  if (avatar.status !== "READY") throw new Error(`o avatar da Runway ainda não está pronto (${avatar.status ?? "sem status"})`);
+  const slides = conteudo.slides.map((s) => ({ ...s, fala: s.fala || s.titulo }));
+  const falas = await narrar({ id: 0, formato: "reels", conteudo: { ...conteudo, slides } });
+  const cenas = cenasDoAvatar(slides).filter((i) => falas?.[i]);
+  const pedidos = await Promise.all(cenas.map((i) => pedirClipeDaRunway(c.runwayChave, avatar.id, falas[i].pcm)));
+  const comClipes = conteudo.slides.map(({ avatar: _, ...s }) => s);
+  cenas.forEach((i, n) => (comClipes[i].avatar = { id: pedidos[n].id, servico: "runway" }));
+  return { ...conteudo, slides: comClipes };
+}
+
+/** Cria o avatar na Runway e faz um clipe curto, para conferir o enquadramento. Retorna { status, video }, ou lança com o motivo. */
+export async function testarRunway({ narrar = narrarCenas, esperaMs = 5_000, consultas = 36 } = {}) {
+  const c = await lerConfigAvatar();
+  if (!c.runwayChave) throw new Error("Cole a chave da API da Runway");
+  const avatar = await avatarDaRunway(c);
+  if (avatar.status === "FAILED") throw new Error(`a Runway não criou o avatar: ${avatar.motivo ?? "sem motivo informado"}`);
+  if (avatar.status !== "READY") return { status: avatar.status };
+  const teste = { id: 0, formato: "reels", conteudo: { slides: [{ visual: "capa", titulo: "Teste", texto: "", destaque: "", fala: "Oi, eu sou o Felipe, da FluxDeck." }], gancho: "Teste", legenda: "", hashtags: [] } };
+  const [fala] = await narrar(teste);
+  const { id } = await pedirClipeDaRunway(c.runwayChave, avatar.id, fala.pcm);
+  for (let n = 0; n < consultas; n++) {
+    const { falha, url } = await statusDaRunway(c.runwayChave, id);
+    if (falha) throw new Error(`a Runway não gerou o clipe: ${falha}`);
+    if (url) return { status: "READY", video: url };
+    await new Promise((res) => setTimeout(res, esperaMs));
+  }
+  return { status: "READY", pedido: id };
+}
+
 /**
- * Pede ao HeyGen os clipes da capa e da chamada. Guarda em cada tela `avatar: { id }`. Se um pedido
- * falhar, aquela tela só fica sem clipe. Retorna o conteúdo.
+ * Pede os clipes ao HeyGen. Guarda em cada tela `avatar: { id }`. Se um pedido falhar e houver
+ * chave da Runway, ela faz todos os clipes no lugar. Retorna o conteúdo.
  */
-export async function pedirClipes(conteudo, { formato } = {}) {
+export async function pedirClipes(conteudo, { formato, narrar = narrarCenas, esperaMs = 5_000 } = {}) {
   if (formato !== "reels" || !conteudo.comFelipe) return conteudo;
   const c = await lerConfigAvatar();
-  if (!c.ativo || !c.chave || !c.avatarId) return conteudo;
+  if (!c.ativo) return conteudo;
+  const comHeygen = c.chave && c.avatarId ? await pedirClipesDoHeygen(conteudo, c) : null;
+  if (!c.runwayChave) return comHeygen ?? conteudo;
+  if (comHeygen && !(await heygenFalhou(comHeygen, c, esperaMs))) return comHeygen;
+  try {
+    const comRunway = await pedirClipesDaRunway(conteudo, c, narrar);
+    log("⚠️  Avatar: os clipes deste Reels foram pedidos à Runway.");
+    return comRunway;
+  } catch (e) {
+    log(`⚠️  Avatar: a Runway não fez os clipes: ${e.message}`);
+    return comHeygen ?? conteudo;
+  }
+}
+
+/**
+ * Sem crédito, o HeyGen aceita o pedido e só depois marca o clipe como falho.
+ * Por isso, com a Runway de reserva, confere os pedidos antes de confiar neles.
+ */
+async function heygenFalhou(conteudo, c, esperaMs) {
+  const cenas = cenasDoAvatar(conteudo.slides).filter((i) => conteudo.slides[i].fala || conteudo.slides[i].titulo);
+  if (cenas.some((i) => !conteudo.slides[i].avatar?.id)) return true;
+  for (let n = 0; n < 3; n++) {
+    if (n) await new Promise((res) => setTimeout(res, esperaMs));
+    const estados = await Promise.all(cenas.map((i) => statusDoHeygen(c.chave, conteudo.slides[i].avatar.id).catch((e) => ({ falha: e.message }))));
+    const falha = estados.find((e) => e.falha)?.falha;
+    if (falha) {
+      log(`⚠️  Avatar: o HeyGen não vai fazer os clipes: ${falha}`);
+      return true;
+    }
+  }
+  return false;
+}
+
+async function pedirClipesDoHeygen(conteudo, c) {
   const slides = conteudo.slides.map((s) => ({ ...s }));
   const cor = FUNDOS.find((f) => f.nome === conteudo.fundo)?.clipe;
   await Promise.all(cenasDoAvatar(slides).map(async (i) => {
@@ -116,12 +256,24 @@ export function duracaoDoClipe(arquivo) {
 
 const AINDA_NAO_FICOU_PRONTO = "o clipe ainda não ficou pronto";
 
-async function baixarClipe(chave, id, destino, { esperaMs, tentativas }) {
+async function statusDoHeygen(chave, id) {
+  const d = await chamar(chave, "GET", `/v3/videos/${encodeURIComponent(id)}`);
+  if (d.status === "failed") return { falha: d.failure_message || d.failure_code || "o HeyGen não conseguiu gerar o clipe" };
+  return { url: d.status === "completed" ? d.video_url : null };
+}
+
+async function statusDaRunway(chave, id) {
+  const d = await chamarRunway(chave, "GET", `/v1/tasks/${encodeURIComponent(id)}`);
+  if (d.status === "FAILED" || d.status === "CANCELLED") return { falha: d.failure || d.failureCode || "a Runway não conseguiu gerar o clipe" };
+  return { url: d.status === "SUCCEEDED" ? d.output?.[0] : null };
+}
+
+async function baixarClipe(status, chave, id, destino, { esperaMs, tentativas }) {
   for (let n = 0; ; n++) {
-    const d = await chamar(chave, "GET", `/v3/videos/${encodeURIComponent(id)}`);
-    if (d.status === "failed") throw new Error(d.failure_message || d.failure_code || "o HeyGen não conseguiu gerar o clipe");
-    if (d.status === "completed" && d.video_url) {
-      const r = await fetch(d.video_url, { signal: AbortSignal.timeout(60_000) });
+    const { falha, url } = await status(chave, id);
+    if (falha) throw new Error(falha);
+    if (url) {
+      const r = await fetch(url, { signal: AbortSignal.timeout(60_000) });
       if (!r.ok) throw new Error(`o clipe respondeu ${r.status}`);
       await fs.writeFile(destino, Buffer.from(await r.arrayBuffer()));
       return;
@@ -136,15 +288,14 @@ async function baixarClipe(chave, id, destino, { esperaMs, tentativas }) {
  * Clipe que falhar ou ainda não estiver pronto fica de fora; os que ainda estão no HeyGen entram em `pendentes`.
  */
 export async function baixarClipes(post, pasta, { esperaMs = 10_000, tentativas = 6, pendentes = [] } = {}) {
-  const pedidos = (post.conteudo?.slides ?? []).map((s, i) => ({ i, id: s.avatar?.id })).filter((p) => p.id);
+  const pedidos = (post.conteudo?.slides ?? []).map((s, i) => ({ i, id: s.avatar?.id, runway: s.avatar?.servico === "runway" })).filter((p) => p.id);
   if (!pedidos.length) return {};
-  const { chave } = await lerConfigAvatar();
-  if (!chave) return {};
+  const { chave, runwayChave } = await lerConfigAvatar();
   const clipes = {};
-  await Promise.all(pedidos.map(async ({ i, id }) => {
+  await Promise.all(pedidos.filter((p) => (p.runway ? runwayChave : chave)).map(async ({ i, id, runway }) => {
     const arquivo = path.join(pasta, `avatar-${i}.mp4`);
     try {
-      await baixarClipe(chave, id, arquivo, { esperaMs, tentativas });
+      await baixarClipe(runway ? statusDaRunway : statusDoHeygen, runway ? runwayChave : chave, id, arquivo, { esperaMs, tentativas });
       const duracao = await duracaoDoClipe(arquivo);
       if (duracao) clipes[i] = { arquivo, duracao };
     } catch (e) {

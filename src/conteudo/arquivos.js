@@ -144,7 +144,16 @@ export async function videoDoReels(post, empresa, { narrar = narrarCenas, clipes
     // O teto de bitrate garante que cabe no limite, mesmo com foto em movimento (que comprime pior).
     let kbps = Math.min(3200, Math.floor((TAMANHO_MAXIMO * 8) / duracao / 1000) - AUDIO_KBPS - 40);
     for (let tentativa = 0; tentativa < 3; tentativa++) {
-      const video = await gravar(post, empresa, { pasta, duracoes, duracao, kbps, audio, comClipe });
+      const video = await gravar(post, empresa, { pasta, duracoes, duracao, kbps, audio, comClipe }).catch((e) => {
+        if (!comClipe.length) throw e;
+        log(`⚠️  Post ${post.id}: o clipe do avatar não entrou no vídeo (${e.message}). O Reels sai só com a narração.`);
+        return null;
+      });
+      // Um clipe em formato inesperado não pode impedir o post: refaz o vídeo sem o avatar.
+      if (!video) {
+        post.conteudo.slides = (post.conteudo.slides ?? []).map(({ avatar, ...s }) => s);
+        return await videoDoReels(post, empresa, { narrar, clipes: async () => ({}) });
+      }
       if (video.length <= TAMANHO_MAXIMO) return video;
       kbps = Math.floor(kbps * 0.7);
     }
@@ -218,17 +227,21 @@ async function gravar(post, empresa, { pasta, duracoes, duracao, kbps, audio, co
       processo.on("error", falhou);
       processo.on("close", (codigo) => (codigo === 0 ? ok() : falhou(new Error(`ffmpeg: ${erros.trim() || `saiu com ${codigo}`}`))));
     });
+    // Se o ffmpeg morrer no meio (um clipe inválido, por exemplo), para de mandar quadros: o motivo vem em `terminou`.
+    let morreu = false;
+    const fim = terminou.catch(() => (morreu = true));
+    processo.stdin.on("error", () => {});
 
     const c = createCanvas(w, h);
     const ctx = c.getContext("2d");
     const total = Math.ceil(duracao * QUADROS_POR_SEGUNDO);
     const cenasComVideo = new Set(comClipe.map((x) => x.i));
-    for (let i = 0; i <= total; i++) {
+    for (let i = 0; i <= total && !morreu; i++) {
       // O primeiro quadro é a capa: é ele que aparece onde não dá para escolher a capa do vídeo.
       if (i === 0) desenharCapaReels(ctx, post, empresa, { duracoes, cenasComVideo });
       else desenharQuadroReels(ctx, post, Math.min(i / QUADROS_POR_SEGUNDO, duracao), empresa, { duracoes, cenasComVideo });
       // Respeita o ritmo do ffmpeg: sem isso os quadros se acumulam na memória.
-      if (!processo.stdin.write(c.data())) await new Promise((r) => processo.stdin.once("drain", r));
+      if (!processo.stdin.write(c.data())) await Promise.race([new Promise((r) => processo.stdin.once("drain", r)), fim]);
     }
     processo.stdin.end();
     await terminou;

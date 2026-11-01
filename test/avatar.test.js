@@ -136,6 +136,122 @@ test("avatar: clipe que falhou ou não ficou pronto fica de fora", async () => {
   await fs.rm(pasta, { recursive: true, force: true });
 });
 
+/** Runway de mentira junto do HeyGen: guarda os pedidos e responde conforme o caminho. */
+function servicosFalsos({ heygen = "failed", heygenAceita = true, runwayRecusa = false, avatarStatus = "READY", tarefa = "SUCCEEDED" } = {}) {
+  const pedidos = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url, op = {}) => {
+    const u = String(url);
+    if (u.startsWith("https://clipes/")) return new Response(Buffer.from("x"));
+    pedidos.push({ u, metodo: op.method ?? "GET", auth: op.headers?.Authorization, versao: op.headers?.["X-Runway-Version"], corpo: op.body ? JSON.parse(op.body) : null });
+    if (u.startsWith("https://api.dev.runwayml.com")) {
+      if (runwayRecusa) return Response.json({ error: "sem crédito" }, { status: 400 });
+      if (u.endsWith("/v1/avatars")) return Response.json({ id: "rw-avatar", status: avatarStatus });
+      if (u.includes("/v1/avatars/")) return Response.json({ id: "rw-avatar", status: avatarStatus });
+      if (u.endsWith("/v1/avatar_videos")) return Response.json({ id: `tarefa${pedidos.length}` });
+      if (u.includes("/v1/tasks/")) return Response.json({ status: tarefa, output: ["https://clipes/r.mp4"], failure: "moderação" });
+    }
+    if (u.includes("/v3/avatars/looks/")) return Response.json({ data: { preview_image_url: "https://heygen/rosto.jpg" } });
+    if (u.endsWith("/v3/videos")) return heygenAceita ? Response.json({ data: { video_id: "h1" } }) : Response.json({ error: { message: "sem saldo" } }, { status: 402 });
+    if (u.includes("/v3/videos/")) return Response.json({ data: { status: heygen, failure_message: "Insufficient credit", video_url: "https://clipes/h.mp4" } });
+    return new Response("{}", { status: 404 });
+  };
+  return { pedidos, runway: () => pedidos.filter((p) => p.u.includes("runwayml")), restaurar: () => (globalThis.fetch = original) };
+}
+const voz = async (p) => p.conteudo.slides.map((s) => (s.fala ? { pcm: Buffer.alloc(4800), duracao: 0.1 } : null));
+
+test("avatar: HeyGen sem crédito, a Runway faz os clipes com a voz da narração", async () => {
+  await avatar.salvarConfigAvatar({ ativo: true, chave: "chave-certa", avatarId: "look1", runwayChave: "rw-chave" });
+  const f = servicosFalsos();
+  try {
+    const c = await avatar.pedirClipes(conteudo, { formato: "reels", narrar: voz, esperaMs: 1 });
+    assert.ok(c.slides.every((s) => s.avatar?.servico === "runway" && s.avatar.id));
+    const criar = f.runway().find((p) => p.u.endsWith("/v1/avatars"));
+    assert.equal(criar.corpo.referenceImage, "https://heygen/rosto.jpg");
+    assert.equal(criar.auth, "Bearer rw-chave");
+    assert.equal(criar.versao, "2024-11-06");
+    const videos = f.runway().filter((p) => p.u.endsWith("/v1/avatar_videos"));
+    assert.equal(videos.length, 3);
+    assert.ok(videos.every((p) => p.corpo.model === "gwm1_avatars" && p.corpo.avatar.avatarId === "rw-avatar" && p.corpo.speech.type === "audio" && p.corpo.speech.audio.startsWith("data:audio/wav;base64,")));
+    assert.equal((await avatar.lerConfigAvatar()).runwayAvatarId, "rw-avatar");
+    // Na hora do vídeo, os clipes vêm da Runway.
+    const pasta = await fs.mkdtemp(path.join(os.tmpdir(), "runway-"));
+    const clipes = await avatar.baixarClipes({ conteudo: c }, pasta, { esperaMs: 1, tentativas: 1 });
+    assert.equal(Object.keys(clipes).length, 0); // o arquivo de mentira não tem duração, mas o caminho foi este:
+    assert.ok(f.pedidos.some((p) => p.u.includes("/v1/tasks/tarefa")));
+    await fs.rm(pasta, { recursive: true, force: true });
+  } finally {
+    f.restaurar();
+  }
+});
+
+test("avatar: HeyGen funcionando, a Runway nem é chamada", async () => {
+  await avatar.salvarConfigAvatar({ ativo: true, chave: "chave-certa", avatarId: "look1", runwayChave: "rw-chave" });
+  const f = servicosFalsos({ heygen: "processing" });
+  try {
+    const c = await avatar.pedirClipes(conteudo, { formato: "reels", narrar: voz, esperaMs: 1 });
+    assert.ok(c.slides.every((s) => s.avatar?.id === "h1" && !s.avatar.servico));
+    assert.equal(f.runway().length, 0);
+  } finally {
+    f.restaurar();
+  }
+});
+
+test("avatar: se a Runway também falhar, o post continua", async () => {
+  await avatar.salvarConfigAvatar({ ativo: true, chave: "chave-certa", avatarId: "look1", runwayChave: "rw-chave" });
+  const recusou = servicosFalsos({ heygenAceita: false, runwayRecusa: true });
+  try {
+    const c = await avatar.pedirClipes(conteudo, { formato: "reels", narrar: voz, esperaMs: 1 });
+    assert.ok(c.slides.every((s) => !s.avatar));
+  } finally {
+    recusou.restaurar();
+  }
+  const criando = servicosFalsos({ heygenAceita: false, avatarStatus: "PROCESSING" });
+  try {
+    const c = await avatar.pedirClipes(conteudo, { formato: "reels", narrar: voz, esperaMs: 1 });
+    assert.ok(c.slides.every((s) => !s.avatar)); // avatar ainda em criação não trava o post
+  } finally {
+    criando.restaurar();
+  }
+});
+
+test("avatar: o teste da Runway devolve o clipe, e a chave não aparece no que vai para o painel", async () => {
+  await avatar.salvarConfigAvatar({ ativo: true, runwayChave: "rw-chave" });
+  const f = servicosFalsos();
+  try {
+    assert.deepEqual(await avatar.testarRunway({ narrar: voz, esperaMs: 1 }), { status: "READY", video: "https://clipes/r.mp4" });
+  } finally {
+    f.restaurar();
+  }
+  const falhou = servicosFalsos({ tarefa: "FAILED" });
+  try {
+    await assert.rejects(avatar.testarRunway({ narrar: voz, esperaMs: 1 }), /moderação/);
+  } finally {
+    falhou.restaurar();
+  }
+  // Chave nova pode ser de outra conta: o avatar salvo não vale mais.
+  await avatar.salvarConfigAvatar({ runwayChave: "outra" });
+  assert.equal((await avatar.lerConfigAvatar()).runwayAvatarId, "");
+  await avatar.salvarConfigAvatar({ runwayChave: "rw-chave" });
+});
+
+test("avatar: clipe que quebra a montagem não impede o vídeo", async () => {
+  const pasta = await fs.mkdtemp(path.join(os.tmpdir(), "clipe-ruim-"));
+  try {
+    const arquivo = path.join(pasta, "ruim.mp4");
+    await fs.writeFile(arquivo, "não é vídeo");
+    const post = { id: 7, formato: "reels", conteudo: { ...conteudo, slides: conteudo.slides.map((s) => ({ ...s, avatar: { id: "a" } })) } };
+    const video = await videoDoReels(post, "FluxDeck", {
+      clipes: async () => ({ 0: { arquivo, duracao: 1 }, 1: { arquivo, duracao: 1 }, 2: { arquivo, duracao: 1 } }),
+      narrar: async (p) => p.conteudo.slides.map((s) => (s.fala ? { pcm: Buffer.alloc(24000), duracao: 0.5 } : null)),
+    });
+    assert.ok(video.length > 1000);
+    assert.ok(post.conteudo.slides.every((s) => !s.avatar));
+  } finally {
+    await fs.rm(pasta, { recursive: true, force: true });
+  }
+});
+
 test("avatar: sem crédito no HeyGen o vídeo sai com a narração, sem avisar de avatar", async () => {
   const comPedidos = () => ({ id: 6, formato: "reels", conteudo: { ...conteudo, slides: conteudo.slides.map((s) => ({ ...s, avatar: { id: "a" } })) } });
   const narrar = async (p) => p.conteudo.slides.map((s) => (s.fala ? { pcm: Buffer.alloc(24000), duracao: 0.5 } : null));
