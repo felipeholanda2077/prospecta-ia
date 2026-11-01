@@ -11,7 +11,7 @@ process.env.TZ = "America/Sao_Paulo";
 delete process.env.HEYGEN_API_KEY;
 const db = await import("../src/db.js");
 const avatar = await import("../src/conteudo/avatar.js");
-const { videoDoReels, montarFiltro } = await import("../src/conteudo/arquivos.js");
+const { videoDoReels, montarFiltro, exigirNarracao } = await import("../src/conteudo/arquivos.js");
 const { legendaDoPost } = await import("../src/conteudo/instagram.js");
 await db.iniciar();
 
@@ -137,10 +137,10 @@ test("avatar: clipe que falhou ou não ficou pronto fica de fora", async () => {
 });
 
 test("avatar: o filtro do vídeo coloca o clipe por baixo e abaixa a música quando ele fala", () => {
-  const f = montarFiltro({ w: 1080, h: 1920, duracao: 10, comClipe: [{ inicio: 0, fim: 3 }, { inicio: 7, fim: 10 }], temVoz: false });
+  const f = montarFiltro({ w: 1080, h: 1920, duracao: 10, comClipe: [{ inicio: 0, fim: 3, janela: { x: 620, y: 130, w: 400, h: 500, dx: 520, dy: 0 } }, { inicio: 7, fim: 10, janela: { x: 60, y: 130, w: 400, h: 500, dx: -520, dy: 0 } }], temVoz: false });
   assert.equal(f.imagem, "[v]");
-  assert.match(f.filtro, /\[2:v\]scale=640:1138/); // menor, dentro da janela
-  assert.match(f.filtro, /overlay=x=220:y=190/);
+  assert.match(f.filtro, /\[2:v\]scale=400:712/); // menor, dentro da janela
+  assert.match(f.filtro, /overlay=x='\d+\+-?\d+\*pow/);
   assert.match(f.filtro, /\[3:a\].*adelay=7000\|7000/);
   assert.match(f.filtro, /sidechaincompress/);
   const semClipe = montarFiltro({ w: 1080, h: 1920, duracao: 10, comClipe: [], temVoz: false });
@@ -162,7 +162,10 @@ test("avatar: o vídeo sai de verdade com os clipes na capa e na chamada", async
     let narrou = null;
     const video = await videoDoReels({ id: 5, formato: "reels", conteudo }, "FluxDeck", {
       clipes: async () => clipes,
-      narrar: async (p) => ((narrou = p), null),
+      narrar: async (p) => {
+        narrou = p;
+        return p.conteudo.slides.map((s) => (s.fala ? { pcm: Buffer.alloc(24000), duracao: 0.5 } : null));
+      },
     });
     assert.ok(video.length > 1000);
     // Nas telas com clipe, a voz sintética não narra.
@@ -178,4 +181,18 @@ test("avatar: o vídeo sai de verdade com os clipes na capa e na chamada", async
   } finally {
     await fs.rm(pasta, { recursive: true, force: true });
   }
+});
+
+test("narração: vídeo nunca sai sem voz, nem se só uma fala ficar de fora", () => {
+  const telas = [{ fala: "Um" }, { fala: "" }, { fala: "Dois" }];
+  const voz = { pcm: Buffer.alloc(2), duracao: 1 };
+  const clipe = { arquivo: "a.mp4", duracao: 1 };
+  assert.doesNotThrow(() => exigirNarracao(telas, {}, [voz, null, voz]));
+  assert.doesNotThrow(() => exigirNarracao(telas, { 0: clipe, 2: clipe }, null)); // o avatar fala tudo
+  assert.doesNotThrow(() => exigirNarracao(telas, { 0: clipe }, [null, null, voz]));
+  assert.throws(() => exigirNarracao(telas, {}, null), /sem narração/); // sem serviço de voz
+  assert.throws(() => exigirNarracao(telas, {}, [voz, null, null]), /sem narração/); // faltou uma fala
+  assert.throws(() => exigirNarracao(telas, { 0: clipe }, null), /sem narração/); // o clipe de uma cena falhou
+  assert.throws(() => exigirNarracao([{ fala: "" }], {}, [null]), /sem narração/); // roteiro sem nenhuma fala
+  assert.throws(() => exigirNarracao(telas, {}, null, "Gemini recusou"), /Gemini recusou/);
 });

@@ -5,6 +5,10 @@
 // Cada tela tem um tipo visual (capa, impacto, lista, contraste, pergunta, texto, cta) com desenho e
 // animação próprios. No carrossel a tela é o último quadro da animação, já parada.
 
+import { desenharReels, ASSINATURA } from "./post-reels.js";
+
+export { janelaDaCena, ENTRADA_DA_JANELA, ASSINATURA } from "./post-reels.js";
+
 // No navegador o canvas vem do documento; o servidor troca por um canvas do Node.
 let novoCanvas = (w, h) => Object.assign(document.createElement("canvas"), { width: w, height: h });
 export function usarCanvas(criar) {
@@ -189,36 +193,6 @@ function fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo }) {
 
 // ---------- Elementos visuais ----------
 // Pequenas ilustrações animadas: o celular com a conversa, o site carregando, o gráfico subindo...
-
-/** O fundo da cena com o Felipe: degradê suave, com a direção, a luz e o traço mudando de uma cena para outra. */
-function fundoProfissional(ctx, { w, h, t, f, i }) {
-  const variacao = i % 4;
-  const [x0, y0, x1, y1] = [[0, 0, w, h], [w, 0, 0, h], [0, h, w, 0], [w / 2, 0, w / 2, h]][variacao];
-  const g = ctx.createLinearGradient(x0, y0, x1, y1);
-  g.addColorStop(0, f.de);
-  g.addColorStop(1, f.para);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, h);
-  const deriva = Math.sin(t * 0.35 + i) * 50;
-  const [lx, ly] = [[w * 0.82, h * 0.2], [w * 0.16, h * 0.34], [w * 0.5, h * 0.74], [w * 0.88, h * 0.62]][variacao];
-  const luz = ctx.createRadialGradient(lx + deriva, ly, 0, lx + deriva, ly, w * 0.8);
-  luz.addColorStop(0, f.luz);
-  luz.addColorStop(1, "rgba(0,0,0,0)");
-  ctx.fillStyle = luz;
-  ctx.fillRect(0, 0, w, h);
-  // Um traço fino, discreto, em lugar diferente a cada cena.
-  ctx.save();
-  ctx.strokeStyle = f.a;
-  ctx.globalAlpha = 0.16;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  if (variacao === 0) ctx.arc(w, h * 0.62, w * 0.5, 0, Math.PI * 2);
-  else if (variacao === 1) ctx.arc(0, h * 0.72, w * 0.46, 0, Math.PI * 2);
-  else if (variacao === 2) { ctx.moveTo(0, h * 0.58); ctx.lineTo(w, h * 0.5); ctx.moveTo(0, h * 0.6); ctx.lineTo(w, h * 0.52); }
-  else ctx.arc(w * 0.5, h * 1.02, w * 0.62, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-}
 
 function caixa(ctx, x, y, w, h, r, cor) {
   ctx.fillStyle = cor;
@@ -522,16 +496,13 @@ function alturaDoParagrafo(ctx, texto, largura, tamanho) {
  * Título palavra por palavra: cada uma entra com um "pulo" (ou batendo, no estilo "impacto"), e as
  * palavras do destaque ganham um marcador colorido por trás. `local` é o tempo da cena em segundos.
  */
-// Nas cenas com o Felipe: sem marcador nem salto, a palavra em destaque só muda de cor e as palavras entram suaves.
-let sobrio = false;
-
 function tituloAnimado(ctx, { texto, destaque, x, y, largura, alturaMax, maior, menor, local = 99, tema, centro = false, estilo = "pulo", atraso = 0.1, passo = 0.07 }) {
   const { tamanho, linhas } = medirTitulo(ctx, { texto, largura, alturaMax, maior, menor });
   const realce = new Set(String(destaque ?? "").split(/\s+/).map(semAcento).filter(Boolean));
   const alturaLinha = tamanho * 1.16;
   const espaco = ctx.measureText(" ").width;
   // O marcador passa um pouco da palavra: as marcadas ganham esse espaço dos dois lados.
-  const pad = sobrio ? 0 : tamanho * 0.1;
+  const pad = tamanho * 0.1;
   const folga = (palavra) => (realce.has(semAcento(palavra)) ? pad : 0);
   ctx.textBaseline = "middle";
   ctx.textAlign = "left";
@@ -548,13 +519,12 @@ function tituloAnimado(ctx, { texto, destaque, x, y, largura, alturaMax, maior, 
       k++;
       if (p > 0) {
         const marcada = realce.has(semAcento(palavra));
-        const escala = sobrio ? 1 : estilo === "batida" ? 1 + 1.2 * (1 - suave(p)) : 0.55 + 0.45 * elastico(p);
+        const escala = estilo === "batida" ? 1 + 1.2 * (1 - suave(p)) : 0.55 + 0.45 * elastico(p);
         ctx.save();
         ctx.globalAlpha *= lim(p * 3);
-        ctx.translate(xx + larg / 2, cy + (sobrio ? (1 - suave(p)) * 10 : estilo === "batida" ? 0 : (1 - suave(p)) * 26));
+        ctx.translate(xx + larg / 2, cy + (estilo === "batida" ? 0 : (1 - suave(p)) * 26));
         ctx.scale(escala, escala);
-        if (marcada && sobrio) ctx.fillStyle = tema.a;
-        else if (marcada) {
+        if (marcada) {
           // O marcador corre da esquerda para a direita, logo depois da palavra entrar.
           const m = suave((local - atraso - k * passo - 0.12) / 0.3);
           ctx.fillStyle = degrade(ctx, -larg / 2, 0, larg / 2, 0, tema);
@@ -646,31 +616,6 @@ function rotulosDoContraste(estrutura) {
 
 function blocoCentralizado(area, altura) {
   return Math.max(area.topo, area.topo + (area.base - area.topo - altura) / 2);
-}
-
-/** A cena com o clipe do Felipe: só o título embaixo dele, em tamanho único. Quem explica o resto é a fala. */
-function cenaComApresentador(ctx, c) {
-  if (c.tela.visual === "contraste" && c.tela.texto) return CENAS.contraste(ctx, c);
-  if (c.tela.visual === "cta") return CENAS.cta(ctx, c);
-  const opcoes = { largura: c.area.largura, alturaMax: 380, maior: 84, menor: 54 };
-  const rotulo = c.tela.visual === "lista" ? `${c.numero}` : "";
-  const t = medirTitulo(ctx, { texto: c.tela.titulo, ...opcoes });
-  const y = blocoCentralizado(c.area, t.altura + (rotulo ? 92 : 0));
-  if (rotulo) {
-    ctx.save();
-    ctx.globalAlpha *= suave(c.local / 0.3);
-    ctx.fillStyle = c.tema.a;
-    ctx.beginPath();
-    ctx.arc(c.w / 2, y + 30, 32, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = c.tema.base;
-    ctx.font = "800 38px Inter";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(rotulo, c.w / 2, y + 31);
-    ctx.restore();
-  }
-  tituloAnimado(ctx, { texto: c.tela.titulo, destaque: c.tela.destaque, x: c.area.x, y: y + (rotulo ? 92 : 0), ...opcoes, local: c.local, tema: c.tema, centro: true, atraso: 0.08, passo: 0.04 });
 }
 
 const CENAS = {
@@ -774,10 +719,9 @@ const CENAS = {
     const reels = c.modo === "reels";
     const opcoes = { largura: c.area.largura, alturaMax: reels ? 480 : 380, maior: reels ? 104 : 88, menor: 56 };
     const t = medirTitulo(ctx, { texto: c.tela.titulo, ...opcoes });
-    // Sobre o clipe do avatar, só o título e o botão: o rosto dele ocupa o resto da tela.
-    const tamLogo = c.comVideo ? 0 : reels ? 150 : 120;
-    const respiro = c.comVideo ? 0 : 60;
-    const complemento = c.comVideo ? "" : c.tela.texto;
+    const tamLogo = reels ? 150 : 120;
+    const respiro = 60;
+    const complemento = c.tela.texto;
     const altura = tamLogo + respiro + t.altura + (complemento ? 40 + alturaDoParagrafo(ctx, complemento, c.area.largura, 46) : 0) + 170;
     const y = blocoCentralizado(c.area, altura);
     const p = elastico(c.local / 0.5);
@@ -858,21 +802,19 @@ function cartao(ctx, { x, y, w, h, alpha, cor, rotulo, icone, texto, tamanho, pa
 }
 
 /** Desenha a cena `i` (sem o fundo), com `local` segundos desde o começo dela. */
-function desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo, estrutura, topoLivre = null, comVideo = false, semPilula = false, baseMax = null }) {
+function desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo, estrutura, topoLivre = null, semPilula = false, baseMax = null }) {
   const tela = telas[i];
   const reels = modo === "reels";
   const area = reels ? { x: 80, topo: 300, base: 1440, largura: w - 160 } : { x: 80, topo: 210, base: h - 140, largura: w - 160 };
   if (topoLivre) area.topo = Math.max(area.topo, topoLivre);
-  if (comVideo) area.base = BASE_COM_APRESENTADOR;
   if (baseMax) area.base = Math.min(area.base, baseMax);
   // O elemento visual só entra na tela que não tem foto ocupando o espaço, e abre lugar embaixo no carrossel.
   const comElemento = tela.elemento && !topoLivre;
   if (comElemento && !reels) area.base -= 300;
   limiteAltura = topoLivre || comElemento ? (area.base - area.topo) * 0.74 : Infinity;
   const numero = telas.slice(0, i + 1).filter((t) => t.visual === "lista").length;
-  const contexto = { w, h, tela, i, local, dur, tema, modo, estrutura, area, numero, semPilula, comVideo };
-  if (comVideo) cenaComApresentador(ctx, contexto);
-  else (CENAS[tela.visual] ?? CENAS.texto)(ctx, contexto);
+  const contexto = { w, h, tela, i, local, dur, tema, modo, estrutura, area, numero, semPilula };
+  (CENAS[tela.visual] ?? CENAS.texto)(ctx, contexto);
   limiteAltura = Infinity;
   if (comElemento) reels ? desenharElemento(ctx, tela.elemento, w * 0.6, 1600, 0.74, local, tema) : desenharElemento(ctx, tela.elemento, w / 2, h - 275, 0.78, local, tema);
 }
@@ -925,129 +867,22 @@ export function duracoesDasCenas(post) {
 }
 
 export const DURACAO_CENA = (i, total, post) => duracoesDasCenas(post)[i];
-export const duracaoReels = (post, duracoes = duracoesDasCenas(post)) => duracoes.reduce((s, d) => s + d, 0);
+export const duracaoReels = (post, duracoes = duracoesDasCenas(post)) => duracoes.reduce((s, d) => s + d, 0) + ASSINATURA;
 
-// Onde o avatar aparece no vídeo: um quadro no alto, com o texto sempre embaixo dele.
-export const JANELA_DO_AVATAR = { x: 220, y: 190, w: 640, h: 800 };
-// Abaixo da janela, nunca sobre o rosto. A área de baixo fica livre porque o Instagram cobre com a legenda.
-const NOME_DO_APRESENTADOR = "Felipe Holanda";
-const ESPACO_DO_NOME = 96;
-const BASE_COM_APRESENTADOR = 1590;
-
-/**
- * Um quadro do Reels (1080x1920) no instante `t` (segundos). `duracoes` vem da narração, quando
- * há voz (cada cena dura o tempo da fala); sem ela, sai pela quantidade de texto.
- */
+/** Um quadro do Reels (1080x1920) no instante `t`. O desenho das cenas fica em post-reels.js. */
 export function desenharQuadroReels(ctx, post, t, empresa = "FluxDeck", { duracoes = duracoesDasCenas(post), cenasComVideo = null, capa = false } = {}) {
   const [w, h] = TAMANHOS_POST.reels;
-  const telas = telasDoPost(post);
-  const { arte, tema: temaDaArte, tinta: cor } = aparencia(post);
-  tinta = cor;
-  let tema = temaDaArte;
-  let inicio = 0;
-  let i = 0;
-  while (i < telas.length - 1 && t >= inicio + duracoes[i]) inicio += duracoes[i++];
-  // Na capa, a cena já está pronta: todas as palavras entraram e nada começou a sair (como no carrossel).
-  const dur = capa ? Infinity : duracoes[i];
-  const local = capa ? 99 : t - inicio;
-  const ultima = i === telas.length - 1;
-  const visual = telas[i].visual;
-
-  // Na cena com o clipe do avatar, o fundo tem uma janela transparente: o vídeo vai por baixo e
-  // aparece só nela, em tamanho menor, e o texto fica todo abaixo da janela.
-  const comVideo = Boolean(cenasComVideo?.has(i));
-  if (comVideo) {
-    const j = JANELA_DO_AVATAR;
-    const f = fundoDoPost(post);
-    tema = { nome: f.nome, a: f.a, b: f.b, base: f.claro ? "#ffffff" : f.de };
-    tinta = f.claro ? TINTA_ESCURA : TINTA_CLARA;
-    fundoProfissional(ctx, { w, h, t, f, i });
-    // A sombra dá profundidade ao quadro; o miolo é apagado depois, para o vídeo aparecer por baixo.
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,.38)";
-    ctx.shadowBlur = 50;
-    ctx.shadowOffsetY = 22;
-    ctx.fillStyle = f.clipe;
-    ctx.beginPath();
-    ctx.roundRect(j.x, j.y, j.w, j.h, 28);
-    ctx.fill();
-    ctx.restore();
-    ctx.save();
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.fillStyle = "#000"; // opaco, para apagar por inteiro
-    ctx.beginPath();
-    ctx.roundRect(j.x, j.y, j.w, j.h, 28);
-    ctx.fill();
-    ctx.restore();
-    ctx.strokeStyle = f.claro ? "rgba(0,0,0,.14)" : "rgba(255,255,255,.22)";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(j.x, j.y, j.w, j.h, 28);
-    ctx.stroke();
-    // O nome, abaixo do quadro.
-    ctx.save();
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    const yNome = j.y + j.h + 44;
-    ctx.font = "700 34px Inter";
-    const nome = NOME_DO_APRESENTADOR;
-    const resto = `  ·  Fundador da ${empresa}`;
-    const larguraNome = ctx.measureText(nome).width;
-    ctx.font = "500 30px Inter";
-    const larguraResto = ctx.measureText(resto).width;
-    const xNome = w / 2 - (larguraNome + larguraResto) / 2;
-    ctx.textAlign = "left";
-    ctx.font = "700 34px Inter";
-    ctx.fillStyle = tinta.forte;
-    ctx.fillText(nome, xNome, yNome);
-    ctx.font = "500 30px Inter";
-    ctx.fillStyle = tinta.suave;
-    ctx.fillText(resto, xNome + larguraNome, yNome);
-    ctx.restore();
-  }
-  const topoLivre = comVideo ? JANELA_DO_AVATAR.y + JANELA_DO_AVATAR.h + ESPACO_DO_NOME : fundoDaArte(ctx, { w, h, t, local, arte, tema, telas, i, modo: "reels" });
-
-  // Entrada e saída de cada cena: chega com zoom e sai encolhendo (a última fica).
-  const entra = suave(local / 0.22);
-  const sai = ultima ? 0 : suave((local - (dur - 0.18)) / 0.18);
-  const forte = visual === "capa" || visual === "impacto";
-  // Tremida curta nas cenas de impacto, logo que entram.
-  const tremida = forte && !comVideo ? Math.max(0, 1 - local / 0.4) * 14 : 0;
-  const dx = (sorteio(Math.floor(local * 60) + i * 100) - 0.5) * tremida;
-  const dy = (sorteio(Math.floor(local * 60) + i * 100 + 50) - 0.5) * tremida;
-  const escala = comVideo ? 1 : (1 + (forte ? 0.14 : 0.06) * (1 - entra)) * (1 - 0.06 * sai);
-  ctx.save();
-  ctx.globalAlpha = (comVideo ? 1 : lim(entra * 1.5)) * (1 - sai);
-  ctx.translate(w / 2 + dx, h * 0.45 + dy);
-  ctx.scale(escala, escala);
-  ctx.translate(-w / 2, -h * 0.45);
-  sobrio = comVideo;
-  desenharCena(ctx, { w, h, telas, i, local, dur, tema, modo: "reels", estrutura: post.conteudo.estrutura, topoLivre, comVideo, baseMax: capa && !comVideo && !post.conteudo.capaSemFelipe ? 1390 : null });
-  sobrio = false;
-  ctx.restore();
+  ctx.setTransform?.(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
-  // Na capa ele fica um pouco acima do normal: a grade do perfil corta a parte de baixo da imagem.
-  if (capa) {
-    if (!comVideo && !post.conteudo.capaSemFelipe) felipeNoVideo(ctx, { w, local, tela: telas[i], tema, cy: 1530, raio: 104 });
-  } else if (post.conteudo.comFelipe && !comVideo) felipeNoVideo(ctx, { w, local, tela: telas[i], tema });
-
-  // Clarão na troca para as cenas fortes.
-  if (forte && !comVideo && local < 0.25) {
-    ctx.fillStyle = `rgba(255,255,255,${0.45 * (1 - local / 0.25)})`;
-    ctx.fillRect(0, 0, w, h);
-  }
-
-  // Barras de progresso, como nos stories, e a marca no topo.
-  const larg = (w - 120 - (telas.length - 1) * 12) / telas.length;
-  if (!capa) telas.forEach((_, j) => {
-    const x = 60 + j * (larg + 12);
-    ctx.fillStyle = tinta.fraca;
-    ctx.fillRect(x, 70, larg, 8);
-    ctx.fillStyle = tinta.forte;
-    ctx.fillRect(x, 70, larg * (j < i ? 1 : j > i ? 0 : lim(local / dur)), 8);
+  desenharReels(ctx, {
+    w, h, t, post, duracoes, cenasComVideo, capa, empresa,
+    telas: telasDoPost(post),
+    rotulos: rotulosDoContraste(post.conteudo.estrutura),
+    foto: (chave) => fotos.get(chave) ?? null,
+    logo,
+    novoCanvas: (a, b) => novoCanvas(a, b),
+    felipe: (c, { local, tela }) => felipeNoVideo(c, { w, local, tela, tema: { a: "#00d4ff" }, cy: 1530, raio: 104 }),
   });
-  marcaNoTopo(ctx, 60, 120, empresa);
-  tinta = TINTA_CLARA;
 }
 
 /** A capa do Reels: a primeira cena pronta, com o gancho inteiro, sem as barras de progresso. */

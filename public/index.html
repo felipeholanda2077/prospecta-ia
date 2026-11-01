@@ -7,7 +7,7 @@
 <title>FluxDeck · Prospecção com IA</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:wght@400;600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/jpeg" href="/fluxdeck-logo.jpg">
 <link rel="apple-touch-icon" href="/fluxdeck-logo.jpg">
 <style>
@@ -4140,7 +4140,7 @@ $("#insights-atualizar").addEventListener("click", async (ev) => {
 let previasReels = [];
 let quadroPrevias = null;
 
-const fontesProntas = () => Promise.all(["900 90px Inter", "800 90px Inter", "600 44px Inter", "500 44px Inter"].map((f) => document.fonts.load(f))).catch(() => {});
+const fontesProntas = () => Promise.all(["900 90px Inter", "800 90px Inter", "600 44px Inter", "500 44px Inter", '400 90px "Source Serif 4"', '600 90px "Source Serif 4"'].map((f) => document.fonts.load(f))).catch(() => {});
 
 function criarCanvas([w, h]) {
   const c = document.createElement("canvas");
@@ -4305,7 +4305,7 @@ async function carregarConteudo() {
     $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
     $("#conteudo-voz").innerHTML = r.narracao
       ? `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha, efeitos sonoros e <b>voz narrando</b> (${esc(r.narracao)}).</div></div>`
-      : `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha e efeitos sonoros. Para ter também a <b>voz narrando</b>, cole a chave do Gemini aqui embaixo.</div></div>`;
+      : `<div class="alerta info">${ic("video")}<div><b>Sem voz cadastrada:</b> vídeo sem narração não é publicado. Só saem os Reels em que o avatar fala todas as cenas. Para os outros, cole a chave do Gemini aqui embaixo.</div></div>`;
     postsCarregados = r.posts;
     $("#lista-posts").innerHTML = r.posts.length
       ? r.posts.map((p) => cardPost(p, r.hoje)).join("")

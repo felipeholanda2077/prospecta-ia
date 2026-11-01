@@ -8,7 +8,7 @@ import { FUNDOS } from "../../public/post-desenho.js";
 
 // O avatar de IA do Felipe (HeyGen) falando em todas as cenas dos Reels. Os clipes são pedidos
 // quando o post é criado (o HeyGen leva alguns minutos) e baixados na hora de gerar o vídeo. Tudo aqui é
-// opcional: sem configuração, ou se algo falhar, o Reels sai com a foto do Felipe, como sempre.
+// opcional: sem configuração, o Reels sai com a voz da narração. Com avatar, clipe que faltar impede o vídeo.
 const API = "https://api.heygen.com";
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 const TEMPO_MS = 20_000;
@@ -131,7 +131,7 @@ async function baixarClipe(chave, id, destino, { esperaMs, tentativas }) {
 
 /**
  * Baixa os clipes prontos do post para `pasta`. Retorna { índice da tela: { arquivo, duracao } }.
- * Clipe que falhar ou ainda não estiver pronto fica de fora: aquela tela sai com a foto do Felipe.
+ * Clipe que falhar ou ainda não estiver pronto fica de fora, e o vídeo espera a próxima tentativa.
  */
 export async function baixarClipes(post, pasta, { esperaMs = 10_000, tentativas = 6 } = {}) {
   const pedidos = (post.conteudo?.slides ?? []).map((s, i) => ({ i, id: s.avatar?.id })).filter((p) => p.id);

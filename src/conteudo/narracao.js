@@ -1,5 +1,5 @@
 // Voz que narra o Reels, cena por cena, pela OpenAI, pela ElevenLabs ou pelo Gemini (o que tiver a
-// chave cadastrada nas variáveis de ambiente). Sem chave, o Reels sai só com a trilha e os efeitos.
+// chave cadastrada nas variáveis de ambiente). Sem voz nenhuma, o vídeo não é gerado (veja exigirNarracao).
 // Os três devolvem PCM de 16 bits, mono, 24 kHz: dá para medir a duração sem decodificar.
 import { telasDoPost } from "../../public/post-desenho.js";
 import * as db from "../db.js";

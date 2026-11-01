@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { createCanvas, GlobalFonts, loadImage } from "@napi-rs/canvas";
 import ffmpeg from "ffmpeg-static";
 import {
-  usarCanvas, TAMANHOS_POST, telasDoPost, duracoesDasCenas, desenharTelaCarrossel, desenharQuadroReels, desenharCapaReels, carregarFotosDoPost, APRESENTADOR, LOGO, JANELA_DO_AVATAR,
+  usarCanvas, TAMANHOS_POST, telasDoPost, duracoesDasCenas, desenharTelaCarrossel, desenharQuadroReels, desenharCapaReels, carregarFotosDoPost, APRESENTADOR, LOGO, janelaDaCena, ENTRADA_DA_JANELA, ASSINATURA,
 } from "../../public/post-desenho.js";
 import * as db from "../db.js";
 import { gerarTrilha, wav, TAXA } from "./trilha.js";
@@ -14,14 +14,17 @@ import { narrarCenas, faixaDaVoz, TAXA_VOZ } from "./narracao.js";
 import { baixarClipes } from "./avatar.js";
 
 // Os arquivos que vão para o Instagram saem do mesmo desenho das prévias do painel,
-// agora num canvas do Node com a fonte Inter (a mesma que o painel carrega do Google Fonts).
-const FONTES = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "node_modules", "@fontsource", "inter", "files");
+// agora num canvas do Node com as fontes Inter e Source Serif 4 (as mesmas que o painel carrega do Google Fonts).
+const FONTES = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "node_modules", "@fontsource");
 let preparado = false;
 
 function preparar() {
   if (preparado) return;
   for (const peso of [500, 600, 700, 800, 900]) {
-    for (const parte of ["latin", "latin-ext"]) GlobalFonts.registerFromPath(path.join(FONTES, `inter-${parte}-${peso}-normal.woff2`), "Inter");
+    for (const parte of ["latin", "latin-ext"]) GlobalFonts.registerFromPath(path.join(FONTES, "inter", "files", `inter-${parte}-${peso}-normal.woff2`), "Inter");
+  }
+  for (const peso of [400, 600]) {
+    for (const parte of ["latin", "latin-ext"]) GlobalFonts.registerFromPath(path.join(FONTES, "source-serif-4", "files", `source-serif-4-${parte}-${peso}-normal.woff2`), "Source Serif 4");
   }
   usarCanvas((w, h) => createCanvas(w, h));
   preparado = true;
@@ -76,9 +79,18 @@ export function duracoesDoVideo(post, falas) {
   return base.map((d, i) => (falas[i] ? Math.max(MINIMO_COM_VOZ[telas[i].visual] ?? 2, falas[i].duracao + RESPIRO) : d));
 }
 
+/** Vídeo nunca sai sem voz: toda fala do roteiro precisa de um clipe do avatar ou da narração. Lança se faltar. */
+export function exigirNarracao(telas, clipes, falas, motivo = "nenhum serviço de voz respondeu") {
+  const semVoz = telas.filter((t, i) => t.fala && !clipes[i] && !falas?.[i]).length;
+  const algumaFala = Object.keys(clipes).length > 0 || falas?.some(Boolean);
+  if (semVoz || !algumaFala) {
+    throw new Error(`O vídeo não foi gerado porque ficaria sem narração (${motivo}). Confira a chave de voz em Conteúdo > Configurações.`);
+  }
+}
+
 /**
  * O Reels em MP4 (H.264 + AAC): os quadros animados, a trilha sintetizada no clima do post, os
- * efeitos nas trocas de cena e, com o serviço de voz configurado, a narração de cada cena.
+ * efeitos nas trocas de cena e a voz, do avatar ou da narração. Sem voz, lança em vez de gerar.
  */
 export async function videoDoReels(post, empresa, { narrar = narrarCenas, clipes: baixar = baixarClipes } = {}) {
   preparar();
@@ -90,18 +102,24 @@ export async function videoDoReels(post, empresa, { narrar = narrarCenas, clipes
       log(`⚠️  Reels sem o avatar: ${e.message}`);
       return {};
     });
+    // Todo clipe pedido ao HeyGen tem que estar aqui: o avatar fala o vídeo inteiro, sem cena com outra voz nem foto.
+    const faltam = (post.conteudo.slides ?? []).filter((s, i) => s.avatar?.id && !clipes[i]).length;
+    if (faltam) throw new Error(`O vídeo não foi gerado porque o avatar não ficou pronto em ${faltam} cena(s). O sistema tenta de novo na próxima rodada.`);
     const semFalaNoClipe = { ...post, conteudo: { ...post.conteudo, slides: (post.conteudo.slides ?? []).map((s, i) => (clipes[i] ? { ...s, fala: "" } : s)) } };
+    let motivo;
     const falas = await narrar(semFalaNoClipe).catch((e) => {
-      log(`⚠️  Reels sem narração: ${e.message}`);
+      motivo = e.message;
       return null;
     });
+    exigirNarracao(telasDoPost(post), clipes, falas, motivo);
     const duracoes = duracoesDoVideo(post, falas);
     for (const [i, c] of Object.entries(clipes)) duracoes[i] = c.duracao + 0.15;
     const inicios = duracoes.map((_, i) => duracoes.slice(0, i).reduce((a, b) => a + b, 0));
-    const duracao = duracoes.reduce((a, b) => a + b, 0);
+    const duracao = duracoes.reduce((a, b) => a + b, 0) + ASSINATURA;
     const trilha = gerarTrilha({ clima: post.conteudo.trilha, duracao: duracao + 0.2, cortes: inicios, semente: Number(post.id) || 1 });
     const audio = { trilha: wav([trilha.esquerda, trilha.direita], TAXA), voz: falas?.some(Boolean) ? wav([faixaDaVoz(falas, inicios.map((t) => t + 0.12), duracao + 0.2)], TAXA_VOZ) : null };
-    const comClipe = Object.entries(clipes).map(([i, c]) => ({ i: Number(i), arquivo: c.arquivo, inicio: inicios[i], fim: inicios[i] + duracoes[i] }));
+    const telas = telasDoPost(post);
+    const comClipe = Object.entries(clipes).map(([i, c]) => ({ i: Number(i), arquivo: c.arquivo, inicio: inicios[i], fim: inicios[i] + duracoes[i], janela: janelaDaCena(post, Number(i), telas[i].visual) }));
     // O teto de bitrate garante que cabe no limite, mesmo com foto em movimento (que comprime pior).
     let kbps = Math.min(3200, Math.floor((TAMANHO_MAXIMO * 8) / duracao / 1000) - AUDIO_KBPS - 40);
     for (let tentativa = 0; tentativa < 3; tentativa++) {
@@ -119,19 +137,20 @@ export async function videoDoReels(post, empresa, { narrar = narrarCenas, clipes
 export function montarFiltro({ w, h, duracao, comClipe, temVoz }) {
   const QPS = QUADROS_POR_SEGUNDO;
   const partes = [];
-  // O clipe vertical encolhido até a largura da janela, com a cabeça dentro dela.
-  const jan = JANELA_DO_AVATAR;
-  const altClipe = Math.round((jan.w * 16) / 9 / 2) * 2;
   let imagem = "[0:v]";
   // Entradas: 0 quadros, 1 trilha, 2 voz (se houver) e depois os clipes.
   const primeiroClipe = temVoz ? 3 : 2;
   if (comClipe.length) {
     partes.push(`color=c=black:s=${w}x${h}:r=${QPS}:d=${(duracao + 0.5).toFixed(2)}[fundo0]`);
     comClipe.forEach((c, n) => {
+      // O clipe vertical encolhido até a largura do quadro, com a cabeça dentro dele. O quadro desliza quando a cena começa.
+      const jan = c.janela;
+      const altClipe = Math.round((jan.w * 16) / 9 / 2) * 2;
+      const resta = `pow(max(0,1-(t-${c.inicio.toFixed(3)})/${ENTRADA_DA_JANELA}),3)`;
       partes.push(`[${primeiroClipe + n}:v]scale=${jan.w}:${altClipe}:force_original_aspect_ratio=increase,crop=${jan.w}:${altClipe},setsar=1,fps=${QPS},setpts=PTS-STARTPTS+${c.inicio.toFixed(3)}/TB[clipe${n}]`);
-      partes.push(`[fundo${n}][clipe${n}]overlay=x=${jan.x}:y=${jan.y}:eof_action=pass:enable='between(t,${c.inicio.toFixed(3)},${c.fim.toFixed(3)})'[fundo${n + 1}]`);
+      partes.push(`[fundo${n}][clipe${n}]overlay=x='${jan.x}+${jan.dx}*${resta}':y='${jan.y}+${jan.dy}*${resta}':eval=frame:eof_action=pass:enable='between(t,${c.inicio.toFixed(3)},${c.fim.toFixed(3)})'[fundo${n + 1}]`);
     });
-    partes.push(`[fundo${comClipe.length}][0:v]overlay=format=auto:alpha=premultiplied:shortest=1[v]`);
+    partes.push(`[fundo${comClipe.length}][0:v]overlay=format=rgb:alpha=premultiplied:shortest=1[v]`);
     imagem = "[v]";
   }
   // Tudo que é fala entra numa faixa só, e a música abaixa sozinha enquanto alguém fala (e volta nas pausas).
