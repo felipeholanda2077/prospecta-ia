@@ -18,16 +18,19 @@ const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { ti
 const TEMPO_MS = 20_000;
 const CHAVE = "avatar";
 
+// Vozes masculinas prontas da Runway (ElevenLabs) para as mensagens em áudio; a escolhida fica salva no painel.
+export const VOZES_DAS_MENSAGENS = ["Noah", "James", "Mark", "Jack", "Frank", "Martin"];
+
 export async function lerConfigAvatar() {
   const c = (await db.lerConfig(CHAVE)) ?? {};
   return {
     ativo: Boolean(c.ativo), chave: process.env.HEYGEN_API_KEY || c.chave || "", avatarId: c.avatarId ?? "", vozId: c.vozId ?? "",
-    runwayChave: process.env.RUNWAY_API_KEY || c.runwayChave || "", runwayAvatarId: c.runwayAvatarId ?? "",
+    runwayChave: process.env.RUNWAY_API_KEY || c.runwayChave || "", runwayAvatarId: c.runwayAvatarId ?? "", vozDasMensagens: c.vozDasMensagens || VOZES_DAS_MENSAGENS[0],
   };
 }
 
 /** Salva só o que veio; a chave vazia mantém a que já estava salva. */
-export async function salvarConfigAvatar({ ativo, chave, avatarId, vozId, runwayChave } = {}) {
+export async function salvarConfigAvatar({ ativo, chave, avatarId, vozId, runwayChave, vozDasMensagens } = {}) {
   const atual = (await db.lerConfig(CHAVE)) ?? {};
   const limpo = (v) => String(v ?? "").trim();
   await db.gravarConfig(CHAVE, {
@@ -36,6 +39,7 @@ export async function salvarConfigAvatar({ ativo, chave, avatarId, vozId, runway
     ...(limpo(chave) ? { chave: limpo(chave) } : {}),
     ...(avatarId !== undefined ? { avatarId: limpo(avatarId) } : {}),
     ...(vozId !== undefined ? { vozId: limpo(vozId) } : {}),
+    ...(VOZES_DAS_MENSAGENS.includes(vozDasMensagens) ? { vozDasMensagens } : {}),
     // Chave nova pode ser de outra conta da Runway, onde o avatar salvo não existe.
     ...(limpo(runwayChave) ? { runwayChave: limpo(runwayChave), runwayAvatarId: "" } : {}),
   });
@@ -153,6 +157,26 @@ async function pedirClipesDaRunway(conteudo, c, narrar) {
   const comClipes = conteudo.slides.map(({ avatar: _, ...s }) => s);
   cenas.forEach((i, n) => (comClipes[i].avatar = { id: pedidos[n].id, servico: "runway" }));
   return { ...conteudo, slides: comClipes };
+}
+
+/** Um texto falado pela voz mais natural que temos. Retorna o arquivo de áudio, ou lança sem chave ou se a Runway falhar. */
+export async function falarPelaRunway(texto, { voz, esperaMs = 3_000, consultas = 30 } = {}) {
+  const { runwayChave, vozDasMensagens } = await lerConfigAvatar();
+  if (!runwayChave) throw new Error("sem chave da Runway");
+  const { id } = await chamarRunway(runwayChave, "POST", "/v1/text_to_speech", {
+    model: "eleven_v3", promptText: texto, voice: { type: "runway-preset", presetId: VOZES_DAS_MENSAGENS.includes(voz) ? voz : vozDasMensagens }, languageCode: "pt", stability: 0.5, similarityBoost: 0.75, style: 0.3,
+  });
+  for (let n = 0; n < consultas; n++) {
+    const { falha, url } = await statusDaRunway(runwayChave, id);
+    if (falha) throw new Error(falha);
+    if (url) {
+      const r = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+      if (!r.ok) throw new Error(`o áudio respondeu ${r.status}`);
+      return Buffer.from(await r.arrayBuffer());
+    }
+    await new Promise((res) => setTimeout(res, esperaMs));
+  }
+  throw new Error("o áudio ainda não ficou pronto");
 }
 
 /** Cria o avatar na Runway e faz um clipe curto, para conferir o enquadramento. Retorna { status, video }, ou lança com o motivo. */

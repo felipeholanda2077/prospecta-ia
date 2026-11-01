@@ -1376,6 +1376,12 @@
                 <span id="avatar-runway-status"></span>
               </div>
               <div id="avatar-runway-resultado" style="grid-column:1/-1"></div>
+              <div class="campo" style="grid-column:1/-1"><label for="avatar-voz-mensagens">Voz das mensagens em áudio (Black Friday)</label>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+                  <select id="avatar-voz-mensagens" style="max-width:200px"></select>
+                  <button class="btn" type="button" id="avatar-ouvir-voz">Ouvir um exemplo</button>
+                </div>
+                <div id="avatar-voz-resultado" style="margin-top:8px"></div></div>
               <div id="avatar-resultado" style="grid-column:1/-1"></div>
               <details class="ajuda" style="grid-column:1/-1"><summary>Como criar o avatar no HeyGen</summary>
                 <ol><li>Crie a conta em <b>heygen.com</b> e coloque saldo na API (a partir de US$ 5).</li>
@@ -2080,7 +2086,7 @@ function previaHtml(m) {
   if (m.canal !== "email") {
     return `<div class="previa-wa">
       <div class="wa-topo"><span class="mini">${inicial(m.empresa)}</span>${esc(m.canal === "instagram" ? m.destino : m.empresa)}</div>
-      <div class="wa-chat"><div class="wa-bolha"><span data-previa-corpo>${esc(comLink(m.corpo))}</span><span class="wa-rodape">${rodape}</span><span class="wa-hora">agora ✓✓</span></div></div>
+      <div class="wa-chat"><div class="wa-bolha">${m.imagem ? `<img src="/whatsapp-black-friday.jpg" alt="Arte da Black Friday, enviada junto com a mensagem" style="display:block;width:100%;max-width:320px;border-radius:8px;margin-bottom:8px"><div class="rotulo" style="margin-bottom:6px">${ic("message", "sm")} O texto abaixo vai como mensagem de voz, e o link vai na legenda da arte</div>` : ""}<span data-previa-corpo>${esc(comLink(m.corpo))}</span><span class="wa-rodape">${rodape}</span><span class="wa-hora">agora ✓✓</span></div></div>
     </div>`;
   }
   return `<div class="previa-email">
@@ -4438,10 +4444,31 @@ function mostrarAvatar(a) {
   f.avatarId.value = a.avatarId ?? "";
   f.vozId.value = a.vozId ?? "";
   $("#avatar-chave").placeholder = a.chaveDefinida ? "•••••••• já salva (preencha só para trocar)" : "Cole a chave da API";
+  $("#avatar-voz-mensagens").innerHTML = (a.vozes ?? []).map((v) => `<option${v === a.vozDasMensagens ? " selected" : ""}>${esc(v)}</option>`).join("");
   $("#avatar-runway").placeholder = a.runwayChaveDefinida ? "•••••••• já salva (preencha só para trocar)" : "Cole a chave da API";
   $("#avatar-runway-status").innerHTML = a.runwayChaveDefinida ? `<span class="pilula ok">${ic("check", "sm")}Chave salva</span>` : `<span class="pilula">Sem chave</span>`;
   $("#avatar-status").innerHTML = a.ativo && (a.runwayChaveDefinida || (a.chaveDefinida && a.avatarId)) ? `<span class="pilula ok">${ic("check", "sm")}Ligado</span>` : `<span class="pilula">Desligado</span>`;
 }
+$("#avatar-voz-mensagens").addEventListener("change", (ev) => {
+  api("/api/avatar", { method: "PUT", body: JSON.stringify({ vozDasMensagens: ev.target.value }) })
+    .then(() => avisar(`As mensagens em áudio passam a usar a voz ${ev.target.value}`, "ok"))
+    .catch((e) => avisar(e.message, "perigo"));
+});
+$("#avatar-ouvir-voz").addEventListener("click", async (ev) => {
+  const btn = ev.currentTarget;
+  const alvo = $("#avatar-voz-resultado");
+  btn.disabled = true;
+  alvo.innerHTML = `<div class="alerta info">${ic("clock")}<div>Gerando o exemplo. Pode levar até 1 minuto.</div></div>`;
+  try {
+    const r = await fetch("/api/avatar/exemplo-de-voz", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ voz: $("#avatar-voz-mensagens").value }) });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).erro ?? `Erro ${r.status}`);
+    alvo.innerHTML = `<audio controls autoplay src="${URL.createObjectURL(await r.blob())}" style="width:100%;max-width:420px"></audio>`;
+  } catch (e) {
+    alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
 $("#avatar-testar-runway").addEventListener("click", async (ev) => {
   const btn = ev.currentTarget;
   const f = $("#form-avatar");

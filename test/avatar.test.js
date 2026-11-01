@@ -148,7 +148,7 @@ function servicosFalsos({ heygen = "failed", heygenAceita = true, runwayRecusa =
       if (runwayRecusa) return Response.json({ error: "sem crédito" }, { status: 400 });
       if (u.endsWith("/v1/avatars")) return Response.json({ id: "rw-avatar", status: avatarStatus });
       if (u.includes("/v1/avatars/")) return Response.json({ id: "rw-avatar", status: avatarStatus });
-      if (u.endsWith("/v1/avatar_videos")) return Response.json({ id: `tarefa${pedidos.length}` });
+      if (u.endsWith("/v1/avatar_videos") || u.endsWith("/v1/text_to_speech")) return Response.json({ id: `tarefa${pedidos.length}` });
       if (u.includes("/v1/tasks/")) return Response.json({ status: tarefa, output: ["https://clipes/r.mp4"], failure: "moderação" });
     }
     if (u.includes("/v3/avatars/looks/")) return Response.json({ data: { preview_image_url: "https://heygen/rosto.jpg" } });
@@ -233,6 +233,26 @@ test("avatar: o teste da Runway devolve o clipe, e a chave não aparece no que v
   await avatar.salvarConfigAvatar({ runwayChave: "outra" });
   assert.equal((await avatar.lerConfigAvatar()).runwayAvatarId, "");
   await avatar.salvarConfigAvatar({ runwayChave: "rw-chave" });
+});
+
+test("avatar: a voz da Runway fala em português e devolve o áudio; sem chave, avisa", async () => {
+  await avatar.salvarConfigAvatar({ runwayChave: "rw-chave" });
+  const f = servicosFalsos();
+  try {
+    const audio = await avatar.falarPelaRunway("Oi, tudo bem?", { esperaMs: 1 });
+    assert.ok(audio.length > 0);
+    const { corpo, versao } = f.runway().find((p) => p.u.endsWith("/v1/text_to_speech"));
+    assert.equal(versao, "2024-11-06");
+    assert.deepEqual([corpo.model, corpo.promptText, corpo.voice.type, corpo.languageCode], ["eleven_v3", "Oi, tudo bem?", "runway-preset", "pt"]);
+  } finally {
+    f.restaurar();
+  }
+  const falhou = servicosFalsos({ tarefa: "FAILED" });
+  try {
+    await assert.rejects(avatar.falarPelaRunway("Oi", { esperaMs: 1 }), /moderação/);
+  } finally {
+    falhou.restaurar();
+  }
 });
 
 test("avatar: clipe que quebra a montagem não impede o vídeo", async () => {

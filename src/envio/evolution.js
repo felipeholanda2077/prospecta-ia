@@ -195,6 +195,27 @@ export async function enviarTexto(numero, texto) {
   return dados?.key?.id ?? null;
 }
 
+/** Envia uma imagem (pelo link) com a legenda, para um número ou um contato @lid. */
+export async function enviarImagem(numero, imagem, legenda) {
+  const dados = await chamar("/message/sendMedia/:instancia", {
+    method: "POST",
+    corpo: {
+      number: String(numero).includes("@lid") ? String(numero) : String(numero).replace(/\D/g, ""),
+      mediatype: "image", mimetype: "image/jpeg", fileName: "fluxdeck.jpg", media: imagem, caption: legenda, delay: 1500,
+    },
+  });
+  return dados?.key?.id ?? null;
+}
+
+/** Envia uma mensagem de voz (pelo link do áudio), para um número ou um contato @lid. */
+export async function enviarAudio(numero, audio) {
+  const dados = await chamar("/message/sendWhatsAppAudio/:instancia", {
+    method: "POST",
+    corpo: { number: String(numero).includes("@lid") ? String(numero) : String(numero).replace(/\D/g, ""), audio, delay: 1500 },
+  });
+  return dados?.key?.id ?? null;
+}
+
 /**
  * Mensagens recebidas nas últimas horas, direto do WhatsApp (mais nova primeiro). Serve para
  * recuperar o que o webhook não entregou e para ler a conversa inteira de um contato novo.

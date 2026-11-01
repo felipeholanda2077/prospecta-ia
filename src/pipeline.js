@@ -12,6 +12,10 @@ import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, RODAPE_WHATSA
 import { enviarDirect } from "./envio/instagram.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
+import { imagemDaMensagem, legendaDaArte, roteiroDoAudio } from "./vendas/campanha.js";
+import { audioDoTexto, oggDoAudio } from "./conteudo/narracao.js";
+import { falarPelaRunway } from "./conteudo/avatar.js";
+import { linkDaMidia } from "./conteudo/instagram.js";
 import { verificarAgendamentos, aplicarLinkAgendamento } from "./agenda/calendly.js";
 import { semSiteProprio, potencialDaEmpresa } from "./analise/prioridade.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
@@ -77,6 +81,31 @@ export async function modoWhatsapp() {
 // Erros de envio que indicam o número desconectado (e não um problema com a mensagem).
 const QUEDA_DO_WHATSAPP = /connection closed|not connected|disconnected|desconectad|respondeu 503|respondeu 502|instance.*(not found|close)|não foi possível acessar/i;
 const AVISO_DESCONECTADO_MS = 6 * 3600 * 1000;
+
+/**
+ * A mensagem da campanha: a arte, com o link na legenda, e o texto em mensagem de voz.
+ * Se a imagem falhar, o áudio sai mesmo assim; se o áudio falhar, a mensagem sai em texto para não se perder.
+ */
+async function enviarCampanhaEmAudio(integracao, destino, m, texto, imagem, opcoes) {
+  const semQueda = (e, oQue) => {
+    if (QUEDA_DO_WHATSAPP.test(e.message)) throw e;
+    log(`⚠️  ${oQue} não foi enviado para ${m.empresa}: ${e.message}`);
+  };
+  await integracao.enviarImagem(destino, imagem, legendaDaArte(m.corpo), opcoes).catch((e) => semQueda(e, "A arte"));
+  try {
+    const chave = `audio-mensagem-${m.id}.ogg`;
+    const roteiro = roteiroDoAudio(m.corpo);
+    const audio = await falarPelaRunway(roteiro).then(oggDoAudio).catch((e) => {
+      log(`⚠️  Voz da Runway indisponível (${e.message}); o áudio sai pelas outras vozes.`);
+      return audioDoTexto(roteiro);
+    });
+    await db.gravarMidia(chave, "audio/ogg", audio);
+    return await integracao.enviarAudio(destino, linkDaMidia(chave), opcoes);
+  } catch (e) {
+    semQueda(e, "O áudio");
+    return integracao.enviarTexto(destino, texto, opcoes);
+  }
+}
 
 /**
  * O WhatsApp Web (UAZap/Evolution) caiu? Enquanto estiver desconectado, as mensagens de
@@ -814,7 +843,11 @@ export async function enviarMensagem(m, campanha) {
       messageId = await enviarDirect({ para: m.destino, comentarioId: m.em_resposta_a, texto: m.corpo });
     } else if (INTEGRACOES_WHATSAPP[modo]) {
       if (config.modoTeste.email && !config.modoTeste.whatsapp) throw new Error("modo teste ativo sem MODO_TESTE_WHATSAPP; WhatsApp não enviado");
-      messageId = await INTEGRACOES_WHATSAPP[modo].enviarTexto(config.modoTeste.whatsapp || m.destino, m.corpo + rodape, { numeroId });
+      const destino = config.modoTeste.whatsapp || m.destino;
+      const imagem = imagemDaMensagem(m);
+      messageId = imagem
+        ? await enviarCampanhaEmAudio(INTEGRACOES_WHATSAPP[modo], destino, m, m.corpo + rodape, imagem, { numeroId })
+        : await INTEGRACOES_WHATSAPP[modo].enviarTexto(destino, m.corpo + rodape, { numeroId });
     } else if (m.tipo === "resposta") {
       messageId = await enviarTextoWhatsappOficial({ para: m.destino, corpo: m.corpo });
     } else {

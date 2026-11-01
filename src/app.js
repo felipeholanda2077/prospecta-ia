@@ -31,7 +31,7 @@ import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
 import { narracaoDisponivel, carregarChaveDaVoz, salvarChaveDoGemini } from "./conteudo/narracao.js";
 import { lerChavePexels, salvarChavePexels } from "./conteudo/fotos.js";
-import { lerConfigAvatar, salvarConfigAvatar, testarAvatar, testarRunway } from "./conteudo/avatar.js";
+import { lerConfigAvatar, salvarConfigAvatar, testarAvatar, testarRunway, falarPelaRunway, VOZES_DAS_MENSAGENS } from "./conteudo/avatar.js";
 import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados } from "./conteudo/insights.js";
 import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect } from "./envio/instagram.js";
 import { processarWebhookInstagram } from "./respostas/instagram.js";
@@ -41,7 +41,7 @@ import * as contratos from "./contratos/contrato.js";
 import * as asaas from "./contratos/asaas.js";
 import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
-import { pdfDoGuia, prepararCampanha } from "./vendas/campanha.js";
+import { pdfDoGuia, prepararCampanha, imagemDaMensagem, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
 import { PILAR_BLACK_FRIDAY } from "./ia/conteudo.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
@@ -670,6 +670,8 @@ function prepararMensagem({ token, ...m }, modo) {
     oportunidades: JSON.parse(m.oportunidades || "[]"),
     rodape,
     previa: m.corpo + rodape,
+    // A arte e o áudio só saem pelo WhatsApp Web: o link manual e o texto pela API oficial não os levam.
+    imagem: automatico && modo !== "oficial" ? imagemDaMensagem(m) : null,
     envioManual: !automatico,
     linkWhatsapp: directManual ? `https://ig.me/m/${encodeURIComponent(m.destino.replace(/^@/, ""))}`
       : !automatico ? linkWhatsapp(m.destino, m.corpo, m.tipo !== "resposta") : null,
@@ -1090,15 +1092,26 @@ app.get("/api/conteudo/:id/video", async (req, res) => {
 });
 
 // O avatar de IA do Felipe (HeyGen, com a Runway de reserva). As chaves nunca voltam para o navegador.
-const avatarParaPainel = ({ chave, runwayChave, ...c }) => ({ ...c, chaveDefinida: Boolean(chave), runwayChaveDefinida: Boolean(runwayChave) });
+const avatarParaPainel = ({ chave, runwayChave, ...c }) => ({ ...c, chaveDefinida: Boolean(chave), runwayChaveDefinida: Boolean(runwayChave), vozes: VOZES_DAS_MENSAGENS });
 app.get("/api/avatar", async (req, res) => res.json(avatarParaPainel(await lerConfigAvatar())));
 app.put("/api/avatar", async (req, res) => {
-  const { ativo, chave, avatarId, vozId, runwayChave } = req.body ?? {};
-  res.json(avatarParaPainel(await salvarConfigAvatar({ ativo, chave, avatarId, vozId, runwayChave })));
+  const { ativo, chave, avatarId, vozId, runwayChave, vozDasMensagens } = req.body ?? {};
+  res.json(avatarParaPainel(await salvarConfigAvatar({ ativo, chave, avatarId, vozId, runwayChave, vozDasMensagens })));
 });
 app.post("/api/avatar/testar", async (req, res) => {
   try {
     res.json(await testarAvatar());
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Um exemplo do áudio da campanha, para ouvir antes de aprovar as mensagens.
+app.post("/api/avatar/exemplo-de-voz", async (req, res) => {
+  try {
+    const roteiro = roteiroDoAudio(String(req.body?.texto ?? mensagemDaCampanha({ lead: { nome: "sua empresa", token: "exemplo" }, comGuia: true, responsavel: "Felipe", empresa: "FluxDeck" })));
+    const voz = req.body?.voz ? String(req.body.voz) : undefined;
+    res.set("Content-Type", "audio/mpeg").send(await falarPelaRunway(roteiro, { voz }));
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }

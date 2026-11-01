@@ -17,7 +17,7 @@ const campanha = {
 };
 
 /** UAZap de mentira: cada instância é reconhecida pelo token; dá para desconectar uma delas. */
-function uazapFalsa() {
+function uazapFalsa({ midiaFalha = null } = {}) {
   const desconectados = new Set();
   const envios = [];
   const original = globalThis.fetch;
@@ -31,8 +31,9 @@ function uazapFalsa() {
       return Response.json({ instance: { status: ok ? "connected" : "disconnected" }, status: { connected: ok, loggedIn: ok, jid: `55119000000${token === "A" ? 1 : 2}@s.whatsapp.net` } });
     }
     if (rota === "POST /webhook") return Response.json({ ok: true });
-    if (rota === "POST /send/text") {
-      envios.push({ token, ...JSON.parse(opcoes.body) });
+    if (rota === "POST /send/text" || rota === "POST /send/media") {
+      if (rota === "POST /send/media" && midiaFalha) return Response.json({ error: midiaFalha }, { status: 400 });
+      envios.push({ token, rota, ...JSON.parse(opcoes.body) });
       return Response.json({ messageid: `msg-${token}-${envios.length}` });
     }
     return Response.json({ error: `sem rota ${rota}` }, { status: 404 });
@@ -150,4 +151,67 @@ test("uazap: contato novo é avaliado; cliente vira lead, e conversa pessoal ou 
   const novos = await db.consultar("SELECT nome, whatsapp FROM leads WHERE whatsapp = $1", ["5511900000003"]);
   assert.equal(novos.length, 1);
   assert.equal(novos[0].nome, "Fulano");
+});
+
+test("campanha: a arte e o áudio vão juntos, com o link na legenda, e sem eles o texto sai do mesmo jeito", async () => {
+  const link = "https://prospecta.exemplo/guia/abc";
+  const corpo = `Oi! Preparei um guia para atrair clientes: ${link}\n\nE um aviso: na Black Friday o plano sai por menos.`;
+  const { imagemDaMensagem, roteiroDoAudio, legendaDaArte } = await import("../src/vendas/campanha.js");
+  const dia = new Date("2026-11-15T12:00:00Z");
+  assert.match(imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo }, dia), /\/whatsapp-black-friday\.jpg$/);
+  assert.equal(imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo }, new Date("2026-12-01T12:00:00Z")), null); // acabou a promoção
+  assert.equal(imagemDaMensagem({ canal: "email", etapa: 0, corpo }, dia), null);
+  assert.equal(imagemDaMensagem({ canal: "whatsapp", etapa: 1, corpo }, dia), null); // sequência normal
+  assert.equal(imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo: "Claro, te explico." }, dia), null); // resposta comum
+  assert.doesNotMatch(roteiroDoAudio(corpo), /https?:|\.\./);
+  assert.match(roteiroDoAudio(corpo), /pra atrair clientes\. Deixei o link aqui na conversa, tá\?/);
+  const escrita = (await import("../src/vendas/campanha.js")).mensagemDaCampanha({ lead: { nome: "Odontomania", token: "t" }, comGuia: true, responsavel: "Felipe", empresa: "FluxDeck" });
+  assert.match(escrita, /R\$ 1\.500 por mês, o equivalente a um funcionário/);
+  const falada = roteiroDoAudio(escrita);
+  assert.doesNotMatch(falada, /R\$|https?:|\bpara\b/);
+  assert.match(falada, /guia gratuito pra Odontomania/);
+  assert.match(falada, /quatro mil e quinhentos reais, tá saindo por três mil por mês/);
+  assert.match(falada, /equivalente a um funcionário/);
+  assert.match(falada, /sistema próprio e também um aplicativo/);
+  assert.equal(legendaDaArte(corpo), `Seu guia gratuito: ${link}`);
+  assert.equal(legendaDaArte("Sem link."), "");
+
+  // A voz vem do Gemini de mentira; o resto do caminho, inclusive a conversão do áudio, é o de verdade.
+  process.env.GEMINI_API_KEY = "teste";
+  const comVoz = (falsa) => {
+    const anterior = globalThis.fetch;
+    globalThis.fetch = async (url, op) => (String(url).includes("generativelanguage")
+      ? Response.json({ steps: [{ type: "model_output", content: [{ type: "audio", data: Buffer.alloc(9600).toString("base64") }] }] })
+      : anterior(url, op));
+    return falsa;
+  };
+  const criar = async (lead) => db.buscarMensagem(await db.criarMensagem({ lead_id: lead, canal: "whatsapp", destino: "5511988881001", corpo, status: "aprovada", tipo: "resposta", etapa: 0 }));
+  let leadId;
+  const falsa = comVoz(uazapFalsa());
+  try {
+    await uazap.salvarNumero({ nome: "IA 1", url: URL_UAZAP, token: "A" }).catch(() => {}); // já pode estar na lista
+    uazap.esquecerConexao();
+    leadId = (await leadComMensagem("Clínica Arte", "5511988881001", { tipo: "resposta", etapa: 0 })).lead_id;
+    falsa.envios.length = 0;
+    const r = await pipeline.enviarMensagem(await criar(leadId), campanha);
+    assert.equal(r.enviada, true, r.motivo);
+    assert.deepEqual(falsa.envios.map((e) => e.type), ["image", "ptt"]);
+    assert.equal(falsa.envios[0].text, `Seu guia gratuito: ${link}`);
+    assert.match(falsa.envios[1].file, /\/api\/midia\/audio-mensagem-\d+\.ogg\?a=/);
+    const chave = falsa.envios[1].file.match(/audio-mensagem-\d+\.ogg/)[0];
+    const audio = await db.lerMidia(chave);
+    assert.equal(audio.tipo, "audio/ogg");
+    assert.equal(Buffer.from(audio.dados).toString("ascii", 0, 4), "OggS");
+  } finally {
+    falsa.restaurar();
+  }
+
+  const semMidia = comVoz(uazapFalsa({ midiaFalha: "formato não aceito" }));
+  try {
+    assert.equal((await pipeline.enviarMensagem(await criar(leadId), campanha)).enviada, true);
+    assert.deepEqual(semMidia.envios.map((e) => [e.rota, e.text]), [["POST /send/text", corpo]]);
+  } finally {
+    semMidia.restaurar();
+    delete process.env.GEMINI_API_KEY;
+  }
 });

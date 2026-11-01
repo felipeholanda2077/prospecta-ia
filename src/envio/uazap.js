@@ -233,6 +233,24 @@ export async function enviarTexto(destino, texto, { numeroId } = {}) {
   return dados.messageid ?? dados.id ?? null;
 }
 
+/** Envia uma imagem (pelo link) com a legenda, pelo número `numeroId`. */
+export async function enviarImagem(destino, imagem, legenda, { numeroId } = {}) {
+  const dados = await chamar(numeroId, "/send/media", {
+    method: "POST",
+    corpo: { number: String(destino).replace(/\D/g, ""), type: "image", file: imagem, text: legenda, delay: 1500 },
+  });
+  return dados.messageid ?? dados.id ?? null;
+}
+
+/** Envia uma mensagem de voz (pelo link do áudio), pelo número `numeroId`. */
+export async function enviarAudio(destino, audio, { numeroId } = {}) {
+  const dados = await chamar(numeroId, "/send/media", {
+    method: "POST",
+    corpo: { number: String(destino).replace(/\D/g, ""), type: "ptt", file: audio, delay: 1500 },
+  });
+  return dados.messageid ?? dados.id ?? null;
+}
+
 /**
  * Pergunta à UAZap quais números estão no WhatsApp (funciona também com fixo,
  * já que muita empresa usa WhatsApp Business no número fixo).

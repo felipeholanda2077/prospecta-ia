@@ -77,23 +77,25 @@ const PROVEDORES = [
 
 const esperar = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
-function pcmDoMp3(mp3) {
+function converterAudio(entradas, audio) {
   return new Promise((ok, falhou) => {
-    const p = spawn(ffmpeg, ["-loglevel", "error", "-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", String(TAXA_VOZ), "pipe:1"]);
+    const p = spawn(ffmpeg, ["-loglevel", "error", ...entradas]);
     const partes = [];
     let erros = "";
     p.stdout.on("data", (d) => partes.push(d));
     p.stderr.on("data", (d) => (erros += d));
     p.on("error", falhou);
     p.on("close", (codigo) => {
-      const pcm = Buffer.concat(partes);
-      if (codigo === 0 && pcm.length) ok(pcm);
-      else falhou(new Error(`não deu para ler o áudio: ${erros.trim() || `ffmpeg saiu com ${codigo}`}`));
+      const saida = Buffer.concat(partes);
+      if (codigo === 0 && saida.length) ok(saida);
+      else falhou(new Error(`não deu para converter o áudio: ${erros.trim() || `ffmpeg saiu com ${codigo}`}`));
     });
     p.stdin.on("error", () => {});
-    p.stdin.end(mp3);
+    p.stdin.end(audio);
   });
 }
+
+const pcmDoMp3 = (mp3) => converterAudio(["-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", String(TAXA_VOZ), "pipe:1"], mp3);
 
 async function mp3DoEdge(texto, post) {
   const { MsEdgeTTS, OUTPUT_FORMAT } = await import("msedge-tts");
@@ -103,7 +105,7 @@ async function mp3DoEdge(texto, post) {
     const gerar = (async () => {
       await tts.setMetadata(["pt-BR-AntonioNeural", "pt-BR-FranciscaNeural"][Math.abs(Number(post.id) || 0) % 2], OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
       const partes = [];
-      for await (const parte of tts.toStream(texto, { rate: "+8%" }).audioStream) partes.push(parte);
+      for await (const parte of tts.toStream(texto, { rate: post.ritmo ?? "+8%" }).audioStream) partes.push(parte);
       return Buffer.concat(partes);
     })();
     return await Promise.race([gerar, new Promise((_, falhou) => { limite = setTimeout(() => falhou(new Error("sem resposta")), 30_000); })]);
@@ -205,6 +207,28 @@ export async function narrarCenas(post, { servicos = null } = {}) {
   for (const p of servicos ?? provedores()) {
     try {
       return await narrarCom(p, post);
+    } catch (e) {
+      erro = e;
+      console.log(new Date().toISOString(), `⚠️  Voz: ${p.nome} falhou (${e.message}). Tentando o próximo serviço.`);
+    }
+  }
+  throw erro;
+}
+
+const OPUS = ["-c:a", "libopus", "-b:a", "32k", "-ac", "1", "-f", "ogg", "pipe:1"];
+
+/** Qualquer áudio em OGG Opus: o formato das mensagens de voz do WhatsApp. */
+export const oggDoAudio = (audio) => converterAudio(["-i", "pipe:0", ...OPUS], audio);
+
+/** Um texto falado pelas vozes do sistema, em OGG Opus. Lança só quando nenhuma voz conseguiu. */
+export async function audioDoTexto(texto) {
+  await carregarChaveDaVoz();
+  let erro;
+  for (const p of provedores()) {
+    try {
+      // Em ritmo de conversa, mais lento que a narração dos Reels.
+      const pcm = await falarCena(p, texto, { id: 0, ritmo: "+0%" });
+      return await converterAudio(["-f", "s16le", "-ar", String(TAXA_VOZ), "-ac", "1", "-i", "pipe:0", ...OPUS], pcm);
     } catch (e) {
       erro = e;
       console.log(new Date().toISOString(), `⚠️  Voz: ${p.nome} falhou (${e.message}). Tentando o próximo serviço.`);
