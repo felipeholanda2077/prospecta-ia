@@ -140,7 +140,7 @@ test("avatar: o filtro do vídeo coloca o clipe por baixo e abaixa a música qua
   const f = montarFiltro({ w: 1080, h: 1920, duracao: 10, comClipe: [{ inicio: 0, fim: 3 }, { inicio: 7, fim: 10 }], temVoz: false });
   assert.equal(f.imagem, "[v]");
   assert.match(f.filtro, /\[2:v\]scale=640:1138/); // menor, dentro da janela
-  assert.match(f.filtro, /overlay=x=220:y=220/);
+  assert.match(f.filtro, /overlay=x=220:y=190/);
   assert.match(f.filtro, /\[3:a\].*adelay=7000\|7000/);
   assert.match(f.filtro, /sidechaincompress/);
   const semClipe = montarFiltro({ w: 1080, h: 1920, duracao: 10, comClipe: [], temVoz: false });
