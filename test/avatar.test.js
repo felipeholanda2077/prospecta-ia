@@ -41,6 +41,12 @@ function heygenFalso({ status = "completed", falhar = false, clipe = Buffer.from
   return { pedidos, restaurar: () => (globalThis.fetch = original) };
 }
 
+test("avatar: fala em até 6 cenas, sempre com a primeira e a última", () => {
+  assert.deepEqual(avatar.cenasDoAvatar([1, 2, 3]), [0, 1, 2]);
+  assert.deepEqual(avatar.cenasDoAvatar(Array(8).fill(0)), [0, 1, 2, 3, 4, 7]);
+  assert.deepEqual(avatar.cenasDoAvatar(undefined), []);
+});
+
 test("avatar: desligado ou fora do Reels com Felipe, não chama o HeyGen", async () => {
   const f = heygenFalso();
   try {
@@ -55,17 +61,17 @@ test("avatar: desligado ou fora do Reels com Felipe, não chama o HeyGen", async
   }
 });
 
-test("avatar: pede clipe só da capa e da chamada, na vertical, e falha sem derrubar o post", async () => {
+test("avatar: pede clipe de todas as cenas, na vertical, e falha sem derrubar o post", async () => {
   await avatar.salvarConfigAvatar({ ativo: true, chave: "chave-certa", avatarId: "look1", vozId: "voz1" });
   let f = heygenFalso();
   try {
     const c = await avatar.pedirClipes(conteudo, { formato: "reels" });
-    assert.equal(f.pedidos.length, 2);
+    assert.equal(f.pedidos.length, 3);
     const corpos = f.pedidos.map((p) => p.corpo);
-    assert.deepEqual(corpos.map((b) => b.script).sort(), ["Comenta agenda aqui embaixo.", "Sua agenda vive furada?"]);
+    assert.deepEqual(corpos.map((b) => b.script).sort(), ["Comenta agenda aqui embaixo.", "O problema é o lembrete.", "Sua agenda vive furada?"]);
     assert.ok(corpos.every((b) => b.type === "avatar" && b.avatar_id === "look1" && b.voice_id === "voz1" && b.aspect_ratio === "9:16" && b.resolution === "720p"));
     assert.ok(f.pedidos.every((p) => p.u === "/v3/videos" && p.metodo === "POST"));
-    assert.ok(c.slides[0].avatar?.id && c.slides[2].avatar?.id && !c.slides[1].avatar);
+    assert.ok(c.slides.every((s) => s.avatar?.id));
     assert.match(legendaDoPost({ conteudo: c }), /Legenda\n\nAvatar do Felipe gerado com IA\.\n\n#fluxdeck/);
     assert.doesNotMatch(legendaDoPost({ conteudo }), /Avatar/);
   } finally {

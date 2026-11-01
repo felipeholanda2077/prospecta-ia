@@ -303,7 +303,7 @@ test("instagram: dois posts por dia, às 12h e às 18h, alternando o formato", a
   await db.gravarConfig("conteudo", {});
   assert.deepEqual((await diario.lerConfigConteudo()).horarios, [12, 18]);
   // A configuração antiga, de um horário só, passa para os dois horários.
-  await db.gravarConfig("conteudo", { ativo: true, horario: 18, postarSozinho: true });
+  await db.gravarConfig("conteudo", { ativo: true, horario: 18, postarSozinho: true, apresentador: false });
   assert.deepEqual((await diario.lerConfigConteudo()).horarios, [12, 18]);
   await db.gravarConfig("instagram", { token: "IGtoken", host: "graph.instagram.com", igId: "1", renovadoEm: new Date().toISOString() });
   const escrever = async () => conteudo;

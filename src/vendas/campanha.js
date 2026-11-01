@@ -7,7 +7,7 @@ import { gravarApresentacao, lerApresentacao } from "../respostas/apresentacao.j
 // Campanha para quem demonstrou interesse: a promoção de Black Friday e, para quem parou de responder, um guia
 // gratuito com o nome da empresa na marca-d'água. As mensagens vão para Aprovar mensagens: nada sai sem o seu clique.
 const GUIA = new URL("../../config/guia-empresas.md", import.meta.url);
-const FIM_DA_PROMOCAO = "2026-11-30";
+export const FIM_DA_PROMOCAO = "2026-11-30";
 export const LINHA_DA_PROMOCAO = "Promoção de Black Friday (só em novembro de 2026): Professional com IA de atendimento no WhatsApp de R$ 4.500/mês por R$ 3.000/mês.";
 const DIAS_SEM_RESPOSTA = 2;
 // Só estes canais aceitam mensagem iniciada pelo painel; o direct da Meta não.

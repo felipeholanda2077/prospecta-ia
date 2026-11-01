@@ -15,7 +15,7 @@ desenho.usarCanvas((w, h) => createCanvas(w, h));
 
 const post = (arte, extra = {}) => ({ conteudo: { arte, gancho: arte, ...extra } });
 
-test("variedade: público, tom e arte não repetem os últimos posts; o Felipe alterna nos Reels", () => {
+test("variedade: público, tom e arte não repetem os últimos posts; o Felipe está em todos os Reels", () => {
   const recentes = [
     { formato: "reels", conteudo: { publico: "clinica", tom: "humor", arte: "cor", comFelipe: true } },
     { formato: "carrossel", conteudo: { publico: "loja", tom: "direto", arte: "claro" } },
@@ -28,7 +28,7 @@ test("variedade: público, tom e arte não repetem os últimos posts; o Felipe a
     assert.equal(v.arte, "dividido");
     assert.equal(v.comFelipe, false); // só nos vídeos
   }
-  assert.equal(diario.escolherVariedade(recentes, { formato: "reels" }).comFelipe, false); // o último Reels já teve
+  assert.equal(diario.escolherVariedade(recentes, { formato: "reels" }).comFelipe, true);
   assert.equal(diario.escolherVariedade(recentes.slice(1), { formato: "reels" }).comFelipe, true);
   assert.equal(diario.escolherVariedade(recentes.slice(1), { formato: "reels", apresentador: false }).comFelipe, false);
   // Sem opção livre, ainda escolhe alguma.

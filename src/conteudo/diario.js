@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { gerarPost, PILARES, ESTRUTURAS, PUBLICOS, TONS } from "../ia/conteudo.js";
+import { gerarPost, PILARES, ESTRUTURAS, PUBLICOS, TONS, PILAR_BLACK_FRIDAY } from "../ia/conteudo.js";
+import { FIM_DA_PROMOCAO } from "../vendas/campanha.js";
 import { colocarFotos } from "./fotos.js";
 import { pedirClipes } from "./avatar.js";
 import { enviarNotificacao } from "../envio/email.js";
@@ -76,15 +77,18 @@ export function estruturaDoPost(dia, n = 0) {
  * Cria um post para hoje. `formato` fixo serve para "gerar outro" no lugar de um post; `horario`
  * é o horário do dia em que ele sai (sem horário, entra no próximo horário vago).
  */
-export async function criarPostDeHoje(campanha, { formato, horario = null, escrever = gerarPost, agora = new Date(), sorteio = Math.random, fotos = colocarFotos, clipes = pedirClipes, escreverLinkedin } = {}) {
+export async function criarPostDeHoje(campanha, { formato, pilar: pilarFixo = null, horario = null, escrever = gerarPost, agora = new Date(), sorteio = Math.random, fotos = colocarFotos, clipes = pedirClipes, escreverLinkedin } = {}) {
   const { dia } = agoraEmBrasilia(agora);
   const recentes = await db.postsRecentes(30);
   const deHoje = await db.postsDoDia(dia);
   const escolha = await escolhaPeloDesempenho({ dia, n: deHoje.length, recentes, agora, sorteio });
-  const escolhido = formato ?? escolha.formato;
-  const { pilar, estrutura } = escolha;
-  const base = await lerBaseDeConteudo();
   const conf = await lerConfigConteudo();
+  // Com o apresentador ligado, todo post é um Reels com o Felipe. Sem ele, volta a alternar com o carrossel.
+  const escolhido = formato ?? (conf.apresentador === false ? escolha.formato : "reels");
+  const { estrutura } = escolha;
+  const promocao = dia <= FIM_DA_PROMOCAO && !deHoje.some((p) => p.pilar === PILAR_BLACK_FRIDAY && p.status !== "descartado");
+  const pilar = pilarFixo ?? (promocao ? PILAR_BLACK_FRIDAY : escolha.pilar);
+  const base = await lerBaseDeConteudo();
   const variedade = escolherVariedade(recentes, { formato: escolhido, apresentador: conf.apresentador, sorteio });
   const pedido = {
     campanha, formato: escolhido, pilar, estrutura, base, aprendizados: escolha.aprendizados, ...variedade,
@@ -119,16 +123,15 @@ function sortearSemRepetir(opcoes, usados, sorteio) {
 
 /**
  * Para quem o post fala, o tom e o estilo visual: cada um fora dos últimos posts, para o feed não repetir.
- * O Felipe aparece em um Reels sim, um não.
+ * O Felipe aparece em todos os Reels, a não ser com o apresentador desligado.
  */
 export function escolherVariedade(recentes, { formato, apresentador = true, sorteio = Math.random } = {}) {
   const de = (campo, n) => recentes.slice(0, n).map((p) => p.conteudo?.[campo]).filter(Boolean);
-  const ultimoReels = recentes.find((p) => p.formato === "reels");
   return {
     publico: sortearSemRepetir(Object.keys(PUBLICOS), de("publico", 8), sorteio),
     tom: sortearSemRepetir(Object.keys(TONS), de("tom", 4), sorteio),
     arte: sortearSemRepetir(ARTES_DOS_POSTS, de("arte", 3), sorteio),
-    comFelipe: formato === "reels" && apresentador !== false && !ultimoReels?.conteudo?.comFelipe,
+    comFelipe: formato === "reels" && apresentador !== false,
   };
 }
 

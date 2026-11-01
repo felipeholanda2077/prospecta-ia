@@ -38,8 +38,8 @@ test("post do dia: horário em Brasília, rodízio de linhas editoriais e format
   assert.ok(combinacoes.size >= 30, `só ${combinacoes.size} combinações em 40 posts`);
 });
 
-test("post do dia: criado uma vez só no horário, e o dia seguinte troca o formato", async () => {
-  await db.gravarConfig("conteudo", { ativo: true, horarios: [18] });
+test("post do dia: criado uma vez só no horário e, sem o apresentador, o dia seguinte troca o formato", async () => {
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [18], apresentador: false });
   const antes = await diario.rodadaDeConteudo(campanha, { agora: new Date("2026-10-27T15:00:00Z"), escrever });
   assert.equal(antes.conteudo, "antes do horário");
 
@@ -79,4 +79,34 @@ test("post do dia: a IA recebe a base de conteúdo do site (editável no painel)
   await diario.criarPostDeHoje(campanha, { escrever: async (o) => ((recebida = o.base), escrever(o)) });
   assert.equal(recebida, "FluxDeck: novo texto do site");
   await gravarBaseDeConteudo("");
+});
+
+test("post do dia: com o apresentador, todo post é Reels com o Felipe; a Black Friday sai uma vez por dia até 30/11", async () => {
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [12, 18] });
+  await db.consultar("DELETE FROM posts");
+  const pedidos = [];
+  const escreverAnotando = async (p) => { pedidos.push(p); return escrever(p); };
+  const criar = (data, opcoes = {}) => diario.criarPostDeHoje(campanha, { agora: new Date(data), escrever: escreverAnotando, fotos: async (c) => c, clipes: async (c) => c, sorteio: () => 0.5, ...opcoes });
+
+  const primeiro = await criar("2026-11-15T14:45:00Z");
+  const segundo = await criar("2026-11-15T20:45:00Z");
+  assert.deepEqual([primeiro.formato, segundo.formato], ["reels", "reels"]);
+  assert.deepEqual(pedidos.map((p) => p.comFelipe), [true, true]);
+  assert.equal(primeiro.pilar, "black_friday");
+  assert.notEqual(segundo.pilar, "black_friday");
+
+  // Uma semana inteira: pelo menos 6 posts da campanha, um em cada dia.
+  const dias = ["16", "17", "18", "19", "20", "21", "22"];
+  for (const d of dias) await criar(`2026-11-${d}T14:45:00Z`);
+  const daSemana = (await db.consultar("SELECT count(*)::int AS n FROM posts WHERE pilar = 'black_friday' AND dia >= '2026-11-16' AND dia <= '2026-11-22'"))[0].n;
+  assert.ok(daSemana >= 6);
+
+  // Refazer o post da campanha mantém o assunto, e descartado não conta como feito.
+  const descartado = await criar("2026-11-23T14:45:00Z");
+  await db.atualizarStatusPost(descartado.id, "descartado");
+  assert.equal((await criar("2026-11-23T15:00:00Z")).pilar, "black_friday");
+  assert.equal((await criar("2026-11-24T15:00:00Z", { pilar: "dica" })).pilar, "dica");
+
+  assert.equal((await criar("2026-11-30T14:45:00Z")).pilar, "black_friday");
+  assert.notEqual((await criar("2026-12-01T14:45:00Z")).pilar, "black_friday");
 });

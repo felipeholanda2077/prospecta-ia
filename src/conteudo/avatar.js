@@ -5,7 +5,7 @@ import ffmpeg from "ffmpeg-static";
 import { config } from "../config.js";
 import * as db from "../db.js";
 
-// O avatar de IA do Felipe (HeyGen) falando na capa e na chamada final dos Reels. Os clipes são pedidos
+// O avatar de IA do Felipe (HeyGen) falando em todas as cenas dos Reels. Os clipes são pedidos
 // quando o post é criado (o HeyGen leva alguns minutos) e baixados na hora de gerar o vídeo. Tudo aqui é
 // opcional: sem configuração, ou se algo falhar, o Reels sai com a foto do Felipe, como sempre.
 const API = "https://api.heygen.com";
@@ -56,8 +56,15 @@ export async function testarAvatar() {
   return { creditos: eu.remaining_credits ?? null, avatar: look ? { nome: look.name ?? null, status: look.status ?? null } : null };
 }
 
-/** A cena fala na capa e na chamada final: as duas pontas do Reels. */
-export const cenasDoAvatar = (slides) => (slides?.length > 1 ? [0, slides.length - 1] : slides?.length ? [0] : []);
+// Cada clipe pesa na hora de montar o vídeo, e a Vercel corta a execução em 5 minutos.
+const MAX_CENAS_COM_AVATAR = 6;
+
+/** O Felipe fala em todas as cenas, até o limite, sempre com a chamada final: o vídeo com o rosto e a voz dele foi o que mais alcançou no perfil. */
+export function cenasDoAvatar(slides) {
+  const total = slides?.length ?? 0;
+  const indices = Array.from({ length: total }, (_, i) => i);
+  return total > MAX_CENAS_COM_AVATAR ? [...indices.slice(0, MAX_CENAS_COM_AVATAR - 1), total - 1] : indices;
+}
 
 /**
  * Pede ao HeyGen os clipes da capa e da chamada. Guarda em cada tela `avatar: { id }`. Se um pedido

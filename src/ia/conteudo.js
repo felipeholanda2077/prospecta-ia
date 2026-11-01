@@ -15,6 +15,13 @@ export const PILARES = {
   faq: "Uma das perguntas frequentes dos clientes, respondida de forma simples e honesta",
 };
 
+// Campanha com data para acabar: fica fora do rodízio, e quem decide quando sai é o agendamento dos posts.
+export const PILAR_BLACK_FRIDAY = "black_friday";
+const TEXTO_BLACK_FRIDAY = `Promoção de Black Friday da FluxDeck, válida só em novembro de 2026: o plano Professional com IA de atendimento no WhatsApp sai de R$ 4.500 por R$ 3.000 por mês. Ele inclui site, painel administrativo, automações e uma IA própria que atende, vende e agenda pelo WhatsApp.
+Este post é sobre essa promoção. Mostre o problema que ela resolve para o público do post e diga o preço de/por com clareza, pelo menos uma vez, na tela e na fala. Aqui, e só aqui, a regra de não citar preços não vale: cite exatamente esses valores e nenhum outro.
+Não invente desconto em porcentagem, vagas limitadas, bônus, contagem regressiva ou resultado de cliente. A única urgência verdadeira é que a promoção vale só até 30 de novembro.
+A última tela chama para o direct ou para comentar uma palavra, para saber mais sobre a promoção.`;
+
 // Estrutura do roteiro: o jeito de contar, em rodízio separado do assunto. A mesma linha editorial
 // sai diferente a cada vez (uma lista hoje, um "pare de" amanhã, um POV depois).
 export const ESTRUTURAS = {
@@ -236,7 +243,7 @@ ${aprendizados.fazer_mais.map((x) => `- Faça mais: ${x}`).join("\n")}
 ${aprendizados.evitar.map((x) => `- Evite: ${x}`).join("\n")}
 ${aprendizados.ganchosQueFuncionaram?.length ? `Ganchos dos posts que mais deram certo (inspire-se no jeito, sem copiar): ${aprendizados.ganchosQueFuncionaram.map((g) => `"${g}"`).join("; ")}\n` : ""}` : "";
   const pedido = `${doPerfil}Formato: ${FORMATOS[formato]}
-Assunto de hoje (linha editorial): ${PILARES[pilar]}
+Assunto de hoje (linha editorial): ${pilar === PILAR_BLACK_FRIDAY ? TEXTO_BLACK_FRIDAY : PILARES[pilar]}
 Estrutura do roteiro: ${ESTRUTURAS[estrutura] ?? ESTRUTURAS.lista}
 ${publico ? `Público deste post: ${PUBLICOS[publico] ?? publico}. Os exemplos, as cenas e as fotos são desse tipo de negócio.\n` : ""}${tom ? `Tom deste post: ${TONS[tom] ?? tom}.\n` : ""}${comFelipe ? "Neste Reels o Felipe aparece na tela como apresentador: as falas são dele, em primeira pessoa, como quem conversa com a câmera.\n" : ""}${usados.length ? `Posts dos últimos dias. Este post tem que parecer de outro assunto e de outro jeito: não repita o tema, o jeito do gancho, a chamada final nem as mesmas frases:\n${usados.map((p) => `- ${p.tema}${p.gancho ? ` | gancho: "${p.gancho}"` : ""}`).join("\n")}\n` : ""}${primeiras.length ? `O gancho não pode começar com: ${primeiras.join(", ")}.\n` : ""}${aviso ? `Atenção: ${aviso}\n` : ""}
 Crie o post.`;

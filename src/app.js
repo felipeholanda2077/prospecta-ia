@@ -43,6 +43,7 @@ import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
 import { pdfDoGuia, prepararCampanha } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
+import { PILAR_BLACK_FRIDAY } from "./ia/conteudo.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
@@ -1027,7 +1028,8 @@ app.post("/api/conteudo/gerar", async (req, res) => {
 app.post("/api/conteudo/:id/refazer", async (req, res) => {
   const post = await db.buscarPost(req.params.id);
   if (!post) return res.status(404).json({ erro: "Post não encontrado" });
-  const novo = await criarPostDeHoje(await carregarCampanhaCompleta(), { formato: post.formato, horario: post.horario });
+  // O post refeito continua sobre o mesmo assunto quando é o da campanha, para o dia não ficar sem ela.
+  const novo = await criarPostDeHoje(await carregarCampanhaCompleta(), { formato: post.formato, horario: post.horario, pilar: post.pilar === PILAR_BLACK_FRIDAY ? post.pilar : null });
   await db.atualizarStatusPost(post.id, "descartado");
   res.json(novo);
 });

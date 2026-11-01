@@ -54,6 +54,7 @@ function apiFalsa(midias) {
 }
 
 test("insights: lê os posts e os números, liga aos posts do sistema, e a IA aprende e muda o próximo post", async () => {
+  await db.gravarConfig("conteudo", { apresentador: false });
   await db.gravarConfig("instagram", { token: "EAApagina", host: "graph.facebook.com", igId: "17841", usuario: "fluxdeck_" });
   // 8 posts do sistema: os de "dica" com pergunta vão muito melhor que os de "erro".
   const midias = [];
