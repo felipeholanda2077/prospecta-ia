@@ -117,3 +117,46 @@ test("post: a tela de lista não repete o número que o desenho já mostra", asy
   assert.equal(tituloSemNumero("1) Cliente pergunta"), "Cliente pergunta");
   assert.equal(tituloSemNumero("3 sinais de que algo vai mal"), "3 sinais de que algo vai mal");
 });
+
+test("post: valor não aparece no vídeo nem nas telas; a IA reescreve e, se insistir, ele sai", async () => {
+  const { temValor, valoresNasTelas, tirarValoresDasTelas } = await import("../src/ia/conteudo.js");
+  for (const t of ["de R$ 4.500 por R$ 3.000", "R$3000 por mês", "só 3.000 por mês", "três mil, 3 mil por mês", "500 reais"]) assert.ok(temValor(t), t);
+  for (const t of ["3 sinais de que seu site espanta clientes", "até 30 de novembro", "em 15 dias", "24 horas por dia"]) assert.ok(!temValor(t), t);
+
+  const comValor = { gancho: "R$ 3.000 por mês", legenda: "De R$ 4.500 por R$ 3.000 por mês.", slides: [
+    { visual: "capa", titulo: "De R$ 4.500 por R$ 3.000", texto: "", destaque: "R$ 3.000", fala: "Olha só. Agora custa R$ 3.000 por mês. Vale até dia 30." },
+    { visual: "cta", titulo: "Comenta BLACK", texto: "", destaque: "BLACK", fala: "Comenta BLACK." },
+  ] };
+  assert.ok(valoresNasTelas(comValor).length >= 3);
+  const limpo = tirarValoresDasTelas(comValor);
+  assert.deepEqual(valoresNasTelas(limpo), []);
+  assert.match(limpo.slides[0].fala, /^Olha só\..*Vale até dia 30\.$/);
+  assert.equal(limpo.slides[1].titulo, "Comenta BLACK");
+  assert.match(limpo.legenda, /R\$ 3\.000/, "a legenda continua com o valor");
+
+  await db.consultar("DELETE FROM posts");
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [12, 18] });
+  const criar = (escrever) => diario.criarPostDeHoje(campanha, { agora: new Date("2026-11-12T14:45:00Z"), escrever, fotos: async (c) => c, clipes: async (c) => c, sorteio: () => 0.5 });
+  const pedidos = [];
+  const post = await criar(async (p) => {
+    pedidos.push(p);
+    return { ...(await escrever(p)), ...(pedidos.length === 1 ? { gancho: "Só R$ 3.000 por mês" } : {}) };
+  });
+  assert.equal(pedidos.length, 2);
+  assert.match(pedidos[1].aviso, /sem nenhum valor/);
+  assert.deepEqual(valoresNasTelas(post.conteudo), []);
+
+  const teimosa = await criar(async (p) => ({ ...(await escrever(p)), gancho: "Só R$ 3.000 por mês" }));
+  assert.deepEqual(valoresNasTelas(teimosa.conteudo), []);
+});
+
+test("post: o fundo não repete os últimos vídeos", async () => {
+  const { FUNDOS, fundoDoPost } = await import("../public/post-desenho.js");
+  const recentes = FUNDOS.slice(0, 5).map((f) => ({ formato: "reels", conteudo: { fundo: f.nome } }));
+  for (let i = 0; i < 20; i++) {
+    const { fundo } = diario.escolherVariedade(recentes, { formato: "reels", sorteio: () => i / 20 });
+    assert.ok(FUNDOS.slice(5).some((f) => f.nome === fundo), fundo);
+  }
+  assert.equal(fundoDoPost({ conteudo: { fundo: "areia" } }).nome, "areia");
+  assert.ok(fundoDoPost({ id: 13, conteudo: {} }).nome); // post antigo, sem fundo escolhido
+});

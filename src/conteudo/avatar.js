@@ -4,6 +4,7 @@ import path from "node:path";
 import ffmpeg from "ffmpeg-static";
 import { config } from "../config.js";
 import * as db from "../db.js";
+import { FUNDOS } from "../../public/post-desenho.js";
 
 // O avatar de IA do Felipe (HeyGen) falando em todas as cenas dos Reels. Os clipes são pedidos
 // quando o post é criado (o HeyGen leva alguns minutos) e baixados na hora de gerar o vídeo. Tudo aqui é
@@ -75,14 +76,22 @@ export async function pedirClipes(conteudo, { formato } = {}) {
   const c = await lerConfigAvatar();
   if (!c.ativo || !c.chave || !c.avatarId) return conteudo;
   const slides = conteudo.slides.map((s) => ({ ...s }));
+  const cor = FUNDOS.find((f) => f.nome === conteudo.fundo)?.clipe;
   await Promise.all(cenasDoAvatar(slides).map(async (i) => {
     const script = String(slides[i].fala || slides[i].titulo || "").trim();
     if (!script) return;
     try {
-      const d = await chamar(c.chave, "POST", "/v3/videos", {
+      const pedido = {
         type: "avatar", avatar_id: c.avatarId, script, ...(c.vozId ? { voice_id: c.vozId } : {}),
         resolution: "720p", aspect_ratio: "9:16", title: `FluxDeck: ${script.slice(0, 40)}`,
-      });
+      };
+      // A cor de fundo é um enfeite: se o avatar não aceitar, o clipe sai com o fundo dele.
+      const d = await chamar(c.chave, "POST", "/v3/videos", { ...pedido, ...(cor ? { background: { type: "color", value: cor } } : {}) })
+        .catch((e) => {
+          if (!cor) throw e;
+          log(`⚠️  Avatar: sem a cor de fundo no clipe da tela ${i + 1}: ${e.message}`);
+          return chamar(c.chave, "POST", "/v3/videos", pedido);
+        });
       slides[i].avatar = { id: d.video_id };
     } catch (e) {
       log(`⚠️  Avatar: não foi possível pedir o clipe da tela ${i + 1}: ${e.message}`);

@@ -17,8 +17,8 @@ export const PILARES = {
 
 // Campanha com data para acabar: fica fora do rodízio, e quem decide quando sai é o agendamento dos posts.
 export const PILAR_BLACK_FRIDAY = "black_friday";
-const TEXTO_BLACK_FRIDAY = `Promoção de Black Friday da FluxDeck, válida só em novembro de 2026: o plano Professional com IA de atendimento no WhatsApp sai de R$ 4.500 por R$ 3.000 por mês. Ele inclui site, painel administrativo, automações e uma IA própria que atende, vende e agenda pelo WhatsApp.
-Este post é sobre essa promoção. Mostre o problema que ela resolve para o público do post e diga o preço de/por com clareza, pelo menos uma vez, na tela e na fala. Aqui, e só aqui, a regra de não citar preços não vale: cite exatamente esses valores e nenhum outro.
+const TEXTO_BLACK_FRIDAY = `Promoção de Black Friday da FluxDeck, válida só em novembro de 2026, no plano Professional com IA de atendimento no WhatsApp. Ele inclui site, painel administrativo, automações e uma IA própria que atende, vende e agenda pelo WhatsApp.
+Este post é sobre essa promoção. Mostre o problema que ela resolve para o público do post e diga que o plano fica mais barato em novembro. No vídeo e nas telas, nunca diga nem escreva o valor: nada de "R$", "reais" ou números de preço, em nenhuma fala, título ou texto. Quem quiser saber o valor pergunta no direct ou nos comentários. O valor, de R$ 4.500 por R$ 3.000 por mês, aparece só na legenda do post.
 Não invente desconto em porcentagem, vagas limitadas, bônus, contagem regressiva ou resultado de cliente. A única urgência verdadeira é que a promoção vale só até 30 de novembro.
 A última tela chama para o direct ou para comentar uma palavra, para saber mais sobre a promoção.`;
 
@@ -227,6 +227,23 @@ Adapte para o LinkedIn.`;
   return {
     texto: r.texto.trim(), hashtags, tituloDocumento: r.titulo_documento.slice(0, 100),
     cta: { titulo: r.cta_titulo, texto: r.cta_texto, destaque: r.cta_destaque, fala: formato === "reels" ? r.cta_fala : "" },
+  };
+}
+
+const COM_VALOR = /R\$\s*\d|\b\d+[\d.,]*\s*(reais|mil\b)|\b\d{1,3}\.\d{3}\b/i;
+export const temValor = (texto) => COM_VALOR.test(String(texto ?? ""));
+
+/** O vídeo e as telas não falam em valor: ele fica só na legenda. Retorna o que ainda citar. */
+export const valoresNasTelas = (post) => [post?.gancho, ...(post?.slides ?? []).flatMap((s) => [s.titulo, s.texto, s.destaque, s.fala])].filter(temValor);
+
+/** Última barreira, se a IA insistir: tira a frase da fala e troca o que está escrito na tela. */
+export function tirarValoresDasTelas(post) {
+  const semFrase = (texto) => (String(texto ?? "").match(/[^.!?]+[.!?]*\s*/g) ?? []).filter((f) => !temValor(f)).join("").trim();
+  const seguro = (texto, troca = "") => (temValor(texto) ? troca : texto);
+  return {
+    ...post,
+    gancho: seguro(post.gancho, "Black Friday na FluxDeck"),
+    slides: (post.slides ?? []).map((s) => ({ ...s, titulo: seguro(s.titulo, "Condição especial de Black Friday"), texto: seguro(s.texto), destaque: seguro(s.destaque), fala: temValor(s.fala) ? semFrase(s.fala) : s.fala })),
   };
 }
 

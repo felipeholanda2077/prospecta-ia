@@ -47,6 +47,28 @@ test("avatar: fala em até 6 cenas, sempre com a primeira e a última", () => {
   assert.deepEqual(avatar.cenasDoAvatar(undefined), []);
 });
 
+test("avatar: pede a cor do fundo do vídeo e, se o HeyGen recusar, o clipe sai sem ela", async () => {
+  await avatar.salvarConfigAvatar({ ativo: true, chave: "chave-certa", avatarId: "look1", vozId: "voz1" });
+  const original = globalThis.fetch;
+  const corpos = [];
+  globalThis.fetch = async (url, op = {}) => {
+    const corpo = JSON.parse(op.body);
+    corpos.push(corpo);
+    if (corpo.background && corpo.script === "recusa") return Response.json({ error: { message: "background inválido" } }, { status: 400 });
+    return Response.json({ data: { video_id: "v" + corpos.length } });
+  };
+  try {
+    const c = await avatar.pedirClipes({ comFelipe: true, fundo: "noite", slides: [{ visual: "capa", titulo: "A", fala: "aceita" }, { visual: "cta", titulo: "B", fala: "recusa" }] }, { formato: "reels" });
+    assert.ok(c.slides.every((s) => s.avatar?.id));
+    assert.deepEqual(corpos.find((b) => b.script === "aceita").background, { type: "color", value: "#20345c" });
+    assert.equal(corpos.filter((b) => b.script === "recusa").length, 2);
+    assert.equal(corpos.filter((b) => b.script === "recusa").at(-1).background, undefined);
+  } finally {
+    globalThis.fetch = original;
+    await db.gravarConfig("avatar", {});
+  }
+});
+
 test("avatar: desligado ou fora do Reels com Felipe, não chama o HeyGen", async () => {
   const f = heygenFalso();
   try {

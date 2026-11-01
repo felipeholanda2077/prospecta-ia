@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { gerarPost, PILARES, ESTRUTURAS, PUBLICOS, TONS, PILAR_BLACK_FRIDAY } from "../ia/conteudo.js";
+import { gerarPost, PILARES, ESTRUTURAS, PUBLICOS, TONS, PILAR_BLACK_FRIDAY, valoresNasTelas, tirarValoresDasTelas } from "../ia/conteudo.js";
+import { FUNDOS } from "../../public/post-desenho.js";
 import { FIM_DA_PROMOCAO } from "../vendas/campanha.js";
 import { colocarFotos } from "./fotos.js";
 import { pedirClipes } from "./avatar.js";
@@ -101,6 +102,12 @@ export async function criarPostDeHoje(campanha, { formato, pilar: pilarFixo = nu
     log(`🔁 Gancho parecido com um post recente ("${parecido}"); a IA escreve outro`);
     escrito = await escrever({ ...pedido, aviso: `o gancho "${escrito.gancho}" ficou parecido demais com "${parecido}". Escreva outro assunto, com outro gancho.` });
   }
+  // O valor não aparece no vídeo nem nas telas: pede de novo uma vez e, se insistir, tira.
+  if (valoresNasTelas(escrito).length) {
+    log("🔁 A IA citou valor nas telas; ela escreve de novo");
+    escrito = await escrever({ ...pedido, aviso: "você citou valor nas falas ou nas telas. Reescreva sem nenhum valor, que fica só na legenda." });
+    if (valoresNasTelas(escrito).length) escrito = tirarValoresDasTelas(escrito);
+  }
   const conteudo = await clipes(await fotos({ ...escrito, ...variedade, capaSemFelipe: conf.apresentador === false }, { formato: escolhido, dia }), { formato: escolhido });
   // Os estilos de foto sem nenhuma foto achada virariam fundo escuro: troca por um que não depende dela.
   if (conteudo.arte === "dividido" && !conteudo.slides?.some((s) => s.foto)) conteudo.arte = sorteio() < 0.5 ? "cor" : "claro";
@@ -131,6 +138,7 @@ export function escolherVariedade(recentes, { formato, apresentador = true, sort
     publico: sortearSemRepetir(Object.keys(PUBLICOS), de("publico", 8), sorteio),
     tom: sortearSemRepetir(Object.keys(TONS), de("tom", 4), sorteio),
     arte: sortearSemRepetir(ARTES_DOS_POSTS, de("arte", 3), sorteio),
+    fundo: sortearSemRepetir(FUNDOS.map((f) => f.nome), de("fundo", 5), sorteio),
     comFelipe: formato === "reels" && apresentador !== false,
   };
 }
