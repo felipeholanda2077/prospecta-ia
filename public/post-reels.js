@@ -44,12 +44,13 @@ const inter = (t, peso = 500) => `${peso} ${t}px Inter`;
 
 // ---------- O quadro do avatar ----------
 // Sempre pequeno e em lugar diferente a cada cena. `lado` diz de onde ele desliza quando a cena começa.
+// O quadro tem o formato do clipe (9:16): o Felipe aparece inteiro, com o queixo e os ombros, sem corte.
 const JANELAS = [
-  { x: 620, y: 130, w: 400, h: 500, lado: 1 },
-  { x: 60, y: 130, w: 400, h: 500, lado: -1 },
-  { x: 340, y: 130, w: 400, h: 500, lado: 0 },
-  { x: 620, y: 1010, w: 400, h: 500, lado: 1 },
-  { x: 60, y: 1010, w: 400, h: 500, lado: -1 },
+  { x: 680, y: 130, w: 340, h: 604, lado: 1 },
+  { x: 60, y: 130, w: 340, h: 604, lado: -1 },
+  { x: 370, y: 130, w: 340, h: 604, lado: 0 },
+  { x: 680, y: 900, w: 340, h: 604, lado: 1 },
+  { x: 60, y: 900, w: 340, h: 604, lado: -1 },
 ];
 export const ENTRADA_DA_JANELA = 0.35;
 
@@ -57,7 +58,7 @@ export const ENTRADA_DA_JANELA = 0.35;
 export function janelaDaCena(post, i, visual) {
   const id = Math.abs(Number(post?.id) || 0);
   const janela = visual === "cta" ? JANELAS[(id % 2) * 1] : JANELAS[(id * 2 + i * 3) % JANELAS.length];
-  return { ...janela, dx: janela.lado * 520, dy: janela.lado === 0 ? -640 : 0 };
+  return { ...janela, dx: janela.lado * 520, dy: janela.lado === 0 ? -760 : 0 };
 }
 
 // ---------- Peças ----------
@@ -519,8 +520,9 @@ const PERGUNTAS = [
   // A pergunta toma a tela, com comentários passando atrás dela.
   function perguntaGigante(c) {
     const { ctx, area: a, local, tela } = c;
-    const m = hook(c, { largura: a.largura, alturaMax: Math.min(620, a.base - a.topo - 70), maior: 170, menor: 70, fonte: (t) => serifa(t, 600), entre: 1.08 });
-    const y = meioV(a, m.altura);
+    const mt = tela.texto ? alturaApoio(ctx, tela.texto, a.largura) + 34 : 0;
+    const m = hook(c, { largura: a.largura, alturaMax: Math.min(620, a.base - a.topo - mt), maior: 170, menor: 60, fonte: (t) => serifa(t, 600), entre: 1.08 });
+    const y = meioV(a, m.altura + mt);
     [0, 1, 2].forEach((k) => {
       const e = estalo((local - k * 0.1) / 0.3);
       const yy = a.topo + (a.base - a.topo) * [0.08, 0.42, 0.7][k] - local * 16;
@@ -992,10 +994,11 @@ const IMPACTOS = [
       ctx.font = serifa(100, 600);
       return Math.min(a.base - a.topo > 900 ? 230 : 150, (100 * a.largura * 0.96) / ctx.measureText(l).width);
     });
+    const mt = tela.texto ? alturaApoio(ctx, tela.texto, a.largura) + 30 : 0;
     const altura = medidas.reduce((s, t) => s + t * 1.04, 0);
-    const y0 = meioV(a, Math.min(altura, a.base - a.topo));
+    const y0 = meioV(a, Math.min(altura, a.base - a.topo - mt) + mt);
     const realce = new Set(String(tela.destaque).split(/\s+/).map(semAcento).filter(Boolean));
-    const escalaGeral = Math.min(1, (a.base - a.topo) / altura);
+    const escalaGeral = Math.min(1, (a.base - a.topo - mt) / altura);
     let yy = y0;
     linhas.forEach((l, k) => {
       const tam = medidas[k] * escalaGeral;
@@ -1029,8 +1032,9 @@ const IMPACTOS = [
   function impactoClaro(c) {
     const { ctx, w, h, area: a, local, tela } = c;
     telaClara(ctx, w, h, local / 0.3, a.x + a.largura / 2, (a.topo + a.base) / 2);
-    const m = hook(c, { largura: a.largura, alturaMax: Math.min(760, a.base - a.topo), maior: 170, menor: 72, fonte: (t, p = 600) => serifa(t, p), entre: 1.06 });
-    const y = meioV(a, m.altura);
+    const mt = tela.texto ? alturaApoio(ctx, tela.texto, a.largura) + 28 : 0;
+    const m = hook(c, { largura: a.largura, alturaMax: Math.min(760, a.base - a.topo - mt), maior: 170, menor: 60, fonte: (t, p = 600) => serifa(t, p), entre: 1.06 });
+    const y = meioV(a, m.altura + mt);
     const e = 1 + 0.018 * local;
     ctx.save();
     ctx.translate(a.x + a.largura / 2, y + m.altura / 2);
@@ -1054,8 +1058,9 @@ const IMPACTOS = [
       ctx.fillStyle = g;
       ctx.fillRect(0, yy, w, 3 + sorteio(id + k + 30) * 4);
     }
-    const m = hook(c, { largura: a.largura, alturaMax: Math.min(720, a.base - a.topo), maior: 160, menor: 68, fonte: (t, p = 600) => serifa(t, p), entre: 1.08 });
-    const y = meioV(a, m.altura);
+    const mt = tela.texto ? alturaApoio(ctx, tela.texto, a.largura) + 30 : 0;
+    const m = hook(c, { largura: a.largura, alturaMax: Math.min(720, a.base - a.topo - mt), maior: 160, menor: 60, fonte: (t, p = 600) => serifa(t, p), entre: 1.08 });
+    const y = meioV(a, m.altura + mt);
     escrever(ctx, m, { x: a.x, y, largura: a.largura, realce: tela.destaque, local, atraso: 0.02, passo: 0.13, centro: true, modo: "lado", fonte: (t, p = 600) => serifa(t, p) });
     apoio(ctx, tela.texto, { x: a.x, y: y + m.altura + 30, largura: a.largura, local, inicio: 0.7, centro: true });
   },
