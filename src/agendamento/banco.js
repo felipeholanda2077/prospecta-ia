@@ -86,7 +86,7 @@ export async function chaveDoBancoValida(recebido) {
 const ultimaExecucao = async (nome) => (await db
   .consultar(
     `SELECT status, return_message, end_time FROM cron.job_run_details
-      WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = $1) ORDER BY start_time DESC LIMIT 1`,
+      WHERE jobid = (SELECT jobid FROM cron.job WHERE jobname = $1) ORDER BY runid DESC LIMIT 1`,
     [nome]
   )
   .catch(() => []))[0] ?? null;
