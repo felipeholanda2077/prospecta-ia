@@ -126,6 +126,14 @@ ALTER TABLE posts ADD COLUMN IF NOT EXISTS linkedin_id text;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS linkedin_link text;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS linkedin_erro text;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS linkedin_tentativas integer NOT NULL DEFAULT 0;
+-- O mesmo Reels no TikTok, com resultado próprio.
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_publicacao text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_enviado_em text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_id text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_link text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_privacidade text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_erro text;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS tiktok_tentativas integer NOT NULL DEFAULT 0;
 
 -- Imagens e vídeos gerados para o Instagram buscar pelo link; apagados depois que o post sai.
 -- Insights dos posts do perfil no Instagram (os criados pelo sistema e os outros), atualizados ao longo do dia.

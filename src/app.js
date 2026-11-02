@@ -19,9 +19,11 @@ import * as whatsappOficial from "./envio/whatsapp.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
-import { rodadaDeConteudo, rodadaDoLinkedin, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia, normalizarHorarios } from "./conteudo/diario.js";
+import { rodadaDeConteudo, rodadaDoLinkedin, rodadaDoTiktok, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia, normalizarHorarios } from "./conteudo/diario.js";
 import { postarNoLinkedin, textoDoPost } from "./conteudo/linkedin.js";
 import * as linkedin from "./envio/linkedin.js";
+import { postarNoTiktok } from "./conteudo/tiktok.js";
+import * as tiktok from "./envio/tiktok.js";
 import { buscarFornecedores, comIntegracoes, limparParaSalvar } from "./descoberta/fornecedores.js";
 import * as mercadolivre from "./envio/mercadolivre.js";
 import * as shopee from "./envio/shopee.js";
@@ -328,6 +330,8 @@ const TAREFAS_CRON = {
   },
   // A cada 5 minutos: os posts do dia na página do LinkedIn, nos mesmos horários do Instagram.
   linkedin: (c) => rodadaDoLinkedin(c),
+  // A cada 5 minutos: os Reels do dia no TikTok, nos mesmos horários do Instagram.
+  tiktok: (c) => rodadaDoTiktok(c),
   // A cada 10 minutos: as perguntas novas do Mercado Livre, com a resposta sugerida.
   mercadolivre: (c) => rodadaDoMercadoLivre(c),
   // A cada hora: as parcelas perto de vencer e o que já foi pago, inclusive pelos links de pagamento.
@@ -357,7 +361,7 @@ app.get("/api/cron/:tarefa", async (req, res) => {
   if (!tarefa) return res.sendStatus(404);
   const recebido = String(req.get("authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   if (!(await chaveDoCronValida(recebido))) return res.sendStatus(401);
-  if (!["novas", "conteudo", "instagram", "linkedin", "mercadolivre", "cobrancas"].includes(req.params.tarefa)) await db.gravarEstado("ultima_rodada", new Date().toISOString());
+  if (!["novas", "conteudo", "instagram", "linkedin", "tiktok", "mercadolivre", "cobrancas"].includes(req.params.tarefa)) await db.gravarEstado("ultima_rodada", new Date().toISOString());
   // Se o agendador do banco ainda não estiver ligado, liga (na primeira rodada que chegar).
   const agendador = await garantirAgendamentoNoBanco().catch((e) => {
     console.error("⚠️  Agendador do banco:", e.message);
@@ -451,6 +455,12 @@ app.get("/api/mercadolivre/retorno", async (req, res) => {
 // A volta do login do LinkedIn: quem garante que o pedido partiu do painel é o `state`, que só o sistema conhece.
 app.get("/api/linkedin/retorno", async (req, res) => {
   await linkedin.concluirEntrada(req.query).catch((e) => console.error("⚠️  Login do LinkedIn:", e.message));
+  res.redirect("/#conteudo");
+});
+
+// A volta do login do TikTok: de novo, quem garante é o `state`.
+app.get("/api/tiktok/retorno", async (req, res) => {
+  await tiktok.concluirEntrada(req.query).catch((e) => console.error("⚠️  Login do TikTok:", e.message));
   res.redirect("/#conteudo");
 });
 
@@ -1029,6 +1039,7 @@ app.get("/api/conteudo", async (req, res) => {
   res.json({
     config: conf, plano: await lerPlano(), base: await lerBaseDeConteudo(), hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14),
     instagram: await statusDaConexao(), linkedin: await linkedin.statusDaConexao(), narracao: narracaoDisponivel(), pexels: Boolean(await lerChavePexels()),
+    tiktok: await tiktok.statusDaConexao(),
   });
 });
 
@@ -1132,6 +1143,37 @@ app.put("/api/linkedin/app", rotaLinkedin(async (req) => {
 app.post("/api/linkedin/entrar", rotaLinkedin(async () => ({ url: await linkedin.urlDeEntrada() })));
 app.put("/api/linkedin/pagina", rotaLinkedin(async (req) => void (await linkedin.escolherPagina(req.body?.pagina))));
 app.post("/api/linkedin/desconectar", rotaLinkedin(async () => void (await linkedin.desconectarLinkedin())));
+
+// Publica agora no TikTok (também serve para tentar de novo depois de um erro).
+app.post("/api/conteudo/:id/tiktok", async (req, res) => {
+  const post = await db.buscarPost(req.params.id);
+  if (!post) return res.status(404).json({ erro: "Post não encontrado" });
+  if (post.status === "descartado") return res.status(400).json({ erro: "Esse post foi descartado" });
+  if (post.formato !== "reels") return res.status(400).json({ erro: "O TikTok recebe só os Reels" });
+  await db.atualizarTiktokDoPost(post.id, { tiktok_tentativas: 0 });
+  const r = await postarNoTiktok(post.id, await carregarCampanhaCompleta());
+  if (r.tiktok === "desconectado") return res.status(400).json({ erro: "Conecte o TikTok primeiro" });
+  if (r.tiktok === "erro") return res.status(502).json({ erro: r.erro });
+  res.json(r);
+});
+
+// A conexão com o TikTok: os segredos ficam só no servidor.
+const rotaTiktok = (fazer) => async (req, res) => {
+  try {
+    res.json((await fazer(req)) ?? (await tiktok.statusDaConexao()));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+};
+app.put("/api/tiktok/app", rotaTiktok(async (req) => {
+  await tiktok.salvarApp(req.body ?? {});
+  return { url: await tiktok.urlDeEntrada() };
+}));
+app.post("/api/tiktok/entrar", rotaTiktok(async () => ({ url: await tiktok.urlDeEntrada() })));
+app.put("/api/tiktok/publicacao", rotaTiktok(async (req) => void (await tiktok.salvarPublicacao(req.body ?? {}))));
+app.post("/api/tiktok/desconectar", rotaTiktok(async () => void (await tiktok.desconectarTiktok())));
+// O que a conta permite agora. O TikTok pede que isso seja lido de novo sempre que a tela de envio abre.
+app.get("/api/tiktok/criador", rotaTiktok(async () => tiktok.criador(await tiktok.lerConexao())));
 
 // O Reels em MP4, com a trilha e a voz, para baixar pelo painel (o mesmo vídeo que vai para o Instagram).
 app.get("/api/conteudo/:id/video", async (req, res) => {

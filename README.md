@@ -230,6 +230,15 @@ Os mesmos posts do Instagram saem na página da empresa no LinkedIn, nos mesmos 
 - **Público:** a IA reescreve o texto para donos e gestores de empresa e troca a última tela por uma chamada que faz sentido lá. O resto do post é o mesmo.
 - **Conexão:** em **Redes sociais → Configurações → Página do LinkedIn**, com um app próprio aprovado no produto *Community Management API*. O acesso vale 60 dias: renova sozinho quando o LinkedIn libera a renovação para o app; senão, o sistema avisa por e-mail 10 dias antes para entrar de novo.
 
+## TikTok
+
+Os Reels saem também no TikTok, nos mesmos horários, numa execução separada (um erro em uma rede não atrapalha a outra). O vídeo é o mesmo do Instagram, reaproveitado enquanto estiver guardado; só os Reels vão, carrossel não.
+
+- **Conexão:** em **Redes sociais → Configurações → Conta do TikTok**, com um app próprio no TikTok for Developers (Login Kit + Content Posting API). O acesso vale 24 horas e renova sozinho por até 1 ano.
+- **Publicar direto:** sai sozinho, mas enquanto o TikTok não auditar o app ele só aceita conta privada e vídeo que só o dono vê. As regras do TikTok listam ferramenta para as próprias contas como uso não aceito, então a aprovação da auditoria não é garantida.
+- **Mandar como rascunho:** o vídeo chega ao app do TikTok, e você toca na notificação e publica. A legenda vai por e-mail, porque o TikTok não a leva para o rascunho. São no máximo 5 rascunhos pendentes em 24 horas.
+- **Comentários:** o TikTok não tem resposta automática como o direct do Instagram: os comentários são respondidos à mão.
+
 ## Insights do Instagram
 
 Em **Conteúdo → Desempenho no Instagram** aparecem os números do perfil: seguidores (e o ganho na semana), alcance médio, engajamento e, post a post, alcance, curtidas, comentários, salvamentos e compartilhamentos (e o tempo médio assistido nos Reels). Os posts feitos fora do sistema também entram. O sistema lê os insights sozinho a cada 6 horas (ou no botão **Atualizar agora**), pelo mesmo token dos posts, que precisa de `instagram_manage_insights`.

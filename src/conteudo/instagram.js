@@ -75,7 +75,9 @@ export async function postarNoInstagram(postId, campanha, {
     const publicado = await api.publicarContainer(conexao, container);
     await db.atualizarInstagramDoPost(post.id, { instagram_id: publicado.id, instagram_link: publicado.link, instagram_container: null, instagram_erro: null });
     await db.atualizarStatusPost(post.id, "postado");
-    await db.apagarMidias(`post-${post.id}-`);
+    // Com o TikTok conectado, o vídeo fica para ele aproveitar em vez de gerar de novo: ele apaga ao publicar, e o que sobrar sai em 3 dias.
+    const guardar = post.formato === "reels" && !post.tiktok_id && (await db.lerConfig("tiktok"))?.token ? `post-${post.id}-reels.mp4` : null;
+    await db.apagarMidias(`post-${post.id}-`, { menos: guardar });
     log(`📸 Post ${post.id} publicado no Instagram: ${publicado.link ?? publicado.id}`);
     return { instagram: "postado", link: publicado.link };
   } catch (e) {

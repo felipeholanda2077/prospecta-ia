@@ -193,6 +193,14 @@ export async function atualizarLinkedinDoPost(id, campos) {
   await q(`UPDATE posts SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
 }
 
+const CAMPOS_TIKTOK = ["tiktok_publicacao", "tiktok_enviado_em", "tiktok_id", "tiktok_link", "tiktok_privacidade", "tiktok_erro", "tiktok_tentativas"];
+
+export async function atualizarTiktokDoPost(id, campos) {
+  const chaves = Object.keys(campos).filter((k) => CAMPOS_TIKTOK.includes(k));
+  if (!chaves.length) return;
+  await q(`UPDATE posts SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")} WHERE id = $1`, [id, ...chaves.map((k) => campos[k])]);
+}
+
 export async function atualizarConteudoDoPost(id, conteudo) {
   await q("UPDATE posts SET conteudo = $2 WHERE id = $1", [id, JSON.stringify(conteudo)]);
 }
@@ -214,10 +222,10 @@ export async function lerMidia(chave) {
   return m && { tipo: m.tipo, dados: Buffer.from(m.dados, "base64") };
 }
 
-/** Apaga as mídias de um post (e as esquecidas há mais de 3 dias). */
-export async function apagarMidias(prefixo) {
+/** Apaga as mídias de um post, menos a chave em `menos` (e as esquecidas há mais de 3 dias). */
+export async function apagarMidias(prefixo, { menos = null } = {}) {
   // As fotos dos produtos ficam: elas são o cadastro, não um arquivo temporário de post.
-  await q("DELETE FROM midias WHERE starts_with(chave, $1) OR (criada_em < now() - interval '3 days' AND NOT starts_with(chave, 'produto-') AND NOT starts_with(chave, 'relatorio-'))", [prefixo]);
+  await q("DELETE FROM midias WHERE (starts_with(chave, $1) AND chave IS DISTINCT FROM $2::text) OR (criada_em < now() - interval '3 days' AND NOT starts_with(chave, 'produto-') AND NOT starts_with(chave, 'relatorio-'))", [prefixo, menos]);
 }
 
 // ---------- Fornecedores de dropshipping ----------

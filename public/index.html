@@ -1388,6 +1388,48 @@
             <a class="btn" href="/fluxdeck-perfil.jpg" download="fluxdeck-logo-perfil.jpg"><span data-ic="download"></span>Baixar logo para a página</a>
             <span class="muted" style="font-size:13px">O segredo e o acesso ficam só no servidor.</span></div>
         </form>
+        <form class="cartao" id="form-tiktok">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="tiktok"></span><div class="titulos"><h3>Conta do TikTok <span id="tiktok-status"></span></h3>
+            <div class="meta">Os mesmos Reels do Instagram, nos mesmos horários, numa execução separada: um erro no TikTok não atrapalha o Instagram. Carrossel não vai. Os comentários do TikTok são respondidos à mão, porque ele não tem resposta automática como o direct.</div></div></div>
+          <div class="cartao-corpo config-grade">
+            <div id="tiktok-aviso" style="grid-column:1/-1"></div>
+            <div class="campo"><label for="tiktok-chave">Client Key</label>
+              <input id="tiktok-chave" name="clientKey" autocomplete="off" required></div>
+            <div class="campo"><label for="tiktok-segredo">Client Secret</label>
+              <input id="tiktok-segredo" name="clientSecret" type="password" autocomplete="off"></div>
+            <div class="campo" style="grid-column:1/-1"><label for="tiktok-retorno">URL de retorno (cole no app do TikTok, em Login Kit → Redirect URI)</label>
+              <input id="tiktok-retorno" readonly>
+              <details class="ajuda"><summary>Como criar o app no TikTok</summary>
+                <ol><li>Crie a conta da FluxDeck no app do TikTok, se ainda não existir.</li>
+                  <li>Abra <b>developers.tiktok.com</b> → <b>Manage apps</b> → <b>Connect an app</b> e preencha nome, ícone, site, termos e privacidade.</li>
+                  <li>Em <b>Products</b>, adicione <b>Login Kit</b> e <b>Content Posting API</b>, com <b>Direct Post</b> ligado. Em Login Kit, cole a URL de retorno acima.</li>
+                  <li>Copie o <b>Client Key</b> e o <b>Client Secret</b> para cá e clique em <b>Salvar e entrar com o TikTok</b>, com a conta da FluxDeck aberta.</li></ol></details></div>
+            <div id="tiktok-publicacao" style="grid-column:1/-1;display:grid;gap:14px" hidden>
+              <div class="campo"><label for="tiktok-modo">Como os vídeos saem</label>
+                <select id="tiktok-modo" name="modo">
+                  <option value="direto">Publicar direto</option>
+                  <option value="rascunho">Mandar como rascunho</option>
+                </select>
+                <span class="muted" style="font-size:12.5px"><b>Direto</b> sai sozinho, mas até o TikTok aprovar a auditoria do app só funciona em conta privada, e só você vê o vídeo. <b>Rascunho</b> chega ao app do TikTok e você toca na notificação para publicar para todo mundo, com até 5 pendentes em 24 horas.</span></div>
+              <div id="tiktok-direto" style="display:grid;gap:14px">
+                <div id="tiktok-conta"></div>
+                <div class="campo"><label for="tiktok-privacidade">Quem pode ver os vídeos</label>
+                  <select id="tiktok-privacidade" name="privacidade"><option value="">Escolha…</option></select></div>
+                <label class="chave"><input type="checkbox" name="comentarios"><div><b>Permitir comentários</b><span>Deixe ligado se o vídeo pede para comentar.</span></div></label>
+                <label class="chave"><input type="checkbox" name="dueto"><div><b>Permitir dueto</b></div></label>
+                <label class="chave"><input type="checkbox" name="costura"><div><b>Permitir costura</b></div></label>
+                <div class="alerta info"><span data-ic="alert"></span><div>Os vídeos saem com o selo <b>Conteúdo promocional</b>, porque divulgam a própria FluxDeck, e com o selo de <b>gerado com IA</b>.</div></div>
+              </div>
+              <label class="chave"><input type="checkbox" name="automatico"><div><b>Enviar sozinho nos horários dos posts</b><span>Vale junto com os posts automáticos. Desligado, o envio é só pelo botão de cada post.</span></div></label>
+              <p class="muted" style="font-size:13px;margin:0">Ao publicar, você concorda com a <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener">Confirmação de Uso de Música</a> do TikTok.</p>
+            </div>
+          </div>
+          <div class="acoes"><button class="btn primario" type="submit" id="tiktok-entrar"><span data-ic="tiktok"></span>Salvar e entrar com o TikTok</button>
+            <button class="btn" type="button" id="tiktok-salvar" hidden>Salvar como os vídeos saem</button>
+            <button class="btn fantasma" type="button" id="tiktok-desconectar" hidden>Desconectar</button>
+            <a class="btn" href="/fluxdeck-perfil.jpg" download="fluxdeck-logo-perfil.jpg"><span data-ic="download"></span>Baixar logo para o perfil</a>
+            <span class="muted" style="font-size:13px">O segredo e o acesso ficam só no servidor.</span></div>
+        </form>
         <form class="cartao" id="form-conteudo" >
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="spark"></span><div class="titulos"><h3>Posts automáticos <span id="conteudo-status"></span></h3>
             <div class="meta">Em cada horário escolhido a IA cria um post sobre a FluxDeck, com base no conteúdo do site, alternando Reels e carrossel, com legenda e hashtags. Com o Instagram conectado, ele sai sozinho no perfil.</div></div></div>
@@ -1485,6 +1527,7 @@ const ICONES = {
   store: '<path d="M3 9 4.5 3h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v9h14v-9"/>',
   box: '<path d="M21 8 12 3 3 8v8l9 5 9-5Z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
   linkedin: '<path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/>',
+  tiktok: '<path d="M14 3v12.5a4 4 0 1 1-4-4"/><path d="M14 3c.5 3 2.5 5 6 5.5"/>',
   alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/>',
   message: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
   building: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>',
@@ -1639,7 +1682,7 @@ const VIEWS = {
   contratos: { grupo: "Relacionamento", nome: "Contratos", icone: "file", titulo: "Contratos",
                sub: "O modelo editável e o contrato de cada cliente, pronto em PDF para assinar." },
   conteudo:  { grupo: "Marketing", nome: "Redes sociais", icone: "camera", titulo: "Redes sociais",
-               sub: "Os posts que a IA cria e publica no Instagram e no LinkedIn, o desempenho e o direct." },
+               sub: "Os posts que a IA cria e publica no Instagram, no LinkedIn e no TikTok, o desempenho e o direct." },
   automacao: { grupo: "Sistema", nome: "Automação", icone: "zap", titulo: "Automação",
                sub: "Rode as etapas do funil manualmente quando quiser." },
   configuracoes: { grupo: "Sistema", nome: "Configurações", icone: "settings", titulo: "Configurações",
@@ -4152,6 +4195,7 @@ function proximoPost() {
 function desenharResumoIg() {
   const ig = estadoConteudo.instagram ?? {};
   const li = estadoConteudo.linkedin ?? {};
+  const tt = estadoConteudo.tiktok ?? {};
   const conta = estadoInsights?.conta;
   const seg = estadoInsights?.seguidores ?? [];
   const atual = conta?.seguidores ?? seg.at(-1)?.seguidores ?? null;
@@ -4170,6 +4214,7 @@ function desenharResumoIg() {
   $("#ig-resumo").innerHTML =
     card("config", "camera", "Instagram", ig.conectado ? "ok" : "perigo", ig.conectado ? `@${ig.usuario}` : "Não conectado", ig.conectado ? "Posta sozinho" : "Conecte em Configurações")
     + card("config", "linkedin", "LinkedIn", li.conectado ? "ok" : li.entrou ? "atencao" : "", li.conectado ? li.pagina : li.entrou ? "Falta a página" : "Não conectado", li.conectado ? "Mesmos horários" : "Conecte em Configurações")
+    + card("config", "tiktok", "TikTok", tt.conectado && tt.automatico ? "ok" : tt.entrou ? "atencao" : "", tt.conectado ? (tt.usuario ? `@${tt.usuario}` : tt.apelido ?? "Conectado") : tt.entrou ? "Falta escolher como sai" : "Não conectado", !tt.entrou ? "Conecte em Configurações" : !tt.conectado ? "Veja em Configurações" : !tt.automatico ? "Só pelo botão de cada post" : tt.modo === "rascunho" ? "Rascunho no app, nos mesmos horários" : "Mesmos horários")
     + card("desempenho", "users", "Seguidores", null, atual != null ? numero(atual) : "–", ganho ? `${ganho > 0 ? "+" : ""}${ganho} na semana` : estadoInsights?.analisados ? `${estadoInsights.analisados} posts analisados` : "Atualiza a cada 6 h")
     + card("posts", "clock", "Próximo post", prox.cor, prox.titulo, prox.sub)
     + card("direct", "message", "Direct", direct[0], direct[1], direct[2]);
@@ -4365,9 +4410,17 @@ function cardPost(post, hoje) {
     : post.linkedin_midia ? `<span class="pilula acc">Publicando no LinkedIn…</span>`
     : li.conectado && conf.ativo && conf.postarSozinho && post.dia === hoje && post.horario != null && !post.linkedin_erro ? `<span class="pilula acc">${ic("clock", "sm")}Sai às ${post.horario}h no LinkedIn</span>`
     : "";
+  const tt = estadoConteudo.tiktok ?? {};
+  const noTiktok = Boolean(post.tiktok_id);
+  const situacaoTt = !reels ? ""
+    : noTiktok ? (post.tiktok_privacidade === "RASCUNHO" ? `<span class="pilula acc">No app do TikTok, falta você publicar</span>`
+      : `<span class="pilula ok">${ic("check", "sm")}No TikTok${post.tiktok_privacidade === "SELF_ONLY" ? " (só você vê)" : ""}</span>`)
+    : post.tiktok_publicacao ? `<span class="pilula acc">Publicando no TikTok…</span>`
+    : tt.conectado && tt.automatico && conf.ativo && conf.postarSozinho && post.dia === hoje && post.horario != null && !post.tiktok_erro ? `<span class="pilula acc">${ic("clock", "sm")}Sai às ${post.horario}h no TikTok</span>`
+    : "";
   return `<article class="cartao" data-post="${post.id}">
     <div class="cartao-cab"><span class="kpi-ic">${ic(reels ? "video" : "image")}</span>
-      <div class="titulos"><h3>${esc(c.gancho)} ${situacao} ${situacaoLi}</h3>
+      <div class="titulos"><h3>${esc(c.gancho)} ${situacao} ${situacaoLi} ${situacaoTt}</h3>
         <div class="meta">${[quando, reels ? "Reels" : `Carrossel com ${telasDoPost(post).length} imagens`, NOMES_PILAR[post.pilar] ?? post.pilar,
           NOMES_ESTRUTURA[c.estrutura], NOMES_ARTE[c.arte], reels && NOMES_TRILHA[c.trilha], reels && (estadoConteudo.narracao ? "com voz" : "sem voz"), c.comFelipe && (c.slides?.some((s) => s.avatar) ? "com avatar do Felipe" : "com Felipe")].filter(Boolean).map(esc).join(" · ")}</div></div></div>
     <div class="cartao-corpo post-corpo">
@@ -4376,6 +4429,7 @@ function cardPost(post, hoje) {
       <div class="post-texto">
         ${post.instagram_erro && post.status !== "postado" ? `<div class="alerta perigo">${ic("alert")}<div><b>Não saiu no Instagram:</b> ${esc(post.instagram_erro)}</div></div>` : ""}
         ${post.linkedin_erro && !noLinkedin ? `<div class="alerta perigo">${ic("alert")}<div><b>Não saiu no LinkedIn:</b> ${esc(post.linkedin_erro)}</div></div>` : ""}
+        ${post.tiktok_erro && !noTiktok ? `<div class="alerta perigo">${ic("alert")}<div><b>Não saiu no TikTok:</b> ${esc(post.tiktok_erro)}</div></div>` : ""}
         ${metricasDoPost(post)}
         <div class="campo"><span class="rotulo">Legenda</span><pre class="post-legenda">${esc(legendaCompleta(post))}</pre></div>
         <div class="campo"><span class="rotulo">Hashtags (já na legenda)</span>
@@ -4392,6 +4446,8 @@ function cardPost(post, hoje) {
         ? `<button class="btn primario" type="button" data-post-acao="instagram">${ic("send")}${post.instagram_erro ? "Tentar de novo no Instagram" : "Postar no Instagram agora"}</button>` : ""}
       ${noLinkedin && post.linkedin_link ? `<a class="btn" href="${esc(post.linkedin_link)}" target="_blank" rel="noopener">${ic("external")}Ver no LinkedIn</a>` : ""}
       ${li.conectado && !noLinkedin ? `<button class="btn" type="button" data-post-acao="linkedin">${ic("linkedin")}${post.linkedin_erro ? "Tentar de novo no LinkedIn" : "Postar no LinkedIn agora"}</button>` : ""}
+      ${noTiktok && post.tiktok_link ? `<a class="btn" href="${esc(post.tiktok_link)}" target="_blank" rel="noopener">${ic("external")}Ver no TikTok</a>` : ""}
+      ${reels && tt.conectado && !noTiktok && !post.tiktok_publicacao ? `<button class="btn" type="button" data-post-acao="tiktok">${ic("tiktok")}${post.tiktok_erro ? "Tentar de novo no TikTok" : tt.modo === "rascunho" ? "Mandar para o app do TikTok" : "Postar no TikTok agora"}</button>` : ""}
       <button class="btn${instagram.conectado ? "" : " primario"}" type="button" data-post-acao="baixar">${ic("download")}${reels ? "Baixar vídeo" : "Baixar imagens"}</button>
       <button class="btn" type="button" data-post-acao="copiar">${ic("copy")}Copiar legenda com hashtags</button>
       ${c.linkedin ? `<button class="btn" type="button" data-post-acao="copiar-linkedin">${ic("copy")}Copiar texto do LinkedIn</button>`
@@ -4551,6 +4607,7 @@ async function carregarConteudo() {
     $("#instagram-conectar").lastChild.textContent = r.instagram.conectado ? "Trocar token" : "Conectar Instagram";
     $("#instagram-desconectar").hidden = !r.instagram.conectado;
     mostrarLinkedin(r.linkedin);
+    mostrarTiktok(r.tiktok).catch((e) => avisar(e.message, "perigo"));
     carregarDirect({ conferir: r.instagram.conectado });
     carregarDirects();
     carregarAvatar();
@@ -4612,6 +4669,69 @@ $("#form-linkedin").addEventListener("submit", async (ev) => {
 $("#linkedin-desconectar").addEventListener("click", async () => {
   if (!confirm("Desconectar o LinkedIn? Os posts deixam de sair na página.")) return;
   await post("/api/linkedin/desconectar").catch((e) => avisar(e.message, "perigo"));
+  await carregarConteudo();
+});
+
+const NOMES_PRIVACIDADE_TT = { PUBLIC_TO_EVERYONE: "Todo mundo", MUTUAL_FOLLOW_FRIENDS: "Amigos (quem você segue e te segue)", FOLLOWER_OF_CREATOR: "Seguidores", SELF_ONLY: "Só eu" };
+
+/** O cartão do TikTok. As opções vêm da conta, lidas de novo a cada vez, e nada vem marcado por padrão: é regra do TikTok. */
+async function mostrarTiktok(t) {
+  const f = $("#form-tiktok");
+  if (!f.clientKey.matches(":focus")) f.clientKey.value = t.clientKey;
+  f.clientSecret.placeholder = t.appDefinido ? "•••••••• já salvo (preencha só para trocar)" : "Cole o Client Secret";
+  $("#tiktok-retorno").value = t.retorno;
+  $("#tiktok-entrar").lastChild.textContent = t.entrou ? "Entrar de novo com o TikTok" : "Salvar e entrar com o TikTok";
+  $("#tiktok-desconectar").hidden = !t.entrou;
+  $("#tiktok-salvar").hidden = !t.entrou;
+  $("#tiktok-publicacao").hidden = !t.entrou;
+  const nome = t.usuario ? `@${t.usuario}` : t.apelido;
+  $("#tiktok-status").innerHTML = t.conectado
+    ? `<span class="pilula ok">${ic("check", "sm")}${esc(nome ?? "Conectado")}</span> <span class="pilula">${t.automatico ? "Envia sozinho" : "Só pelo botão"}</span>`
+    : t.entrou ? `<span class="pilula">Falta escolher como sai</span>` : `<span class="pilula">Não conectado</span>`;
+  const avisos = [t.erro, t.faltaPermissao && "Este jeito de publicar precisa de outra permissão: clique em Entrar de novo com o TikTok."].filter(Boolean);
+  $("#tiktok-aviso").innerHTML = avisos.map((a) => `<div class="alerta perigo">${ic("alert")}<div>${esc(a)}</div></div>`).join("");
+  if (!t.entrou) return;
+  f.modo.value = t.modo;
+  f.automatico.checked = t.automatico;
+  $("#tiktok-direto").hidden = t.modo !== "direto";
+  if (t.modo !== "direto" || t.faltaPermissao) return;
+  const info = await api("/api/tiktok/criador").catch((e) => ({ erro: e.message }));
+  $("#tiktok-conta").innerHTML = info.erro ? `<div class="alerta perigo">${ic("alert")}<div>${esc(info.erro)}</div></div>`
+    : `<div class="alerta info">${ic("users")}<div>Publicando como <b>${esc(info.creator_nickname ?? t.apelido ?? "")}</b>${info.creator_username ? ` (@${esc(info.creator_username)})` : ""}.</div></div>`;
+  const opcoes = info.privacy_level_options ?? [];
+  f.privacidade.innerHTML = `<option value="">Escolha…</option>${opcoes.map((o) => `<option value="${esc(o)}"${o === t.privacidade ? " selected" : ""}>${esc(NOMES_PRIVACIDADE_TT[o] ?? o)}</option>`).join("")}`;
+  const interacoes = { comentarios: info.comment_disabled, dueto: info.duet_disabled, costura: info.stitch_disabled };
+  for (const [nomeCampo, bloqueado] of Object.entries(interacoes)) {
+    f[nomeCampo].disabled = Boolean(bloqueado);
+    f[nomeCampo].checked = !bloqueado && t[nomeCampo];
+  }
+}
+$("#tiktok-modo").addEventListener("change", (ev) => {
+  $("#tiktok-direto").hidden = ev.target.value !== "direto";
+});
+$("#form-tiktok").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  try {
+    const { url } = await api("/api/tiktok/app", { method: "PUT", body: JSON.stringify({ clientKey: f.clientKey.value, clientSecret: f.clientSecret.value }) });
+    location.href = url;
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  }
+});
+$("#tiktok-salvar").addEventListener("click", async () => {
+  const f = $("#form-tiktok");
+  try {
+    await api("/api/tiktok/publicacao", { method: "PUT", body: JSON.stringify({ modo: f.modo.value, privacidade: f.privacidade.value, comentarios: f.comentarios.checked, dueto: f.dueto.checked, costura: f.costura.checked, automatico: f.automatico.checked }) });
+    avisar("TikTok salvo.", "ok");
+    await carregarConteudo();
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  }
+});
+$("#tiktok-desconectar").addEventListener("click", async () => {
+  if (!confirm("Desconectar o TikTok? Os vídeos deixam de sair lá.")) return;
+  await post("/api/tiktok/desconectar").catch((e) => avisar(e.message, "perigo"));
   await carregarConteudo();
 });
 
@@ -4963,6 +5083,13 @@ $("#lista-posts").addEventListener("click", async (ev) => {
       btn.lastChild.textContent = p.formato === "reels" ? "Gerando o vídeo e publicando… (até 3 min)" : "Publicando…";
       const r = await post(`/api/conteudo/${p.id}/linkedin`);
       avisar(r.linkedin === "postado" ? "Publicado no LinkedIn." : "O LinkedIn ainda está processando: o post sai sozinho em até 5 minutos.", "ok", 6000);
+      await carregarConteudo();
+    } else if (acao === "tiktok") {
+      const privado = estadoConteudo.tiktok?.privacidade === "SELF_ONLY" ? " Ele sai só para você ver." : "";
+      if (!confirm(`Enviar este vídeo agora para o TikTok?${privado} Ao publicar, você concorda com a Confirmação de Uso de Música do TikTok.`)) return;
+      btn.lastChild.textContent = "Enviando o vídeo… (até 4 min)";
+      const r = await post(`/api/conteudo/${p.id}/tiktok`);
+      avisar(r.tiktok === "postado" ? "Publicado no TikTok." : r.tiktok === "no app" ? "Vídeo enviado. Abra o app do TikTok, toque na notificação e publique. A legenda foi para o seu e-mail." : "O TikTok ainda está processando: o resultado aparece no post em até 5 minutos.", "ok", 8000);
       await carregarConteudo();
     } else if (acao === "baixar" && p.formato === "carrossel") {
       await baixarCarrossel(p);

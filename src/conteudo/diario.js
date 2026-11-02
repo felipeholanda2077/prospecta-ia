@@ -11,6 +11,8 @@ import { postarNoInstagram, MAX_TENTATIVAS } from "./instagram.js";
 import { lerConexao, renovarTokenSePreciso } from "../envio/instagram.js";
 import { postarNoLinkedin, textoDoPost, MAX_TENTATIVAS as MAX_TENTATIVAS_LINKEDIN } from "./linkedin.js";
 import { lerConexao as lerConexaoLinkedin, renovarTokenSePreciso as renovarTokenLinkedin } from "../envio/linkedin.js";
+import { postarNoTiktok, MAX_TENTATIVAS as MAX_TENTATIVAS_TIKTOK } from "./tiktok.js";
+import { lerConexao as lerConexaoTiktok, renovarTokenSePreciso as renovarTokenTiktok } from "../envio/tiktok.js";
 import { desempenho, escolherPorDesempenho, lerAprendizados, MINIMO_PARA_APRENDER } from "./insights.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
@@ -275,6 +277,46 @@ export async function rodadaDoLinkedin(campanha, { agora = new Date(), postar = 
     return { linkedin: "publicando", postId: post.id, ...r };
   }
   return { linkedin: "nada a fazer" };
+}
+
+// O vídeo do Instagram leva alguns minutos para ficar pronto. Até esse limite o TikTok espera por ele, para
+// não gerar o mesmo vídeo duas vezes; depois gera o próprio, porque uma falha lá não pode segurar o post aqui.
+const ESPERA_PELO_INSTAGRAM_MIN = 20;
+
+/**
+ * Chamado pelo agendador a cada 5 minutos: leva ao TikTok os Reels cujo horário chegou, nos mesmos
+ * horários do Instagram. Passou a janela de 2 horas, não publica atrasado.
+ */
+export async function rodadaDoTiktok(campanha, { agora = new Date(), postar = postarNoTiktok, avisar = enviarNotificacao } = {}) {
+  const conexao = await lerConexaoTiktok();
+  if (!conexao.token) return { tiktok: "desconectado" };
+  const token = await renovarTokenTiktok(agora).catch((e) => (log(`⚠️  ${e.message}`), { falhou: true }));
+  if ((token.falhou || token.avisar != null) && (await db.travar("tiktok_aviso_token", 3 * 86_400_000))) {
+    await avisar(
+      token.falhou ? "O acesso ao TikTok parou de renovar" : `O acesso ao TikTok vence em ${token.avisar} dias`,
+      `Para os vídeos continuarem saindo, entre de novo no TikTok em ${config.painel.urlPublica}/#conteudo (aba Configurações). Leva 1 minuto.`
+    ).catch((e) => log(`⚠️  Não foi possível avisar do token do TikTok: ${e.message}`));
+  }
+  const { dia, minutos } = agoraEmBrasilia(agora);
+  const doDia = await db.postsDoDia(dia);
+  // Vídeo já enviado: só confere no que deu, mesmo com o automático desligado ou depois da janela.
+  const enviado = doDia.find((p) => p.tiktok_publicacao && !p.tiktok_id);
+  if (enviado) return { tiktok: "conferindo", postId: enviado.id, ...(await postar(enviado.id, campanha)) };
+  const conf = await lerConfigConteudo();
+  if (!conf.ativo || !conf.postarSozinho || !conexao.automatico) return { tiktok: "desligado" };
+  const pendentes = doDia.filter((p) => p.formato === "reels" && p.status !== "descartado" && p.horario != null && !p.tiktok_id
+    && minutos >= p.horario * 60 && minutos <= p.horario * 60 + ATRASO_MAXIMO_MIN && (p.tiktok_tentativas ?? 0) < MAX_TENTATIVAS_TIKTOK);
+  const instagram = Boolean((await lerConexao())?.token);
+  for (const post of pendentes) {
+    const instagramTrabalhando = instagram && !post.instagram_id && (post.instagram_tentativas ?? 0) < MAX_TENTATIVAS;
+    if (instagramTrabalhando && minutos < post.horario * 60 + ESPERA_PELO_INSTAGRAM_MIN) continue;
+    if (!(await db.travar(`tiktok_espera_${post.id}`, ESPERA_ENTRE_TENTATIVAS_MS))) continue;
+    const r = await postar(post.id, campanha);
+    // Só um erro espera: o vídeo ainda processando é conferido na próxima passagem.
+    if (r.tiktok !== "erro") await db.destravar(`tiktok_espera_${post.id}`);
+    return { tiktok: "publicando", postId: post.id, ...r };
+  }
+  return { tiktok: "nada a fazer" };
 }
 
 async function criarEAvisar(campanha, conf, { agora, escrever, conectado, dia, horario }) {
