@@ -1312,6 +1312,7 @@
         </div>
 
         <div class="ig-painel" id="ig-painel-direct" role="tabpanel" aria-labelledby="ig-aba-direct" data-ig-painel="direct" hidden>
+        <div id="directs-conversas"></div>
         <div class="cartao" id="cartao-direct">
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="message"></span><div class="titulos"><h3>Direct do Instagram <span id="direct-status"></span></h3>
             <div class="meta">A IA responde quem chama no direct e manda uma mensagem privada para quem comenta nos posts (ex.: comentou SITE, recebe no direct o que o post prometeu). As conversas aparecem em Respostas, junto com as do WhatsApp e do e-mail.</div></div></div>
@@ -1397,6 +1398,9 @@
               <span>Em cada horário abaixo, um post é publicado no perfil conectado. Um post criado pelos botões entra no próximo horário vago do dia.</span></div></label>
             <label class="chave"><input type="checkbox" name="apresentador"><div><b>Felipe nos vídeos</b>
               <span>Em um Reels sim, um não, a sua foto aparece no vídeo com o nome, e as falas são escritas em primeira pessoa.</span></div></label>
+            <label class="chave"><input type="checkbox" name="horariosPelaIA"><div><b>A IA decide os horários e a quantidade de posts</b>
+              <span>Uma vez por dia, ela olha os resultados do perfil e escolhe de 1 a 4 posts por dia. A mudança vale a partir do dia seguinte. Desligado, valem os horários escolhidos abaixo.</span></div></label>
+            <div id="conteudo-plano"></div>
             <div id="conteudo-voz"></div>
             <div class="campo"><label for="conteudo-gemini">Chave do Gemini, para a voz dos Reels</label>
               <input id="conteudo-gemini" name="gemini" type="password" autocomplete="off" placeholder="Cole a chave do Google AI Studio">
@@ -2572,7 +2576,7 @@ async function carregarRespostas(alvo, { manterChat = false } = {}) {
   if (conversaAberta) await abrirConversa(conversaAberta);
 }
 
-function bolhasDaConversa(d) {
+function bolhasDaConversa(d, { somenteLer = false } = {}) {
   const contatoPrincipal = [d.lead.whatsapp, d.lead.email].filter(Boolean);
   let diaAnterior = "";
   const partes = [];
@@ -2593,7 +2597,7 @@ function bolhasDaConversa(d) {
   for (const a of d.agendadas) {
     const quando = a.agendada_para ? `sai ${dataHora(a.agendada_para)}` : "aguardando a etapa anterior";
     partes.push(`<div class="bolha agendada">${esc(a.texto)}<div class="rodape-b">${ic("clock", "sm")}${a.tipo === "resposta" ? "resposta da IA" : `etapa ${a.etapa}`} · ${quando}
-      · <button class="link" data-cancelar-agendada="${a.id}">não enviar</button></div></div>`);
+      ${somenteLer ? "" : `· <button class="link" data-cancelar-agendada="${a.id}">não enviar</button>`}</div></div>`);
   }
   return partes.join("");
 }
@@ -4110,6 +4114,7 @@ function abrirAbaIg(aba, { focar = false } = {}) {
     if (ativa && focar) b.focus();
   });
   $$("[data-ig-painel]").forEach((p) => (p.hidden = p.dataset.igPainel !== aba));
+  if (aba === "direct" && typeof carregarDirects === "function") carregarDirects();
   try { localStorage.setItem("aba-instagram", aba); } catch {}
 }
 $("#ig-abas").addEventListener("click", (ev) => {
@@ -4170,7 +4175,7 @@ function desenharResumoIg() {
     + card("direct", "message", "Direct", direct[0], direct[1], direct[2]);
   const conf = estadoConteudo.config ?? {};
   $("#ig-proximo-texto").textContent = conf.ativo
-    ? `A IA cria e ${conf.postarSozinho && ig.conectado ? "publica" : "deixa pronto"} um post todo dia às ${listaDeHoras(conf.horarios ?? [])}. Próximo: ${prox.titulo.toLowerCase()}.`
+    ? `A IA cria e ${conf.postarSozinho && ig.conectado ? "publica" : "deixa pronto"} ${(conf.horarios ?? []).length === 1 ? "um post" : `${(conf.horarios ?? []).length} posts`} por dia, às ${listaDeHoras(conf.horarios ?? [])}${estadoConteudo.plano && conf.horariosPelaIA !== false ? ", horários escolhidos por ela" : ""}. Próximo: ${prox.titulo.toLowerCase()}.`
     : "Os posts automáticos estão desligados. Ligue na aba Configurações, ou crie um agora.";
 }
 
@@ -4512,6 +4517,15 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && postAberto) fecharPost();
 });
 
+/** O que a IA decidiu sobre os horários, e por quê. */
+function textoDoPlano({ plano, config: conf }) {
+  if (conf.horariosPelaIA === false) return "";
+  if (!plano) return `<div class="alerta info">${ic("clock")}<div>A IA ainda não fez o plano. Até lá, valem os horários abaixo.</div></div>`;
+  const confianca = { baixa: "ainda testando", media: "tendência", alta: "bem sustentado pelos números" }[plano.confianca] ?? plano.confianca;
+  const quando = new Date(`${plano.valeDesde}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  return `<div class="alerta info">${ic("trend")}<div><b>${plano.horarios.length} ${plano.horarios.length === 1 ? "post" : "posts"} por dia, às ${listaDeHoras(plano.horarios)}</b> (a partir de ${quando}, ${esc(confianca)}, com base em ${plano.baseadoEm} posts).<br>${esc(plano.motivo)}</div></div>`;
+}
+
 async function carregarConteudo() {
   const f = $("#form-conteudo");
   if (!$("#conteudo-horarios").children.length) {
@@ -4528,7 +4542,9 @@ async function carregarConteudo() {
     f.apresentador.checked = r.config.apresentador !== false;
     $("#conteudo-pexels-status").innerHTML = r.pexels ? `<span class="pilula ok">${ic("check", "sm")}Salva</span>` : "";
     f.pexels.placeholder = r.pexels ? "•••••••• já salva (preencha só para trocar)" : "Cole a chave do Pexels";
-    $$("#conteudo-horarios [data-hora]").forEach((b) => b.setAttribute("aria-pressed", String(r.config.horarios.includes(Number(b.dataset.hora)))));
+    $$("#conteudo-horarios [data-hora]").forEach((b) => b.setAttribute("aria-pressed", String(r.config.horariosManuais.includes(Number(b.dataset.hora)))));
+    f.horariosPelaIA.checked = r.config.horariosPelaIA !== false;
+    $("#conteudo-plano").innerHTML = textoDoPlano(r);
     $("#instagram-status").innerHTML = r.instagram.conectado
       ? `<span class="pilula ok">${ic("check", "sm")}@${esc(r.instagram.usuario)}</span>${pilulaDoToken(r.instagram)}`
       : `<span class="pilula">Não conectado</span>`;
@@ -4536,10 +4552,11 @@ async function carregarConteudo() {
     $("#instagram-desconectar").hidden = !r.instagram.conectado;
     mostrarLinkedin(r.linkedin);
     carregarDirect({ conferir: r.instagram.conectado });
+    carregarDirects();
     carregarAvatar();
     await carregarInsights();
     if (!f.base.matches(":focus")) f.base.value = r.base;
-    $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">Todo dia às ${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
+    $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">${r.plano && r.config.horariosPelaIA !== false ? "A IA decide: " : "Todo dia às "}${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
     $("#conteudo-voz").innerHTML = r.narracao
       ? `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha, efeitos sonoros e <b>voz narrando</b> (${esc(r.narracao)}).</div></div>`
       : `<div class="alerta info">${ic("video")}<div><b>Sem voz cadastrada:</b> vídeo sem narração não é publicado. Só saem os Reels em que o avatar fala todas as cenas. Para os outros, cole a chave do Gemini aqui embaixo.</div></div>`;
@@ -4697,6 +4714,110 @@ $("#form-avatar").addEventListener("submit", async (ev) => {
   }
 });
 
+// ---------- Conversas do direct ----------
+let directsCarregados = [];
+let directAberto = null;
+
+/** Em que pé está a conversa, em palavras simples. */
+function situacaoDoDirect(c) {
+  const a = c.andamento;
+  if (c.direct.recusados && !c.direct.enviados) return ["perigo", "A Meta recusou o direct"];
+  if (a.precisaDeVoce) return ["perigo", "Precisa de você"];
+  if (a.chance === "encerrada") return ["", "Encerrada"];
+  if (a.chance === "agendada") return ["ok", "Reunião agendada"];
+  if (a.chance === "fechada") return ["ok", "Fechou"];
+  return a.aguardando === "empresa" ? ["acc", "IA respondeu, esperando a pessoa"] : ["atencao", "A IA vai responder"];
+}
+
+function itemDoDirect(c) {
+  const u = c.ultima;
+  const [cor, texto] = situacaoDoDirect(c);
+  return `<button type="button" class="chat-item${c.interessado ? " interessado" : ""}" data-direct-id="${c.id}" aria-current="${c.id === directAberto}">
+    ${avatarConversa(c.nome, c.interessado)}
+    <span class="meio"><span class="nome">${esc(c.nome)}</span>
+      <span class="previa">${u ? esc(`${u.autor === "nos" ? "IA: " : ""}${u.texto.replace(/\s+/g, " ")}`) : ""}</span>
+      <span><span class="pilula ${cor}">${texto}</span> ${pilulaChance(c.andamento)}</span></span>
+    <span class="lado"><span>${horaCurta(u?.quando)}</span><span class="muted" title="Mensagens que a IA mandou no direct">${c.direct.enviados} ${c.direct.enviados === 1 ? "resposta" : "respostas"}</span></span>
+  </button>`;
+}
+
+function desenharDirects() {
+  const alvo = $("#directs-conversas");
+  if (!directsCarregados.length) {
+    alvo.innerHTML = `<div class="cartao cartao-corpo muted">Nenhuma conversa no direct ainda. Quando a IA responder alguém pelo Instagram, a conversa aparece aqui.</div>`;
+    return;
+  }
+  if (!$("#directs-chat")) {
+    alvo.innerHTML = `<div class="chat-app" id="directs-chat">
+      <aside class="chat-lista" aria-label="Conversas do direct"><div class="chat-itens" id="directs-itens"></div></aside>
+      <section class="chat-painel" id="directs-painel"><div class="chat-vazio">${ic("message")}<p>Escolha uma conversa para ver tudo o que a IA falou.</p></div></section>
+    </div>`;
+  }
+  $("#directs-itens").innerHTML = directsCarregados.map(itemDoDirect).join("");
+}
+
+async function carregarDirects() {
+  if (!$("#directs-conversas")) return;
+  try {
+    directsCarregados = (await api("/api/instagram/directs")).conversas;
+    desenharDirects();
+    if (!directAberto && directsCarregados.length && window.matchMedia("(min-width: 1241px)").matches) directAberto = directsCarregados[0].id;
+    if (directAberto && directsCarregados.some((c) => c.id === directAberto)) await abrirDirect(directAberto, { atualizar: Boolean($("#directs-msgs")) });
+  } catch (e) {
+    $("#directs-conversas").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+async function abrirDirect(id, { atualizar = false } = {}) {
+  directAberto = Number(id);
+  $$("[data-direct-id]").forEach((el) => el.setAttribute("aria-current", String(Number(el.dataset.directId) === directAberto)));
+  $("#directs-chat")?.classList.add("com-conversa");
+  const d = await api(`/api/conversas/${directAberto}`);
+  if (directAberto !== Number(id)) return;
+  const msgs = bolhasDaConversa(d, { somenteLer: true });
+  if (atualizar && $("#directs-msgs")) {
+    const caixa = $("#directs-msgs");
+    const noFim = caixa.scrollHeight - caixa.scrollTop - caixa.clientHeight < 40;
+    caixa.innerHTML = msgs;
+    if (d.andamento) $("#directs-andamento").innerHTML = htmlAndamento(d);
+    if (noFim) caixa.scrollTop = caixa.scrollHeight;
+    return;
+  }
+  $("#directs-painel").innerHTML = `
+    <div class="chat-topo">
+      <button type="button" class="btn fantasma sm so-celular" data-direct-voltar aria-label="Voltar para as conversas">${ic("arrowLeft", "sm")}</button>
+      ${avatarConversa(d.lead.nome, d.interessado)}
+      <div class="titulos"><h3>${esc(d.lead.nome)}</h3>
+        <div class="meta">${d.lead.instagram ? `<a href="https://www.instagram.com/${esc(d.lead.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(d.lead.instagram)}</a>` : ""}</div></div>
+      ${d.andamento ? pilulaChance(d.andamento) : ""}
+      <button type="button" class="btn sm" data-direct-responder="${d.lead.id}">${ic("send", "sm")}Responder</button>
+    </div>
+    <div class="chat-andamento" id="directs-andamento">${d.andamento ? htmlAndamento(d) : ""}</div>
+    <div class="chat-msgs" id="directs-msgs">${msgs}</div>`;
+  $("#directs-msgs").scrollTop = $("#directs-msgs").scrollHeight;
+}
+
+$("#directs-conversas").addEventListener("click", (ev) => {
+  const item = ev.target.closest("[data-direct-id]");
+  if (item) return void abrirDirect(item.dataset.directId).catch((e) => avisar(e.message, "perigo"));
+  if (ev.target.closest("[data-direct-voltar]")) {
+    directAberto = null;
+    $("#directs-chat").classList.remove("com-conversa");
+    return;
+  }
+  const responder = ev.target.closest("[data-direct-responder]");
+  if (responder) {
+    // Responder acontece na tela de conversas, que já tem a caixa de mensagem e o "Parar IA".
+    conversaAberta = Number(responder.dataset.directResponder);
+    location.hash = "#respostas";
+  }
+});
+
+// Com a aba Direct aberta, as conversas se atualizam sozinhas.
+setInterval(() => {
+  if (document.visibilityState === "visible" && viewAtual === "conteudo" && !$("#ig-painel-direct").hidden) carregarDirects();
+}, 30_000);
+
 function mostrarDirect(d) {
   estadoDirect = d;
   desenharResumoIg();
@@ -4770,7 +4891,7 @@ $("#form-conteudo").addEventListener("submit", async (ev) => {
   const f = ev.target;
   const horarios = $$("#conteudo-horarios [aria-pressed=true]").map((b) => Number(b.dataset.hora));
   try {
-    const { voz } = await api("/api/conteudo/config", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, horarios, postarSozinho: f.postarSozinho.checked, apresentador: f.apresentador.checked, gemini: f.gemini.value, pexels: f.pexels.value, base: f.base.value }) });
+    const { voz } = await api("/api/conteudo/config", { method: "PUT", body: JSON.stringify({ ativo: f.ativo.checked, horarios, horariosPelaIA: f.horariosPelaIA.checked, postarSozinho: f.postarSozinho.checked, apresentador: f.apresentador.checked, gemini: f.gemini.value, pexels: f.pexels.value, base: f.base.value }) });
     const sozinho = f.postarSozinho.checked && estadoConteudo.instagram.conectado;
     const quando = listaDeHoras(horarios);
     avisar(!f.ativo.checked ? "Posts do dia desligados." : sozinho ? `Pronto: todo dia às ${quando} um post novo sai no Instagram.` : `Pronto: todo dia às ${quando} um post novo fica pronto aqui.`, "ok");

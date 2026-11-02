@@ -249,14 +249,129 @@ ${ordenados.slice(0, 20).map(linhaDoPost).join("\n")}`,
 
 export const lerAprendizados = () => db.lerConfig("instagram_aprendizados");
 
+// Limites do plano: cada post gasta IA e créditos de vídeo, e o perfil precisa de pelo menos um por dia.
+const POSTS_POR_DIA = { min: 1, max: 4 };
+const HORA = { min: 6, max: 23 };
+const INTERVALO_MINIMO_H = 3;
+const REPLANEJAR_A_CADA_MS = 20 * 3600_000;
+
+const PlanoSchema = z.object({ horarios: z.array(z.number().int()), motivo: z.string(), confianca: z.enum(["baixa", "media", "alta"]) });
+const PLANO_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    horarios: { type: "array", items: { type: "integer" }, description: `de ${POSTS_POR_DIA.min} a ${POSTS_POR_DIA.max} horas cheias, de ${HORA.min} a ${HORA.max}, no horário de Brasília. A quantidade de itens é a quantidade de posts por dia` },
+    motivo: { type: "string", description: "1 ou 2 frases simples para o dono da empresa: por que esses horários e essa quantidade, e o que está sendo testado" },
+    confianca: { type: "string", enum: ["baixa", "media", "alta"], description: "o quanto os números sustentam a escolha" },
+  },
+  required: ["horarios", "motivo", "confianca"],
+  additionalProperties: false,
+};
+
+const emBrasilia = (data) => {
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: config.timezone, year: "numeric", month: "2-digit", day: "2-digit", hour: "numeric", hourCycle: "h23", weekday: "short" }).formatToParts(new Date(data)).map((x) => [x.type, x.value]));
+  return { dia: `${p.year}-${p.month}-${p.day}`, hora: Number(p.hour), semana: p.weekday };
+};
+
+/** Horas cheias válidas, em ordem, sem repetir, respeitando o intervalo entre posts e o máximo por dia. */
+export function horariosDoPlano(lista) {
+  const validos = [...new Set(lista.filter((h) => Number.isInteger(h) && h >= HORA.min && h <= HORA.max))].sort((a, b) => a - b);
+  const escolhidos = [];
+  for (const h of validos) if (!escolhidos.length || h - escolhidos.at(-1) >= INTERVALO_MINIMO_H) escolhidos.push(h);
+  return escolhidos.slice(0, POSTS_POR_DIA.max);
+}
+
+/** Os números para a IA decidir: por hora da publicação, por dia da semana e por quantidade de posts no dia. */
+export function resumoParaOPlano(posts) {
+  const comNota = posts.filter((p) => p.nota != null && p.publicado_em);
+  const grupo = (chave) => {
+    const g = {};
+    for (const p of comNota) {
+      const c = chave(p);
+      (g[c] ??= { notas: [], alcances: [] }).notas.push(p.nota);
+      g[c].alcances.push(p.metricas.alcance ?? 0);
+    }
+    const media = (v) => Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 100) / 100;
+    return Object.entries(g).map(([k, v]) => ({ valor: k, posts: v.notas.length, nota: media(v.notas), alcance: media(v.alcances) }));
+  };
+  const noDia = {};
+  for (const p of comNota) noDia[emBrasilia(p.publicado_em).dia] = (noDia[emBrasilia(p.publicado_em).dia] ?? 0) + 1;
+  return {
+    analisados: comNota.length,
+    porHora: grupo((p) => emBrasilia(p.publicado_em).hora).sort((a, b) => Number(a.valor) - Number(b.valor)),
+    porDiaDaSemana: grupo((p) => emBrasilia(p.publicado_em).semana),
+    porQuantidadeNoDia: grupo((p) => noDia[emBrasilia(p.publicado_em).dia]).sort((a, b) => Number(a.valor) - Number(b.valor)),
+  };
+}
+
+const linhas = (lista, nome) => lista.map((x) => `- ${nome(x.valor)}: ${x.posts} post(s), nota média ${x.nota}, alcance médio ${x.alcance}`).join("\n") || "(sem dados)";
+
+/** Quando os seguidores ficam online. A Meta só informa para contas com 100 seguidores ou mais. */
+async function seguidoresOnline(ler) {
+  const r = await ler("{conta}/insights", { metric: "online_followers", period: "lifetime" }).catch(() => null);
+  const valores = r?.data?.[0]?.values?.at(-1)?.value;
+  return valores && Object.keys(valores).length ? valores : null;
+}
+
 /**
- * Rotina do agendador: lê os insights (a cada 6 h) e, uma vez por dia, a IA reescreve os aprendizados.
+ * A IA escolhe os horários e a quantidade de posts por dia, pelos resultados do próprio perfil.
+ * Com poucos dados ela testa horários novos em vez de fingir certeza. Vale a partir do dia seguinte,
+ * para não desmarcar um horário do dia em andamento. Sem posts suficientes, segue o plano atual.
+ */
+export async function planejarPublicacao({ escrever = gerarJson, ler = lerDaApi, agora = new Date() } = {}) {
+  const d = await desempenho({ agora });
+  if (d.analisados < MINIMO_PARA_APRENDER) {
+    return { plano: null, motivo: `a IA começa a decidir com ${MINIMO_PARA_APRENDER} posts com mais de 24 h no ar (agora: ${d.analisados})` };
+  }
+  const resumo = resumoParaOPlano(d.posts);
+  const online = await seguidoresOnline(ler);
+  const atual = await lerPlano();
+  const r = await escrever({
+    system: `Você decide quando e quantas vezes por dia o Instagram${d.conta?.usuario ? ` @${d.conta.usuario}` : ""} publica, para alcançar o máximo de visualizações.
+Regras: de ${POSTS_POR_DIA.min} a ${POSTS_POR_DIA.max} posts por dia, entre ${HORA.min}h e ${HORA.max}h, com pelo menos ${INTERVALO_MINIMO_H} horas entre eles, no horário de Brasília.
+A nota compara cada post com a média do perfil (1 = na média). Baseie-se só nos números. Horário com 1 ou 2 posts ainda é acaso, não prova.
+Se os dados forem poucos, reserve parte dos horários para testar horas ainda não usadas e diga isso no motivo, com confiança baixa. Só aumente a quantidade de posts se os dias com mais posts não derrubarem a nota média; se derrubarem, diminua.`,
+    pedido: `Seguidores: ${d.conta?.seguidores ?? "?"}. Posts analisados: ${resumo.analisados}.
+Horários atuais: ${(atual?.horarios ?? []).join("h, ") || "12h e 18"}h.
+
+Resultado por hora da publicação:
+${linhas(resumo.porHora, (v) => `${v}h`)}
+
+Resultado por dia da semana:
+${linhas(resumo.porDiaDaSemana, (v) => v)}
+
+Resultado pela quantidade de posts publicados no mesmo dia:
+${linhas(resumo.porQuantidadeNoDia, (v) => `${v} por dia`)}
+
+Seguidores online por hora (UTC): ${online ? JSON.stringify(online) : "a Meta não informa (só com 100 seguidores ou mais)"}`,
+    jsonSchema: PLANO_JSON_SCHEMA,
+    zodSchema: PlanoSchema,
+    effort: "low",
+  });
+  const horarios = horariosDoPlano(r.horarios);
+  if (!horarios.length) return { plano: null, motivo: "a IA não devolveu um horário válido; segue o plano atual" };
+  const amanha = new Date(agora.getTime() + 86_400_000);
+  const plano = { horarios, motivo: r.motivo, confianca: r.confianca, baseadoEm: resumo.analisados, geradoEm: agora.toISOString(), valeDesde: emBrasilia(amanha).dia, anteriores: atual?.horarios ?? null };
+  await db.gravarConfig("instagram_plano", plano);
+  log(`🗓️  Plano de publicação: ${horarios.join("h, ")}h (confiança ${r.confianca})`);
+  return { plano };
+}
+
+export const lerPlano = () => db.lerConfig("instagram_plano");
+
+/**
+ * Rotina do agendador: lê os insights (a cada 6 h) e, uma vez por dia, a IA refaz o plano de publicação e os aprendizados.
  */
 export async function rotinaDeInsights({ agora = new Date() } = {}) {
   const lidos = await atualizarInsights({ agora });
   if (lidos.insights !== "lidos") return lidos;
+  const plano = await lerPlano();
+  const resultado = { ...lidos };
+  if (!plano?.geradoEm || agora - new Date(plano.geradoEm) >= REPLANEJAR_A_CADA_MS) {
+    const p = await planejarPublicacao({ agora }).catch((e) => ({ erro: e.message }));
+    resultado.plano = p.plano ? p.plano.horarios : p.motivo ?? p.erro;
+  }
   const atual = await lerAprendizados();
-  if (atual?.geradoEm && agora - new Date(atual.geradoEm) < 20 * 3600_000) return lidos;
+  if (atual?.geradoEm && agora - new Date(atual.geradoEm) < 20 * 3600_000) return resultado;
   const r = await gerarAprendizados({ agora }).catch((e) => ({ erro: e.message }));
-  return { ...lidos, aprendizados: r.aprendizados ? "atualizados" : r.motivo ?? r.erro };
+  return { ...resultado, aprendizados: r.aprendizados ? "atualizados" : r.motivo ?? r.erro };
 }

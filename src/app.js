@@ -32,7 +32,7 @@ import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/
 import { narracaoDisponivel, carregarChaveDaVoz, salvarChaveDoGemini } from "./conteudo/narracao.js";
 import { lerChavePexels, salvarChavePexels } from "./conteudo/fotos.js";
 import { lerConfigAvatar, salvarConfigAvatar, testarAvatar, testarRunway, falarPelaRunway, VOZES_DAS_MENSAGENS } from "./conteudo/avatar.js";
-import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados, feedDoInstagram } from "./conteudo/insights.js";
+import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados, feedDoInstagram, planejarPublicacao, lerPlano } from "./conteudo/insights.js";
 import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect, assinarWebhookDoApp } from "./envio/instagram.js";
 import { processarWebhookInstagram, rodadaDeComentarios } from "./respostas/instagram.js";
 import { receberFormulario, lerConfigFormulario, salvarConfigFormulario } from "./respostas/formulario.js";
@@ -848,6 +848,13 @@ app.get("/api/conversas", async (req, res) => {
   res.json({ indicadores: indicadoresDasConversas(conversas, await db.funilDeConversas()), conversas });
 });
 
+// As conversas do direct do Instagram e o andamento de cada uma, para a aba Direct.
+app.get("/api/instagram/directs", async (req, res) => {
+  const resumo = new Map((await db.resumoDosDirects()).map((r) => [r.lead_id, r]));
+  const conversas = (await conversasAvaliadas()).filter((c) => resumo.has(c.id)).map((c) => ({ ...c, direct: resumo.get(c.id) }));
+  res.json({ conversas });
+});
+
 app.get("/api/conversas/:leadId", async (req, res) => {
   const lead = await db.buscarLead(req.params.leadId);
   if (!lead) return res.status(404).json({ erro: "Empresa não encontrada" });
@@ -1020,7 +1027,7 @@ app.get("/api/conteudo", async (req, res) => {
   const conf = await lerConfigConteudo();
   await carregarChaveDaVoz();
   res.json({
-    config: conf, base: await lerBaseDeConteudo(), hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14),
+    config: conf, plano: await lerPlano(), base: await lerBaseDeConteudo(), hoje: agoraEmBrasilia().dia, posts: await db.postsRecentes(14),
     instagram: await statusDaConexao(), linkedin: await linkedin.statusDaConexao(), narracao: narracaoDisponivel(), pexels: Boolean(await lerChavePexels()),
   });
 });
@@ -1029,12 +1036,21 @@ app.put("/api/conteudo/config", async (req, res) => {
   const horarios = normalizarHorarios(req.body?.horarios ?? req.body?.horario);
   if (!horarios.length) return res.status(400).json({ erro: "Escolha ao menos um horário entre 6h e 23h" });
   if (horarios.length > 4) return res.status(400).json({ erro: "Escolha no máximo 4 horários por dia" });
-  await db.gravarConfig("conteudo", { ativo: req.body?.ativo !== false, horarios, postarSozinho: req.body?.postarSozinho !== false, apresentador: req.body?.apresentador !== false });
+  await db.gravarConfig("conteudo", { ativo: req.body?.ativo !== false, horarios, horariosPelaIA: req.body?.horariosPelaIA !== false, postarSozinho: req.body?.postarSozinho !== false, apresentador: req.body?.apresentador !== false });
   if (String(req.body?.pexels ?? "").trim()) await salvarChavePexels(req.body.pexels);
   if (typeof req.body?.base === "string") await gravarBaseDeConteudo(req.body.base);
   // A chave nova da voz é testada na hora: o painel mostra se o Gemini aceitou.
   const voz = String(req.body?.gemini ?? "").trim() ? await salvarChaveDoGemini(req.body.gemini) : null;
   res.json({ ok: true, voz });
+});
+
+// A IA refaz agora o plano de horários e quantidade de posts, sem esperar a rotina do dia.
+app.post("/api/conteudo/plano", async (req, res) => {
+  try {
+    res.json(await planejarPublicacao());
+  } catch (e) {
+    res.status(502).json({ erro: e.message });
+  }
 });
 
 // O feed do Instagram, para a aba de posts. Sem conseguir ler, a aba mostra só os posts do sistema.
@@ -1048,7 +1064,7 @@ app.post("/api/conteudo/gerar", async (req, res) => {
   const campanha = await carregarCampanhaCompleta();
   if (!req.body?.amanha) return res.json(await criarPostDeHoje(campanha, { formato }));
   const amanha = new Date(Date.now() + 86_400_000);
-  const { horarios } = await lerConfigConteudo();
+  const { horarios } = await lerConfigConteudo(amanha);
   const { dia } = agoraEmBrasilia(amanha);
   const ocupados = (await db.postsDoDia(dia)).filter((p) => p.status !== "descartado").map((p) => p.horario);
   const horario = horarios.find((h) => !ocupados.includes(h));

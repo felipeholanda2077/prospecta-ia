@@ -17,7 +17,7 @@ const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { ti
 
 // Dois posts por dia, às 12h e às 18h (Brasília), alternando Reels e carrossel. Ajustável no painel.
 // Com o Instagram conectado, cada um sai sozinho no perfil no seu horário.
-export const CONTEUDO_PADRAO = { ativo: true, horarios: [12, 18], postarSozinho: true, apresentador: true };
+export const CONTEUDO_PADRAO = { ativo: true, horarios: [12, 18], postarSozinho: true, apresentador: true, horariosPelaIA: true };
 // O agendador do banco passa a cada 15 minutos; o post é criado na passagem logo antes do horário.
 const ANTECEDENCIA_MIN = 15;
 // Se o sistema estava parado no horário, o post ainda é criado até 2 horas depois; mais que isso, pula.
@@ -31,11 +31,20 @@ export function normalizarHorarios(lista) {
   return [...new Set(horas)].sort((a, b) => a - b);
 }
 
-export async function lerConfigConteudo() {
+/**
+ * `horarios` são os que valem no dia de `agora`: os do plano da IA, quando ela decide, ou os escolhidos
+ * no painel (`horariosManuais`). O plano novo só vale a partir de `valeDesde`; até lá, seguem os anteriores.
+ */
+export async function lerConfigConteudo(agora = new Date()) {
   // A configuração antiga tinha um horário só (`horario`); ela passou para os horários do padrão.
   const { horario, ...salvo } = (await db.lerConfig("conteudo")) ?? {};
-  const horarios = normalizarHorarios(salvo.horarios);
-  return { ...CONTEUDO_PADRAO, ...salvo, horarios: horarios.length ? horarios : CONTEUDO_PADRAO.horarios };
+  const escolhidos = normalizarHorarios(salvo.horarios);
+  const horariosManuais = escolhidos.length ? escolhidos : CONTEUDO_PADRAO.horarios;
+  const conf = { ...CONTEUDO_PADRAO, ...salvo, horariosManuais, horarios: horariosManuais };
+  if (!conf.horariosPelaIA) return conf;
+  const plano = await db.lerConfig("instagram_plano");
+  if (!plano?.horarios?.length) return conf;
+  return { ...conf, horarios: agoraEmBrasilia(agora).dia >= plano.valeDesde ? plano.horarios : plano.anteriores ?? horariosManuais };
 }
 
 /** Dia (AAAA-MM-DD) e minutos desde a meia-noite, no fuso de Brasília. */
@@ -83,7 +92,7 @@ export async function criarPostDeHoje(campanha, { formato, pilar: pilarFixo = nu
   const recentes = await db.postsRecentes(30);
   const deHoje = await db.postsDoDia(dia);
   const escolha = await escolhaPeloDesempenho({ dia, n: deHoje.length, recentes, agora, sorteio });
-  const conf = await lerConfigConteudo();
+  const conf = await lerConfigConteudo(agora);
   // Com o apresentador ligado, todo post é um Reels com o Felipe. Sem ele, volta a alternar com o carrossel.
   const escolhido = formato ?? (conf.apresentador === false ? escolha.formato : "reels");
   const { estrutura } = escolha;
@@ -197,13 +206,15 @@ export async function escolhaPeloDesempenho({ dia, n, recentes, agora = new Date
  * conectada). Faz uma coisa por vez: o que sobrar fica para a passagem seguinte.
  */
 export async function rodadaDeConteudo(campanha, { agora = new Date(), escrever = gerarPost, postar = postarNoInstagram } = {}) {
-  const conf = await lerConfigConteudo();
+  const conf = await lerConfigConteudo(agora);
   if (!conf.ativo) return { conteudo: "desligado" };
   const { dia, minutos } = agoraEmBrasilia(agora);
-  const chegaram = conf.horarios.filter((h) => horaDoPost(h, agora));
+  const deHoje = (await db.postsDoDia(dia)).filter((p) => p.status !== "descartado");
+  // Post já marcado para um horário sai nele, mesmo que o plano do dia tenha mudado depois.
+  const doDia = [...new Set([...conf.horarios, ...deHoje.map((p) => p.horario).filter((h) => h != null)])].sort((a, b) => a - b);
+  const chegaram = doDia.filter((h) => horaDoPost(h, agora));
   if (!chegaram.length) return { conteudo: "antes do horário" };
   const conectado = conf.postarSozinho && Boolean((await lerConexao())?.token);
-  const deHoje = (await db.postsDoDia(dia)).filter((p) => p.status !== "descartado");
 
   // Posts de hoje criados pelo botão (sem horário) ocupam o primeiro horário vago.
   for (const h of chegaram) {

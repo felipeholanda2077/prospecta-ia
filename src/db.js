@@ -602,6 +602,21 @@ export async function agendarProximaEtapa(m, quando) {
 }
 
 /** Conversa completa com um lead (o que enviamos e o que ele respondeu), em ordem. */
+/** Por empresa, o que aconteceu no direct do Instagram: o que a IA mandou, o que chegou e o que a Meta recusou. */
+export async function resumoDosDirects() {
+  return q(
+    `SELECT lead_id,
+            COALESCE(SUM(enviados), 0)::int AS enviados, COALESCE(SUM(recebidos), 0)::int AS recebidos, COALESCE(SUM(recusados), 0)::int AS recusados
+       FROM (
+         SELECT lead_id, COUNT(*) FILTER (WHERE status = 'enviada') AS enviados, 0 AS recebidos, COUNT(*) FILTER (WHERE status = 'erro') AS recusados
+           FROM mensagens WHERE canal = 'instagram' GROUP BY lead_id
+         UNION ALL
+         SELECT lead_id, 0, COUNT(*), 0 FROM respostas WHERE canal = 'instagram' GROUP BY lead_id
+       ) t
+      GROUP BY lead_id`
+  );
+}
+
 export async function historicoConversa(leadId) {
   return q(
     `SELECT 'nos' AS autor, canal, assunto, corpo AS texto, enviada_em AS quando, etapa, destino AS contato, tipo

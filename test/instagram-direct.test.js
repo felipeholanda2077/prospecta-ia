@@ -245,3 +245,16 @@ test("comentários lidos pela API: cada um é avaliado uma vez, sem os da própr
   assert.deepEqual(await rodada(), { comentarios: 1, novos: 0, respondidos: 0 }); // não gasta IA de novo
   assert.equal(vistos.length, 1);
 });
+
+test("resumo dos directs: conta o que a IA mandou, o que chegou e o que a Meta recusou, só do Instagram", async () => {
+  await db.inserirLead({ place_id: "resumo-direct", nome: "Resumo Direct", nicho: "x", cidade: "y", endereco: null, telefone: null, site: null, maps_url: null, avaliacao: null, total_avaliacoes: null });
+  const lead = (await db.leadsPorStatus("novo")).find((l) => l.nome === "Resumo Direct");
+  const msg = (canal, status) => db.criarMensagem({ lead_id: lead.id, canal, destino: "d", corpo: "oi", status, tipo: "resposta", etapa: 0 });
+  await msg("instagram", "enviada");
+  await msg("instagram", "enviada");
+  await msg("instagram", "erro");
+  await msg("whatsapp", "enviada");
+  await db.criarResposta({ lead_id: lead.id, canal: "instagram", origem_id: "resumo-1", de: "d", assunto: null, texto: "oi", classificacao: "quer_informacoes", resumo: "r", sugestao: null });
+  const r = (await db.resumoDosDirects()).find((x) => x.lead_id === lead.id);
+  assert.deepEqual([r.enviados, r.recebidos, r.recusados], [2, 1, 1]);
+});

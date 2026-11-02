@@ -124,3 +124,60 @@ test("feed: sem Instagram conectado fica vazio; conectado traz o perfil e as pub
   assert.equal(f.midias[0].thumbnail_url, "https://x/1.jpg");
   assert.match(chamadas.find(([c]) => c === "{conta}/media")[1].fields, /thumbnail_url/);
 });
+
+test("plano: horários válidos, em ordem, com intervalo e no máximo 4 por dia", () => {
+  assert.deepEqual(insights.horariosDoPlano([18, 12, 12, 5, 24, 13.5]), [12, 18]);
+  assert.deepEqual(insights.horariosDoPlano([9, 10, 13, 16, 19, 22]), [9, 13, 16, 19]);
+  assert.deepEqual(insights.horariosDoPlano([2]), []);
+});
+
+test("plano: o resumo agrupa pela hora de Brasília e pela quantidade de posts no dia", () => {
+  const post = (quando, nota, alcance) => ({ publicado_em: quando, nota, metricas: { alcance } });
+  const r = insights.resumoParaOPlano([post("2026-11-10T15:00:00Z", 2, 100), post("2026-11-10T21:00:00Z", 1, 50), post("2026-11-11T15:30:00Z", 1, 30), { publicado_em: "2026-11-11T21:00:00Z", nota: null, metricas: {} }]);
+  assert.equal(r.analisados, 3);
+  assert.deepEqual(r.porHora.map((x) => [x.valor, x.posts, x.nota]), [["12", 2, 1.5], ["18", 1, 1]]);
+  assert.deepEqual(r.porQuantidadeNoDia.map((x) => [x.valor, x.posts]), [["1", 1], ["2", 2]]);
+});
+
+test("plano: vale a partir do dia seguinte, e o post já marcado sai mesmo fora do plano", async () => {
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [12, 18] });
+  const hoje = new Date("2026-11-20T12:00:00-03:00");
+  const amanha = new Date("2026-11-21T12:00:00-03:00");
+  assert.deepEqual((await diario.lerConfigConteudo(hoje)).horarios, [12, 18]); // sem plano, os do painel
+  await db.gravarConfig("instagram_plano", { horarios: [9, 20], motivo: "teste", confianca: "baixa", baseadoEm: 6, valeDesde: "2026-11-21", anteriores: [12, 18] });
+  assert.deepEqual((await diario.lerConfigConteudo(hoje)).horarios, [12, 18]);
+  assert.deepEqual((await diario.lerConfigConteudo(amanha)).horarios, [9, 20]);
+  assert.deepEqual((await diario.lerConfigConteudo(amanha)).horariosManuais, [12, 18]);
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [12, 18], horariosPelaIA: false });
+  assert.deepEqual((await diario.lerConfigConteudo(amanha)).horarios, [12, 18]); // desligado, valem os do painel
+
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [12, 18], postarSozinho: false });
+  const id = await db.criarPost({ dia: "2026-11-21", formato: "reels", pilar: "x", tema: "Marcado", conteudo: { slides: [], legenda: "L", hashtags: [] }, horario: 12 });
+  const r = await diario.rodadaDeConteudo({ empresa: { nome: "FluxDeck" } }, { agora: new Date("2026-11-21T12:10:00-03:00") });
+  assert.equal(r.conteudo, "post das 12h já criado");
+  assert.ok(id);
+  await db.gravarConfig("instagram_plano", null);
+});
+
+test("plano: sem posts suficientes a IA não decide, e com eles o plano fica guardado", async () => {
+  await db.gravarConfig("instagram_plano", null);
+  let chamou = false;
+  const semDados = await insights.planejarPublicacao({ escrever: async () => { chamou = true; return {}; }, ler: async () => ({}), agora: new Date("2020-01-01T12:00:00Z") });
+  assert.equal(semDados.plano, null);
+  assert.equal(chamou, false);
+
+  const agora = new Date("2026-12-10T12:00:00-03:00");
+  for (let i = 0; i < 6; i++) {
+    await db.gravarMetricas({ midia_id: `plano-${i}`, post_id: null, formato: "reels", legenda: "L", link: null, publicado_em: new Date(agora.getTime() - (i + 2) * 86_400_000).toISOString(), metricas: { alcance: 100 + i, curtidas: 5 } });
+  }
+  let pedido = "";
+  const { plano } = await insights.planejarPublicacao({
+    agora, ler: async () => { throw new Error("menos de 100 seguidores"); },
+    escrever: async (p) => { pedido = p.pedido; return { horarios: [20, 9, 10], motivo: "Testando manhã e noite.", confianca: "baixa" }; },
+  });
+  assert.deepEqual(plano.horarios, [9, 20]); // 10h ficaria perto demais das 9h
+  assert.equal(plano.valeDesde, "2026-12-11");
+  assert.match(pedido, /só com 100 seguidores/);
+  assert.deepEqual((await insights.lerPlano()).horarios, [9, 20]);
+  await db.gravarConfig("instagram_plano", null);
+});
