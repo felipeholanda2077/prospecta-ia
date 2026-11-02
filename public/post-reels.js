@@ -1192,7 +1192,10 @@ function textoComFoto(c) {
 
 const TECLADO = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 
-function palavraDaChamada(tela) {
+/** A palavra que aparece sendo comentada: a que a chamada pede ("Comenta OBRA"), para a cena não contradizer a fala. */
+export function palavraDaChamada(tela) {
+  const pedida = [tela.titulo, tela.texto, tela.fala].map((t) => String(t ?? "").match(/[Cc]omenta\s+["“']?(\p{Lu}[\p{Lu}\p{N}]+)/u)?.[1]).find(Boolean);
+  if (pedida) return pedida;
   const destaque = semEmojiPalavra(tela.destaque);
   if (destaque) return destaque.toUpperCase();
   const maiuscula = tela.titulo.split(/\s+/).find((p) => p.length > 2 && p === p.toUpperCase() && /\p{L}/u.test(p));

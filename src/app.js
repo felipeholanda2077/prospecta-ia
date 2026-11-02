@@ -32,7 +32,7 @@ import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/
 import { narracaoDisponivel, carregarChaveDaVoz, salvarChaveDoGemini } from "./conteudo/narracao.js";
 import { lerChavePexels, salvarChavePexels } from "./conteudo/fotos.js";
 import { lerConfigAvatar, salvarConfigAvatar, testarAvatar, testarRunway, falarPelaRunway, VOZES_DAS_MENSAGENS } from "./conteudo/avatar.js";
-import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados } from "./conteudo/insights.js";
+import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados, feedDoInstagram } from "./conteudo/insights.js";
 import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect } from "./envio/instagram.js";
 import { processarWebhookInstagram } from "./respostas/instagram.js";
 import { receberFormulario, lerConfigFormulario, salvarConfigFormulario } from "./respostas/formulario.js";
@@ -1032,6 +1032,11 @@ app.put("/api/conteudo/config", async (req, res) => {
   // A chave nova da voz é testada na hora: o painel mostra se o Gemini aceitou.
   const voz = String(req.body?.gemini ?? "").trim() ? await salvarChaveDoGemini(req.body.gemini) : null;
   res.json({ ok: true, voz });
+});
+
+// O feed do Instagram, para a aba de posts. Sem conseguir ler, a aba mostra só os posts do sistema.
+app.get("/api/conteudo/feed", async (req, res) => {
+  res.json(await feedDoInstagram().catch((e) => ({ conta: null, midias: [], erro: e.message })));
 });
 
 // Cria agora um post para hoje (além do que já existir), ou deixa pronto o do primeiro horário de amanhã.

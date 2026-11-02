@@ -102,7 +102,10 @@ export async function videoDoReels(post, empresa, { narrar = narrarCenas, clipes
   try {
     // Os clipes do avatar, se houver: nas telas com clipe quem fala é ele, então a voz não narra.
     const pendentes = [];
-    let clipes = await baixar(post, pasta, { pendentes }).catch((e) => {
+    // A tentativa anterior morreu sem registrar erro: a Vercel cortou por tempo. Sem os clipes o vídeo sai bem mais rápido.
+    const cortada = post.instagram_tentativas > 0 && !post.instagram_erro;
+    if (cortada) log(`⚠️  Post ${post.id}: a tentativa anterior estourou o tempo; o Reels sai sem o avatar.`);
+    let clipes = cortada ? {} : await baixar(post, pasta, { pendentes }).catch((e) => {
       log(`⚠️  Reels sem o avatar: ${e.message}`);
       return {};
     });

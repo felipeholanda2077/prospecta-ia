@@ -427,6 +427,40 @@
   .etapa .resultado.erro { color: var(--danger); }
 
   /* ---------- Conteúdo (Instagram) ---------- */
+  .feed { max-width: 935px; width: 100%; margin: 0 auto; display: grid; gap: 0; }
+  .feed-perfil { max-width: 935px; width: 100%; margin: 0 auto; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 44px; align-items: center; padding: 14px 28px 26px; }
+  .feed-anel { display: block; width: 150px; height: 150px; padding: 4px; border-radius: 50%; background: linear-gradient(45deg, #00d4ff, #b44df5); }
+  .feed-anel img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; border: 4px solid var(--bg); background: var(--bg); }
+  .feed-user { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; font-size: 20px; font-weight: 600; }
+  .feed-nums { display: flex; flex-wrap: wrap; gap: 8px 32px; margin: 16px 0; font-size: 15px; }
+  .feed-nums b { font-weight: 700; }
+  .feed-bio { font-size: 14px; line-height: 1.45; white-space: pre-wrap; }
+  .feed-bio b { display: block; font-weight: 600; }
+  .feed-abas { display: flex; justify-content: center; border-top: 1px solid var(--border); margin-bottom: 4px; }
+  .feed-aba { display: flex; align-items: center; gap: 6px; margin-top: -1px; padding: 14px 4px; border-top: 1px solid var(--text); font-size: 12px; font-weight: 600; letter-spacing: .08em; }
+  .feed-grade { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+  .feed-item { position: relative; display: block; aspect-ratio: 3 / 4; padding: 0; border: 0; overflow: hidden; background: var(--surface); color: #fff; cursor: pointer; text-decoration: none; }
+  .feed-item img, .feed-item canvas { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .feed-item:focus-visible { outline: 3px solid #00d4ff; outline-offset: -3px; }
+  .feed-tipo { position: absolute; top: 9px; right: 9px; filter: drop-shadow(0 1px 3px rgba(0,0,0,.8)); }
+  .feed-selo { position: absolute; left: 8px; top: 8px; max-width: calc(100% - 44px); padding: 4px 9px; border-radius: 99px; background: #00d4ff; color: #07101d; font-size: 12.5px; font-weight: 700; }
+  .feed-selo.perigo { background: #ff4d6d; color: #fff; }
+  .feed-sobre { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 18px; background: rgba(0,0,0,.45); font-weight: 700; font-size: 15px; opacity: 0; transition: opacity .12s; }
+  .feed-item:hover .feed-sobre, .feed-item:focus-visible .feed-sobre { opacity: 1; }
+  .feed-modal { position: fixed; inset: 0; z-index: 60; overflow: auto; padding: 32px 16px; background: rgba(0,0,0,.72); }
+  .feed-modal-corpo { position: relative; max-width: 1000px; margin: 0 auto; }
+  .feed-fechar { position: sticky; top: 0; z-index: 1; display: block; margin: 0 0 8px auto; }
+  @media (max-width: 640px) {
+    .feed-perfil { gap: 18px; padding: 8px 4px 16px; }
+    .feed-anel { width: 84px; height: 84px; padding: 3px; }
+    .feed-anel img { border-width: 3px; }
+    .feed-user { font-size: 17px; }
+    .feed-nums { gap: 4px 14px; margin: 8px 0; font-size: 13px; }
+    .feed-bio { grid-column: 1 / -1; }
+    .feed-selo { left: 4px; top: 4px; font-size: 10.5px; padding: 3px 6px; max-width: calc(100% - 8px); }
+    .feed-tipo { top: auto; bottom: 6px; right: 6px; }
+    .feed-modal { padding: 12px 8px; }
+  }
   .post-corpo { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 22px; align-items: start; }
   .post-previa { display: grid; gap: 10px; justify-items: start; }
   .post-previa canvas { display: block; border-radius: 12px; box-shadow: var(--shadow); background: #0b0c14; }
@@ -1233,6 +1267,7 @@
         </div>
 
         <div class="ig-painel" id="ig-painel-posts" role="tabpanel" aria-labelledby="ig-aba-posts" data-ig-painel="posts">
+          <div id="feed-perfil"></div>
           <div class="ig-barra">
             <div class="ig-barra-texto"><h3>Seus posts</h3><p class="muted" id="ig-proximo-texto"></p></div>
             <div class="ig-barra-botoes">
@@ -4026,8 +4061,8 @@ document.addEventListener("click", (ev) => {
 // ===================== Conteúdo (Instagram) =====================
 // Prévias, downloads e a postagem no Instagram dos posts criados pela IA.
 // O desenho fica em /post-desenho.js: o servidor usa o mesmo arquivo para postar sozinho no Instagram.
-let TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels, carregarFotosDoPost, APRESENTADOR, LOGO_DO_POST;
-const desenhoPronto = import("/post-desenho.js").then((m) => ({ TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels, carregarFotosDoPost, APRESENTADOR, LOGO: LOGO_DO_POST } = m));
+let TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels, desenharCapaReels, carregarFotosDoPost, APRESENTADOR, LOGO_DO_POST;
+const desenhoPronto = import("/post-desenho.js").then((m) => ({ TAMANHOS_POST, semAcento, telasDoPost, duracaoReels, desenharTelaCarrossel, desenharQuadroReels, desenharCapaReels, carregarFotosDoPost, APRESENTADOR, LOGO: LOGO_DO_POST } = m));
 
 /** Uma foto do post, no navegador (a do apresentador é pública; as outras, pela rota com login). */
 const carregarFotoNoPainel = (chave) => new Promise((ok, falhou) => {
@@ -4087,7 +4122,8 @@ function proximoPost() {
   const post = h != null && deHoje.find((p) => p.horario === h);
   const formato = post ? (post.formato === "reels" ? "Reels" : "Carrossel") : null;
   if (h != null) return { titulo: `Hoje às ${h}h`, sub: formato ? `${formato} pronto` : "A IA cria 15 min antes", cor: "ok" };
-  return { titulo: `Amanhã às ${conf.horarios[0]}h`, sub: "A IA cria 15 min antes", cor: "ok" };
+  const pronto = posts.find((p) => p.dia > hoje && p.horario === conf.horarios[0] && p.status !== "descartado");
+  return { titulo: `Amanhã às ${conf.horarios[0]}h`, sub: pronto ? `${pronto.formato === "reels" ? "Reels" : "Carrossel"} pronto` : "A IA cria 15 min antes", cor: "ok" };
 }
 
 /** O resumo do topo: conta, seguidores, próximo post e direct (cada um abre a aba dele). */
@@ -4201,7 +4237,7 @@ $("#insights-atualizar").addEventListener("click", async (ev) => {
     const r = await post("/api/instagram/insights/atualizar", {});
     avisar(r.aprendizados ? `Insights de ${r.lidos} posts lidos e aprendizados atualizados` : `Insights de ${r.lidos ?? 0} posts lidos${r.motivo ? `: ${r.motivo}` : ""}`, "ok", 7000);
     await carregarInsights();
-    if (postsCarregados.length) $("#lista-posts").innerHTML = postsCarregados.map((p) => cardPost(p, estadoConteudo.hoje)).join("");
+    await desenharFeed();
   } catch (e) {
     avisar(e.message, "perigo", 9000);
   } finally {
@@ -4346,6 +4382,116 @@ function cardPost(post, hoje) {
   </article>`;
 }
 
+let feedInstagram = null;
+let postAberto = null;
+const numeroDoFeed = (n) => (n == null ? "–" : Number(n).toLocaleString("pt-BR"));
+
+/** O cabeçalho igual ao do perfil no Instagram. */
+function perfilDoFeed() {
+  const conta = feedInstagram?.conta;
+  const usuario = conta?.username ?? estadoConteudo.instagram?.usuario;
+  if (!usuario) return "";
+  const url = `https://www.instagram.com/${encodeURIComponent(usuario)}/`;
+  return `<header class="feed-perfil">
+    <a class="feed-anel" href="${url}" target="_blank" rel="noopener" aria-label="Abrir o perfil no Instagram"><img src="${esc(conta?.profile_picture_url ?? "/fluxdeck-perfil.jpg")}" alt="" referrerpolicy="no-referrer"></a>
+    <div><div class="feed-user">${esc(usuario)} <a class="btn" href="${url}" target="_blank" rel="noopener">${ic("external")}Ver no Instagram</a></div>
+      <div class="feed-nums"><span><b>${numeroDoFeed(conta?.media_count)}</b> publicações</span><span><b>${numeroDoFeed(conta?.followers_count)}</b> seguidores</span><span><b>${numeroDoFeed(conta?.follows_count)}</b> seguindo</span></div>
+      ${conta?.name || conta?.biography ? `<div class="feed-bio">${conta.name ? `<b>${esc(conta.name)}</b>` : ""}${esc(conta.biography ?? "")}</div>` : ""}</div>
+  </header>`;
+}
+
+/** Quando o post que ainda não saiu vai sair, na etiqueta do quadrado. */
+function seloDoPost(post) {
+  if (post.instagram_erro) return `<span class="feed-selo perigo">Não saiu</span>`;
+  const { hoje } = estadoConteudo;
+  const amanha = new Date(`${hoje}T12:00:00Z`);
+  amanha.setUTCDate(amanha.getUTCDate() + 1);
+  const dia = post.dia === hoje ? "Hoje" : post.dia === amanha.toISOString().slice(0, 10) ? "Amanhã"
+    : new Date(`${post.dia}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  return `<span class="feed-selo">${dia}${post.horario != null ? ` às ${post.horario}h` : ""}</span>`;
+}
+
+const iconeDoTipo = (reels, carrossel) => (reels ? `<span class="feed-tipo">${ic("video")}</span>` : carrossel ? `<span class="feed-tipo">${ic("image")}</span>` : "");
+
+/** Um quadrado do feed: a publicação real do Instagram ou a capa do post que ainda vai sair. */
+function quadradoDoFeed({ post, midia }) {
+  if (midia) {
+    const reels = midia.media_product_type === "REELS";
+    const imagem = midia.thumbnail_url ?? midia.media_url;
+    const dentro = `${imagem ? `<img src="${esc(imagem)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ""}${iconeDoTipo(reels, midia.media_type === "CAROUSEL_ALBUM")}
+      <span class="feed-sobre"><span>♥ ${numeroDoFeed(midia.like_count)}</span><span>💬 ${numeroDoFeed(midia.comments_count)}</span></span>`;
+    return post
+      ? `<button type="button" class="feed-item" data-abrir-post="${post.id}" aria-label="Ver detalhes: ${esc(post.conteudo.gancho)}">${dentro}</button>`
+      : `<a class="feed-item" href="${esc(midia.permalink)}" target="_blank" rel="noopener" aria-label="Abrir no Instagram">${dentro}</a>`;
+  }
+  const [w, h] = TAMANHOS_POST[post.formato === "reels" ? "reels" : "carrossel"];
+  return `<button type="button" class="feed-item" data-abrir-post="${post.id}" aria-label="Ver detalhes: ${esc(post.conteudo.gancho)}">
+    <canvas data-capa="${post.id}" width="${w}" height="${h}"></canvas>${post.status === "postado" ? "" : seloDoPost(post)}${iconeDoTipo(post.formato === "reels", post.formato !== "reels")}</button>`;
+}
+
+/** A ordem do feed: o que ainda vai sair em cima, depois as publicações, da mais nova para a mais antiga. */
+function itensDoFeed() {
+  const midias = feedInstagram?.midias ?? [];
+  const noFeed = new Set(midias.map((m) => String(m.id)));
+  const porMidia = new Map(postsCarregados.filter((p) => p.instagram_id).map((p) => [String(p.instagram_id), p]));
+  const momento = (p) => `${p.dia}T${String(p.horario ?? 12).padStart(2, "0")}:00:00-03:00`;
+  const vaiSair = postsCarregados.filter((p) => p.status !== "postado" && !p.instagram_id).sort((a, b) => momento(b).localeCompare(momento(a))).map((post) => ({ post }));
+  const saiu = [
+    ...midias.map((midia) => ({ midia, post: porMidia.get(String(midia.id)), quando: Date.parse(midia.timestamp) })),
+    ...postsCarregados.filter((p) => (p.status === "postado" || p.instagram_id) && !noFeed.has(String(p.instagram_id))).map((post) => ({ post, quando: Date.parse(momento(post)) })),
+  ].sort((a, b) => b.quando - a.quando);
+  return [...vaiSair, ...saiu];
+}
+
+async function desenharFeed() {
+  const itens = itensDoFeed();
+  pararPreviasReels();
+  $("#feed-perfil").innerHTML = perfilDoFeed();
+  $("#lista-posts").innerHTML = itens.length
+    ? `<div class="feed"><div class="feed-abas"><span class="feed-aba">${ic("image", "sm")}PUBLICAÇÕES</span></div><div class="feed-grade">${itens.map(quadradoDoFeed).join("")}</div></div>`
+    : `<div class="cartao cartao-corpo muted">Ainda não há posts. O primeiro fica pronto hoje às ${listaDeHoras(estadoConteudo.config.horarios)}, ou crie um agora pelos botões acima.</div>`;
+  $$("canvas[data-capa]").forEach((c) => {
+    const post = postsCarregados.find((p) => String(p.id) === c.dataset.capa);
+    if (post.formato === "reels") desenharCapaReels(c.getContext("2d"), post, sessao?.empresa);
+    else desenharTelaCarrossel(c.getContext("2d"), post, 0, sessao?.empresa);
+  });
+  if (postAberto) abrirPost(postAberto);
+}
+
+/** Os detalhes do post por cima do feed, como ao abrir uma publicação no Instagram. */
+function abrirPost(id) {
+  const post = postsCarregados.find((p) => String(p.id) === String(id));
+  fecharPost();
+  if (!post) return;
+  postAberto = post.id;
+  const modal = document.createElement("div");
+  modal.className = "feed-modal";
+  modal.id = "post-detalhe";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.setAttribute("aria-label", post.conteudo.gancho);
+  modal.innerHTML = `<div class="feed-modal-corpo"><button type="button" class="btn feed-fechar" data-fechar-post>Fechar</button>${cardPost(post, estadoConteudo.hoje)}</div>`;
+  $("#lista-posts").append(modal);
+  document.body.style.overflow = "hidden";
+  $$("canvas[data-tela]", modal).forEach((c) => {
+    const [, i] = c.dataset.tela.split(":");
+    desenharTelaCarrossel(c.getContext("2d"), post, Number(i), sessao?.empresa);
+  });
+  animarPreviasReels();
+  $("[data-fechar-post]", modal).focus();
+}
+
+function fecharPost() {
+  $("#post-detalhe")?.remove();
+  pararPreviasReels();
+  postAberto = null;
+  document.body.style.overflow = "";
+}
+
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && postAberto) fecharPost();
+});
+
 async function carregarConteudo() {
   const f = $("#form-conteudo");
   if (!$("#conteudo-horarios").children.length) {
@@ -4378,16 +4524,10 @@ async function carregarConteudo() {
       ? `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha, efeitos sonoros e <b>voz narrando</b> (${esc(r.narracao)}).</div></div>`
       : `<div class="alerta info">${ic("video")}<div><b>Sem voz cadastrada:</b> vídeo sem narração não é publicado. Só saem os Reels em que o avatar fala todas as cenas. Para os outros, cole a chave do Gemini aqui embaixo.</div></div>`;
     postsCarregados = r.posts;
-    $("#lista-posts").innerHTML = r.posts.length
-      ? r.posts.map((p) => cardPost(p, r.hoje)).join("")
-      : `<div class="cartao cartao-corpo muted">Ainda não há posts. O primeiro fica pronto hoje às ${listaDeHoras(r.config.horarios)}, ou crie um agora pelos botões acima.</div>`;
+    feedInstagram = await api("/api/conteudo/feed").catch((e) => ({ conta: null, midias: [], erro: e.message }));
     await fontesProntas();
     await Promise.all(r.posts.map((p) => carregarFotosDoPost(p, carregarFotoNoPainel)));
-    $$("canvas[data-tela]").forEach((c) => {
-      const [id, i] = c.dataset.tela.split(":");
-      desenharTelaCarrossel(c.getContext("2d"), postsCarregados.find((p) => String(p.id) === id), Number(i), sessao?.empresa);
-    });
-    animarPreviasReels();
+    await desenharFeed();
   } catch (e) {
     avisar(e.message, "perigo");
   }
@@ -4649,6 +4789,9 @@ $$("[data-conteudo-gerar]").forEach((btn) => btn.addEventListener("click", async
 }));
 
 $("#lista-posts").addEventListener("click", async (ev) => {
+  const abrir = ev.target.closest("[data-abrir-post]");
+  if (abrir) return abrirPost(abrir.dataset.abrirPost);
+  if (ev.target.closest("[data-fechar-post]") || ev.target.id === "post-detalhe") return fecharPost();
   const tag = ev.target.closest("[data-copiar-tag]");
   if (tag) {
     await navigator.clipboard.writeText(tag.dataset.copiarTag).catch(() => {});

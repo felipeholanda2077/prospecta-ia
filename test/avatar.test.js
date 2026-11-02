@@ -297,9 +297,19 @@ test("avatar: sem crédito no HeyGen o vídeo sai com a narração, sem avisar d
 test("avatar: clipe ainda em produção espera uma rodada e, depois, o vídeo sai sem ele", async () => {
   const clipes = async (_p, _pasta, { pendentes }) => { pendentes.push(0); return {}; };
   const narrar = async (p) => p.conteudo.slides.map((s) => (s.fala ? { pcm: Buffer.alloc(24000), duracao: 0.5 } : null));
-  const post = (tentativas) => ({ id: 6, formato: "reels", instagram_tentativas: tentativas, conteudo: { ...conteudo, slides: conteudo.slides.map((s) => ({ ...s, avatar: { id: "a" } })) } });
+  const post = (tentativas) => ({ id: 6, formato: "reels", instagram_tentativas: tentativas, instagram_erro: tentativas ? "ainda em produção" : null, conteudo: { ...conteudo, slides: conteudo.slides.map((s) => ({ ...s, avatar: { id: "a" } })) } });
   await assert.rejects(videoDoReels(post(0), "FluxDeck", { clipes, narrar }), /ainda não ficou pronto/);
   assert.ok((await videoDoReels(post(1), "FluxDeck", { clipes, narrar })).length > 1000);
+});
+
+test("avatar: tentativa anterior cortada por tempo, o vídeo sai sem baixar os clipes", async () => {
+  let baixou = false;
+  const narrar = async (p) => p.conteudo.slides.map((s) => (s.fala ? { pcm: Buffer.alloc(24000), duracao: 0.5 } : null));
+  const post = { id: 6, formato: "reels", instagram_tentativas: 1, instagram_erro: null, conteudo: { ...conteudo, slides: conteudo.slides.map((s) => ({ ...s, avatar: { id: "a" } })) } };
+  const video = await videoDoReels(post, "FluxDeck", { clipes: async () => { baixou = true; return {}; }, narrar });
+  assert.ok(video.length > 1000);
+  assert.equal(baixou, false);
+  assert.ok(post.conteudo.slides.every((s) => !s.avatar));
 });
 
 test("avatar: sem nenhuma voz, tenta de novo e só sai sem voz na última tentativa", async () => {

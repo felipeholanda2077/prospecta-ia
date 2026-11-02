@@ -341,3 +341,21 @@ test("instagram: dois posts por dia, às 12h e às 18h, alternando o formato", a
   assert.equal(pulou.conteudo, "nada a fazer");
   await db.gravarConfig("instagram", {});
 });
+
+test("instagram: a tentativa é contada antes de gerar, para a próxima saber que a anterior foi cortada", async () => {
+  const id = await db.criarPost({ dia: "2026-11-20", formato: "reels", pilar: "x", tema: "Corte", conteudo: { slides: [], legenda: "L", hashtags: [] }, horario: 12 });
+  let vistoNaGeracao = null;
+  const api = { lerConexao: async () => ({ token: "t" }) };
+  const r = await postarNoInstagram(id, { empresa: { nome: "FluxDeck" } }, {
+    api,
+    arquivos: async () => {
+      const salvo = await db.buscarPost(id);
+      vistoNaGeracao = [salvo.instagram_tentativas, salvo.instagram_erro];
+      throw new Error("falhou");
+    },
+  });
+  assert.equal(r.instagram, "erro");
+  assert.deepEqual(vistoNaGeracao, [1, null]);
+  const post = await db.buscarPost(id);
+  assert.deepEqual([post.instagram_tentativas, post.instagram_erro], [1, "falhou"]);
+});

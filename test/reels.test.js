@@ -245,3 +245,10 @@ test("legenda: nunca fica sobre o rosto, nem do avatar, nem das fotos", async ()
     assert.equal(vermelhos((ctx) => desenho.desenharTelaCarrossel(ctx, post, 1, "FluxDeck"), 1080, 1350, 0, 1350), 0, `${arte}, lista`);
   }
 });
+
+test("reels: o comentário da cena final é a palavra que a chamada pede, não a palavra em destaque", async () => {
+  const { palavraDaChamada } = await import("../public/post-reels.js");
+  assert.equal(palavraDaChamada({ titulo: "Em novembro, esse plano fica mais barato", destaque: "mais barato", texto: "Vale até dia 30. Comenta OBRA ou chama no direct." }), "OBRA");
+  assert.equal(palavraDaChamada({ titulo: "Comenta ATENDER e eu te mostro como", destaque: "te", texto: "" }), "ATENDER");
+  assert.equal(palavraDaChamada({ titulo: "Chama no direct", destaque: "direct", texto: "" }), "DIRECT"); // sem pedido, segue como era
+});

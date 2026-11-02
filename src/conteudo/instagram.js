@@ -50,10 +50,13 @@ export async function postarNoInstagram(postId, campanha, {
   if (!conexao?.token) return { instagram: "desconectado" };
   if (!(await db.travar(`instagram_post_${postId}`, 8 * 60_000))) return { instagram: "em andamento" };
   const post = await db.buscarPost(postId);
+  const tentativas = (post.instagram_tentativas ?? 0) + 1;
   try {
     if (post.instagram_id) return { instagram: "postado", link: post.instagram_link };
     let container = post.instagram_container;
     if (!container) {
+      // Conta antes de gerar: se a Vercel cortar a execução no meio, a próxima rodada fica sabendo (veja videoDoReels).
+      await db.atualizarInstagramDoPost(post.id, { instagram_tentativas: tentativas, instagram_erro: null });
       const gerados = await arquivos(post, campanha.empresa.nome);
       for (const a of gerados) await db.gravarMidia(a.chave, a.tipo, a.dados);
       const capa = gerados.find((a) => a.capa);
@@ -77,7 +80,6 @@ export async function postarNoInstagram(postId, campanha, {
     return { instagram: "postado", link: publicado.link };
   } catch (e) {
     // Começa do zero na próxima tentativa: um container com erro não serve mais.
-    const tentativas = (post.instagram_tentativas ?? 0) + 1;
     await db.atualizarInstagramDoPost(post.id, { instagram_container: null, instagram_erro: e.message, instagram_tentativas: tentativas });
     log(`⚠️  Post ${post.id} não foi para o Instagram (tentativa ${tentativas}): ${e.message}`);
     if (tentativas === MAX_TENTATIVAS) {

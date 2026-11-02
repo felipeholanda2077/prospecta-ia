@@ -109,3 +109,18 @@ test("insights: com poucos posts, a IA ainda não tira conclusões e o rodízio 
   assert.equal(r.aprendizados, null);
   assert.match(r.motivo, /6 posts/);
 });
+
+test("feed: sem Instagram conectado fica vazio; conectado traz o perfil e as publicações", async () => {
+  const { feedDoInstagram } = await import("../src/conteudo/insights.js");
+  const chamadas = [];
+  const ler = async (caminho, parametros) => {
+    chamadas.push([caminho, parametros]);
+    return caminho === "{conta}" ? { username: "fluxdeck_", followers_count: 5 } : { data: [{ id: "1", media_product_type: "REELS", thumbnail_url: "https://x/1.jpg" }] };
+  };
+  assert.deepEqual(await feedDoInstagram({ ler, conexao: async () => null }), { conta: null, midias: [] });
+  assert.equal(chamadas.length, 0);
+  const f = await feedDoInstagram({ ler, conexao: async () => ({ token: "t" }) });
+  assert.equal(f.conta.username, "fluxdeck_");
+  assert.equal(f.midias[0].thumbnail_url, "https://x/1.jpg");
+  assert.match(chamadas.find(([c]) => c === "{conta}/media")[1].fields, /thumbnail_url/);
+});

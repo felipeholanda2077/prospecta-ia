@@ -42,6 +42,16 @@ async function insightsDaMidia(m, ler) {
   return valores;
 }
 
+/** O perfil e as últimas publicações, para o painel mostrar o feed. Lidos na hora, porque os links das imagens vencem. */
+export async function feedDoInstagram({ ler = lerDaApi, conexao = lerConexao } = {}) {
+  if (!(await conexao())?.token) return { conta: null, midias: [] };
+  const [conta, { data: midias = [] }] = await Promise.all([
+    ler("{conta}", { fields: "username,name,biography,profile_picture_url,followers_count,follows_count,media_count" }),
+    ler("{conta}/media", { fields: "id,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count", limit: 30 }),
+  ]);
+  return { conta, midias };
+}
+
 /**
  * Lê no Instagram os posts recentes do perfil e os insights de cada um, e guarda. Com `forcar`,
  * lê mesmo que a última leitura tenha sido há pouco. Retorna quantos posts foram lidos.
