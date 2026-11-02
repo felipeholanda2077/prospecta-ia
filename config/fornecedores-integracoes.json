@@ -1,0 +1,38 @@
+{
+ "dropi.com.br": {
+  "api": { "status": "nao_confirmado", "detalhe": "O site não cita API e não achei documentação pública.", "fontes": ["https://dropi.com.br/"], "checado_em": "2026-11-01" },
+  "preco": { "status": "parcial", "detalhe": "Nível Zero grátis: R$ 0,50 por pedido e até 3 produtos. Planos pagos de R$ 59 a R$ 249/mês.", "fontes": ["https://www.nuvemshop.com.br/loja-aplicativos-nuvem/dropi"], "checado_em": "2026-11-01" },
+  "mercado_livre": { "status": "sim", "detalhe": "O blog da Empreender, dona do Dropi, diz que importa e publica anúncios e acompanha os pedidos. A página principal do Dropi não lista esse canal.", "fontes": ["https://empreender.com.br/como-fazer-dropshipping-no-mercado-livre/"], "checado_em": "2026-11-01" },
+  "shopee": { "status": "parcial", "detalhe": "O blog da Empreender fala em importar produtos, mas o pedido é feito à mão no Dropi. A página principal do Dropi não lista esse canal.", "fontes": ["https://empreender.com.br/como-fazer-dropshipping-na-shopee/"], "checado_em": "2026-11-01" }
+ },
+ "dropnacional.com.br": {
+  "api": { "status": "nao_confirmado", "detalhe": "O site não cita API e não achei documentação pública.", "fontes": ["https://dropnacional.com.br/"], "checado_em": "2026-11-01" },
+  "preco": { "status": "pago", "detalhe": "A partir de R$ 89/mês no site, com 3 dias grátis. Na Nuvemshop aparece de R$ 59 a R$ 249/mês, e o nível gratuito não inclui os fornecedores nacionais.", "fontes": ["https://dropnacional.com.br/", "https://www.nuvemshop.com.br/loja-aplicativos-nuvem/drop-nacional"], "checado_em": "2026-11-01" },
+  "mercado_livre": { "status": "nao_confirmado", "detalhe": "O site não cita. Ele funciona dentro do Dropi, mas não achei confirmação para estes fornecedores.", "fontes": ["https://dropnacional.com.br/"], "checado_em": "2026-11-01" },
+  "shopee": { "status": "nao_confirmado", "detalhe": "O site não cita. Ele funciona dentro do Dropi, mas não achei confirmação para estes fornecedores.", "fontes": ["https://dropnacional.com.br/"], "checado_em": "2026-11-01" }
+ },
+ "dslite.com.br": {
+  "api": { "status": "sim", "detalhe": "Documentação aberta, com token para testes. A chave de acesso vem depois da adesão.", "fontes": ["https://api.dslite.com.br/", "https://www.dslite.com.br/faq"], "checado_em": "2026-11-01" },
+  "preco": { "status": "pago", "detalhe": "R$ 129 a R$ 189/mês (venda direta como pessoa física: R$ 134/mês). Período grátis só na primeira adesão.", "fontes": ["https://www.dslite.com.br/"], "checado_em": "2026-11-01" },
+  "mercado_livre": { "status": "parcial", "detalhe": "Sem integração direta: a própria DSlite manda usar um integrador, como Bling, Tiny, Anymarket ou Plugg.to.", "fontes": ["https://www.dslite.com.br/faq"], "checado_em": "2026-11-01" },
+  "shopee": { "status": "parcial", "detalhe": "Sem integração direta com marketplaces: precisa de um integrador. A DSlite não cita a Shopee pelo nome, mas o Bling se conecta a ela.", "fontes": ["https://www.dslite.com.br/faq", "https://blog.bling.com.br/?p=8051"], "checado_em": "2026-11-01" }
+ },
+ "dropify.com.br": {
+  "api": { "status": "sim", "detalhe": "Tem documentação, mas a API só entra nos planos Start, Pro e Scale (a partir de R$ 189/mês no plano anual).", "fontes": ["https://dropify.com.br/api", "https://dropify.com.br/planos"], "checado_em": "2026-11-01" },
+  "preco": { "status": "pago", "detalhe": "R$ 149 a R$ 699/mês no mensal, com fidelidade de 12 meses, ou R$ 109 a R$ 529/mês no anual. Não achei teste grátis.", "fontes": ["https://dropify.com.br/planos"], "checado_em": "2026-11-01" },
+  "mercado_livre": { "status": "sim", "detalhe": "Está nas integrações disponíveis. Os canais sem custo dependem do plano; integração avulsa a partir de R$ 400.", "fontes": ["https://dropify.com.br/planos"], "checado_em": "2026-11-01" },
+  "shopee": { "status": "sim", "detalhe": "Está nas integrações disponíveis. Os canais sem custo dependem do plano; integração avulsa a partir de R$ 400.", "fontes": ["https://dropify.com.br/planos"], "checado_em": "2026-11-01" }
+ },
+ "onedrop.com.br": {
+  "api": { "status": "nao_confirmado", "detalhe": "O site fala em conexão via API com os canais de venda, mas não achei documentação para você usar.", "fontes": ["https://onedrop.com.br/"], "checado_em": "2026-11-01" },
+  "preco": { "status": "pago", "detalhe": "Pagamento único de R$ 397,90 ou 12x de R$ 40,91, sem mensalidade. O site não cita teste grátis.", "fontes": ["https://onedrop.com.br/"], "checado_em": "2026-11-01" },
+  "mercado_livre": { "status": "sim", "detalhe": "O site e os termos de uso citam publicar e gerenciar produtos nesse canal.", "fontes": ["https://onedrop.com.br/", "https://onedrop.com.br/termos"], "checado_em": "2026-11-01" },
+  "shopee": { "status": "sim", "detalhe": "O site e os termos de uso citam publicar e gerenciar produtos nesse canal.", "fontes": ["https://onedrop.com.br/", "https://onedrop.com.br/termos"], "checado_em": "2026-11-01" }
+ },
+ "alphastarimports.com.br": {
+  "api": { "status": "nao_confirmado", "detalhe": "O site não cita API.", "fontes": ["https://www.alphastarimports.com.br/"], "checado_em": "2026-11-01" },
+  "preco": { "status": "nao_confirmado", "detalhe": "É uma loja com catálogo, sem planos publicados. Pergunte se há custo para usar o dropshipping.", "fontes": ["https://www.alphastarimports.com.br/dropshipping/"], "checado_em": "2026-11-01" },
+  "mercado_livre": { "status": "nao_confirmado", "detalhe": "O site não cita integração.", "fontes": ["https://www.alphastarimports.com.br/dropshipping/"], "checado_em": "2026-11-01" },
+  "shopee": { "status": "nao_confirmado", "detalhe": "O site não cita integração.", "fontes": ["https://www.alphastarimports.com.br/dropshipping/"], "checado_em": "2026-11-01" }
+ }
+}

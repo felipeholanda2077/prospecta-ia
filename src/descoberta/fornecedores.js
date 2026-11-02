@@ -12,6 +12,8 @@ import { buscarEmpresasNoInstagram } from "./instagram.js";
 // (config/fornecedores-dropshipping.json, com sites conferidos), o Google Maps, o CNPJ e o Instagram, lê o
 // site de cada um e a IA separa quem diz fazer dropshipping de quem é só um possível fornecedor.
 const LISTA = JSON.parse(fs.readFileSync(new URL("../../config/fornecedores-dropshipping.json", import.meta.url), "utf8"));
+// API, preço e marketplaces de cada um, conferidos à mão nos sites (com a fonte e a data), pela chave do fornecedor.
+const INTEGRACOES = JSON.parse(fs.readFileSync(new URL("../../config/fornecedores-integracoes.json", import.meta.url), "utf8"));
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
 export const MAX_RESULTADOS = 40;
@@ -338,6 +340,14 @@ export async function buscarFornecedores({ nicho = "", cidade = "", quantidade =
     fornecedores, avisos, descartados,
     fontes: { lista: lista.length, maps: deMaps.length, cnpj: deCnpj.length, instagram: deInstagram.length },
   };
+}
+
+const NAO_CONFERIDO = { status: "nao_confirmado", detalhe: null, fontes: [], checado_em: null };
+
+/** O fornecedor com o que foi conferido sobre ele. Quem ainda não foi conferido aparece como "não confirmado". */
+export function comIntegracoes(f) {
+  const conferido = INTEGRACOES[f.chave] ?? {};
+  return { ...f, integracoes: Object.fromEntries(["api", "preco", "mercado_livre", "shopee"].map((c) => [c, conferido[c] ?? NAO_CONFERIDO])) };
 }
 
 const textoCurto = (v, max) => {

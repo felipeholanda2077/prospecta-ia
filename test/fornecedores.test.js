@@ -135,6 +135,26 @@ test("fornecedores: ninguém salvo aqui entra no funil de prospecção", async (
   assert.equal((await db.leadsPorStatus("novo")).some((l) => l.nome === "C"), false);
 });
 
+test("fornecedores: o que foi conferido tem situação válida, fonte e data, e o resto fica como não confirmado", async () => {
+  const fs = await import("node:fs");
+  const conferidos = JSON.parse(fs.readFileSync(new URL("../config/fornecedores-integracoes.json", import.meta.url), "utf8"));
+  assert.deepEqual(Object.keys(conferidos).sort(), ["alphastarimports.com.br", "dropify.com.br", "dropi.com.br", "dropnacional.com.br", "dslite.com.br", "onedrop.com.br"].sort());
+  const validos = { api: ["sim", "nao", "nao_confirmado"], preco: ["gratis", "parcial", "pago", "nao_confirmado"], mercado_livre: ["sim", "parcial", "nao", "nao_confirmado"], shopee: ["sim", "parcial", "nao", "nao_confirmado"] };
+  for (const [chave, infos] of Object.entries(conferidos)) {
+    assert.deepEqual(Object.keys(infos).sort(), Object.keys(validos).sort(), chave);
+    for (const [campo, i] of Object.entries(infos)) {
+      assert.ok(validos[campo].includes(i.status), `${chave} ${campo}`);
+      assert.ok(i.detalhe && i.fontes.length && i.fontes.every((u) => u.startsWith("https://")), `${chave} ${campo}`);
+      assert.match(i.checado_em, /^\d{4}-\d{2}-\d{2}$/);
+    }
+  }
+  const { integracoes } = forn.comIntegracoes({ chave: "dslite.com.br", nome: "DSlite" });
+  assert.deepEqual([integracoes.api.status, integracoes.preco.status, integracoes.mercado_livre.status, integracoes.shopee.status], ["sim", "pago", "parcial", "parcial"]);
+  const novo = forn.comIntegracoes({ chave: "novo.com.br", nome: "Novo" });
+  assert.equal(novo.nome, "Novo");
+  for (const i of Object.values(novo.integracoes)) assert.deepEqual([i.status, i.fontes], ["nao_confirmado", []]);
+});
+
 test("fornecedores: as rotas exigem login", async () => {
   const { app } = await import("../src/app.js");
   const servidor = app.listen(0);
@@ -151,6 +171,7 @@ test("fornecedores: as rotas exigem login", async () => {
     const lista = await (await fetch(`${base}/api/fornecedores`, { headers: cabecalhos })).json();
     const rota = lista.find((f) => f.chave === "rota.com.br");
     assert.equal(rota.status, "novo");
+    assert.equal(rota.integracoes.shopee.status, "nao_confirmado");
     assert.equal((await fetch(`${base}/api/fornecedores/${rota.id}`, { method: "PUT", headers: cabecalhos, body: JSON.stringify({ status: "qualquer" }) })).status, 400);
     assert.equal((await fetch(`${base}/api/fornecedores/${rota.id}`, { method: "PUT", headers: cabecalhos, body: JSON.stringify({ status: "aprovado" }) })).status, 200);
     assert.equal((await (await fetch(`${base}/api/fornecedores`, { headers: cabecalhos })).json()).find((f) => f.id === rota.id).status, "aprovado");

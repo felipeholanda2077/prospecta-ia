@@ -485,6 +485,14 @@
   .forn-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; min-width: 0; }
   .forn-card h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
   .forn-pilulas { display: flex; flex-wrap: wrap; gap: 6px; }
+  .forn-info { margin: 0; display: grid; gap: 10px; padding: 12px 0; border-block: 1px solid var(--border); }
+  .forn-info > div { display: grid; grid-template-columns: 98px minmax(0, 1fr); gap: 8px; }
+  .forn-info dt { font-size: 13px; font-weight: 600; }
+  .forn-info dd { margin: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+  .forn-info a { color: var(--accent-text); }
+  .forn-filtros { flex-wrap: wrap; overflow: visible; margin-bottom: 8px; }
+  .forn-nota { font-size: 13px; margin-bottom: 14px; }
+  .forn-nota a { color: var(--accent-text); }
   .forn-prova { margin: 0; padding: 8px 12px; border-left: 3px solid var(--accent); font-size: 13.5px; color: var(--muted); overflow-wrap: anywhere; }
   .forn-botoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
   .forn-botoes .btn { min-height: 36px; padding: 6px 12px; font-size: 13.5px; }
@@ -1106,6 +1114,13 @@
           <button type="button" class="filtro" role="tab" data-forn-aba="resultados" aria-pressed="true">Resultado da busca</button>
           <button type="button" class="filtro" role="tab" data-forn-aba="salvos" aria-pressed="false">Salvos <span id="forn-total-salvos"></span></button>
         </div>
+        <div class="filtros forn-filtros" id="forn-filtros" role="group" aria-label="Filtrar fornecedores">
+          <button type="button" class="filtro" data-forn-filtro="api" aria-pressed="false">Tem API</button>
+          <button type="button" class="filtro" data-forn-filtro="preco" aria-pressed="false">Tem opção grátis</button>
+          <button type="button" class="filtro" data-forn-filtro="mercado_livre" aria-pressed="false">Mercado Livre</button>
+          <button type="button" class="filtro" data-forn-filtro="shopee" aria-pressed="false">Shopee</button>
+        </div>
+        <div class="muted forn-nota">Os filtros incluem quem atende em parte; o cartão explica como. Antes de usar a Shopee: guias de e-commerce (<a href="https://www.nuvemshop.com.br/blog/dropshipping-shopee/" target="_blank" rel="noopener noreferrer">Nuvemshop</a>, <a href="https://tray.com.br/escola/dropshipping-shopee/" target="_blank" rel="noopener noreferrer">Tray</a>) dizem que as regras dela proíbem dropshipping, mesmo com integração. Confirme na Central do Vendedor.</div>
         <div id="forn-avisos"></div>
         <div class="forn-acoes" id="forn-acoes" hidden></div>
         <div class="forn-grade" id="forn-lista"></div>
@@ -5312,7 +5327,28 @@ $("#prod-lista").addEventListener("click", async (ev) => {
 });
 
 // ===================== Fornecedores de dropshipping =====================
-let estadoForn = { aba: "resultados", resultados: [], salvos: [], buscou: false };
+let estadoForn = { aba: "resultados", resultados: [], salvos: [], buscou: false, filtros: new Set() };
+
+const STATUS_DE_CANAL = { sim: ["ok", "Integra"], parcial: ["atencao", "Parcial"], nao: ["perigo", "Não integra"] };
+const INFO_DO_FORN = [
+  ["api", "API", { sim: ["ok", "Tem API"], nao: ["perigo", "Não tem"] }],
+  ["preco", "Plataforma", { gratis: ["ok", "Grátis"], parcial: ["atencao", "Grátis com limite"], pago: ["", "Paga"] }],
+  ["mercado_livre", "Mercado Livre", STATUS_DE_CANAL],
+  ["shopee", "Shopee", STATUS_DE_CANAL],
+];
+const dataDaFonte = (data) => data.split("-").reverse().join("/");
+
+function infoDoForn(f) {
+  const linhas = INFO_DO_FORN.map(([campo, titulo, rotulos]) => {
+    const info = f.integracoes?.[campo];
+    const [cor, rotulo] = rotulos[info?.status] ?? ["", "Não confirmado"];
+    const fontes = (info?.fontes ?? []).map((url, i) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Fonte${i ? ` ${i + 1}` : ""}</a>`).join(" · ");
+    return `<div><dt>${titulo}</dt><dd><span class="pilula ${cor}">${rotulo}</span>${info?.detalhe ? `<span>${esc(info.detalhe)}</span>` : ""}${fontes ? `<span>${fontes} · conferido em ${esc(dataDaFonte(info.checado_em))}</span>` : ""}</dd></div>`;
+  });
+  return `<dl class="forn-info">${linhas.join("")}</dl>`;
+}
+
+const passaNosFiltrosDoForn = (f) => [...estadoForn.filtros].every((campo) => ["sim", "gratis", "parcial"].includes(f.integracoes?.[campo]?.status));
 
 const linkDoWhatsappForn = (numero) => `https://wa.me/${numero}?text=${encodeURIComponent("Olá! Vi o site de vocês e queria saber se trabalham com dropshipping. Podem me passar as condições?")}`;
 
@@ -5344,6 +5380,7 @@ function cardDoForn(f, i) {
     <h3>${esc(f.nome)}</h3>
     <div class="forn-pilulas">${pilulasDoForn(f)}</div>
     ${detalhes ? `<div class="meta">${detalhes}</div>` : ""}
+    ${infoDoForn(f)}
     ${f.evidencia ? `<p class="forn-prova">“${esc(f.evidencia)}”</p>` : ""}
     ${f.motivo ? `<div class="muted" style="font-size:13px">Não deu para ler o site: ${esc(f.motivo)}.</div>` : ""}
     ${salvo ? `<div class="campo"><label for="forn-status-${f.id}">Situação</label>
@@ -5357,6 +5394,7 @@ function cardDoForn(f, i) {
 function desenharFornecedores() {
   const { aba, resultados, salvos, buscou } = estadoForn;
   $$("[data-forn-aba]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.fornAba === aba)));
+  $$("[data-forn-filtro]").forEach((b) => b.setAttribute("aria-pressed", String(estadoForn.filtros.has(b.dataset.fornFiltro))));
   $("#forn-total-salvos").textContent = salvos.length ? `(${salvos.length})` : "";
   const faltando = resultados.filter((f) => !f.jaSalvo && f.confirmacao === "confirmado");
   $("#forn-acoes").hidden = aba !== "resultados" || !faltando.length;
@@ -5365,7 +5403,9 @@ function desenharFornecedores() {
   const vazio = aba === "salvos" ? "Nenhum fornecedor salvo ainda. Faça uma busca e salve os que interessarem."
     : buscou ? "A busca não achou fornecedores. Tente um segmento mais amplo ou sem cidade."
     : "Escolha um segmento e clique em Buscar fornecedores. Sem segmento, aparece a lista geral.";
-  $("#forn-lista").innerHTML = lista.length ? lista.map(cardDoForn).join("") : `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">${vazio}</div>`;
+  // O índice é o da lista inteira: é por ele que o botão Salvar acha o fornecedor.
+  const cartoes = lista.map((f, i) => (passaNosFiltrosDoForn(f) ? cardDoForn(f, i) : "")).join("");
+  $("#forn-lista").innerHTML = cartoes || `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">${lista.length ? "Nenhum fornecedor desta lista atende a esses filtros." : vazio}</div>`;
 }
 
 async function carregarFornecedores() {
@@ -5413,6 +5453,12 @@ $("#view-fornecedores").addEventListener("click", async (ev) => {
   const aba = ev.target.closest("[data-forn-aba]");
   if (aba) {
     estadoForn.aba = aba.dataset.fornAba;
+    return desenharFornecedores();
+  }
+  const filtro = ev.target.closest("[data-forn-filtro]");
+  if (filtro) {
+    const campo = filtro.dataset.fornFiltro;
+    if (!estadoForn.filtros.delete(campo)) estadoForn.filtros.add(campo);
     return desenharFornecedores();
   }
   try {

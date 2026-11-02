@@ -22,7 +22,7 @@ import { testarIA } from "./ia/cliente.js";
 import { rodadaDeConteudo, rodadaDoLinkedin, criarPostDeHoje, lerConfigConteudo, agoraEmBrasilia, normalizarHorarios } from "./conteudo/diario.js";
 import { postarNoLinkedin, textoDoPost } from "./conteudo/linkedin.js";
 import * as linkedin from "./envio/linkedin.js";
-import { buscarFornecedores, limparParaSalvar } from "./descoberta/fornecedores.js";
+import { buscarFornecedores, comIntegracoes, limparParaSalvar } from "./descoberta/fornecedores.js";
 import * as mercadolivre from "./envio/mercadolivre.js";
 import * as shopee from "./envio/shopee.js";
 import * as produtos from "./vendas/produtos.js";
@@ -606,9 +606,9 @@ app.post("/api/fornecedores/buscar", async (req, res) => {
   const { nicho, cidade, quantidade, instagram } = req.body ?? {};
   const r = await buscarFornecedores({ nicho: String(nicho ?? ""), cidade: String(cidade ?? ""), quantidade, instagram: instagram === true });
   const salvos = await db.fornecedoresPorChave(r.fornecedores.map((f) => f.chave));
-  res.json({ ...r, fornecedores: r.fornecedores.map((f) => ({ ...f, salvoId: salvos[f.chave] ?? null })) });
+  res.json({ ...r, fornecedores: r.fornecedores.map((f) => ({ ...comIntegracoes(f), salvoId: salvos[f.chave] ?? null })) });
 });
-app.get("/api/fornecedores", async (req, res) => res.json(await db.fornecedoresSalvos()));
+app.get("/api/fornecedores", async (req, res) => res.json((await db.fornecedoresSalvos()).map(comIntegracoes)));
 app.post("/api/fornecedores", async (req, res) => {
   const lista = Array.isArray(req.body?.fornecedores) ? req.body.fornecedores.slice(0, 100) : [];
   let novos = 0;
