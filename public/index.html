@@ -3317,6 +3317,13 @@ const SITUACAO_NUMERO_WA = {
   RATE_LIMITED: ["limitado", "atencao"], FLAGGED: ["sinalizado pela Meta", "atencao"], WARNED: ["com aviso da Meta", "atencao"],
   MIGRATED: ["migrado", "atencao"], DELETED: ["excluído", "perigo"],
 };
+// Avisos sobre chamadas de voz pelo WhatsApp: o sistema não usa, então não aparecem.
+const ERROS_DE_CHAMADA_WA = [138024, 138025];
+const CONTA_WA_NA_META = "https://business.facebook.com/latest/settings/whatsapp_account?business_id=1787845715800909&selected_asset_id=1874681760634055&selected_asset_type=whatsapp-business-account";
+const MOTIVOS_WA = {
+  141006: `<b>Pagamento:</b> a Meta informa erro na forma de pagamento, o que bloqueia o primeiro contato com clientes. <a href="${CONTA_WA_NA_META}" target="_blank" rel="noopener">Ver a conta na Meta</a>`,
+  141010: `<b>Verificação da empresa:</b> a Meta ainda não concluiu. <a href="${CONTA_WA_NA_META}" target="_blank" rel="noopener">Ver a situação</a>`,
+};
 const VERIFICACAO_WA = { VERIFIED: "posse verificada", NOT_VERIFIED: "posse não verificada", EXPIRED: "verificação vencida" };
 const NOME_WA = {
   APPROVED: "nome aprovado", AVAILABLE_WITHOUT_REVIEW: "nome aprovado", PENDING_REVIEW: "nome em análise",
@@ -3378,12 +3385,15 @@ function mostrarStatusOficial(st) {
   const [situacao, corT] = t ? SITUACAO_TEMPLATE[t.status] ?? [t.status, ""] : [null, ""];
   const [rotuloNumero, corNumero] = SITUACAO_NUMERO_WA[s?.status] ?? [s?.status ?? "desconhecida", "atencao"];
   const detalhesNumero = [VERIFICACAO_WA[s?.verificacao], NOME_WA[s?.nome]].filter(Boolean).join(" · ");
-  const errosNumero = (s?.erros ?? []).map((e) => `<br>${e.codigo ? `<code>${esc(String(e.codigo))}</code> ` : ""}${esc(e.descricao)}${e.solucao ? ` ${esc(e.solucao)}` : ""}`).join("");
+  const errosNumero = (s?.erros ?? []).filter((e) => !ERROS_DE_CHAMADA_WA.includes(e.codigo)).map((e) => {
+    const conhecido = MOTIVOS_WA[e.codigo];
+    return `<br>${conhecido ?? `${e.codigo ? `<code>${esc(String(e.codigo))}</code> ` : ""}${esc(e.descricao)}${e.solucao ? ` ${esc(e.solucao)}` : ""}`}`;
+  }).join("");
   const comProblema = corT === "perigo" || oficialNaoLiberada;
   $("#oficial-conexao").innerHTML = `<div class="alerta ${comProblema ? "perigo" : "info"}">${ic(comProblema ? "alert" : "checkCircle")}<div>
     Número <b>${esc(st.numero ?? "")}</b>${st.nome ? ` (${esc(st.nome)})` : ""} ${oficialNaoLiberada ? "encontrado na Meta, mas ainda não liberado para enviar" : s ? "conectado à Meta" : "encontrado na Meta"}${qualidade ? ` · <span class="pilula ${corQ}">${qualidade}</span>` : ""}.
     ${s ? `<br>Situação na Meta: <span class="pilula ${corNumero}">${esc(rotuloNumero)}</span>${detalhesNumero ? ` · ${esc(detalhesNumero)}` : ""}${errosNumero}` : "<br>Não deu para conferir com a Meta se este número já pode enviar; confira no Gerenciador do WhatsApp."}
-    ${t ? `<br>Template <code>${esc(t.nome)}</code> (${esc(t.idioma)}): <span class="pilula ${corT}">${esc(situacao)}</span>${t.idiomas?.length && t.status === "IDIOMA_DIFERENTE" ? ` · idiomas na Meta: ${esc(t.idiomas.join(", "))}` : ""}` : "<br>Não deu para conferir o template com este token; confira no WhatsApp Manager se ele está aprovado."}
+    ${t ? `<br>Template <code>${esc(t.nome)}</code> (${esc(t.idioma)}): <span class="pilula ${corT}">${esc(situacao)}</span>${t.idiomas?.length && t.status === "IDIOMA_DIFERENTE" ? ` · idiomas na Meta: ${esc(t.idiomas.join(", "))}` : ""}` : `<br>O sistema não consegue ler os templates com este token. <a href="https://business.facebook.com/latest/whatsapp_manager/message_templates?business_id=1787845715800909&asset_id=1874681760634055" target="_blank" rel="noopener">Confira na Meta se ele está ativo</a>.`}
     ${oficialNaoLiberada
       ? (st.ativo ? "<br><b>Desligue Enviar o WhatsApp pela API oficial</b> até o número ser liberado: as mensagens podem não sair." : "<br><b>Ainda não ligue Enviar o WhatsApp pela API oficial:</b> as mensagens podem não sair.")
       : st.ativo ? "" : "<br>Ligue <b>Enviar o WhatsApp pela API oficial</b> para as mensagens saírem por este número."}</div></div>`;
