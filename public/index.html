@@ -447,6 +447,8 @@
   .feed-selo.perigo { background: #ff4d6d; color: #fff; }
   .feed-sobre { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 18px; background: rgba(0,0,0,.45); font-weight: 700; font-size: 15px; opacity: 0; transition: opacity .12s; }
   .feed-item:hover .feed-sobre, .feed-item:focus-visible .feed-sobre { opacity: 1; }
+  .feed-antigos { margin-top: 28px; }
+  .feed-antigos summary { cursor: pointer; padding: 10px 0; font-weight: 600; color: var(--muted); }
   .feed-modal { position: fixed; inset: 0; z-index: 60; overflow: auto; padding: 32px 16px; background: rgba(0,0,0,.72); }
   .feed-modal-corpo { position: relative; max-width: 1000px; margin: 0 auto; }
   .feed-fechar { position: sticky; top: 0; z-index: 1; display: block; margin: 0 0 8px auto; }
@@ -4435,20 +4437,23 @@ function itensDoFeed() {
   const noFeed = new Set(midias.map((m) => String(m.id)));
   const porMidia = new Map(postsCarregados.filter((p) => p.instagram_id).map((p) => [String(p.instagram_id), p]));
   const momento = (p) => `${p.dia}T${String(p.horario ?? 12).padStart(2, "0")}:00:00-03:00`;
-  const vaiSair = postsCarregados.filter((p) => p.status !== "postado" && !p.instagram_id).sort((a, b) => momento(b).localeCompare(momento(a))).map((post) => ({ post }));
+  const naoSaiu = postsCarregados.filter((p) => p.status !== "postado" && !p.instagram_id).sort((a, b) => momento(b).localeCompare(momento(a)));
+  const vaiSair = naoSaiu.filter((p) => p.dia >= estadoConteudo.hoje).map((post) => ({ post }));
   const saiu = [
     ...midias.map((midia) => ({ midia, post: porMidia.get(String(midia.id)), quando: Date.parse(midia.timestamp) })),
     ...postsCarregados.filter((p) => (p.status === "postado" || p.instagram_id) && !noFeed.has(String(p.instagram_id))).map((post) => ({ post, quando: Date.parse(momento(post)) })),
   ].sort((a, b) => b.quando - a.quando);
-  return [...vaiSair, ...saiu];
+  // Post de um dia que já passou e não saiu não está no feed: fica à parte, embaixo.
+  return { feed: [...vaiSair, ...saiu], antigos: naoSaiu.filter((p) => p.dia < estadoConteudo.hoje).map((post) => ({ post })) };
 }
 
 async function desenharFeed() {
-  const itens = itensDoFeed();
+  const { feed: itens, antigos } = itensDoFeed();
   pararPreviasReels();
   $("#feed-perfil").innerHTML = perfilDoFeed();
-  $("#lista-posts").innerHTML = itens.length
-    ? `<div class="feed"><div class="feed-abas"><span class="feed-aba">${ic("image", "sm")}PUBLICAÇÕES</span></div><div class="feed-grade">${itens.map(quadradoDoFeed).join("")}</div></div>`
+  $("#lista-posts").innerHTML = itens.length || antigos.length
+    ? `<div class="feed"><div class="feed-abas"><span class="feed-aba">${ic("image", "sm")}PUBLICAÇÕES</span></div><div class="feed-grade">${itens.map(quadradoDoFeed).join("")}</div>
+        ${antigos.length ? `<details class="feed-antigos"><summary>Posts que não saíram (${antigos.length})</summary><div class="feed-grade">${antigos.map(quadradoDoFeed).join("")}</div></details>` : ""}</div>`
     : `<div class="cartao cartao-corpo muted">Ainda não há posts. O primeiro fica pronto hoje às ${listaDeHoras(estadoConteudo.config.horarios)}, ou crie um agora pelos botões acima.</div>`;
   $$("canvas[data-capa]").forEach((c) => {
     const post = postsCarregados.find((p) => String(p.id) === c.dataset.capa);
