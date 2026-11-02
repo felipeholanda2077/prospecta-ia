@@ -1068,13 +1068,6 @@ async function contagem(sql) {
   return Object.fromEntries((await q(sql)).map((r) => [r.chave, r.n]));
 }
 
-export async function empresasCapturadasHoje() {
-  return (await um(
-    "SELECT count(*)::int AS n FROM leads WHERE (criado_em AT TIME ZONE $1::text)::date = (now() AT TIME ZONE $1::text)::date",
-    [config.timezone]
-  )).n;
-}
-
 export async function estatisticas() {
   return {
     leads: await contagem("SELECT status AS chave, count(*)::int AS n FROM leads GROUP BY status"),

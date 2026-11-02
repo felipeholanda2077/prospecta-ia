@@ -50,7 +50,6 @@ import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/doc
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
 import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada } from "./respostas/processar.js";
-import { montarDashboard } from "./dashboard.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -498,9 +497,6 @@ app.get("/api/sessao", async (req, res) => {
 });
 
 app.get("/api/stats", async (req, res) => res.json(await db.estatisticas()));
-
-// A dashboard: o que precisa de atenção agora e os números de cada setor.
-app.get("/api/dashboard", async (req, res) => res.set("Cache-Control", "no-store").json(await montarDashboard({ conversasAvaliadas })));
 
 // Falhas de conexão vistas pelo navegador (o painel envia na próxima chamada que funciona).
 app.post("/api/diagnostico", (req, res) => {

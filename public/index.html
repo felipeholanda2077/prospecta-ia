@@ -315,37 +315,6 @@
   .ind b { font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .ind span { color: var(--muted); font-size: 13px; }
   .ind.ok b { color: var(--ok); } .ind.atencao b { color: var(--warn); } .ind.perigo b { color: var(--danger); } .ind.acc b { color: var(--accent-text); }
-  /* Dashboard */
-  .dash-barra { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-  .dash-barra .muted { font-size: 13px; }
-  .dash-atencao { margin-bottom: 20px; }
-  .dash-atencao .cartao-cab { padding-top: 14px; padding-bottom: 14px; align-items: center; }
-  .dash-alerta { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; padding: 12px 20px; color: inherit; text-decoration: none; }
-  .dash-alerta + .dash-alerta { border-top: 1px solid var(--border); }
-  .dash-alerta:hover { background: var(--surface-2); }
-  .dash-alerta:focus-visible, .dash-setor a:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-  .dash-alerta:last-child { border-radius: 0 0 var(--radius) var(--radius); }
-  .dash-alerta b { display: block; font-size: 14.5px; font-weight: 600; }
-  .dash-alerta small { display: block; color: var(--muted); font-size: 13px; }
-  .dash-alerta > .ic:last-child { color: var(--subtle); }
-  .dash-setores { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 16px; align-items: start; }
-  .dash-setor .cartao-cab { padding: 14px 16px; align-items: center; }
-  .dash-setor .cartao-cab h3 { flex: 1; min-width: 0; font-size: 15.5px; }
-  .dash-setor .cartao-cab a { color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
-  .dash-setor .cartao-cab a:hover { color: var(--accent-text); }
-  .dash-setor .cartao-corpo { padding: 12px; }
-  .dash-setor .ind-grade { grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 8px; margin: 0; }
-  .dash-setor .ind { background: var(--surface-2); border-color: transparent; border-radius: var(--radius-sm); padding: 10px 12px; color: inherit; text-decoration: none; align-content: start; }
-  .dash-setor a.ind:hover { border-color: var(--accent); }
-  .dash-setor .ind b { font-size: 19px; overflow-wrap: anywhere; }
-  .dash-setor .ind span { font-size: 12.5px; }
-  .dash-setor .ind small { color: var(--subtle); font-size: 11.5px; line-height: 1.3; }
-  .dash-setor-largo { grid-column: 1 / -1; }
-  .dash-servicos { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 8px; }
-  .dash-servico { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; background: var(--surface-2); border: 1px solid transparent; border-radius: var(--radius-sm); color: inherit; text-decoration: none; font-size: 13.5px; }
-  .dash-servico:hover { border-color: var(--accent); }
-  .dash-servico small { display: block; color: var(--subtle); font-size: 11.5px; }
-  .dash-servico .pilula { flex: none; max-width: 55%; white-space: normal; text-align: right; }
   .funil { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px;
            display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
   .funil-etapa small { font-size: 12px; color: var(--subtle); line-height: 1.35; }
@@ -797,14 +766,6 @@
       <section class="kpis" id="kpis" aria-label="Indicadores"></section>
 
       <!-- Google Maps -->
-      <section id="view-dashboard" hidden>
-        <div class="dash-barra">
-          <span class="muted" id="dash-hora" aria-live="polite"></span>
-          <button type="button" class="btn" id="dash-atualizar"><span data-ic="refresh"></span>Atualizar</button>
-        </div>
-        <div id="dash-corpo"></div>
-      </section>
-
       <section id="view-maps" hidden>
         <form class="cartao cartao-corpo busca" id="form-maps">
           <div class="campo"><label for="onde">Onde buscar</label>
@@ -1606,7 +1567,7 @@ const LOGO = '<img src="/fluxdeck-logo.jpg" alt="" width="38" height="38">';
 
 let sessao = null;
 let stats = null;
-let viewAtual = "dashboard";
+let viewAtual = "rascunho";
 let resultadosMaps = [];
 let buscaMaps = {};
 let avisosBusca = [];
@@ -1700,8 +1661,6 @@ function aplicarTema(t) {
 
 // ===================== Navegação =====================
 const VIEWS = {
-  dashboard: { grupo: "Visão geral", nome: "Dashboard", curto: "Dashboard", icone: "grid", titulo: "Dashboard",
-               sub: "O que precisa de você agora e como está cada setor do sistema." },
   maps:      { grupo: "Prospecção", nome: "Buscar empresas", curto: "Buscar", icone: "pin", titulo: "Buscar empresas",
                sub: "Encontre empresas por segmento e cidade, no Google Maps ou no Instagram, e escolha quem prospectar." },
   rascunho:  { grupo: "Prospecção", nome: "Aprovar mensagens", curto: "Aprovar", icone: "checkCircle", titulo: "Aprovar mensagens",
@@ -1729,7 +1688,7 @@ const VIEWS = {
   configuracoes: { grupo: "Sistema", nome: "Configurações", icone: "settings", titulo: "Configurações",
                sub: "Perfil da sua empresa e conexão do WhatsApp: API oficial da Meta, UAZap ou Evolution API." },
 };
-const NAV_INFERIOR = ["dashboard", "rascunho", "respostas", "leads"];
+const NAV_INFERIOR = ["maps", "rascunho", "respostas", "leads"];
 
 function desenharNav() {
   const grupos = {};
@@ -1760,10 +1719,9 @@ function abrirMenu(abrir) { $("#painel").classList.toggle("menu-aberto", abrir);
 
 function irParaHash() {
   const id = location.hash.slice(1);
-  viewAtual = VIEWS[id] ? id : "dashboard";
+  viewAtual = VIEWS[id] ? id : "rascunho";
   abrirMenu(false);
   marcarNav();
-  $("#view-dashboard").hidden = viewAtual !== "dashboard";
   $("#view-maps").hidden = viewAtual !== "maps";
   $("#view-automacao").hidden = viewAtual !== "automacao";
   $("#view-configuracoes").hidden = viewAtual !== "configuracoes";
@@ -1771,10 +1729,9 @@ function irParaHash() {
   $("#view-contratos").hidden = viewAtual !== "contratos";
   $("#view-fornecedores").hidden = viewAtual !== "fornecedores";
   $("#view-marketplaces").hidden = viewAtual !== "marketplaces";
-  $("#view-lista").hidden = ["dashboard", "maps", "automacao", "configuracoes", "conteudo", "contratos", "fornecedores", "marketplaces"].includes(viewAtual);
+  $("#view-lista").hidden = ["maps", "automacao", "configuracoes", "conteudo", "contratos", "fornecedores", "marketplaces"].includes(viewAtual);
   // Os números da prospecção não dizem nada nestas páginas.
-  $("#kpis").hidden = ["dashboard", "conteudo", "contratos", "fornecedores", "marketplaces"].includes(viewAtual);
-  if (viewAtual === "dashboard") carregarDashboard();
+  $("#kpis").hidden = ["conteudo", "contratos", "fornecedores", "marketplaces"].includes(viewAtual);
   if (viewAtual === "marketplaces") carregarMercadoLivre();
   if (viewAtual === "fornecedores") carregarFornecedores();
   if (viewAtual === "contratos") carregarContratos();
@@ -1863,74 +1820,6 @@ async function carregarStats() {
     $$(`[data-contador="${id}"]`).forEach((el) => (el.textContent = n));
   }
 }
-
-// ===================== Dashboard =====================
-const DASH_ATUALIZA_MS = 60000;
-let dashDesenhado = null;
-let dashAbaDosContratos = null; // A tela de Contratos abre sempre na lista; o link de Cobranças da dashboard pede outra aba.
-
-/** O link de um indicador: a tela dele e, quando tem, a aba dentro dela (o clique abre a aba antes de trocar de tela). */
-const dashLink = (i) => `href="#${esc(i.link)}"${i.aba ? ` data-dash-aba="${esc(i.aba)}"` : ""}`;
-
-function dashIndicador(i) {
-  return `<a class="ind ${esc(i.tom)}" ${dashLink(i)}><b>${esc(i.valor)}</b><span>${esc(i.rotulo)}</span>${i.detalhe ? `<small>${esc(i.detalhe)}</small>` : ""}</a>`;
-}
-
-function dashServico(s) {
-  return `<a class="dash-servico" ${dashLink(s)}><span>${esc(s.nome)}${s.detalhe ? `<small>${esc(s.detalhe)}</small>` : ""}</span><span class="pilula ${esc(s.tom)}">${esc(s.estado)}</span></a>`;
-}
-
-function dashSetor(s) {
-  const corpo = s.erro ? `<div class="alerta perigo">${ic("alert")}<div>${esc(s.erro)}</div></div>`
-    : s.servicos ? `<div class="dash-servicos">${s.servicos.map(dashServico).join("")}</div>`
-    : `<div class="ind-grade">${s.indicadores.map(dashIndicador).join("")}</div>`;
-  return `<article class="cartao dash-setor ${s.servicos ? "dash-setor-largo" : ""}">
-    <div class="cartao-cab"><h3><a href="#${esc(s.link)}">${ic(s.icone)}${esc(s.nome)}</a></h3></div>
-    <div class="cartao-corpo">${corpo}</div>
-  </article>`;
-}
-
-function dashAtencao(lista) {
-  if (!lista.length) return `<div class="alerta ok dash-atencao">${ic("checkCircle")}<div><b>Tudo em dia:</b> nada precisa de você agora.</div></div>`;
-  const urgentes = lista.filter((a) => a.nivel === "perigo").length;
-  return `<section class="cartao dash-atencao" aria-label="Precisa da sua atenção agora">
-    <div class="cartao-cab"><div class="titulos"><h3>${ic("alert")}Precisa da sua atenção agora <span class="pilula ${urgentes ? "perigo" : "atencao"}">${lista.length}</span></h3></div></div>
-    ${lista.map((a) => `<a class="dash-alerta" ${dashLink(a)}>
-      <span class="kpi-ic ${esc(a.nivel)}">${ic(a.nivel === "perigo" ? "alert" : "clock")}</span>
-      <span><b>${esc(a.titulo)}</b>${a.detalhe ? `<small>${esc(a.detalhe)}</small>` : ""}</span>${ic("chevron")}</a>`).join("")}
-  </section>`;
-}
-
-async function carregarDashboard() {
-  if (!dashDesenhado) $("#dash-corpo").innerHTML = `<div class="dash-setores">${'<div class="esqueleto"></div>'.repeat(6)}</div>`;
-  try {
-    const d = await api("/api/dashboard");
-    const hora = new Date(d.geradoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    $("#dash-hora").textContent = `Atualizado às ${hora}. Atualiza sozinho a cada minuto.`;
-    // Sem mudança nos números, não redesenha: não tira o foco de quem está navegando pelo teclado.
-    const novo = dashAtencao(d.atencao) + `<div class="dash-setores">${d.setores.map(dashSetor).join("")}</div>`;
-    if (novo !== dashDesenhado) $("#dash-corpo").innerHTML = dashDesenhado = novo;
-  } catch (e) {
-    if (dashDesenhado) $("#dash-hora").textContent = "Não deu para atualizar agora: estes são os últimos números. Tentando de novo em seguida.";
-    else $("#dash-corpo").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
-  }
-}
-
-$("#dash-atualizar").addEventListener("click", async (ev) => {
-  const btn = ev.currentTarget;
-  btn.disabled = true;
-  await carregarDashboard();
-  btn.disabled = false;
-});
-$("#dash-corpo").addEventListener("click", (ev) => {
-  const link = ev.target.closest("[data-dash-aba]");
-  if (!link) return;
-  if (link.getAttribute("href") === "#conteudo") abrirAbaIg(link.dataset.dashAba);
-  if (link.getAttribute("href") === "#contratos") dashAbaDosContratos = link.dataset.dashAba;
-});
-const dashboardVisivel = () => viewAtual === "dashboard" && !document.hidden && !$("#painel").hidden;
-setInterval(() => dashboardVisivel() && carregarDashboard(), DASH_ATUALIZA_MS);
-document.addEventListener("visibilitychange", () => dashboardVisivel() && carregarDashboard());
 
 // ===================== Google Maps =====================
 const NOME_DA_FONTE = { maps: "no Google Maps", instagram: "no Instagram", cnpj: "pelo CNPJ" };
@@ -3626,8 +3515,7 @@ async function carregarContratos() {
     contratoDoLead = null;
     return abrirNovoContrato(lead);
   }
-  abrirAbaCt(dashAbaDosContratos ?? "lista");
-  dashAbaDosContratos = null;
+  abrirAbaCt("lista");
 }
 
 async function carregarListaContratos() {
