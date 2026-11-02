@@ -82,6 +82,18 @@ export async function testarAvatar() {
   return { creditos: eu.remaining_credits ?? null, avatar: look ? { nome: look.name ?? null, status: look.status ?? null } : null };
 }
 
+/** Os créditos que restam no HeyGen. Só lê, não gasta nada. */
+export async function creditosDoHeygen() {
+  const c = await lerConfigAvatar();
+  return c.chave ? (await chamar(c.chave, "GET", "/v3/users/me")).remaining_credits ?? null : null;
+}
+
+/** Os créditos que restam na Runway. Só lê, não gasta nada. */
+export async function creditosDaRunway() {
+  const c = await lerConfigAvatar();
+  return c.runwayChave ? (await chamarRunway(c.runwayChave, "GET", "/v1/organization")).creditBalance ?? null : null;
+}
+
 // Cada clipe pesa na hora de montar o vídeo, e a Vercel corta a execução em 5 minutos.
 const MAX_CENAS_COM_AVATAR = 6;
 
