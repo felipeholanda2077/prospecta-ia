@@ -1402,15 +1402,15 @@
               <details class="ajuda"><summary>Como criar o app no TikTok</summary>
                 <ol><li>Crie a conta da FluxDeck no app do TikTok, se ainda não existir.</li>
                   <li>Abra <b>developers.tiktok.com</b> → <b>Manage apps</b> → <b>Connect an app</b> e preencha nome, ícone, site, termos e privacidade.</li>
-                  <li>Em <b>Products</b>, adicione <b>Login Kit</b> e <b>Content Posting API</b>, com <b>Direct Post</b> ligado. Em Login Kit, cole a URL de retorno acima.</li>
+                  <li>Em <b>Products</b>, adicione <b>Login Kit</b> e <b>Content Posting API</b>. Ligue <b>Direct Post</b> só se for publicar direto. Em Login Kit, cole a URL de retorno acima.</li>
                   <li>Copie o <b>Client Key</b> e o <b>Client Secret</b> para cá e clique em <b>Salvar e entrar com o TikTok</b>, com a conta da FluxDeck aberta.</li></ol></details></div>
+            <div class="campo" style="grid-column:1/-1"><label for="tiktok-modo">Como os vídeos saem</label>
+              <select id="tiktok-modo" name="modo">
+                <option value="rascunho">Mandar como rascunho</option>
+                <option value="direto">Publicar direto</option>
+              </select>
+              <span class="muted" style="font-size:12.5px"><b>Rascunho</b> chega ao app do TikTok e você toca na notificação para publicar para todo mundo, com até 5 pendentes em 24 horas. <b>Direto</b> sai sozinho, mas até o TikTok aprovar a auditoria do app só funciona em conta privada, e só você vê o vídeo.</span></div>
             <div id="tiktok-publicacao" style="grid-column:1/-1;display:grid;gap:14px" hidden>
-              <div class="campo"><label for="tiktok-modo">Como os vídeos saem</label>
-                <select id="tiktok-modo" name="modo">
-                  <option value="direto">Publicar direto</option>
-                  <option value="rascunho">Mandar como rascunho</option>
-                </select>
-                <span class="muted" style="font-size:12.5px"><b>Direto</b> sai sozinho, mas até o TikTok aprovar a auditoria do app só funciona em conta privada, e só você vê o vídeo. <b>Rascunho</b> chega ao app do TikTok e você toca na notificação para publicar para todo mundo, com até 5 pendentes em 24 horas.</span></div>
               <div id="tiktok-direto" style="display:grid;gap:14px">
                 <div id="tiktok-conta"></div>
                 <div class="campo"><label for="tiktok-privacidade">Quem pode ver os vídeos</label>
@@ -4700,8 +4700,8 @@ async function mostrarTiktok(t) {
     : t.entrou ? `<span class="pilula">Falta escolher como sai</span>` : `<span class="pilula">Não conectado</span>`;
   const avisos = [t.erro, t.faltaPermissao && "Este jeito de publicar precisa de outra permissão: clique em Entrar de novo com o TikTok."].filter(Boolean);
   $("#tiktok-aviso").innerHTML = avisos.map((a) => `<div class="alerta perigo">${ic("alert")}<div>${esc(a)}</div></div>`).join("");
-  if (!t.entrou) return;
   f.modo.value = t.modo;
+  if (!t.entrou) return;
   f.automatico.checked = t.automatico;
   $("#tiktok-direto").hidden = t.modo !== "direto";
   if (t.modo !== "direto" || t.faltaPermissao) return;
@@ -4723,7 +4723,7 @@ $("#form-tiktok").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const f = ev.target;
   try {
-    const { url } = await api("/api/tiktok/app", { method: "PUT", body: JSON.stringify({ clientKey: f.clientKey.value, clientSecret: f.clientSecret.value }) });
+    const { url } = await api("/api/tiktok/app", { method: "PUT", body: JSON.stringify({ clientKey: f.clientKey.value, clientSecret: f.clientSecret.value, modo: f.modo.value }) });
     location.href = url;
   } catch (e) {
     avisar(e.message, "perigo", 8000);

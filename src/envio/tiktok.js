@@ -55,7 +55,8 @@ export const lerConexao = async () => (await db.lerConfig("tiktok")) ?? {};
 
 export const enderecoDeRetorno = () => `${config.painel.urlPublica}/api/tiktok/retorno`;
 
-const modoDe = (c) => (MODOS.includes(c.modo) ? c.modo : "direto");
+// Rascunho é o padrão: ele não precisa da auditoria, e é a permissão que todo app novo do TikTok recebe.
+const modoDe = (c) => (MODOS.includes(c.modo) ? c.modo : "rascunho");
 const temEscopo = (c) => String(c.escopos ?? "").split(/[,\s]+/).includes(ESCOPO_DO_MODO[modoDe(c)]);
 
 /** O que o painel pode ver da conexão. */
@@ -84,13 +85,13 @@ export async function statusDaConexao() {
   };
 }
 
-export async function salvarApp({ clientKey, clientSecret }) {
+export async function salvarApp({ clientKey, clientSecret, modo }) {
   const c = await lerConexao();
   const chave = String(clientKey ?? "").trim();
   const segredo = String(clientSecret ?? "").trim();
   if (!chave) throw new Error("Cole o Client Key do app do TikTok");
   if (!segredo && !c.clientSecret) throw new Error("Cole o Client Secret do app do TikTok");
-  await db.gravarConfig("tiktok", { ...c, clientKey: chave, clientSecret: segredo || c.clientSecret, erro: null });
+  await db.gravarConfig("tiktok", { ...c, clientKey: chave, clientSecret: segredo || c.clientSecret, ...(MODOS.includes(modo) ? { modo } : {}), erro: null });
 }
 
 /** Como os vídeos saem. O TikTok exige escolha da própria pessoa: nada aqui vem marcado por padrão. */

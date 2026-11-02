@@ -234,7 +234,7 @@ Os mesmos posts do Instagram saem na página da empresa no LinkedIn, nos mesmos 
 
 Os Reels saem também no TikTok, nos mesmos horários, numa execução separada (um erro em uma rede não atrapalha a outra). O vídeo é o mesmo do Instagram, reaproveitado enquanto estiver guardado; só os Reels vão, carrossel não.
 
-- **Conexão:** em **Redes sociais → Configurações → Conta do TikTok**, com um app próprio no TikTok for Developers (Login Kit + Content Posting API). O acesso vale 24 horas e renova sozinho por até 1 ano.
+- **Conexão:** em **Redes sociais → Configurações → Conta do TikTok**, com um app próprio no TikTok for Developers (Login Kit + Content Posting API). Antes da revisão, use as chaves do Sandbox, com a conta da FluxDeck em Target users. O acesso vale 24 horas e renova sozinho por até 1 ano.
 - **Publicar direto:** sai sozinho, mas enquanto o TikTok não auditar o app ele só aceita conta privada e vídeo que só o dono vê. As regras do TikTok listam ferramenta para as próprias contas como uso não aceito, então a aprovação da auditoria não é garantida.
 - **Mandar como rascunho:** o vídeo chega ao app do TikTok, e você toca na notificação e publica. A legenda vai por e-mail, porque o TikTok não a leva para o rascunho. São no máximo 5 rascunhos pendentes em 24 horas.
 - **Comentários:** o TikTok não tem resposta automática como o direct do Instagram: os comentários são respondidos à mão.

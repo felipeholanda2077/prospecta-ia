@@ -347,7 +347,11 @@ test("tiktok: o login confere o state, guarda o acesso e nada de segredo vai ao 
   await db.gravarConfig("tiktok", {});
   await assert.rejects(() => tt.urlDeEntrada(agora), /Client Key/);
   await assert.rejects(() => tt.salvarApp({ clientKey: "k" }), /Client Secret/);
+  // Sem escolher nada, entra como rascunho, a permissão que todo app novo recebe.
   await tt.salvarApp({ clientKey: "chave-pub", clientSecret: "segredo-x" });
+  assert.equal((await tt.statusDaConexao()).modo, "rascunho");
+  assert.match(new URL(await tt.urlDeEntrada(agora)).searchParams.get("scope"), /video\.upload/);
+  await tt.salvarApp({ clientKey: "chave-pub", clientSecret: "", modo: "direto" });
   const url = new URL(await tt.urlDeEntrada(agora));
   assert.equal(url.origin + url.pathname, "https://www.tiktok.com/v2/auth/authorize/");
   assert.equal(url.searchParams.get("client_key"), "chave-pub");
