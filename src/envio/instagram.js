@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { config } from "../config.js";
 import * as db from "../db.js";
+import { obterConfig as lerConfigDoWhatsapp } from "./whatsapp.js";
 
 // Publicação no Instagram pela API oficial da Meta. Aceita os tokens dos três jeitos que a Meta
 // oferece: o do "Instagram Login" (começa com IG, usa graph.instagram.com), o do login unificado
@@ -214,7 +215,9 @@ export async function configDoDirect() {
     c = { ...c, verifyToken: crypto.randomBytes(16).toString("hex") };
     await db.gravarConfig(CHAVE_DIRECT, c);
   }
-  return { respostas: Boolean(c.respostas), comentarios: Boolean(c.comentarios), appSecret: c.appSecret ?? "", verifyToken: c.verifyToken };
+  // O app da Meta é um só: sem chave própria, vale a que já foi salva para o WhatsApp oficial.
+  const appSecret = c.appSecret || (await lerConfigDoWhatsapp()).appSecret || "";
+  return { respostas: Boolean(c.respostas), comentarios: Boolean(c.comentarios), appSecret, verifyToken: c.verifyToken };
 }
 
 /** Salva só o que veio: a chave secreta vazia mantém a que já estava salva. */
@@ -312,6 +315,22 @@ export async function responderComentario(comentarioId, texto) {
   return (await chamar(c, "POST", `${comentarioId}/replies`, { message: texto })).id;
 }
 
+/**
+ * Os comentários recentes nos posts da conta, lidos direto da API. Serve enquanto a Meta não entrega
+ * os comentários pelo webhook, o que exige a empresa verificada e a aprovação do app.
+ */
+export async function comentariosRecentes({ posts = 12 } = {}) {
+  const c = await lerConexao();
+  if (!c?.token) return [];
+  const { data: midias = [] } = await chamar(c, "GET", `${c.igId}/media`, {
+    fields: "id,comments_count,comments{id,text,username,timestamp,from,parent_id}", limit: posts,
+  });
+  return midias.flatMap((m) => (m.comments?.data ?? []).map((x) => ({
+    id: String(x.id), de: String(x.from?.id ?? ""), usuario: x.from?.username ?? x.username ?? "", texto: x.text ?? "",
+    midiaId: String(m.id), resposta: Boolean(x.parent_id), quando: x.timestamp,
+  })));
+}
+
 /** Baixa um anexo do direct (ex.: áudio, para transcrever). */
 export async function baixarAnexo(url) {
   const r = await fetch(url);
@@ -338,6 +357,19 @@ export async function statusDoDirect() {
  * Pede para a Meta mandar os eventos desta conta para o webhook do app. Pelo Instagram Login é a
  * própria conta que assina; pelo Facebook, a página ligada a ela (qualquer campo serve).
  */
+/** Cadastra o webhook do Instagram no próprio app da Meta: sem isso, a Meta não sabe para onde mandar os eventos. */
+export async function assinarWebhookDoApp(callbackUrl) {
+  const c = await lerConexao();
+  if (!c?.token) throw new Error("Instagram desconectado");
+  const { appSecret, verifyToken } = await configDoDirect();
+  if (!appSecret) throw new Error("Falta a chave secreta do app");
+  const { id } = await chamar(c, "GET", "app");
+  await chamar({ host: "graph.facebook.com", token: `${id}|${appSecret}` }, "POST", `${id}/subscriptions`, {
+    object: "instagram", callback_url: callbackUrl, fields: "comments,messages", verify_token: verifyToken, include_values: true,
+  });
+  return true;
+}
+
 export async function assinarWebhookDoDirect() {
   const c = await lerConexao();
   if (!c?.token) throw new Error("Instagram desconectado");

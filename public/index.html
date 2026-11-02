@@ -4725,7 +4725,8 @@ $("#form-direct").addEventListener("submit", async (ev) => {
     f.appSecret.value = "";
     mostrarDirect(d);
     const ligado = d.respostas || d.comentarios;
-    if (!ligado) avisar("Direct desligado: a IA não responde mais pelo Instagram.", "ok");
+    if (ligado && d.assinatura && !d.assinatura.ok) avisar(`A Meta não aceitou ligar os avisos: ${d.assinatura.erro}`, "perigo", 9000);
+    else if (!ligado) avisar("Direct desligado: a IA não responde mais pelo Instagram.", "ok");
     else if (d.status?.permissao && d.appSecretDefinido) avisar("Pronto: a IA cuida do direct do Instagram.", "ok");
     else avisar("Salvo. Falta liberar na Meta: veja o aviso no cartão.", "info", 7000);
   } catch (e) {

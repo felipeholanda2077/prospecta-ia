@@ -91,6 +91,8 @@ async function registrarDirect(m, campanha, cfg, { classificar, apresentar } = {
   return r ? 1 : 0;
 }
 
+const RESPOSTA_SEM_DIRECT = "Oi! Me chama no direct que eu te explico tudo por lá 😊";
+
 /**
  * Um comentário num post: a IA decide se vale chamar no direct (pediu o que o post prometeu, perguntou,
  * mostrou interesse) e manda a mensagem privada, que abre a conversa no direct. Depois, se der, responde
@@ -128,12 +130,42 @@ export async function registrarComentario(cm, campanha, { esperar = ESPERA_COMEN
   const [min, max] = esperar;
   if (max) await new Promise((r) => setTimeout(r, min + Math.random() * (max - min)));
   const envio = await enviarMensagem(await db.buscarMensagem(mensagemId), campanha);
-  if (envio.enviada && d.resposta_publica) {
-    await instagram.responderComentario(cm.id, d.resposta_publica)
+  // Se a Meta recusar o direct, responde em público para a pessoa não ficar sem resposta.
+  const recusado = !envio.enviada && (await db.buscarMensagem(mensagemId))?.status === "erro";
+  const publica = recusado ? RESPOSTA_SEM_DIRECT : envio.enviada ? d.resposta_publica : null;
+  if (publica) {
+    await instagram.responderComentario(cm.id, publica)
       .catch((e) => log(`⚠️  Não foi possível responder o comentário de @${cm.usuario} em público: ${e.message}`));
   }
   log(`📩 @${cm.usuario} comentou${onde}: ${envio.enviada ? "direct enviado" : `direct não saiu (${envio.motivo})`}`);
   return { respondido: envio.enviada, lead, mensagemId, motivo: envio.motivo };
+}
+
+// Só comentários novos: um antigo já perdeu a hora de ser respondido.
+const COMENTARIO_NOVO_MS = 24 * 3600_000;
+const COMENTARIOS_POR_RODADA = 5;
+
+/**
+ * Lê os comentários direto da API, a cada 2 minutos, para funcionar também sem o webhook.
+ * Cada comentário é avaliado uma vez só: quem já foi lido não gasta IA de novo.
+ */
+export async function rodadaDeComentarios(campanha, { ler = instagram.comentariosRecentes, agora = Date.now(), ...opcoes } = {}) {
+  const [cfg, conexao] = await Promise.all([instagram.configDoDirect(), instagram.lerConexao()]);
+  if (!cfg.comentarios || !conexao?.token) return { comentarios: "desligado" };
+  const proprio = (c) => c.de === String(conexao.igId) || (conexao.usuario && c.usuario.toLowerCase() === conexao.usuario.toLowerCase());
+  const lidos = (await ler()).filter((c) => !c.resposta && c.texto && c.de && !proprio(c) && agora - Date.parse(c.quando) < COMENTARIO_NOVO_MS);
+  let novos = 0;
+  let respondidos = 0;
+  for (const c of lidos) {
+    if (novos >= COMENTARIOS_POR_RODADA) break;
+    const chave = `comentario_ig_lido:${c.id}`;
+    if (await db.lerEstado(chave)) continue;
+    novos++;
+    await db.gravarEstado(chave, new Date(agora).toISOString());
+    const r = await registrarComentario(c, campanha, { esperar: [0, 0], ...opcoes }).catch((e) => (log(`⚠️  Comentário do Instagram: ${e.message}`), null));
+    if (r?.respondido) respondidos++;
+  }
+  return { comentarios: lidos.length, novos, respondidos };
 }
 
 /**

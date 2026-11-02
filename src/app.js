@@ -33,8 +33,8 @@ import { narracaoDisponivel, carregarChaveDaVoz, salvarChaveDoGemini } from "./c
 import { lerChavePexels, salvarChavePexels } from "./conteudo/fotos.js";
 import { lerConfigAvatar, salvarConfigAvatar, testarAvatar, testarRunway, falarPelaRunway, VOZES_DAS_MENSAGENS } from "./conteudo/avatar.js";
 import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados, feedDoInstagram } from "./conteudo/insights.js";
-import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect } from "./envio/instagram.js";
-import { processarWebhookInstagram } from "./respostas/instagram.js";
+import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect, assinarWebhookDoApp } from "./envio/instagram.js";
+import { processarWebhookInstagram, rodadaDeComentarios } from "./respostas/instagram.js";
 import { receberFormulario, lerConfigFormulario, salvarConfigFormulario } from "./respostas/formulario.js";
 import { paginaDoFormulario, paginaDeObrigado } from "./paginaContato.js";
 import * as contratos from "./contratos/contrato.js";
@@ -321,8 +321,11 @@ const TAREFAS_CRON = {
     if (["criado", "publicando"].includes(r.conteudo)) return r;
     return { ...r, insights: await rotinaDeInsights().catch((e) => ({ erro: e.message })) };
   },
-  // A cada 2 minutos, a qualquer hora: as respostas da IA no direct do Instagram.
-  instagram: (c) => pipeline.enviarInstagram(c),
+  // A cada 2 minutos, a qualquer hora: os comentários novos nos posts e as respostas da IA no direct do Instagram.
+  instagram: async (c) => {
+    const comentarios = await rodadaDeComentarios(c).catch((e) => ({ erro: e.message }));
+    return { ...(await pipeline.enviarInstagram(c)), comentarios };
+  },
   // A cada 5 minutos: os posts do dia na página do LinkedIn, nos mesmos horários do Instagram.
   linkedin: (c) => rodadaDoLinkedin(c),
   // A cada 10 minutos: as perguntas novas do Mercado Livre, com a resposta sugerida.
@@ -1199,13 +1202,24 @@ async function painelDoDirect({ conferir = false } = {}) {
 
 app.get("/api/instagram/direct", async (req, res) => res.json(await painelDoDirect({ conferir: req.query.conferir === "1" })));
 
+// Lê os comentários agora, sem esperar o agendador.
+app.post("/api/instagram/comentarios/ler", async (req, res) => {
+  try {
+    res.json(await rodadaDeComentarios(await carregarCampanhaCompleta()));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.put("/api/instagram/direct", async (req, res) => {
   const { respostas, comentarios, appSecret } = req.body ?? {};
   await salvarConfigDoDirect({ respostas, comentarios, appSecret });
   // Ligou alguma coisa: pede para a Meta mandar os eventos da conta (se o token permitir; senão o painel explica).
   let assinatura = null;
   if (respostas || comentarios) {
-    assinatura = await assinarWebhookDoDirect().then(() => ({ ok: true }), (e) => ({ ok: false, erro: e.message.replace(/^Instagram: /, "") }));
+    assinatura = await assinarWebhookDoApp(`${config.painel.urlPublica}/webhooks/instagram`)
+      .then(() => assinarWebhookDoDirect())
+      .then(() => ({ ok: true }), (e) => ({ ok: false, erro: e.message.replace(/^Instagram: /, "") }));
   }
   res.json({ ...(await painelDoDirect({ conferir: true })), assinatura });
 });

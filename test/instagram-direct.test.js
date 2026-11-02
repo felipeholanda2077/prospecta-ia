@@ -224,3 +224,24 @@ test("direct manual: empresa só com Instagram ganha um direct que você envia, 
     meta.restaurar();
   }
 });
+
+test("comentários lidos pela API: cada um é avaliado uma vez, sem os da própria conta, antigos ou respostas", async () => {
+  const { rodadaDeComentarios } = await import("../src/respostas/instagram.js");
+  await instagram.salvarConfigDoDirect({ respostas: true, comentarios: true, appSecret: "segredo" });
+  const agora = Date.parse("2026-11-20T15:00:00Z");
+  const base = { midiaId: "midia-lida", resposta: false, quando: "2026-11-20T14:00:00Z", usuario: "cliente-lido", de: "E-lido" };
+  const lista = [
+    { ...base, id: "lido-1", texto: "OBRA" },
+    { ...base, id: "lido-2", texto: "Muito antigo", quando: "2026-11-18T14:00:00Z" },
+    { ...base, id: "lido-3", texto: "resposta", resposta: true },
+    { ...base, id: "lido-4", texto: "meu mesmo", usuario: "fluxdeck_", de: "17841" },
+  ];
+  await db.gravarConfig("instagram", { token: "EAApagina", host: "graph.facebook.com", igId: "17841", usuario: "fluxdeck_" });
+  const vistos = [];
+  const escrever = async ({ comentario }) => { vistos.push(comentario); return { responder: false, resumo: "teste" }; };
+  const rodada = () => rodadaDeComentarios({ empresa: { nome: "FluxDeck" } }, { ler: async () => lista, agora, escrever });
+  assert.deepEqual(await rodada(), { comentarios: 1, novos: 1, respondidos: 0 });
+  assert.deepEqual(vistos, ["OBRA"]);
+  assert.deepEqual(await rodada(), { comentarios: 1, novos: 0, respondidos: 0 }); // não gasta IA de novo
+  assert.equal(vistos.length, 1);
+});
