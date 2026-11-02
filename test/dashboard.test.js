@@ -150,14 +150,14 @@ test("dashboard: serviço de fora que não responde não trava a tela", async ()
 test("dashboard: número caído e crédito acabando viram aviso; os créditos ficam guardados e só leem", async () => {
   await db.gravarConfig("avatar", { ativo: true, chave: "h", runwayChave: "r" });
   await cadastrarNumero("Vendas", "https://vendas.example.com");
-  const pedidos = servicosDeFora({ "/v3/users/me": { data: { remaining_credits: 0 } }, "/v1/organization": { creditBalance: 150 }, "/instance/status": { instance: { status: "disconnected" }, status: { connected: false, loggedIn: false } } });
+  const pedidos = servicosDeFora({ "/v3/users/me": { data: { billing_type: "wallet", wallet: { currency: "usd", remaining_balance: 0 } } }, "/v1/organization": { creditBalance: 150 }, "/instance/status": { instance: { status: "disconnected" }, status: { connected: false, loggedIn: false } } });
   const d = await montarDashboard({ conversasAvaliadas: async () => [] });
   const whatsapp = d.atencao.find((a) => /WhatsApp desconectado: Vendas/.test(a.titulo));
   assert.equal(whatsapp.nivel, "perigo");
   assert.equal(whatsapp.link, "automacao");
-  const heygen = d.atencao.find((a) => /HeyGen sem créditos/.test(a.titulo));
+  const heygen = d.atencao.find((a) => /HeyGen sem saldo/.test(a.titulo));
   assert.match(heygen.detalhe, /Runway/);
-  assert.ok(d.atencao.some((a) => /Runway com poucos créditos \(150\)/.test(a.titulo)));
+  assert.ok(d.atencao.some((a) => /Runway com pouco saldo \(150 créditos\)/.test(a.titulo)));
   assert.ok(pedidos.filter((p) => /users\/me|organization/.test(p.url)).every((p) => p.metodo === "GET"), "conferir crédito não pode gastar crédito");
 
   const antes = pedidos.filter((p) => /users\/me|organization/.test(p.url)).length;
@@ -177,6 +177,24 @@ test("dashboard: lê um setor de cada vez (vários juntos travaram as conexões 
   } });
   await montarDashboard({ conversasAvaliadas: async () => [], setores: ["a", "b", "c"].map(setor) });
   assert.equal(maximo, 1);
+});
+
+test("dashboard: lê o saldo do HeyGen em cada tipo de conta", async () => {
+  await db.gravarConfig("avatar", { ativo: true, chave: "h" });
+  const estado = async (data) => {
+    esquecerGuardados();
+    servicosDeFora({ "/v3/users/me": { data } });
+    const d = await montarDashboard({ conversasAvaliadas: async () => [], setores: SETORES.filter((s) => s.id === "servicos") });
+    return { estado: setor(d, "servicos").servicos.find((s) => s.nome === "Avatar (HeyGen)").estado, aviso: d.atencao.find((a) => /HeyGen/.test(a.titulo))?.titulo };
+  };
+  assert.match((await estado({ wallet: { currency: "usd", remaining_balance: 42.5 } })).estado, /US\$\s*42,50/);
+  assert.match((await estado({ wallet: { currency: "usd", remaining_balance: 1.5 } })).aviso, /pouco saldo/);
+  assert.equal((await estado({ wallet: { currency: "credits", remaining_balance: 30 } })).estado, "30 créditos");
+  assert.equal((await estado({ subscription: { credits: { premium_credits: { remaining: 4 }, add_on_credits: { remaining: 6 } } } })).estado, "10 créditos");
+  assert.equal((await estado({ usage_based: { remaining_credits: 7 } })).estado, "7 créditos");
+  assert.deepEqual(await estado({ wallet: { currency: "usd", remaining_balance: 0 } }), { estado: "Sem saldo", aviso: "HeyGen sem saldo" });
+  assert.deepEqual(await estado({ email: "x" }), { estado: "Não deu para conferir", aviso: undefined }, "sem saldo informado não é o mesmo que zerado");
+  await limparServicos();
 });
 
 test("dashboard: nenhuma consulta fica abandonada: um setor lento termina antes de a rota responder", async () => {
@@ -239,6 +257,7 @@ test("posts: próximo horário, atrasados, falhos e os que não saíram", () => 
 test("painel: a dashboard é a primeira do menu e a tela inicial", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   assert.match(html, /const VIEWS = \{\s*dashboard:/);
+  assert.match(html, /viewAtual = VIEWS\[id\] \? id : "dashboard"/);
   assert.match(html, /id="view-dashboard"/);
   // A barra de baixo do celular mostra o nome curto: sem ele, aparece "undefined".
   const nav = html.match(/const NAV_INFERIOR = \[(.*?)\]/)[1].match(/\w+/g);

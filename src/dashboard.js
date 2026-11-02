@@ -26,7 +26,7 @@ import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
 import { lerConfigConteudo, agoraEmBrasilia } from "./conteudo/diario.js";
 import { desempenho, lerPlano } from "./conteudo/insights.js";
-import { lerConfigAvatar, creditosDoHeygen, creditosDaRunway } from "./conteudo/avatar.js";
+import { lerConfigAvatar, saldoDoHeygen, creditosDaRunway } from "./conteudo/avatar.js";
 import { narracaoDisponivel, carregarChaveDaVoz } from "./conteudo/narracao.js";
 
 const LIMITE_EXTERNO_MS = 3_000;
@@ -34,8 +34,8 @@ const ORCAMENTO_MS = 25_000;
 const DASHBOARD_VALIDA_MS = 20_000;
 const CREDITOS_VALIDOS_MS = 10 * 60_000;
 const PEDIDOS_VALIDOS_MS = 5 * 60_000;
-// Abaixo disso, avisa que o crédito está acabando. O HeyGen gasta perto de 1 crédito por minuto de vídeo; na Runway, 1 crédito vale US$ 0,01.
-const POUCOS_CREDITOS = { heygen: 5, runway: 200 };
+// Abaixo disso, avisa que o saldo está acabando. O HeyGen gasta perto de 1 crédito por minuto de vídeo; na Runway, 1 crédito vale US$ 0,01.
+const POUCO_SALDO = { heygen: { creditos: 5, usd: 2 }, runway: { creditos: 200 } };
 const AGENDADOR_PARADO_MS = 30 * 60_000;
 const ATRASO_DO_POST_MIN = 60;
 const DIAS_DE_POST_FALHO = 3;
@@ -384,11 +384,13 @@ function servicosDeEmail() {
   };
 }
 
-function situacaoDosCreditos(creditos, limite) {
-  if (creditos === SEM_RESPOSTA || creditos == null) return { tom: "", estado: "Não deu para conferir", acabando: false, zerado: false };
-  const zerado = creditos <= 0;
-  const acabando = !zerado && creditos < limite;
-  return { tom: zerado ? "perigo" : acabando ? "atencao" : "ok", estado: zerado ? "Sem créditos" : plural(creditos, "crédito", "créditos"), acabando, zerado };
+function situacaoDoSaldo(saldo, limites) {
+  if (saldo === SEM_RESPOSTA || saldo == null) return { tom: "", estado: "Não deu para conferir", acabando: false, zerado: false };
+  const { valor, moeda } = saldo;
+  const zerado = valor <= 0;
+  const acabando = !zerado && valor < limites[moeda];
+  const quanto = moeda === "usd" ? valor.toLocaleString("pt-BR", { style: "currency", currency: "USD" }) : plural(valor, "crédito", "créditos");
+  return { tom: zerado ? "perigo" : acabando ? "atencao" : "ok", estado: zerado ? "Sem saldo" : quanto, acabando, zerado };
 }
 
 async function servicosDeVideo() {
@@ -398,18 +400,18 @@ async function servicosDeVideo() {
   const lista = [servico("Voz dos Reels", voz[0].toUpperCase() + voz.slice(1), "ok", "conteudo", { aba: "config" })];
   const atencao = [];
   const [heygen, runway] = await Promise.all([
-    c.chave ? guardado("heygen", CREDITOS_VALIDOS_MS, () => creditosDoHeygen(c.chave)) : null,
-    c.runwayChave ? guardado("runway", CREDITOS_VALIDOS_MS, () => creditosDaRunway(c.runwayChave)) : null,
+    c.chave ? guardado("heygen", CREDITOS_VALIDOS_MS, () => saldoDoHeygen(c.chave)) : null,
+    c.runwayChave ? guardado("runway", CREDITOS_VALIDOS_MS, async () => ({ valor: await creditosDaRunway(c.runwayChave), moeda: "creditos" })) : null,
   ]);
-  const h = situacaoDosCreditos(heygen, POUCOS_CREDITOS.heygen);
-  const r = situacaoDosCreditos(runway, POUCOS_CREDITOS.runway);
+  const h = situacaoDoSaldo(heygen, POUCO_SALDO.heygen);
+  const r = situacaoDoSaldo(runway?.valor == null ? null : runway, POUCO_SALDO.runway);
   lista.push(servico("Avatar (HeyGen)", !c.chave ? "Sem chave" : !c.ativo ? "Desligado" : h.estado, c.chave && c.ativo ? h.tom : "", "conteudo", { aba: "config" }));
   lista.push(servico("Avatar reserva (Runway)", !c.runwayChave ? "Sem chave" : r.estado, c.runwayChave ? r.tom : "", "conteudo", { aba: "config" }));
   if (c.ativo && c.chave && (h.zerado || h.acabando)) {
     const reserva = c.runwayChave && !r.zerado ? "A Runway faz os clipes no lugar dele." : "Os Reels saem sem avatar, com a voz grátis.";
-    atencao.push(alerta("atencao", h.zerado ? "HeyGen sem créditos" : `HeyGen com poucos créditos (${heygen})`, "conteudo", { aba: "config", detalhe: h.zerado ? reserva : "Quando acabar, a reserva entra sozinha." }));
+    atencao.push(alerta("atencao", h.zerado ? "HeyGen sem saldo" : `HeyGen com pouco saldo (${h.estado})`, "conteudo", { aba: "config", detalhe: h.zerado ? reserva : "Quando acabar, a reserva entra sozinha." }));
   }
-  if (c.runwayChave && (r.zerado || r.acabando)) atencao.push(alerta("atencao", r.zerado ? "Runway sem créditos" : `Runway com poucos créditos (${runway})`, "conteudo", { aba: "config" }));
+  if (c.runwayChave && (r.zerado || r.acabando)) atencao.push(alerta("atencao", r.zerado ? "Runway sem saldo" : `Runway com pouco saldo (${r.estado})`, "conteudo", { aba: "config" }));
   return { lista, atencao };
 }
 

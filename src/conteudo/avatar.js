@@ -82,9 +82,17 @@ export async function testarAvatar() {
   return { creditos: eu.remaining_credits ?? null, avatar: look ? { nome: look.name ?? null, status: look.status ?? null } : null };
 }
 
-/** Os créditos que restam no HeyGen. Só lê, não gasta nada. */
-export async function creditosDoHeygen(chave) {
-  return (await chamar(chave, "GET", "/v3/users/me")).remaining_credits ?? null;
+/**
+ * O que resta no HeyGen, no formato da conta: carteira (em dólar ou crédito), assinatura ou uso.
+ * Retorna { valor, moeda } ou null. Só lê, não gasta nada.
+ */
+export async function saldoDoHeygen(chave) {
+  const eu = await chamar(chave, "GET", "/v3/users/me");
+  if (eu.wallet?.remaining_balance != null) return { valor: eu.wallet.remaining_balance, moeda: eu.wallet.currency === "usd" ? "usd" : "creditos" };
+  const assinatura = eu.subscription?.credits;
+  if (assinatura) return { valor: (assinatura.premium_credits?.remaining ?? 0) + (assinatura.add_on_credits?.remaining ?? 0), moeda: "creditos" };
+  const credito = eu.usage_based?.remaining_credits ?? eu.remaining_credits;
+  return credito != null ? { valor: credito, moeda: "creditos" } : null;
 }
 
 /** Os créditos que restam na Runway. Só lê, não gasta nada. */
