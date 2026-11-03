@@ -5,6 +5,7 @@ import * as db from "./db.js";
 import * as pipeline from "./pipeline.js";
 import { waitUntil } from "@vercel/functions";
 import { carregarCampanhaCompleta, CAMPOS_EMPRESA, lerAutomacao, AUTOMACAO_PADRAO } from "./campanha.js";
+import * as acessos from "./acessos.js";
 import { contatarIndicados, normalizarNumeroIndicado } from "./respostas/indicacao.js";
 import { avaliarConversa, indicadoresDasConversas } from "./respostas/andamento.js";
 import { prioridadeNaFila } from "./analise/prioridade.js";
@@ -404,22 +405,38 @@ function lerCookie(req, nome) {
   return null;
 }
 
-function sessaoValida(req) {
+/**
+ * Quem está logado: o admin principal (cookie "expira.assinatura") ou um dos acessos criados no painel
+ * (cookie "expira.usuario.versão.assinatura", que deixa de valer quando o acesso é removido). Sem sessão, null.
+ */
+async function sessaoDe(req) {
   const valor = lerCookie(req, COOKIE);
-  if (!valor || !config.painel.senha) return false;
-  const [expira, assinatura] = valor.split(".");
-  return Number(expira) > Date.now() && iguais(assinatura ?? "", assinar(expira));
+  if (!valor || !config.painel.senha) return null;
+  const partes = valor.split(".");
+  if (partes.length === 2) {
+    const [expira, assinatura] = partes;
+    return Number(expira) > Date.now() && iguais(assinatura, assinar(expira)) ? { usuario: config.painel.usuario, principal: true } : null;
+  }
+  if (partes.length !== 4) return null;
+  const [expira, usuario64, versao, assinatura] = partes;
+  if (!(Number(expira) > Date.now()) || !iguais(assinatura, assinar(`${expira}.${usuario64}.${versao}`))) return null;
+  const usuario = Buffer.from(usuario64, "base64url").toString("utf8");
+  const acesso = await acessos.acessoAtivo(usuario, versao);
+  return acesso ? { usuario, nome: acesso.nome, principal: false } : null;
 }
 
 app.post("/api/login", async (req, res) => {
   if (!config.painel.senha) return res.status(500).json({ erro: "Defina PAINEL_SENHA nas variáveis de ambiente." });
   const { usuario = "", senha = "" } = req.body ?? {};
-  if (!iguais(usuario, config.painel.usuario) || !iguais(senha, config.painel.senha)) {
+  const principal = iguais(usuario, config.painel.usuario) && iguais(senha, config.painel.senha);
+  const acesso = principal ? null : await acessos.conferirSenha(usuario, senha);
+  if (!principal && !acesso) {
     await new Promise((r) => setTimeout(r, 800)); // freia tentativas em sequência
     return res.status(401).json({ erro: "Usuário ou senha incorretos" });
   }
   const expira = String(Date.now() + DURACAO_SESSAO_MS);
-  res.cookie(COOKIE, `${expira}.${assinar(expira)}`, {
+  const dados = principal ? expira : `${expira}.${Buffer.from(acesso.usuario).toString("base64url")}.${acesso.versao}`;
+  res.cookie(COOKIE, `${dados}.${assinar(dados)}`, {
     httpOnly: true,
     sameSite: "lax",
     secure: req.secure,
@@ -465,12 +482,32 @@ app.get("/api/tiktok/retorno", async (req, res) => {
   res.redirect("/#conteudo");
 });
 
-app.use("/api", (req, res, next) => {
-  if (sessaoValida(req)) return next();
+app.use("/api", async (req, res, next) => {
+  const sessao = await sessaoDe(req);
+  if (sessao) {
+    req.sessao = sessao;
+    return next();
+  }
   res.status(401).json({ erro: "Faça login para continuar", login: true });
 });
 
 // ---------- API do painel (exige login) ----------
+
+// Acessos ao painel: o admin principal (da Vercel) e os criados aqui, todos com acesso completo.
+app.get("/api/acessos", async (req, res) => res.json({
+  principal: config.painel.usuario, voce: req.sessao.usuario, acessos: await acessos.listarAcessos(),
+}));
+
+app.post("/api/acessos", async (req, res) => {
+  const r = await acessos.criarAcesso(req.body ?? {}, { principal: config.painel.usuario });
+  r.erro ? res.status(400).json(r) : res.json(r);
+});
+
+app.delete("/api/acessos/:usuario", async (req, res) => {
+  if (acessos.normalizarUsuario(req.params.usuario) === req.sessao.usuario) return res.status(400).json({ erro: "Você não pode remover o próprio acesso" });
+  if (!(await acessos.removerAcesso(req.params.usuario))) return res.status(404).json({ erro: "Acesso não encontrado" });
+  res.json({ ok: true });
+});
 
 app.get("/api/sessao", async (req, res) => {
   const campanha = await carregarCampanhaCompleta();

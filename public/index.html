@@ -910,6 +910,20 @@
           <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar perfil</button></div>
         </form>
 
+        <form class="cartao" id="form-acessos" style="margin-top:16px">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="users"></span><div class="titulos"><h3>Acessos ao painel</h3>
+            <div class="meta">Cada pessoa entra com o próprio usuário e senha, com acesso completo (admin). Remover um acesso desconecta a pessoa em até 1 minuto.</div></div></div>
+          <div class="cartao-corpo" style="display:grid;gap:14px">
+            <div id="acessos-lista"></div>
+            <div class="config-grade">
+              <div class="campo"><label for="acesso-nome">Nome</label><input id="acesso-nome" name="nome" placeholder="Ex.: Kaique" required></div>
+              <div class="campo"><label for="acesso-usuario">Usuário para entrar</label><input id="acesso-usuario" name="usuario" placeholder="Ex.: kaique" autocomplete="off" autocapitalize="none" required minlength="3" maxlength="40" pattern="[A-Za-z0-9._\-]+"></div>
+              <div class="campo"><label for="acesso-senha">Senha (mínimo 8 caracteres)</label><input id="acesso-senha" name="senha" type="password" autocomplete="new-password" required minlength="8"></div>
+            </div>
+          </div>
+          <div class="acoes"><button class="btn primario" type="submit"><span data-ic="check"></span>Criar acesso</button></div>
+        </form>
+
         <div class="cartao" id="cartao-formulario" style="margin-top:16px">
           <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="inbox"></span><div class="titulos"><h3>Formulário do site <span id="formulario-status"></span></h3>
             <div class="meta">Quem preenche vira uma empresa já em conversa e a IA chama no WhatsApp (ou responde por e-mail, se a pessoa não deixar WhatsApp). Use o link no site, no botão de contato e na bio do Instagram.</div></div></div>
@@ -3322,7 +3336,53 @@ $("#cartao-formulario").addEventListener("click", async (ev) => {
   }
 });
 
+/** Lista de acessos ao painel: o admin principal (da Vercel) e os criados aqui. */
+async function carregarAcessos() {
+  try {
+    const d = await api("/api/acessos");
+    const linha = (nome, usuario, detalhe, remover) => `<div class="dash-servico"><span>${esc(nome)}<small>usuário <b>${esc(usuario)}</b> · ${esc(detalhe)}</small></span>${remover}</div>`;
+    $("#acessos-lista").innerHTML = `<div class="dash-servicos">
+      ${linha("Admin principal", d.principal, "a senha fica na Vercel (PAINEL_SENHA)", `<span class="pilula ok">Admin</span>`)}
+      ${d.acessos.map((a) => linha(a.nome, a.usuario, `criado em ${new Date(a.criado).toLocaleDateString("pt-BR")}`,
+        a.usuario === d.voce ? `<span class="pilula ok">Você</span>` : `<button type="button" class="btn perigo sm" data-remover-acesso="${esc(a.usuario)}">${ic("x", "sm")}Remover</button>`)).join("")}
+    </div>`;
+  } catch (e) {
+    $("#acessos-lista").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+$("#form-acessos").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    const { acesso } = await post("/api/acessos", Object.fromEntries(new FormData(ev.target)));
+    ev.target.reset();
+    avisar(`Acesso criado: ${acesso.nome} entra com o usuário "${acesso.usuario}" e a senha que você definiu.`, "ok", 7000);
+    carregarAcessos();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#acessos-lista").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-remover-acesso]");
+  if (!btn || !confirm(`Remover o acesso "${btn.dataset.removerAcesso}"? A pessoa é desconectada e não entra mais.`)) return;
+  btn.disabled = true;
+  try {
+    await api(`/api/acessos/${encodeURIComponent(btn.dataset.removerAcesso)}`, { method: "DELETE" });
+    avisar("Acesso removido", "ok");
+    carregarAcessos();
+  } catch (e) {
+    avisar(e.message, "perigo");
+    btn.disabled = false;
+  }
+});
+
 async function carregarConfiguracoes() {
+  carregarAcessos();
   carregarEmail();
   carregarCron();
   carregarFormulario();

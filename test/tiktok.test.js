@@ -434,5 +434,5 @@ test("tiktok: o agendador e o painel conhecem o TikTok", async () => {
   assert.match(html, /data-post-acao="tiktok"/);
   const app = await readFile(new URL("../src/app.js", import.meta.url), "utf8");
   // A volta do login vem de fora, sem a sessão do painel: a rota tem que estar antes da checagem de login.
-  assert.ok(app.indexOf('"/api/tiktok/retorno"') < app.indexOf("if (sessaoValida(req)) return next()"));
+  assert.ok(app.indexOf('"/api/tiktok/retorno"') < app.indexOf("const sessao = await sessaoDe(req);"));
 });
