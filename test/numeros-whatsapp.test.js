@@ -280,3 +280,26 @@ test("dashboard: quando sai a próxima mensagem do WhatsApp, respeitando o horá
     falsa.restaurar();
   }
 });
+
+test("fila de envio: previsão de quando tudo termina de sair, com a vez do número e o horário comercial", async () => {
+  const falsa = uazapFalsa();
+  try {
+    if (!(await uazap.numeros()).length) await uazap.salvarNumero({ nome: "IA 1", url: URL_UAZAP, token: "A" });
+    const comercial = {
+      ...campanha,
+      limites: { ...campanha.limites, horarioComercial: { inicio: 9, fim: 18 }, somenteDiasUteis: true },
+      automacao: { ...campanha.automacao, metaDiaria: { email: 10, whatsapp: 50 }, intervaloEmpresasMin: 5, intervaloEmpresasMax: 12 },
+    };
+    const etapas = (lead, empresa) => [1, 2, 3].map((etapa) => ({ lead_id: lead, empresa, canal: "whatsapp", tipo: "inicial", etapa, agendada_para: null }));
+    const mensagens = [...etapas(901, "A"), ...etapas(902, "B")];
+    // Quarta, 10:00: A e B saem com 8,5 min entre elas; a etapa 2 de cada uma cerca de 1 h 51 min depois, e a 3 igual.
+    const quarta = await pipeline.previsaoDaFila(comercial, new Date("2030-01-09T13:00:00Z"), { mensagens });
+    assert.deepEqual([quarta.termina, quarta.mensagens, quarta.empresas], ["2030-01-09T16:50:30.000Z", 6, 2]);
+    // Sexta, 17:30: não dá tempo de começar uma sequência hoje; a empresa nova fica para segunda, 9:00.
+    const sexta = await pipeline.previsaoDaFila(comercial, new Date("2030-01-11T20:30:00Z"), { mensagens: etapas(903, "C") });
+    assert.equal(sexta.termina, "2030-01-14T15:42:00.000Z");
+    assert.equal((await pipeline.previsaoDaFila(comercial, new Date("2030-01-09T13:00:00Z"), { mensagens: [] })).termina, null);
+  } finally {
+    falsa.restaurar();
+  }
+});

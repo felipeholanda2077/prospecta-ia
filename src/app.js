@@ -722,6 +722,9 @@ app.get("/api/mensagens", async (req, res) => {
   })));
 });
 
+// Quanto tempo a fila leva para sair inteira (se ninguém responder antes).
+app.get("/api/fila/previsao", async (req, res) => res.json(await pipeline.previsaoDaFila(await carregarCampanhaCompleta())));
+
 app.put("/api/mensagens/:id", async (req, res) => {
   const m = await db.buscarMensagem(req.params.id);
   if (!m || m.status === "enviada") return res.status(400).json({ erro: "Mensagem não editável" });

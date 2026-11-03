@@ -330,6 +330,8 @@
   .dash-alerta > .ic:last-child { color: var(--subtle); }
   .dash-proximo { margin-bottom: 16px; color: inherit; text-decoration: none; }
   .dash-proximo b span { font-variant-numeric: tabular-nums; }
+  .fila-previsao { margin-bottom: 16px; }
+  .fila-previsao small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; line-height: 1.45; }
   .dash-proximo small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
   .dash-setores { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 16px; align-items: start; }
   .dash-setor .cartao-cab { padding: 14px 16px; align-items: center; }
@@ -3006,6 +3008,22 @@ const VAZIOS = {
           `<a class="btn primario" href="#maps">${ic("pin")}Buscar no Google Maps</a>`],
 };
 
+/** Faixa da Fila de envio: quando tudo o que está aqui termina de sair, se ninguém responder antes. */
+function previsaoDaFila(p) {
+  if (!p?.termina) return "";
+  const quando = new Date(p.termina).toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const ritmo = `uma mensagem a cada ~${p.ritmo.intervaloMin} min no WhatsApp, até ${p.ritmo.limiteWhatsapp} empresas novas por dia, só em horário comercial`;
+  const extras = [
+    p.manuais ? `${p.manuais} ${p.manuais === 1 ? "mensagem depende" : "mensagens dependem"} de você (envio manual) e não ${p.manuais === 1 ? "entra" : "entram"} na conta.` : "",
+    p.semVaga ? `${p.semVaga} ${p.semVaga === 1 ? "mensagem fica" : "mensagens ficam"} de fora: o limite de empresas novas do canal está em zero.` : "",
+  ].filter(Boolean).join(" ");
+  return `<div class="alerta ${p.parado ? "atencao" : "info"} fila-previsao">${ic("clock")}<div>
+    <b>Previsão para enviar toda a fila: ${esc(quando)} <span data-contagem="${esc(p.termina)}"></span></b>
+    <small>${p.mensagens} ${p.mensagens === 1 ? "mensagem" : "mensagens"} de ${p.empresas} ${p.empresas === 1 ? "empresa" : "empresas"} · ${esc(ritmo)}.
+      Quem responder não recebe as próximas etapas, então a fila costuma terminar antes.${p.parado ? ` <b>Agora ${esc(p.parado)}.</b>` : ""} ${esc(extras)}</small>
+  </div></div>`;
+}
+
 async function carregarLista() {
   const alvo = $("#view-lista");
   const view = viewAtual;
@@ -3035,13 +3053,14 @@ async function carregarLista() {
           ? abasDeCanal(sequencias, (ms) => ms[0].canal) + (visiveis.length ? avisoPerfil + visiveis.map(cardSequencia).join("") : semNada(lista.length))
           : vazio(...VAZIOS[view]);
       } else if (view === "aprovada") {
+        const previsao = await api("/api/fila/previsao").catch(() => null);
         // Fila: um cartão por empresa; o filtro de canal mostra só as etapas daquele canal.
         const empresas = agruparPorEmpresa(lista);
         const visiveis = agruparPorEmpresa(lista.filter((m) => doCanal(m.canal)));
         const avisoWhatsapp = sessao.whatsappDesconectado
           ? `<div class="alerta perigo" style="margin-bottom:16px">${ic("alert")}<div><b>WhatsApp desconectado.</b> As mensagens de WhatsApp ficam aqui na fila e saem sozinhas assim que você reconectar o número em <a href="#configuracoes">Configurações</a>. Os e-mails continuam saindo.</div></div>` : "";
         html = lista.length
-          ? abasDeCanal(empresas, (ms) => ms.map((m) => m.canal)) + avisoWhatsapp + (visiveis.length ? visiveis.map(cardFilaEmpresa).join("") : semNada(lista.length))
+          ? previsaoDaFila(previsao) + abasDeCanal(empresas, (ms) => ms.map((m) => m.canal)) + avisoWhatsapp + (visiveis.length ? visiveis.map(cardFilaEmpresa).join("") : semNada(lista.length))
           : vazio(...VAZIOS[view]);
       } else {
         const visiveis = lista.filter((m) => doCanal(m.canal));
@@ -3050,7 +3069,10 @@ async function carregarLista() {
           : vazio(...VAZIOS[view]);
       }
     }
-    if (view === viewAtual) alvo.innerHTML = html;
+    if (view === viewAtual) {
+      alvo.innerHTML = html;
+      atualizarContagens();
+    }
   } catch (e) {
     alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
