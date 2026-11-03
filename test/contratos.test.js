@@ -131,3 +131,12 @@ test("contrato: o modelo do repositório não leva dados pessoais", async () => 
   const modelo = await contrato.modeloPadrao();
   assert.doesNotMatch(modelo, /\d{3}\.\d{3}\.\d{3}-\d{2}|\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}|@\w+\.\w+|\b\d{10,11}\b/);
 });
+
+test("contrato: no PDF, as assinaturas descem junto com o fecho, sem ficar sozinhas na página", async () => {
+  const fim = "E por estarem assim justas, as partes assinam.\n\nCidade, ___ de ___ de 20__.\n\n::assinatura\nA | B\nC | D\n::";
+  const paginas = (buf) => (buf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+  const comTexto = (n) => Array.from({ length: n }, (_, i) => `${i + 1}.1. Texto do contrato para ocupar a folha até perto do final da página.`).join("\n\n");
+  // Em algum tamanho o bloco final cruza a página: o PDF precisa continuar sendo gerado.
+  for (const n of [30, 34, 38, 42, 46]) assert.ok(paginas(await documentoEmPdf(`${comTexto(n)}\n\n${fim}`, { marca: "M" })) >= 1);
+  assert.equal(lerBlocos(fim).at(-1).tipo, "assinatura");
+});

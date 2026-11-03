@@ -188,7 +188,14 @@ export function documentoEmPdf(texto, { marca = "", projeto = "", cnpj = "", tip
     const largura = doc.page.width - MARGEM.x * 2;
     doc.y = ALTURA_CAPA + 26; // abaixo do cabeçalho da primeira página
 
-    for (const b of lerBlocos(texto)) {
+    const blocos = lerBlocos(texto);
+    // A assinatura não fica sozinha numa página: os dois parágrafos antes dela (o fecho e o local e data) vão junto.
+    const iAssinatura = blocos.findIndex((b) => b.tipo === "assinatura");
+    blocos.forEach((b, i) => {
+      if (iAssinatura >= 2 && i === iAssinatura - 2 && blocos.slice(i, iAssinatura).every((x) => x.tipo === "paragrafo")) {
+        const assinatura = blocos[iAssinatura].linhas.length * 14 + 62;
+        novaPaginaSePreciso(doc, blocos.slice(i, iAssinatura).reduce((soma, x) => soma + alturaDe(doc, x.texto, largura, 9.8) + 7, assinatura));
+      }
       switch (b.tipo) {
         case "titulo":
           escrever(doc, b.texto, { x: MARGEM.x, largura, tamanho: 17, align: "center", negrito: true, depois: 3 });
@@ -249,7 +256,7 @@ export function documentoEmPdf(texto, { marca = "", projeto = "", cnpj = "", tip
         default:
           escrever(doc, b.texto, { x: MARGEM.x, largura, tamanho: 9.8, depois: 7 });
       }
-    }
+    });
 
     // Cabeçalho e rodapé (sem margem de baixo, para o texto não abrir outra página).
     const logo = readFileSync(LOGO);
