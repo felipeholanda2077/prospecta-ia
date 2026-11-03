@@ -5,6 +5,10 @@
   "outputDirectory": "public",
   "rewrites": [
     {
+      "source": "/crm",
+      "destination": "/crm.html"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api"
     },

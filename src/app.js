@@ -53,6 +53,7 @@ import { escreverApresentacao } from "./ia/resposta.js";
 import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada } from "./respostas/processar.js";
 import { dashboardDoPainel } from "./dashboard.js";
 import * as agentes from "./respostas/agentes.js";
+import * as crm from "./respostas/crmAgente.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -482,6 +483,122 @@ app.get("/api/tiktok/retorno", async (req, res) => {
   await tiktok.concluirEntrada(req.query).catch((e) => console.error("⚠️  Login do TikTok:", e.message));
   res.redirect("/#conteudo");
 });
+
+// ---------- CRM externo dos agentes (/crm): login próprio, só as conversas do agente de quem entrou ----------
+
+const rotaCrm = (fn) => async (req, res) => {
+  try {
+    res.json(await fn(req));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+};
+
+app.post("/api/crm/login", async (req, res) => {
+  if (!config.painel.senha) return res.status(500).json({ erro: "O sistema ainda não está configurado para login." });
+  const acesso = await crm.conferirSenha(req.body?.usuario, req.body?.senha ?? "");
+  if (!acesso) {
+    await new Promise((r) => setTimeout(r, 800)); // freia tentativas em sequência
+    return res.status(401).json({ erro: "Usuário ou senha incorretos" });
+  }
+  res.cookie(crm.COOKIE_CRM, crm.valorDaSessao(acesso, chaveSessao()), {
+    httpOnly: true, sameSite: "lax", secure: req.secure, maxAge: crm.DURACAO_CRM_MS, path: "/",
+  });
+  res.json({ ok: true });
+});
+
+app.post("/api/crm/sair", (req, res) => {
+  res.clearCookie(crm.COOKIE_CRM, { path: "/" });
+  res.json({ ok: true });
+});
+
+app.use("/api/crm", async (req, res, next) => {
+  const sessao = config.painel.senha ? await crm.sessaoDoCrm(lerCookie(req, crm.COOKIE_CRM), chaveSessao()) : null;
+  if (!sessao) return res.status(401).json({ erro: "Faça login para continuar", login: true });
+  req.crm = sessao;
+  next();
+});
+
+app.get("/api/crm/eu", rotaCrm(async (req) => {
+  const { agente: a, acesso } = req.crm;
+  const nomes = new Map((await uazap.numeros()).map((n) => [n.id, n.nome]));
+  const arquivos = await db.arquivosDoAgente(a.id);
+  return {
+    voce: acesso.nome, agente: a.nome, ligado: a.ligado, numeros: a.numeros.map((id) => nomes.get(id) ?? "número removido"),
+    semBase: !a.conhecimento.trim() && !arquivos.length,
+  };
+}));
+
+app.get("/api/crm/conversas", rotaCrm(async (req) => {
+  const a = req.crm.agente;
+  const conversas = (await conversasAvaliadas()).filter((c) => c.agente_id === a.id).map((c) => ({
+    id: c.id, nome: c.nome, whatsapp: c.whatsapp, status: c.status, nao_lidas: c.nao_lidas, ultima: c.ultima,
+    proximoPasso: c.andamento.proximoPasso, precisaDeVoce: c.andamento.precisaDeVoce, agente: agentes.andamentoDoAgente(c),
+  }));
+  const porEstado = Object.fromEntries(Object.keys(agentes.ANDAMENTOS).map((k) => [k, conversas.filter((c) => c.agente.estado === k).length]));
+  return { conversas, porEstado, numeros: await db.numerosDoAgente(a.id) };
+}));
+
+app.get("/api/crm/conversas/:leadId", rotaCrm(async (req) => {
+  const lead = await crm.conversaDoAgente(req.crm.agente.id, req.params.leadId);
+  await db.marcarConversaLida(lead.id);
+  return {
+    lead: { id: lead.id, nome: lead.nome, whatsapp: lead.whatsapp, status: lead.status },
+    iaPausada: (await iaPausada(lead.id)) || null,
+    mensagens: (await db.historicoConversa(lead.id)).map(({ autor, texto, quando }) => ({ autor, texto, quando })),
+    agendadas: (await db.agendadasDaConversa(lead.id)).map(({ id, texto, agendada_para }) => ({ id, texto, agendada_para })),
+  };
+}));
+
+// Responder pelo CRM: a mensagem sai pelo WhatsApp do agente, e o agente para nesta conversa até "Agente continua".
+app.post("/api/crm/conversas/:leadId/responder", rotaCrm(async (req) => {
+  const lead = await crm.conversaDoAgente(req.crm.agente.id, req.params.leadId);
+  const r = await db.ultimaRespostaDaConversa(lead.id);
+  if (!r) throw new Error("Esta conversa ainda não tem mensagem do cliente");
+  if (!String(req.body?.texto ?? "").trim()) throw new Error("Escreva a mensagem antes de enviar");
+  await db.cancelarPendentes(lead.id, "respondido no CRM");
+  await pausarIA(lead.id, `${req.crm.acesso.nome} respondeu pelo CRM`);
+  const envio = await pipeline.responderConversa(r.id, String(req.body.texto).slice(0, 4000), await carregarCampanhaCompleta());
+  return { enviada: Boolean(envio.enviada), motivo: envio.enviada ? null : envio.motivo ?? null };
+}));
+
+app.post("/api/crm/conversas/:leadId/assumir", rotaCrm(async (req) => {
+  const lead = await crm.conversaDoAgente(req.crm.agente.id, req.params.leadId);
+  await pausarIA(lead.id, `${req.crm.acesso.nome} assumiu a conversa pelo CRM`);
+  await db.cancelarPendentes(lead.id, "conversa assumida no CRM");
+  return { ok: true };
+}));
+
+app.post("/api/crm/conversas/:leadId/agente-continua", rotaCrm(async (req) => {
+  const lead = await crm.conversaDoAgente(req.crm.agente.id, req.params.leadId);
+  const r = await db.ultimaRespostaDaConversa(lead.id);
+  if (!r) throw new Error("Esta conversa ainda não tem mensagem do cliente");
+  const feito = await continuarComIA(r.id, await carregarCampanhaCompleta(), { nota: req.body?.nota });
+  return { ok: true, sugestao: feito.sugestao };
+}));
+
+app.post("/api/crm/conversas/:leadId/fechou", rotaCrm(async (req) => {
+  const lead = await crm.conversaDoAgente(req.crm.agente.id, req.params.leadId);
+  await db.atualizarLead(lead.id, { status: req.body?.fechou === false ? "respondeu" : "fechado" });
+  return { ok: true };
+}));
+
+// A base de conhecimento do agente: quem conhece os preços e as regras é o dono do CRM.
+app.get("/api/crm/base", rotaCrm(async (req) => ({
+  conhecimento: req.crm.agente.conhecimento, arquivos: await db.arquivosDoAgente(req.crm.agente.id),
+})));
+app.put("/api/crm/base", rotaCrm(async (req) => {
+  await agentes.salvarAgente(req.crm.agente.id, { conhecimento: req.body?.conhecimento ?? "" });
+  return { ok: true };
+}));
+app.post("/api/crm/base/arquivos", rotaCrm(async (req) => {
+  await agentes.adicionarArquivo(req.crm.agente.id, req.body?.nome, req.body?.texto);
+  return { arquivos: await db.arquivosDoAgente(req.crm.agente.id) };
+}));
+app.delete("/api/crm/base/arquivos/:arquivo", rotaCrm(async (req) => {
+  await db.excluirArquivoDoAgente(req.crm.agente.id, Number(req.params.arquivo));
+  return { arquivos: await db.arquivosDoAgente(req.crm.agente.id) };
+}));
 
 app.use("/api", async (req, res, next) => {
   const sessao = await sessaoDe(req);
@@ -1611,7 +1728,7 @@ async function agenteNoPainel(a, { completo = false } = {}) {
     numerosNomes: a.numeros.map((id) => nomes.get(id) ?? "número removido"),
     faltando: agentes.faltando(a, arquivos.length),
     numerosConversa: await db.numerosDoAgente(a.id),
-    ...(completo ? { arquivos } : {}),
+    ...(completo ? { arquivos, acessos: await db.acessosDoAgente(a.id) } : {}),
   };
 }
 
@@ -1647,6 +1764,17 @@ app.post("/api/agentes/:id/arquivos", comErro(async (req) => {
 app.delete("/api/agentes/:id/arquivos/:arquivo", comErro(async (req) => {
   await db.excluirArquivoDoAgente(Number(req.params.id), Number(req.params.arquivo));
   return { arquivos: await db.arquivosDoAgente(Number(req.params.id)) };
+}));
+
+// Logins do CRM externo do agente (/crm), criados e removidos pelo admin.
+app.get("/api/agentes/:id/acessos", comErro(async (req) => ({ acessos: await db.acessosDoAgente(Number(req.params.id)) })));
+app.post("/api/agentes/:id/acessos", comErro(async (req) => {
+  await crm.criarAcesso(Number(req.params.id), req.body ?? {});
+  return { acessos: await db.acessosDoAgente(Number(req.params.id)) };
+}));
+app.delete("/api/agentes/:id/acessos/:acesso", comErro(async (req) => {
+  await db.excluirAcessoDoCrm(Number(req.params.id), Number(req.params.acesso));
+  return { acessos: await db.acessosDoAgente(Number(req.params.id)) };
 }));
 
 // Conversa de agente que virou venda (ou que volta a ficar aberta).

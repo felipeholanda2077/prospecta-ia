@@ -1166,3 +1166,17 @@ export async function numerosDoAgente(agenteId) {
     delegacoes: await n("SELECT count(*)::int AS n FROM leads WHERE agente_id = $1 AND agente_delegou_em IS NOT NULL"),
   };
 }
+
+// Logins do CRM externo de cada agente.
+export const acessosDoAgente = (agenteId) =>
+  q("SELECT id, nome, usuario, criado_em FROM agente_acessos WHERE agente_id = $1 ORDER BY id", [agenteId]);
+export const acessoDoCrmPorUsuario = (usuario) => um("SELECT * FROM agente_acessos WHERE usuario = $1", [usuario]);
+export const acessoDoCrm = (id) => um("SELECT * FROM agente_acessos WHERE id = $1", [id]);
+export async function criarAcessoDoCrm({ agente_id, nome, usuario, sal, resumo, versao }) {
+  return (await um(
+    `INSERT INTO agente_acessos (agente_id, nome, usuario, sal, resumo, versao) VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (usuario) DO NOTHING RETURNING id`,
+    [agente_id, nome, usuario, sal, resumo, versao]
+  ))?.id ?? null;
+}
+export const excluirAcessoDoCrm = (agenteId, id) => q("DELETE FROM agente_acessos WHERE agente_id = $1 AND id = $2", [agenteId, id]);

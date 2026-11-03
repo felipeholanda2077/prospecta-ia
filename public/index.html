@@ -1735,7 +1735,7 @@ const VIEWS = {
   respostas: { grupo: "Relacionamento", nome: "Respostas", curto: "Respostas", icone: "message", titulo: "Respostas",
                sub: "Cada conversa como no WhatsApp, com a chance de fechar e o próximo passo.", contador: () => stats?.respostasNaoLidas },
   agentes:   { grupo: "Relacionamento", nome: "Agentes", icone: "users", titulo: "Agentes de atendimento",
-               sub: "Crie agentes que respondem no WhatsApp do número escolhido e acompanhe as conversas de cada um." },
+               sub: "Crie agentes que respondem no WhatsApp do número escolhido. Cada um tem um CRM externo, com login próprio, para o dono acompanhar." },
   leads:     { grupo: "Relacionamento", nome: "Empresas", curto: "Empresas", icone: "building", titulo: "Empresas",
                sub: "Todas as empresas capturadas e em que etapa do funil estão." },
   contratos: { grupo: "Relacionamento", nome: "Contratos", icone: "file", titulo: "Contratos",
@@ -5996,7 +5996,7 @@ function desenharAgente() {
       <button type="button" class="ig-aba" role="tab" data-ag-aba="configurar" aria-selected="${abaAgente === "configurar"}">${ic("settings")}Configurar</button>
     </div>
     <div class="ig-painel" data-ag-painel="acompanhar" ${abaAgente === "acompanhar" ? "" : "hidden"}>${htmlAcompanhamento()}</div>
-    <div data-ag-painel="configurar" ${abaAgente === "configurar" ? "" : "hidden"}>${formularioAgente(a)}</div>
+    <div data-ag-painel="configurar" style="display:grid;gap:16px" ${abaAgente === "configurar" ? "" : "hidden"}>${htmlCrmExterno(a)}${formularioAgente(a)}</div>
   </div>`;
 }
 
@@ -6079,6 +6079,37 @@ function formularioAgente(a) {
   </form>`;
 }
 
+/** O CRM externo do agente: o link e os logins de quem acompanha as conversas dele (o dono do agente). */
+function htmlCrmExterno(a) {
+  return `<div class="cartao cartao-corpo" style="display:grid;gap:14px">
+    <div><h3 style="margin:0">CRM externo do agente</h3>
+      <p class="muted" style="margin:4px 0 0">Quem acompanha este agente entra pelo link abaixo com o próprio login e vê só as conversas dele: responde, assume ou devolve a conversa para o agente, marca as vendas fechadas e cuida da base de conhecimento.</p></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <code style="padding:8px 10px;border-radius:8px;background:var(--surface-2);overflow-wrap:anywhere">${esc(location.origin)}/crm</code>
+      <button type="button" class="btn sm" data-ag-copiar="${esc(location.origin)}/crm">${ic("copy", "sm")}Copiar link</button>
+      <a class="btn sm" href="/crm" target="_blank" rel="noopener">${ic("external", "sm")}Abrir</a>
+    </div>
+    <div id="ag-acessos">${htmlAcessosAgente(a.acessos ?? [])}</div>
+    <form id="form-acesso-agente" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end">
+      <div class="campo"><label for="ac-nome">Nome de quem entra</label><input id="ac-nome" name="nome" maxlength="60" placeholder="Ex.: Ana (rastreadora)"></div>
+      <div class="campo"><label for="ac-usuario">Usuário</label><input id="ac-usuario" name="usuario" required autocomplete="off" autocapitalize="none" placeholder="Ex.: ana.rastreio"></div>
+      <div class="campo"><label for="ac-senha">Senha (mínimo 8)</label><input id="ac-senha" name="senha" type="text" required minlength="8" autocomplete="new-password"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn sm" data-ag-gerar-senha>${ic("spark", "sm")}Gerar senha</button>
+        <button type="submit" class="btn primario sm">${ic("check", "sm")}Criar login</button>
+      </div>
+    </form>
+    <span class="muted" style="font-size:12.5px">Anote a senha e passe para a pessoa junto com o link: depois de criada, ela não aparece mais aqui. Remover o login tira o acesso na hora.</span>
+  </div>`;
+}
+
+function htmlAcessosAgente(acessos) {
+  return acessos.length ? `<ul style="margin:0;padding:0;list-style:none;display:grid;gap:6px">${acessos.map((x) =>
+    `<li style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${ic("users", "sm")}<b>${esc(x.nome)}</b><span class="muted">usuário ${esc(x.usuario)} · criado em ${dataHora(x.criado_em)}</span>
+      <button type="button" class="btn fantasma sm" data-ag-tirar-acesso="${x.id}">${ic("x", "sm")}Remover</button></li>`).join("")}</ul>`
+    : `<p class="muted" style="margin:0">Nenhum login ainda.</p>`;
+}
+
 function htmlArquivosAgente(arquivos) {
   return arquivos.length ? `<ul style="margin:0;padding:0;list-style:none;display:grid;gap:6px">${arquivos.map((f) =>
     `<li style="display:flex;align-items:center;gap:8px">${ic("file", "sm")}<span>${esc(f.nome)} <span class="muted">(${Math.ceil(f.tamanho / 1000)} mil caracteres)</span></span>
@@ -6087,7 +6118,7 @@ function htmlArquivosAgente(arquivos) {
 }
 
 $("#view-agentes").addEventListener("click", async (ev) => {
-  const el = ev.target.closest("[data-ag-novo],[data-ag-abrir],[data-ag-voltar],[data-ag-aba],[data-ag-filtro],[data-ag-fechou],[data-ag-excluir],[data-ag-tirar-arquivo],[data-abrir-conversa]");
+  const el = ev.target.closest("[data-ag-novo],[data-ag-abrir],[data-ag-voltar],[data-ag-aba],[data-ag-filtro],[data-ag-fechou],[data-ag-excluir],[data-ag-tirar-arquivo],[data-abrir-conversa],[data-ag-copiar],[data-ag-gerar-senha],[data-ag-tirar-acesso]");
   if (!el) return;
   const d = el.dataset;
   if (d.agNovo !== undefined) return abrirAgente("novo");
@@ -6109,7 +6140,22 @@ $("#view-agentes").addEventListener("click", async (ev) => {
     location.hash = "#respostas";
     return;
   }
+  if (d.agCopiar) {
+    await navigator.clipboard.writeText(d.agCopiar).catch(() => {});
+    return avisar("Link copiado", "ok", 1600);
+  }
+  if (d.agGerarSenha !== undefined) {
+    const letras = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    $("#ac-senha").value = Array.from(crypto.getRandomValues(new Uint32Array(12)), (n) => letras[n % letras.length]).join("");
+    return;
+  }
   try {
+    if (d.agTirarAcesso) {
+      if (!confirm("Remover este login? A pessoa perde o acesso ao CRM na hora.")) return;
+      const r = await api(`/api/agentes/${agenteAberto}/acessos/${d.agTirarAcesso}`, { method: "DELETE" });
+      $("#ag-acessos").innerHTML = htmlAcessosAgente(r.acessos);
+      return avisar("Login removido", "ok");
+    }
     if (d.agFechou) {
       await post(`/api/agentes/conversas/${d.agFechou}/fechou`, { fechou: d.valor === "1" });
       avisar(d.valor === "1" ? "Conversa marcada como fechada" : "Conversa reaberta", "ok");
@@ -6157,6 +6203,19 @@ $("#view-agentes").addEventListener("change", async (ev) => {
 });
 
 $("#view-agentes").addEventListener("submit", async (ev) => {
+  if (ev.target.id === "form-acesso-agente") {
+    ev.preventDefault();
+    const f = ev.target;
+    try {
+      const r = await post(`/api/agentes/${agenteAberto}/acessos`, { nome: f.nome.value, usuario: f.usuario.value, senha: f.senha.value });
+      $("#ag-acessos").innerHTML = htmlAcessosAgente(r.acessos);
+      avisar(`Login criado. Passe para a pessoa: link ${location.origin}/crm, usuário ${f.usuario.value.trim().toLowerCase()} e a senha que você anotou.`, "ok", 9000);
+      f.reset();
+    } catch (e) {
+      avisar(e.message, "perigo", 7000);
+    }
+    return;
+  }
   if (ev.target.id !== "form-agente") return;
   ev.preventDefault();
   const f = ev.target;

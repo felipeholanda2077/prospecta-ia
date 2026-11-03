@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>CRM do agente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* CRM externo de um agente de atendimento: login próprio, só as conversas desse agente. */
+  :root {
+    --bg: #f4f5fa; --surface: #ffffff; --surface-2: #f0f1f8; --text: #14151f; --muted: #5d6275; --subtle: #8a8fa5; --border: #e3e5ef;
+    --accent: #5b4cf0; --accent-hover: #4a3be0; --accent-soft: #ecebff; --accent-text: #4636d6;
+    --ok: #12a150; --ok-soft: #e2f6ea; --danger: #d92d4a; --danger-soft: #fde8ec; --warn: #b7791f; --warn-soft: #fdf3dc;
+    --chat: #efe7dd; --bolha: #d9fdd3; --radius: 14px; --radius-sm: 10px;
+    --shadow: 0 1px 2px rgba(20, 21, 40, .05), 0 8px 24px -12px rgba(20, 21, 40, .18);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b0c14; --surface: #141625; --surface-2: #1b1e31; --text: #eceef8; --muted: #9aa0b8; --subtle: #6f7590; --border: #262940;
+      --accent: #8b7dff; --accent-hover: #9d91ff; --accent-soft: #232046; --accent-text: #b3aaff;
+      --ok: #34c574; --ok-soft: #10291c; --danger: #ff6b81; --danger-soft: #3a1720; --warn: #e0a43a; --warn-soft: #33260e;
+      --chat: #0e1a14; --bolha: #144d37; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -12px rgba(0, 0, 0, .6);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b0c14; --surface: #141625; --surface-2: #1b1e31; --text: #eceef8; --muted: #9aa0b8; --subtle: #6f7590; --border: #262940;
+    --accent: #8b7dff; --accent-hover: #9d91ff; --accent-soft: #232046; --accent-text: #b3aaff;
+    --ok: #34c574; --ok-soft: #10291c; --danger: #ff6b81; --danger-soft: #3a1720; --warn: #e0a43a; --warn-soft: #33260e;
+    --chat: #0e1a14; --bolha: #144d37; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -12px rgba(0, 0, 0, .6);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; font: 15px/1.55 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+  h1, h2, h3 { margin: 0; line-height: 1.25; }
+  .muted { color: var(--muted); }
+  .btn { font: inherit; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px;
+         padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; }
+  .btn:hover { background: var(--surface-2); }
+  .btn:disabled { opacity: .6; cursor: progress; }
+  .btn.primario { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primario:hover { background: var(--accent-hover); }
+  .btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .btn.fantasma { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn.sm { min-height: 34px; padding: 6px 12px; font-size: 13px; }
+  input, textarea { width: 100%; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; min-height: 42px; }
+  input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  textarea { resize: vertical; line-height: 1.55; }
+  label.rotulo { font-size: 12.5px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 6px; }
+  .cartao { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+  .alerta { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-sm); font-size: 14px; }
+  .alerta.atencao { background: var(--warn-soft); color: var(--warn); }
+  .alerta.perigo { background: var(--danger-soft); color: var(--danger); }
+  .alerta.info { background: var(--accent-soft); color: var(--accent-text); }
+  .pilula { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 1.2; padding: 4px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+  .pilula.acc { background: var(--accent-soft); color: var(--accent-text); }
+  .pilula.ok { background: var(--ok-soft); color: var(--ok); }
+  .pilula.perigo { background: var(--danger-soft); color: var(--danger); }
+  .pilula.atencao { background: var(--warn-soft); color: var(--warn); }
+
+  /* Login */
+  .login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  .login .cartao { width: min(400px, 100%); padding: 28px; display: grid; gap: 14px; }
+  .erro { color: var(--danger); font-size: 14px; margin: 0; min-height: 1em; }
+
+  /* App */
+  .topo { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 16px;
+          display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .topo .titulo { flex: 1; min-width: 180px; }
+  .topo small { color: var(--muted); }
+  main { max-width: 1240px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+  .abas { display: flex; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 5px; }
+  .aba { flex: 1; font: inherit; font-weight: 600; font-size: 14px; padding: 9px 12px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
+  .aba[aria-selected="true"] { background: var(--accent-soft); color: var(--accent-text); }
+  .numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .num { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 2px; }
+  .num b { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .num span { font-size: 13px; color: var(--muted); }
+  .num.perigo b { color: var(--danger); } .num.ok b { color: var(--ok); } .num.atencao b { color: var(--warn); } .num.acc b { color: var(--accent-text); }
+  .filtros { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filtro { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; }
+  .filtro[aria-pressed="true"] { background: var(--text); color: var(--surface); border-color: var(--text); }
+  .crm { display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: start; }
+  .lista { display: grid; gap: 8px; max-height: calc(100vh - 330px); min-height: 200px; overflow: auto; padding-right: 2px; }
+  .item { font: inherit; color: inherit; text-align: left; width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+          padding: 12px; cursor: pointer; display: grid; gap: 4px; }
+  .item[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .item .linha { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  .item .previa { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge { background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 7px; }
+  .painel { display: grid; grid-template-rows: auto 1fr auto; min-height: 520px; overflow: hidden; }
+  .painel-topo { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .painel-topo .nome { flex: 1; min-width: 160px; }
+  .msgs { background: var(--chat); padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow: auto; max-height: calc(100vh - 360px); min-height: 300px; }
+  .bolha { max-width: 78%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; box-shadow: 0 1px 1px rgba(0,0,0,.08); }
+  .bolha.lead { background: var(--surface); align-self: flex-start; }
+  .bolha.nos { background: var(--bolha); align-self: flex-end; }
+  .bolha.agendada { background: transparent; border: 1px dashed var(--subtle); align-self: flex-end; color: var(--muted); }
+  .bolha small { display: block; font-size: 11.5px; color: var(--muted); margin-top: 4px; text-align: right; }
+  .escrever { padding: 12px 16px; border-top: 1px solid var(--border); display: grid; gap: 8px; }
+  .escrever textarea { min-height: 70px; }
+  .vazio { padding: 40px 16px; text-align: center; color: var(--muted); }
+  .base { padding: 18px; display: grid; gap: 14px; }
+  .base textarea { min-height: 320px; font-size: 14px; }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text); color: var(--surface); padding: 10px 16px; border-radius: 999px; font-size: 14px; z-index: 20; max-width: calc(100% - 32px); }
+  .toast.perigo { background: var(--danger); color: #fff; }
+  .voltar { display: none; }
+  @media (max-width: 900px) {
+    .crm { grid-template-columns: 1fr; }
+    .crm.com-conversa .lado-lista { display: none; }
+    .crm:not(.com-conversa) .painel { display: none; }
+    .lista, .msgs { max-height: none; }
+    .voltar { display: inline-flex; }
+  }
+</style>
+</head>
+<body>
+  <section class="login" id="tela-login" hidden>
+    <form class="cartao" id="form-login">
+      <div><h1 style="font-size:22px">CRM do agente</h1><p class="muted" style="margin:4px 0 0">Entre com o usuário e a senha que você recebeu.</p></div>
+      <div><label class="rotulo" for="usuario">Usuário</label><input id="usuario" name="usuario" autocomplete="username" autocapitalize="none" required></div>
+      <div><label class="rotulo" for="senha">Senha</label><input id="senha" name="senha" type="password" autocomplete="current-password" required></div>
+      <p class="erro" id="erro-login"></p>
+      <button class="btn primario" type="submit">Entrar</button>
+    </form>
+  </section>
+
+  <section id="app" hidden>
+    <header class="topo">
+      <div class="titulo"><h2 id="nome-agente">Agente</h2><small id="sub-agente"></small></div>
+      <span class="pilula" id="estado-agente"></span>
+      <button class="btn fantasma sm" type="button" id="sair">Sair</button>
+    </header>
+    <main>
+      <div id="avisos"></div>
+      <div class="abas" role="tablist">
+        <button class="aba" role="tab" data-aba="conversas" aria-selected="true">Conversas</button>
+        <button class="aba" role="tab" data-aba="base" aria-selected="false">Base de conhecimento</button>
+      </div>
+      <div data-painel="conversas" style="display:grid;gap:16px">
+        <div class="numeros" id="numeros"></div>
+        <div class="crm" id="crm">
+          <div class="lado-lista" style="display:grid;gap:10px">
+            <div class="filtros" id="filtros"></div>
+            <div class="lista" id="lista"></div>
+          </div>
+          <section class="cartao painel" id="painel"><div class="vazio">Escolha uma conversa para ver tudo o que foi falado.</div></section>
+        </div>
+      </div>
+      <section class="cartao base" data-painel="base" hidden>
+        <div><h3>Base de conhecimento</h3><p class="muted" style="margin:4px 0 0">O agente só informa preços, planos, cobertura e condições que estiverem aqui. Sem a base, ele diz que vai confirmar e passa a conversa para você.</p></div>
+        <textarea id="conhecimento" placeholder="Cole aqui as informações oficiais: planos, preços, instalação, cobertura, formas de pagamento, regras de cancelamento..."></textarea>
+        <div><button class="btn primario" type="button" id="salvar-base">Salvar base</button></div>
+        <div style="display:grid;gap:8px">
+          <span class="rotulo">Arquivos</span>
+          <div id="arquivos"></div>
+          <label class="btn sm" style="justify-self:start">Adicionar arquivo de texto<input type="file" id="arquivo" accept=".txt,.md,.csv,.tsv,.json,.html,.xml,text/*" multiple hidden></label>
+          <span class="muted" style="font-size:13px">Arquivos de texto (.txt, .md, .csv). PDF ou Word: copie o texto e cole na base acima.</span>
+        </div>
+      </section>
+    </main>
+  </section>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const dataHora = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "");
+const ANDAMENTO = {
+  em_conversa: ["Em conversa", "acc"], delegou: ["Precisa de você", "perigo"], sem_resposta: ["Sem resposta", "atencao"],
+  fechou: ["Fechou", "ok"], encerrada: ["Encerrada", ""],
+};
+const ARQUIVO_TEXTO = /\.(txt|md|markdown|csv|tsv|json|html?|xml)$/i;
+let dados = null;
+let filtro = "todas";
+let aberta = null;
+
+async function api(caminho, opcoes = {}) {
+  const resp = await fetch(caminho, { headers: { "Content-Type": "application/json" }, credentials: "same-origin", ...opcoes });
+  const corpo = await resp.json().catch(() => ({}));
+  if (resp.status === 401 && corpo.login) { mostrarLogin(); throw new Error("Entre novamente."); }
+  if (!resp.ok) throw new Error(corpo.erro || `Erro ${resp.status}`);
+  return corpo;
+}
+const post = (caminho, corpo) => api(caminho, { method: "POST", body: JSON.stringify(corpo ?? {}) });
+
+function avisar(texto, tipo = "") {
+  const el = document.createElement("div");
+  el.className = `toast ${tipo}`;
+  el.textContent = texto;
+  document.body.append(el);
+  setTimeout(() => el.remove(), 4500);
+}
+
+function mostrarLogin() {
+  $("#app").hidden = true;
+  $("#tela-login").hidden = false;
+  setTimeout(() => $("#usuario").focus(), 50);
+}
+
+$("#form-login").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  $("#erro-login").textContent = "";
+  try {
+    await post("/api/crm/login", { usuario: $("#usuario").value, senha: $("#senha").value });
+    $("#senha").value = "";
+    iniciar();
+  } catch (e) {
+    $("#erro-login").textContent = e.message;
+  }
+});
+
+$("#sair").addEventListener("click", async () => {
+  await post("/api/crm/sair").catch(() => {});
+  mostrarLogin();
+});
+
+async function iniciar() {
+  let eu;
+  try { eu = await api("/api/crm/eu"); } catch { return mostrarLogin(); }
+  $("#tela-login").hidden = true;
+  $("#app").hidden = false;
+  document.title = `CRM · ${eu.agente}`;
+  $("#nome-agente").textContent = `CRM · ${eu.agente}`;
+  $("#sub-agente").textContent = `${eu.voce}${eu.numeros.length ? ` · WhatsApp: ${eu.numeros.join(", ")}` : ""}`;
+  $("#estado-agente").className = `pilula ${eu.ligado ? "ok" : ""}`;
+  $("#estado-agente").textContent = eu.ligado ? "Agente ligado" : "Agente desligado";
+  $("#avisos").innerHTML = [
+    eu.semBase ? `<div class="alerta atencao"><div><b>Falta a base de conhecimento.</b> Sem ela, o agente não informa preços, planos nem condições. Preencha em <b>Base de conhecimento</b>.</div></div>` : "",
+    !eu.ligado ? `<div class="alerta info"><div>O agente está desligado: as mensagens que chegarem ficam registradas aqui e quem responde é você.</div></div>` : "",
+  ].join("");
+  await carregarConversas();
+}
+
+async function carregarConversas() {
+  dados = await api("/api/crm/conversas");
+  const n = dados.numeros, e = dados.porEstado;
+  $("#numeros").innerHTML = [
+    ["acc", n.conversas, "Conversas"], ["", e.em_conversa, "Em conversa"], [e.delegou ? "perigo" : "", e.delegou, "Precisam de você"],
+    ["atencao", e.sem_resposta, "Sem resposta"], ["ok", e.fechou, "Fecharam"], ["", n.respostas, "Respostas enviadas"], ["", n.delegacoes, "Delegações"],
+  ].map(([c, v, t]) => `<div class="num ${c}"><b>${v}</b><span>${t}</span></div>`).join("");
+  desenharLista();
+  if (aberta && dados.conversas.some((c) => c.id === aberta)) await abrir(aberta, { atualizar: true });
+}
+
+function desenharLista() {
+  $("#filtros").innerHTML = [["todas", "Todas"], ...Object.entries(ANDAMENTO).map(([k, [t]]) => [k, t])].map(([v, t]) =>
+    `<button class="filtro" data-filtro="${v}" aria-pressed="${v === filtro}">${t}${v !== "todas" && dados.porEstado[v] ? ` (${dados.porEstado[v]})` : ""}</button>`).join("");
+  const lista = filtro === "todas" ? dados.conversas : dados.conversas.filter((c) => c.agente.estado === filtro);
+  $("#lista").innerHTML = lista.length ? lista.map((c) => {
+    const [rotulo, cor] = ANDAMENTO[c.agente.estado];
+    const u = c.ultima;
+    return `<button class="item" data-conversa="${c.id}" aria-current="${c.id === aberta}">
+      <span class="linha"><b>${esc(c.nome)}</b>${c.nao_lidas ? `<span class="badge">${c.nao_lidas}</span>` : `<small class="muted">${u ? dataHora(u.quando) : ""}</small>`}</span>
+      <span class="previa">${u ? `${u.autor === "nos" ? "Você/agente: " : ""}${esc(u.texto.replace(/\s+/g, " "))}` : ""}</span>
+      <span class="linha"><span class="pilula ${cor}">${rotulo}</span></span></button>`;
+  }).join("") : `<div class="vazio">${dados.conversas.length ? "Nenhuma conversa neste filtro." : "Nenhuma conversa ainda. Quando alguém escrever para o WhatsApp do agente, a conversa aparece aqui."}</div>`;
+}
+
+async function abrir(id, { atualizar = false } = {}) {
+  aberta = id;
+  document.querySelectorAll(".item").forEach((el) => el.setAttribute("aria-current", String(Number(el.dataset.conversa) === id)));
+  $("#crm").classList.add("com-conversa");
+  const d = await api(`/api/crm/conversas/${id}`);
+  if (aberta !== id) return;
+  const c = dados.conversas.find((x) => x.id === id);
+  const [rotulo, cor] = ANDAMENTO[c?.agente.estado ?? "em_conversa"];
+  const msgs = [
+    ...d.mensagens.map((m) => `<div class="bolha ${m.autor}">${esc(m.texto)}<small>${dataHora(m.quando)}</small></div>`),
+    ...d.agendadas.map((m) => `<div class="bolha agendada">${esc(m.texto)}<small>vai sair ${dataHora(m.agendada_para)}</small></div>`),
+  ].join("") || `<div class="vazio">Sem mensagens.</div>`;
+  if (atualizar && $("#msgs")) {
+    $("#msgs").innerHTML = msgs;
+    return;
+  }
+  const fechou = d.lead.status === "fechado";
+  $("#painel").innerHTML = `
+    <div class="painel-topo">
+      <button class="btn fantasma sm voltar" type="button" data-voltar>← Conversas</button>
+      <div class="nome"><b>${esc(d.lead.nome)}</b>${d.lead.whatsapp ? `<br><small class="muted">+${esc(d.lead.whatsapp)}</small>` : ""}</div>
+      <span class="pilula ${cor}">${rotulo}</span>
+      ${d.iaPausada
+        ? `<button class="btn sm primario" type="button" data-continua>Agente continua</button>`
+        : `<button class="btn sm" type="button" data-assumir>Assumir conversa</button>`}
+      <button class="btn sm ${fechou ? "" : "ok"}" type="button" data-fechou="${fechou ? 0 : 1}">${fechou ? "Reabrir" : "Fechou"}</button>
+    </div>
+    <div class="msgs" id="msgs">${msgs}</div>
+    <form class="escrever" id="form-responder">
+      ${d.iaPausada ? `<div class="alerta info" style="font-size:13px"><div>O agente está parado nesta conversa (${esc(d.iaPausada)}). Responda você ou clique em <b>Agente continua</b>.</div></div>` : ""}
+      <textarea name="texto" placeholder="Escreva sua resposta para o cliente"></textarea>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn primario" type="submit">Enviar pelo WhatsApp</button>
+        <small class="muted">Sai pelo WhatsApp do agente, em horário comercial. Ao responder, o agente para nesta conversa até você clicar em "Agente continua".</small>
+      </div>
+    </form>`;
+  const caixa = $("#msgs");
+  caixa.scrollTop = caixa.scrollHeight;
+}
+
+document.addEventListener("click", async (ev) => {
+  const el = ev.target.closest("[data-aba],[data-filtro],[data-conversa],[data-voltar],[data-assumir],[data-continua],[data-fechou],[data-tirar-arquivo]");
+  if (!el) return;
+  const d = el.dataset;
+  if (d.aba) {
+    document.querySelectorAll("[data-aba]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.aba === d.aba)));
+    document.querySelectorAll("[data-painel]").forEach((p) => (p.hidden = p.dataset.painel !== d.aba));
+    if (d.aba === "base") carregarBase();
+    return;
+  }
+  if (d.filtro) { filtro = d.filtro; return desenharLista(); }
+  if (d.conversa) return abrir(Number(d.conversa)).catch((e) => avisar(e.message, "perigo"));
+  if (d.voltar !== undefined) { aberta = null; $("#crm").classList.remove("com-conversa"); return; }
+  el.disabled = true;
+  try {
+    if (d.assumir !== undefined) {
+      await post(`/api/crm/conversas/${aberta}/assumir`);
+      avisar("Você assumiu a conversa: o agente não responde mais nela");
+    }
+    if (d.continua !== undefined) {
+      await post(`/api/crm/conversas/${aberta}/agente-continua`);
+      avisar("O agente voltou e vai responder em 1 a 2 minutos");
+    }
+    if (d.fechou) {
+      await post(`/api/crm/conversas/${aberta}/fechou`, { fechou: d.fechou === "1" });
+      avisar(d.fechou === "1" ? "Marcada como fechada" : "Conversa reaberta");
+    }
+    if (d.tirarArquivo) {
+      const r = await api(`/api/crm/base/arquivos/${d.tirarArquivo}`, { method: "DELETE" });
+      desenharArquivos(r.arquivos);
+      return;
+    }
+    $("#painel").innerHTML = "";
+    await carregarConversas();
+    if (aberta) await abrir(aberta);
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    el.disabled = false;
+  }
+});
+
+document.addEventListener("submit", async (ev) => {
+  if (ev.target.id !== "form-responder") return;
+  ev.preventDefault();
+  const botao = ev.target.querySelector("button[type=submit]");
+  botao.disabled = true;
+  try {
+    const r = await post(`/api/crm/conversas/${aberta}/responder`, { texto: ev.target.texto.value });
+    avisar(r.enviada ? "Mensagem enviada" : `Mensagem na fila: ${r.motivo ?? "sai no próximo horário de envio"}`);
+    $("#painel").innerHTML = "";
+    await carregarConversas();
+    await abrir(aberta);
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    botao.disabled = false;
+  }
+});
+
+function desenharArquivos(arquivos) {
+  $("#arquivos").innerHTML = arquivos.length ? arquivos.map((f) =>
+    `<div style="display:flex;align-items:center;gap:8px">${esc(f.nome)} <small class="muted">(${Math.ceil(f.tamanho / 1000)} mil caracteres)</small>
+      <button class="btn fantasma sm" type="button" data-tirar-arquivo="${f.id}">Remover</button></div>`).join("") : `<span class="muted">Nenhum arquivo.</span>`;
+}
+
+async function carregarBase() {
+  try {
+    const b = await api("/api/crm/base");
+    $("#conhecimento").value = b.conhecimento;
+    desenharArquivos(b.arquivos);
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+}
+
+$("#salvar-base").addEventListener("click", async (ev) => {
+  ev.target.disabled = true;
+  try {
+    await api("/api/crm/base", { method: "PUT", body: JSON.stringify({ conhecimento: $("#conhecimento").value }) });
+    avisar("Base salva: o agente já usa nas próximas respostas");
+    iniciar();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    ev.target.disabled = false;
+  }
+});
+
+$("#arquivo").addEventListener("change", async (ev) => {
+  const arquivos = [...ev.target.files];
+  ev.target.value = "";
+  for (const f of arquivos) {
+    if (!ARQUIVO_TEXTO.test(f.name)) { avisar(`${f.name}: só arquivos de texto. Para PDF ou Word, copie o texto e cole na base.`, "perigo"); continue; }
+    try {
+      desenharArquivos((await post("/api/crm/base/arquivos", { nome: f.name, texto: await f.text() })).arquivos);
+      avisar(`${f.name} entrou na base`);
+    } catch (e) {
+      avisar(`${f.name}: ${e.message}`, "perigo");
+    }
+  }
+});
+
+// Conversas novas aparecem sozinhas.
+setInterval(() => { if (!$("#app").hidden && !document.hidden && !$("[data-painel=conversas]").hidden) carregarConversas().catch(() => {}); }, 30_000);
+iniciar();
+</script>
+</body>
+</html>
