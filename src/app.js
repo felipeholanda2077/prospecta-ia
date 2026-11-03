@@ -1326,10 +1326,11 @@ app.get("/api/contratos/:id", async (req, res) => {
 app.put("/api/contratos/:id", async (req, res) => {
   const contrato = await db.buscarContrato(req.params.id);
   if (!contrato) return res.status(404).json({ erro: "Contrato não encontrado" });
-  const { corpo, status } = req.body ?? {};
+  const { corpo, status, projeto } = req.body ?? {};
   if (corpo !== undefined && !String(corpo).trim()) return res.status(400).json({ erro: "O contrato não pode ficar vazio" });
+  if (projeto !== undefined && !String(projeto).trim()) return res.status(400).json({ erro: "Informe o nome do projeto" });
   if (status !== undefined && !contratos.STATUS_CONTRATO.includes(status)) return res.status(400).json({ erro: "Situação inválida" });
-  await db.atualizarContrato(contrato.id, { ...(corpo !== undefined ? { corpo: String(corpo) } : {}), ...(status !== undefined ? { status } : {}) });
+  await db.atualizarContrato(contrato.id, { ...(corpo !== undefined ? { corpo: String(corpo) } : {}), ...(status !== undefined ? { status } : {}), ...(projeto !== undefined ? { projeto: String(projeto).trim().slice(0, 120) } : {}) });
   const cobranca = status === "cancelado" ? await cobrancas.cancelarCobrancasDoContrato(contrato.id) : undefined;
   res.json({ ...(await db.buscarContrato(contrato.id)), cobranca });
 });
