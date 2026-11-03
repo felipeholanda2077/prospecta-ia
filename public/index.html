@@ -5951,7 +5951,7 @@ function htmlListaAgentes() {
         <span class="avatar">${inicial(a.nome)}</span>
         <span class="ct-linha-texto"><b>${esc(a.nome)}</b>
           <span class="muted">${a.numerosNomes.length ? `${ic("phone", "sm")} ${esc(a.numerosNomes.join(", "))}` : "Sem número escolhido"} · ${n.conversas} conversa(s) · ${n.respostas} resposta(s) · ${n.delegacoes} delegação(ões)</span>
-          ${a.faltando.length ? `<span class="pilula atencao">${ic("alert", "sm")}${esc(textoFaltando(a))}</span>` : ""}</span>
+          ${a.faltando.length ? `<span class="pilula atencao" style="justify-self:start">${ic("alert", "sm")}${esc(textoFaltando(a))}</span>` : ""}</span>
         <span class="pilula ${a.ligado ? "ok" : ""}">${a.ligado ? "Ligado" : "Desligado"}</span></button></article>`;
     }).join("") : vazio("users", "Nenhum agente ainda", "Crie um agente, cole o prompt dele, escolha o número de WhatsApp e ligue quando estiver pronto.")}</div>
   </div>`;
