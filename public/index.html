@@ -6055,13 +6055,13 @@ function formularioAgente(a) {
     </fieldset>
     <div class="campo"><label for="ag-prompt">Prompt base (o treinamento do agente)</label>
       <textarea id="ag-prompt" name="prompt" style="min-height:360px;font-size:13.5px" placeholder="Cole aqui o prompt do agente">${esc(a?.prompt ?? "")}</textarea>
-      <label class="btn sm" style="justify-self:start">${ic("file", "sm")}Abrir arquivo do prompt<input type="file" id="ag-prompt-arquivo" accept=".txt,.md,.markdown,text/*" hidden></label>
+      <label class="btn sm" style="align-self:flex-start">${ic("file", "sm")}Abrir arquivo do prompt<input type="file" id="ag-prompt-arquivo" accept=".txt,.md,.markdown,text/*" hidden></label>
       <span class="muted" style="font-size:12.5px">Se o prompt usar o comando DELEGAR, a palavra nunca vai para o cliente: a conversa passa para você e aparece como "precisa de você". Se o cliente perguntar diretamente se fala com uma pessoa, o agente responde com transparência.</span></div>
     <div class="campo"><label for="ag-conhecimento">Base de conhecimento (preços, planos, cobertura, regras: o que for oficial)</label>
       <textarea id="ag-conhecimento" name="conhecimento" style="min-height:200px;font-size:13.5px" placeholder="Cole aqui as informações oficiais. O agente só informa o que estiver na base.">${esc(a?.conhecimento ?? "")}</textarea></div>
     <div class="campo"><span class="rotulo">Arquivos da base</span>
       ${a ? `<div id="ag-arquivos">${htmlArquivosAgente(a.arquivos)}</div>
-        <label class="btn sm" style="justify-self:start">${ic("file", "sm")}Adicionar arquivo de texto<input type="file" id="ag-arquivo" accept=".txt,.md,.csv,.tsv,.json,.html,.xml,text/*" multiple hidden></label>
+        <label class="btn sm" style="align-self:flex-start">${ic("file", "sm")}Adicionar arquivo de texto<input type="file" id="ag-arquivo" accept=".txt,.md,.csv,.tsv,.json,.html,.xml,text/*" multiple hidden></label>
         <span class="muted" style="font-size:12.5px">Arquivos de texto (.txt, .md, .csv). PDF ou Word: copie o texto e cole na base acima. Base grande: o agente usa os trechos que tratam do assunto da conversa.</span>`
         : `<span class="muted" style="font-size:13px">Salve o agente para adicionar arquivos.</span>`}</div>
     <div class="campo"><label for="ag-delegar">Quando o agente passar a conversa para você (DELEGAR)</label>
