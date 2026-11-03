@@ -249,13 +249,13 @@ export function minutosAteOFim(limites, agora = new Date()) {
   return limites.horarioComercial.fim * 60 - (Number(p.hour) * 60 + Number(p.minute));
 }
 
-/** Início do horário comercial do próximo dia útil (com alguns minutos de folga, como uma pessoa). */
-export function inicioDoProximoDiaUtil(limites, agora = new Date()) {
+/** Início do horário comercial do próximo dia útil (com alguns minutos de folga, como uma pessoa; sem `folga`, na hora certa). */
+export function inicioDoProximoDiaUtil(limites, agora = new Date(), { folga = true } = {}) {
   const minutosAgora = limites.horarioComercial.fim * 60 - minutosAteOFim(limites, agora);
   const inicio = limites.horarioComercial.inicio * 60;
   // Antes do expediente, o "próximo início" ainda é hoje.
-  const minutos = (minutosAgora < inicio ? 0 : 24 * 60) - minutosAgora + inicio + Math.floor(Math.random() * 30);
-  const d = new Date(agora.getTime() + minutos * 60_000);
+  const minutos = (minutosAgora < inicio ? 0 : 24 * 60) - minutosAgora + inicio + (folga ? Math.floor(Math.random() * 30) : 0);
+  const d = new Date(Math.floor(agora.getTime() / 60_000) * 60_000 + minutos * 60_000);
   while (limites.somenteDiasUteis !== false && ehFimDeSemana(d)) d.setTime(d.getTime() + 24 * 3600 * 1000);
   return d;
 }
@@ -992,6 +992,41 @@ export function intervaloEntreEmpresasMs(auto = {}, sorteio = Math.random()) {
 export async function proximaEmpresaNovaEm() {
   const ate = Number(await db.lerEstado(VEZ_DO_PROXIMO_CONTATO));
   return ate > Date.now() ? new Date(ate).toISOString() : null;
+}
+
+/**
+ * Quando sai a próxima mensagem pelo WhatsApp, para a Dashboard: { quando, oQue }, ou { motivo } quando nada vai
+ * sair sozinho. Segue as regras do envio: a resposta da conversa vai no próximo minuto (o agendador chama a cada
+ * minuto), a etapa 2 ou 3 e a empresa nova esperam a vez do número, e nada sai fora do horário comercial.
+ */
+export async function proximoEnvioWhatsapp(campanha, agora = new Date()) {
+  const modo = await modoWhatsapp();
+  if (modo === "manual") return { motivo: "WhatsApp no modo manual: você envia pelo painel" };
+  if (await whatsappDesconectado(modo)) return { motivo: "WhatsApp desconectado: nada sai até você reconectar o número" };
+  const { limites } = campanha;
+  const proximoMinuto = (t) => Math.ceil(t / 60_000) * 60_000;
+  const vez = Number(await db.lerEstado(VEZ_DO_PROXIMO_CONTATO)) || 0;
+  const naVez = (t) => proximoMinuto(Math.max(t, vez, +agora + 1));
+  const fila = (await db.filaDeEnvio(400)).filter((m) => m.canal === "whatsapp");
+  const candidatos = [];
+  if (fila.some((m) => m.tipo === "resposta")) candidatos.push({ quando: proximoMinuto(+agora + 1), oQue: "Resposta da conversa" });
+  const seguimento = fila.find((m) => m.tipo !== "resposta" && m.etapa > 1);
+  if (seguimento) candidatos.push({ quando: naVez(+agora), oQue: `Etapa ${seguimento.etapa} de 3 para ${seguimento.empresa}` });
+  const nova = ordenarFilaDeEnvio(fila).find((m) => m.tipo !== "resposta" && m.etapa <= 1);
+  if (nova) {
+    const temVaga = daTempoDeSequenciaHoje(limites, agora)
+      && (await db.enviadasHoje("whatsapp", { primeiroContato: true })) < (await limiteDoDia(campanha, "whatsapp"));
+    // Sem vaga hoje, ela sai no começo do próximo dia útil.
+    const quando = temVaga ? naVez(+agora) : +inicioDoProximoDiaUtil(limites, agora, { folga: false });
+    candidatos.push({ quando, oQue: `Empresa nova: ${nova.empresa}` });
+  }
+  const agendada = await db.proximaAgendadaNoCanal("whatsapp");
+  if (agendada) candidatos.push({ quando: naVez(+new Date(agendada.agendada_para)), oQue: agendada.tipo === "resposta" ? "Resposta da conversa" : `Etapa ${agendada.etapa} de 3 para ${agendada.empresa}` });
+  if (!candidatos.length) return { motivo: "Nada na fila do WhatsApp agora" };
+  const proximo = candidatos.sort((a, b) => a.quando - b.quando)[0];
+  let quando = new Date(proximo.quando);
+  if (!dentroDoHorario(limites, quando)) quando = inicioDoProximoDiaUtil(limites, quando, { folga: false });
+  return { quando: quando.toISOString(), oQue: proximo.oQue };
 }
 
 /** Rodadas de 10 minutos que ainda restam no horário comercial de hoje. */

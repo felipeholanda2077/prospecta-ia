@@ -117,7 +117,22 @@ function leiturasCompartilhadas(lerConversas) {
     let p;
     return () => (p ??= ler());
   };
-  return { stats: umaVez(db.estatisticas), campanha: umaVez(carregarCampanhaCompleta), conversas: umaVez(lerConversas), whatsappRespondeu: umaVez(whatsappRespondeu) };
+  const c = { stats: umaVez(db.estatisticas), campanha: umaVez(carregarCampanhaCompleta), conversas: umaVez(lerConversas), whatsappRespondeu: umaVez(whatsappRespondeu) };
+  c.proximoWhatsapp = umaVez(async () => ((await c.whatsappRespondeu())
+    ? comLimite(pipeline.proximoEnvioWhatsapp(await c.campanha())).catch(() => ({ motivo: "Não deu para calcular agora" }))
+    : { motivo: "O WhatsApp não respondeu agora" }));
+  return c;
+}
+
+/** "10:14", ou "amanhã, 9:00" / "seg., 9:00" quando não é hoje. */
+function horaDoEnvio(iso, agora) {
+  const fuso = { timeZone: config.timezone };
+  const dia = (d) => d.toLocaleDateString("pt-BR", fuso);
+  const d = new Date(iso);
+  const hora = d.toLocaleTimeString("pt-BR", { ...fuso, hour: "2-digit", minute: "2-digit" });
+  if (dia(d) === dia(agora)) return hora;
+  if (dia(d) === dia(new Date(+agora + 86_400_000))) return `amanhã, ${hora}`;
+  return `${d.toLocaleDateString("pt-BR", { ...fuso, weekday: "short" })}, ${hora}`;
 }
 
 /**
@@ -316,6 +331,7 @@ async function automacao(c, agora) {
   const campanha = await c.campanha();
   const ultimaRodada = await db.lerEstado("ultima_rodada");
   const proximaNova = await pipeline.proximaEmpresaNovaEm();
+  const proximo = await c.proximoWhatsapp();
   const emails = await db.enviadasHoje("email", { primeiroContato: true });
   const whats = await db.enviadasHoje("whatsapp", { primeiroContato: true });
   const limiteEmail = await pipeline.limiteDoDia(campanha, "email");
@@ -326,6 +342,7 @@ async function automacao(c, agora) {
   const perfilIncompleto = !campanha.empresa.responsavel || !campanha.empresa.telefone;
   return {
     indicadores: [
+      ind("Próxima no WhatsApp", proximo.quando ? horaDoEnvio(proximo.quando, agora) : "Nada programado", "aprovada", { tom: proximo.quando ? "" : "atencao", detalhe: proximo.oQue ?? proximo.motivo }),
       ind("Funil automático", ligado ? "Ligado" : "Desligado", "automacao", { tom: ligado ? "ok" : "", detalhe: campanha.automacao.respostaAutomatica ? "IA responde sozinha" : "Respostas com a sua aprovação" }),
       ind("Horário de envio", noHorario ? "Dentro" : "Fora", "automacao", { tom: noHorario ? "ok" : "", detalhe: `Das ${campanha.limites.horarioComercial.inicio}h às ${campanha.limites.horarioComercial.fim}h` }),
       ind("Novas por WhatsApp", `${whats}${limiteWhats != null ? ` de ${limiteWhats}` : ""}`, "automacao", { detalhe: proximaNova ? `Próxima às ${new Date(proximaNova).toLocaleTimeString("pt-BR", { timeZone: config.timezone, hour: "2-digit", minute: "2-digit" })}` : "Hoje" }),
@@ -515,8 +532,11 @@ export async function montarDashboard({ conversasAvaliadas, setores = SETORES, o
     }
   }
   const peso = { perigo: 0, atencao: 1 };
+  // A contagem até a próxima mensagem do WhatsApp fica no topo, fora do orçamento dos setores.
+  const proximoWhatsapp = await c.proximoWhatsapp().catch(() => null);
   return {
     geradoEm: agora.toISOString(),
+    proximoWhatsapp,
     atencao: lidos.flatMap((s) => s.atencao.map((a) => ({ ...a, setor: s.nome }))).sort((a, b) => peso[a.nivel] - peso[b.nivel]),
     setores: lidos.map(({ atencao, ...s }) => s),
   };

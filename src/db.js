@@ -544,6 +544,15 @@ export async function mensagensDaSequencia(leadId, canal) {
  * Mensagens aprovadas que já podem sair: a etapa 1 assim que aprovada; as etapas
  * seguintes só quando a data agendada chegou (ela é definida quando a anterior sai).
  */
+/** A próxima mensagem aprovada que ainda tem hora marcada neste canal (a etapa seguinte de alguma sequência). */
+export async function proximaAgendadaNoCanal(canal) {
+  return um(
+    `SELECT m.etapa, m.tipo, m.agendada_para, l.nome AS empresa FROM mensagens m JOIN leads l ON l.id = m.lead_id
+      WHERE m.status = 'aprovada' AND m.canal = $1 AND m.agendada_para > now() ORDER BY m.agendada_para LIMIT 1`,
+    [canal]
+  );
+}
+
 export async function filaDeEnvio(limite = 100) {
   return q(
     `${SELECT_MENSAGEM}

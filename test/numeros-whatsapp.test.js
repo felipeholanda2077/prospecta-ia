@@ -256,3 +256,27 @@ test("contato @lid: vai para a UAZap como veio e, se ela recusar, sai pelo telef
     recusa.restaurar();
   }
 });
+
+test("dashboard: quando sai a próxima mensagem do WhatsApp, respeitando o horário comercial", async () => {
+  const falsa = uazapFalsa();
+  try {
+    if (!(await uazap.numeros()).length) await uazap.salvarNumero({ nome: "IA 1", url: URL_UAZAP, token: "A" });
+    await leadComMensagem("Clínica Contagem", "5511988880099", { tipo: "resposta", etapa: 0 });
+    const comercial = { ...campanha, limites: { ...campanha.limites, horarioComercial: { inicio: 9, fim: 18 }, somenteDiasUteis: true } };
+    // Quarta, 10:00 em São Paulo: a resposta da conversa sai no próximo minuto.
+    const quarta = new Date("2030-01-09T13:00:00Z");
+    const r = await pipeline.proximoEnvioWhatsapp(comercial, quarta);
+    assert.equal(r.quando, "2030-01-09T13:01:00.000Z");
+    assert.equal(r.oQue, "Resposta da conversa");
+    // Sábado: fica para segunda, no começo do expediente.
+    const sabado = await pipeline.proximoEnvioWhatsapp(comercial, new Date("2030-01-12T13:00:00Z"));
+    assert.equal(sabado.quando, "2030-01-14T12:00:00.000Z");
+    // Sem número conectado, não promete horário.
+    falsa.desconectados.add("A");
+    falsa.desconectados.add("B");
+    for (const n of await uazap.numeros()) uazap.esquecerConexao(n.id);
+    assert.match((await pipeline.proximoEnvioWhatsapp(comercial, quarta)).motivo, /desconectado/);
+  } finally {
+    falsa.restaurar();
+  }
+});

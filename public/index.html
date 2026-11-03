@@ -328,6 +328,9 @@
   .dash-alerta b { display: block; font-size: 14.5px; font-weight: 600; }
   .dash-alerta small { display: block; color: var(--muted); font-size: 13px; }
   .dash-alerta > .ic:last-child { color: var(--subtle); }
+  .dash-proximo { margin-bottom: 16px; color: inherit; text-decoration: none; }
+  .dash-proximo b span { font-variant-numeric: tabular-nums; }
+  .dash-proximo small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
   .dash-setores { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 16px; align-items: start; }
   .dash-setor .cartao-cab { padding: 14px 16px; align-items: center; }
   .dash-setor .cartao-cab h3 { flex: 1; min-width: 0; font-size: 15.5px; }
@@ -1891,6 +1894,32 @@ function dashSetor(s) {
   </article>`;
 }
 
+/** Quanto falta até `iso`: "em 4 min 12 s", "em 2 h 05 min"; passou da hora, "a qualquer momento". */
+function faltaPara(iso, agora = Date.now()) {
+  const s = Math.round((new Date(iso) - agora) / 1000);
+  if (s <= 0) return "a qualquer momento";
+  if (s < 60) return `em ${s} s`;
+  if (s < 3600) return `em ${Math.floor(s / 60)} min ${String(s % 60).padStart(2, "0")} s`;
+  const min = Math.floor(s / 60);
+  return min < 1440 ? `em ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min` : `em ${Math.floor(min / 1440)} d ${Math.floor((min % 1440) / 60)} h`;
+}
+
+/** Faixa do topo: quanto falta para a próxima mensagem sair pelo WhatsApp (o relógio anda sozinho). */
+function dashProximoWhatsapp(p) {
+  if (!p) return "";
+  if (!p.quando) {
+    return `<a class="alerta atencao dash-proximo" href="#aprovada">${ic("phone")}<div><b>WhatsApp: nenhuma mensagem programada</b><small>${esc(p.motivo ?? "")}</small></div></a>`;
+  }
+  const hora = new Date(p.quando).toLocaleString("pt-BR", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  return `<a class="alerta ok dash-proximo" href="#aprovada">${ic("clock")}<div><b>Próxima mensagem no WhatsApp <span data-contagem="${esc(p.quando)}"></span></b><small>${esc(p.oQue ?? "")} · ${esc(hora)}</small></div></a>`;
+}
+
+// O relógio da faixa anda a cada segundo, sem pedir nada ao servidor (e sem redesenhar a Dashboard).
+const atualizarContagens = () => {
+  for (const el of document.querySelectorAll("[data-contagem]")) el.textContent = faltaPara(el.dataset.contagem);
+};
+setInterval(atualizarContagens, 1000);
+
 function dashAtencao(lista, naoLidos = 0) {
   // Setor que não deu para ler não pode virar "tudo em dia": ninguém sabe o que tem lá.
   const semLeitura = naoLidos ? `<div class="alerta perigo dash-atencao">${ic("alert")}<div><b>Não deu para ler ${naoLidos === 1 ? "1 setor" : `${naoLidos} setores`} agora.</b> Nesses setores, os avisos abaixo podem estar incompletos.</div></div>` : "";
@@ -1914,8 +1943,9 @@ async function carregarDashboard() {
     const hora = new Date(d.geradoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
     $("#dash-hora").textContent = `Atualizado às ${hora}. Atualiza sozinho a cada minuto.`;
     // Sem mudança nos números, não redesenha: não tira o foco de quem está navegando pelo teclado.
-    const novo = dashAtencao(d.atencao, d.setores.filter((s) => s.erro).length) + `<div class="dash-setores">${d.setores.map(dashSetor).join("")}</div>`;
+    const novo = dashProximoWhatsapp(d.proximoWhatsapp) + dashAtencao(d.atencao, d.setores.filter((s) => s.erro).length) + `<div class="dash-setores">${d.setores.map(dashSetor).join("")}</div>`;
     if (novo !== dashDesenhado) $("#dash-corpo").innerHTML = dashDesenhado = novo;
+    atualizarContagens();
   } catch (e) {
     if (dashDesenhado) $("#dash-hora").textContent = "Não deu para atualizar agora: estes são os últimos números. Tentando de novo em seguida.";
     else $("#dash-corpo").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
