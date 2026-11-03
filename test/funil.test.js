@@ -380,10 +380,18 @@ test("etapas 2 e 3 do WhatsApp dividem a vez com as empresas novas: uma por cham
   const ids = (r) => ({ fila: r.fila.map((x) => x.id), daVez: r.daVez.map((x) => x.id) });
   // Respostas e e-mails saem direto; da vez, só a etapa de WhatsApp mais antiga. A empresa nova espera.
   assert.deepEqual(ids(pipeline.filaDaChamada(enviaveis, vagas)), { fila: [1, 4, 2], daVez: [2] });
-  assert.deepEqual(ids(pipeline.filaDaChamada(enviaveis, vagas, { somenteDaVez: true })), { fila: [2], daVez: [2] });
+  // A chamada de cada minuto leva a resposta da conversa e a vez, sem a etapa de e-mail.
+  assert.deepEqual(ids(pipeline.filaDaChamada(enviaveis, vagas, { somenteDaVez: true })), { fila: [1, 2], daVez: [2] });
   // Sem etapa de WhatsApp pendente, a vez é da empresa nova (e-mail e WhatsApp juntos).
   const semSeguimento = enviaveis.filter((x) => ![2, 3].includes(x.id));
-  assert.deepEqual(ids(pipeline.filaDaChamada(semSeguimento, vagas, { somenteDaVez: true })), { fila: [5, 6], daVez: [5, 6] });
+  assert.deepEqual(ids(pipeline.filaDaChamada(semSeguimento, vagas, { somenteDaVez: true })), { fila: [1, 5, 6], daVez: [5, 6] });
   // Sem vaga hoje para empresas novas, nada fica com a vez.
   assert.deepEqual(ids(pipeline.filaDaChamada(semSeguimento, { email: 0, whatsapp: 0 })), { fila: [1, 4], daVez: [] });
+});
+
+test("contato só com @lid: o telefone da empresa serve de reserva, sem virar número inventado", () => {
+  assert.equal(pipeline.telefoneDoLead({ whatsapp: "123456789012345@lid", telefone: "(11) 90000-1234" }), "5511900001234");
+  assert.equal(pipeline.telefoneDoLead({ whatsapp: "5511900001234", telefone: "" }), "5511900001234");
+  assert.equal(pipeline.telefoneDoLead({ whatsapp: "123456789012345@lid", telefone: "" }), null);
+  assert.equal(pipeline.telefoneDoLead(null), null);
 });

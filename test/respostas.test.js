@@ -93,6 +93,8 @@ test("extrairMensagemUazap lê o evento de mensagem recebida", () => {
   assert.equal(extrairMensagemUazap({ ...base, message: { ...base.message, isGroup: true } }), null);
   assert.equal(extrairMensagemUazap({ ...base, EventType: "connection" }), null);
   assert.equal(extrairMensagemUazap({ ...base, message: { ...base.message, chatid: "123@lid", sender: "123@lid" } }), null);
+  // Conversa @lid com o telefone em sender_pn: vale o telefone.
+  assert.equal(extrairMensagemUazap({ ...base, message: { ...base.message, chatid: "123@lid", sender: "123@lid", sender_pn: "5585988887777@s.whatsapp.net" } }).de, "5585988887777");
 });
 
 test("webhook da UAZap só é aceito com o segredo certo e o token da instância", async () => {

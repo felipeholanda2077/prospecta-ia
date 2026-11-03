@@ -8,6 +8,7 @@ import * as db from "../db.js";
 
 const CHAVE = "uazap";
 const STATUS_VALIDO_MS = 60_000;
+const NOVA_CONSULTA_MS = 1500;
 // O número que já existia antes de dar para ter vários (e o das variáveis UAZAP_URL/UAZAP_TOKEN).
 export const PRINCIPAL = "principal";
 let cache = null;
@@ -153,10 +154,24 @@ export async function conectadoAgora(id) {
   }
   const c = conexoes.get(id);
   if (c && Date.now() < c.ate) return c.valor;
-  return status(id).then((s) => s.conectado, () => {
-    conexoes.set(id, { valor: false, ate: Date.now() + STATUS_VALIDO_MS });
-    return false;
-  });
+  // Consulta que falha (a UAZap às vezes recusa as que chegam juntas, quando vários agendamentos
+  // rodam no mesmo minuto) é repetida uma vez antes de o número ser dado como desconectado.
+  const consultar = () => status(id).then((s) => s.conectado);
+  return consultar()
+    .catch(() => new Promise((r) => setTimeout(r, NOVA_CONSULTA_MS)).then(consultar))
+    .catch((e) => {
+      conexoes.set(id, { valor: false, ate: Date.now() + STATUS_VALIDO_MS, motivo: e.message });
+      return false;
+    });
+}
+
+/** Por que o último status dos números deu desconectado (o erro da consulta, se houve). */
+export async function motivoDaQueda() {
+  for (const n of await numeros()) {
+    const c = conexoes.get(n.id);
+    if (c && !c.valor) return c.motivo ?? "a UAZap informou o número como desconectado";
+  }
+  return null;
 }
 
 /** Os números conectados agora, na ordem da lista. */
@@ -224,11 +239,15 @@ export async function configurarWebhook(id) {
   return destino;
 }
 
+// Destino: o telefone (só os dígitos) ou, para contato que só tem o identificador do WhatsApp (@lid),
+// o identificador inteiro. Sem isso o @lid virava um "telefone" que não existe.
+const paraUazap = (destino) => (String(destino).includes("@") ? String(destino) : String(destino).replace(/\D/g, ""));
+
 /** Envia um texto pelo número `numeroId`. `delay` mostra "digitando..." antes, como uma pessoa. */
 export async function enviarTexto(destino, texto, { numeroId } = {}) {
   const dados = await chamar(numeroId, "/send/text", {
     method: "POST",
-    corpo: { number: String(destino).replace(/\D/g, ""), text: texto, delay: 1500 },
+    corpo: { number: paraUazap(destino), text: texto, delay: 1500 },
   });
   return dados.messageid ?? dados.id ?? null;
 }
@@ -237,7 +256,7 @@ export async function enviarTexto(destino, texto, { numeroId } = {}) {
 export async function enviarImagem(destino, imagem, legenda, { numeroId } = {}) {
   const dados = await chamar(numeroId, "/send/media", {
     method: "POST",
-    corpo: { number: String(destino).replace(/\D/g, ""), type: "image", file: imagem, text: legenda, delay: 1500 },
+    corpo: { number: paraUazap(destino), type: "image", file: imagem, text: legenda, delay: 1500 },
   });
   return dados.messageid ?? dados.id ?? null;
 }
@@ -246,7 +265,7 @@ export async function enviarImagem(destino, imagem, legenda, { numeroId } = {}) 
 export async function enviarAudio(destino, audio, { numeroId } = {}) {
   const dados = await chamar(numeroId, "/send/media", {
     method: "POST",
-    corpo: { number: String(destino).replace(/\D/g, ""), type: "ptt", file: audio, delay: 1500 },
+    corpo: { number: paraUazap(destino), type: "ptt", file: audio, delay: 1500 },
   });
   return dados.messageid ?? dados.id ?? null;
 }
@@ -297,8 +316,9 @@ export function extrairMensagemUazap(payload) {
   const vcard = [m.vcard, m.content?.vcard, m.content?.displayName && m.content?.vcard, typeof m.content === "string" ? m.content : null]
     .find((v) => /BEGIN:VCARD/i.test(String(v ?? "")));
   if (!texto && !audio && !vcard) return null;
-  // O número vem no JID (5511999999999@s.whatsapp.net); JIDs @lid não trazem o telefone.
-  const jid = [m.chatid, m.sender, payload.chat?.wa_chatid].find((j) => /@s\.whatsapp\.net$/.test(String(j ?? "")));
+  // O número vem no JID (5511999999999@s.whatsapp.net). Com o WhatsApp novo a conversa pode vir como @lid,
+  // com o telefone em sender_pn; JIDs @lid sem telefone nenhum são ignorados.
+  const jid = [m.chatid, m.sender, m.sender_pn, payload.chat?.wa_chatid].find((j) => /@s\.whatsapp\.net$/.test(String(j ?? "")));
   if (!jid) return null;
   const r = { id: String(m.messageid ?? m.id), de: jid.split("@")[0].split(":")[0], texto, nome: m.senderName ?? null };
   if (vcard) return { ...r, texto: /BEGIN:VCARD/i.test(texto) ? "" : texto, vcards: [vcard] };

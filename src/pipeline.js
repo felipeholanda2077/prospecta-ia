@@ -861,9 +861,18 @@ export async function enviarMensagem(m, campanha) {
       if (config.modoTeste.email && !config.modoTeste.whatsapp) throw new Error("modo teste ativo sem MODO_TESTE_WHATSAPP; WhatsApp não enviado");
       const destino = config.modoTeste.whatsapp || m.destino;
       const imagem = imagemDaMensagem(m);
-      messageId = imagem
-        ? await enviarCampanhaEmAudio(INTEGRACOES_WHATSAPP[modo], destino, m, m.corpo + rodape, imagem, { numeroId })
-        : await INTEGRACOES_WHATSAPP[modo].enviarTexto(destino, m.corpo + rodape, { numeroId });
+      const enviarPara = (para) => (imagem
+        ? enviarCampanhaEmAudio(INTEGRACOES_WHATSAPP[modo], para, m, m.corpo + rodape, imagem, { numeroId })
+        : INTEGRACOES_WHATSAPP[modo].enviarTexto(para, m.corpo + rodape, { numeroId }));
+      try {
+        messageId = await enviarPara(destino);
+      } catch (e) {
+        // Contato @lid que o WhatsApp não reconhece: nada saiu para ele, então vai pelo telefone da empresa.
+        const telefone = String(destino).includes("@lid") && /not on whatsapp/i.test(e.message) ? telefoneDoLead(await db.buscarLead(m.lead_id)) : null;
+        if (!telefone) throw e;
+        log(`↪️  ${m.empresa}: o contato do WhatsApp (@lid) não foi aceito; enviando pelo telefone da empresa`);
+        messageId = await enviarPara(telefone);
+      }
     } else if (m.tipo === "resposta") {
       messageId = await enviarTextoWhatsappOficial({ para: m.destino, corpo: m.corpo });
     } else {
@@ -887,6 +896,17 @@ export async function enviarMensagem(m, campanha) {
     log(`⚠️  Falha ao enviar para ${m.empresa}: ${e.message}`);
     return { enviada: false, motivo: e.message };
   }
+}
+
+/** O telefone da empresa para o WhatsApp (o confirmado no WhatsApp, senão o do cadastro), sem @lid. */
+export function telefoneDoLead(lead) {
+  for (const v of [lead?.whatsapp, lead?.telefone]) {
+    if (!v || String(v).includes("@")) continue;
+    const digitos = String(v).replace(/\D/g, "");
+    if (digitos.length >= 12) return digitos;
+    if (digitos.length >= 10) return `55${digitos}`;
+  }
+  return null;
 }
 
 /** Aprova as 3 etapas de uma vez. A etapa 1 sai na hora se for horário comercial. */
@@ -980,7 +1000,8 @@ export function rodadasRestantesHoje(limites, agora = new Date(), folgaMin = 0) 
 }
 
 /**
- * O que sai numa chamada de envio. Respostas da conversa e etapas de e-mail saem direto; a "vez" é
+ * O que sai numa chamada de envio. Respostas da conversa e etapas de e-mail saem direto (na chamada de cada
+ * minuto, só as respostas); a "vez" é
  * uma só: a etapa 2 ou 3 de WhatsApp mais antiga (elas vêm antes) ou, sem nenhuma, a empresa nova
  * de mais potencial com vaga hoje (o e-mail e o WhatsApp dela saem juntos).
  */
@@ -991,7 +1012,8 @@ export function filaDaChamada(enviaveis, vagas, { somenteDaVez = false } = {}) {
   const novas = enviaveis.filter((m) => !daConversa(m) && vagas[m.canal] > 0);
   const daVez = seguimento ? [seguimento] : novas.filter((m) => m.lead_id === novas[0]?.lead_id);
   return {
-    fila: [...(somenteDaVez ? [] : enviaveis.filter((m) => daConversa(m) && !seguimentoWhatsapp(m))), ...daVez],
+    // A chamada de cada minuto leva também as respostas da conversa: quem está conversando não espera a rodada de 10 minutos.
+    fila: [...enviaveis.filter((m) => (somenteDaVez ? m.tipo === "resposta" : daConversa(m) && !seguimentoWhatsapp(m))), ...daVez],
     daVez,
   };
 }
@@ -1014,7 +1036,8 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   // Manual ou desconectado: o WhatsApp fica na fila e só o e-mail sai nesta rodada.
   const semWhatsapp = modo === "manual" || (await whatsappDesconectado(modo));
   if (semWhatsapp && modo !== "manual") {
-    if (!somenteDaVez) log("📵 WhatsApp desconectado: as mensagens de WhatsApp ficam na fila até reconectar");
+    const motivo = await INTEGRACOES_WHATSAPP[modo].motivoDaQueda?.();
+    if (!somenteDaVez) log(`📵 WhatsApp desconectado${motivo ? ` (${motivo})` : ""}: as mensagens de WhatsApp ficam na fila até reconectar`);
     await avisarWhatsappDesconectado(modo);
   }
   // A meta do dia é de empresas novas (etapa 1). No WhatsApp ela é espalhada até a hora em

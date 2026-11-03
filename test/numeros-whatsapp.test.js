@@ -17,7 +17,7 @@ const campanha = {
 };
 
 /** UAZap de mentira: cada instância é reconhecida pelo token; dá para desconectar uma delas. */
-function uazapFalsa({ midiaFalha = null } = {}) {
+function uazapFalsa({ midiaFalha = null, lidRecusado = false } = {}) {
   const desconectados = new Set();
   const envios = [];
   const original = globalThis.fetch;
@@ -33,6 +33,8 @@ function uazapFalsa({ midiaFalha = null } = {}) {
     if (rota === "POST /webhook") return Response.json({ ok: true });
     if (rota === "POST /send/text" || rota === "POST /send/media") {
       if (rota === "POST /send/media" && midiaFalha) return Response.json({ error: midiaFalha }, { status: 400 });
+      const para = JSON.parse(opcoes.body).number;
+      if (lidRecusado && para.endsWith("@lid")) return Response.json({ error: `the number ${para.split("@")[0]}@s.whatsapp.net is not on WhatsApp` }, { status: 500 });
       envios.push({ token, rota, ...JSON.parse(opcoes.body) });
       return Response.json({ messageid: `msg-${token}-${envios.length}` });
     }
@@ -228,5 +230,29 @@ test("campanha: a arte e o áudio vão juntos, com o link na legenda, e sem eles
   } finally {
     semMidia.restaurar();
     delete process.env.GEMINI_API_KEY;
+  }
+});
+
+test("contato @lid: vai para a UAZap como veio e, se ela recusar, sai pelo telefone da empresa", async () => {
+  if (!(await uazap.numeros()).length) await uazap.salvarNumero({ nome: "IA 1", url: URL_UAZAP, token: "A" });
+  await db.inserirLead({ place_id: "lid-1", nome: "Loja Lid", nicho: "loja", cidade: "Osasco", endereco: null,
+                         telefone: "(11) 90000-1234", site: null, maps_url: null, avaliacao: null, total_avaliacoes: null });
+  const lead = (await db.leadsPorStatus("novo")).find((l) => l.nome === "Loja Lid");
+  await db.atualizarLead(lead.id, { whatsapp: "123456789012345@lid", status: "analisado", oportunidades: "[]" });
+
+  const aceita = uazapFalsa();
+  try {
+    assert.equal((await pipeline.enviarMensagem(await mensagem(lead.id, "123456789012345@lid"), campanha)).enviada, true);
+    assert.equal(aceita.envios.at(-1).number, "123456789012345@lid");
+  } finally {
+    aceita.restaurar();
+  }
+
+  const recusa = uazapFalsa({ lidRecusado: true });
+  try {
+    assert.equal((await pipeline.enviarMensagem(await mensagem(lead.id, "123456789012345@lid"), campanha)).enviada, true);
+    assert.deepEqual(recusa.envios.map((e) => e.number), ["5511900001234"]);
+  } finally {
+    recusa.restaurar();
   }
 });
