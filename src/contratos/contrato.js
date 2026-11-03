@@ -25,14 +25,18 @@ export async function salvarModelo(corpo) {
 export async function lerContratada(campanha) {
   const salvo = (await db.lerConfig(CHAVE_CONTRATADA)) ?? {};
   const e = campanha?.empresa ?? {};
-  return { nome: salvo.nome || e.responsavel || "", marca: salvo.marca || e.nome || "", cnpj: salvo.cnpj ?? "", cpf: salvo.cpf ?? "", email: salvo.email || e.email || "", pix: salvo.pix ?? "", foro: salvo.foro ?? "" };
+  return { nome: salvo.nome || e.responsavel || "", marca: salvo.marca || e.nome || "", cnpj: salvo.cnpj ?? "", cpf: salvo.cpf ?? "", email: salvo.email || e.email || "", pix: salvo.pix ?? "", foro: salvo.foro ?? "", assinatura: salvo.assinatura ?? "" };
 }
+
+/** A sua assinatura é uma imagem pequena, guardada no banco como os outros dados (o repositório é público). */
+export const assinaturaValida = (v) => v === "" || (typeof v === "string" && v.length <= 300_000 && /^data:image\/(jpeg|png);base64,[A-Za-z0-9+/]+=*$/.test(v));
 
 /** Salva só os campos que vieram; os outros continuam como estão. */
 export async function salvarContratada(dados = {}) {
   const limpo = (v, max = 160) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
   const novo = { ...((await db.lerConfig(CHAVE_CONTRATADA)) ?? {}) };
   for (const k of ["nome", "marca", "cnpj", "cpf", "email", "pix", "foro"]) if (dados[k] !== undefined) novo[k] = limpo(dados[k]);
+  if (dados.assinatura !== undefined && assinaturaValida(dados.assinatura)) novo.assinatura = dados.assinatura;
   await db.gravarConfig(CHAVE_CONTRATADA, novo);
   return novo;
 }

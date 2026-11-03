@@ -1298,6 +1298,7 @@ app.put("/api/contratos/modelo", async (req, res) => res.json({ corpo: await con
 
 app.get("/api/contratos/contratada", async (req, res) => res.json(await contratos.lerContratada(await carregarCampanhaCompleta())));
 app.put("/api/contratos/contratada", async (req, res) => {
+  if (req.body?.assinatura !== undefined && !contratos.assinaturaValida(req.body.assinatura)) return res.status(400).json({ erro: "A assinatura precisa ser uma imagem JPG ou PNG pequena" });
   await contratos.salvarContratada(req.body);
   res.json(await contratos.lerContratada(await carregarCampanhaCompleta()));
 });
@@ -1306,7 +1307,7 @@ app.put("/api/contratos/contratada", async (req, res) => {
 app.post("/api/contratos/folha", async (req, res) => {
   const c = await contratos.lerContratada(await carregarCampanhaCompleta());
   const valores = { contratada_nome: c.nome, contratada_cnpj: c.cnpj, contratada_cpf: c.cpf, contratada_marca: c.marca, contratada_email: c.email, contratada_pix: c.pix };
-  res.json({ html: documentoEmHtml(String(req.body?.corpo ?? ""), { valores }), marca: c.marca, cnpj: c.cnpj, campos: ROTULOS_CAMPOS });
+  res.json({ html: documentoEmHtml(String(req.body?.corpo ?? ""), { valores, assinatura: c.assinatura }), marca: c.marca, cnpj: c.cnpj, campos: ROTULOS_CAMPOS });
 });
 
 app.post("/api/contratos", async (req, res) => {
@@ -1414,7 +1415,7 @@ app.get("/api/contratos/:id/pdf", async (req, res) => {
   if (!contrato) return res.status(404).json({ erro: "Contrato não encontrado" });
   const campanha = await carregarCampanhaCompleta();
   const contratada = await contratos.lerContratada(campanha);
-  const pdf = await documentoEmPdf(contratos.preencherContratada(contrato.corpo, contratada), { marca: contratada.marca, cnpj: contratada.cnpj, projeto: contrato.projeto });
+  const pdf = await documentoEmPdf(contratos.preencherContratada(contrato.corpo, contratada), { marca: contratada.marca, cnpj: contratada.cnpj, projeto: contrato.projeto, assinatura: contratada.assinatura });
   const arquivo = `contrato-${contrato.projeto}`.normalize("NFD").replace(/[^\w-]+/g, "-").toLowerCase();
   // Com ?ver=1 abre no navegador; sem ele, baixa o arquivo.
   res.set({ "Content-Type": "application/pdf", "Content-Disposition": `${req.query.ver === "1" ? "inline" : "attachment"}; filename="${arquivo}.pdf"`, "Cache-Control": "no-store" }).send(pdf);

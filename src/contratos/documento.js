@@ -5,7 +5,7 @@ const LOGO = new URL("../../public/fluxdeck-logo.jpg", import.meta.url);
 
 // O texto do contrato é simples de editar à mão:
 //   # Título · ## Subtítulo · ### Cláusula · **negrito** · | tabela | (com |---| abaixo da 1ª linha, ela é o cabeçalho)
-//   ::assinatura ... ::  (cada linha: esquerda | direita)  ·  ::resumo ... ::  (cada linha: rótulo | valor)  ·  ::aviso Título ... ::
+//   ::assinatura ... ::  (cada linha: esquerda | direita; "::assinatura assinada" traz a sua assinatura na linha da esquerda)  ·  ::resumo ... ::  (cada linha: rótulo | valor)  ·  ::aviso Título ... ::
 // Daqui saem a prévia do painel e o PDF, para os dois ficarem iguais.
 
 export function lerBlocos(texto) {
@@ -22,7 +22,7 @@ export function lerBlocos(texto) {
       for (i++; i < linhas.length && linhas[i].trim() !== "::"; i++) if (linhas[i].trim()) conteudo.push(linhas[i].trim());
       if (l.startsWith("::aviso")) blocos.push({ tipo: "aviso", titulo: l.slice(7).trim(), texto: conteudo.join(" ") });
       else if (l.startsWith("::resumo")) blocos.push({ tipo: "resumo", linhas: conteudo.map((c) => c.split("|").map((x) => x.trim())) });
-      else blocos.push({ tipo: "assinatura", linhas: conteudo.map((c) => c.split("|").map((x) => x.trim())) });
+      else blocos.push({ tipo: "assinatura", assinada: /^::assinatura\s+assinada$/.test(l), linhas: conteudo.map((c) => c.split("|").map((x) => x.trim())) });
     } else if (l.startsWith("|")) {
       const celulas = (c) => c.replace(/^\||\|$/g, "").split("|").map((x) => x.trim());
       const grupo = [];
@@ -70,7 +70,7 @@ function textoNaFolha(texto, valores) {
 const inline = (t, valores = {}) => trechos(t).map((x) => (x.negrito ? `<b>${textoNaFolha(x.texto, valores)}</b>` : textoNaFolha(x.texto, valores))).join("");
 
 /** O documento em HTML, para a folha do painel (o texto é escapado: ele é digitado à mão). */
-export function documentoEmHtml(texto, { valores = {} } = {}) {
+export function documentoEmHtml(texto, { valores = {}, assinatura = "" } = {}) {
   const t = (x) => inline(x, valores);
   return lerBlocos(texto).map((b) => {
     switch (b.tipo) {
@@ -80,7 +80,7 @@ export function documentoEmHtml(texto, { valores = {} } = {}) {
       case "item": return `<p class="ct-item">${t(b.texto)}</p>`;
       case "tabela": return `<div class="ct-tabela${b.cabecalho ? " com-cabecalho" : ""}"><table>${b.cabecalho ? `<thead><tr>${b.cabecalho.map((c) => `<th>${t(c)}</th>`).join("")}</tr></thead>` : ""}<tbody>${b.linhas.map((l) => `<tr>${l.map((c) => `<td>${t(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
       case "resumo": return `<div class="ct-resumo">${b.linhas.map((l) => `<div><div class="ct-resumo-rotulo">${t(l[0] ?? "")}</div><div class="ct-resumo-valor">${t(l[1] ?? "")}</div></div>`).join("")}</div>`;
-      case "assinatura": return `<div class="ct-assinaturas">${[0, 1].map((col) => `<div>${b.linhas.map((l, i) => `<div class="${i === 0 ? "ct-nome" : ""}">${t(l[col] ?? "") || "<br>"}</div>`).join("")}</div>`).join("")}</div>`;
+      case "assinatura": return `<div class="ct-assinaturas"${b.assinada ? " data-assinada" : ""}>${[0, 1].map((col) => `<div>${b.assinada && col === 0 && assinatura ? `<img class="ct-rubrica" src="${escapar(assinatura)}" alt="Assinatura" contenteditable="false">` : ""}${b.linhas.map((l, i) => `<div class="${i === 0 ? "ct-nome" : ""}">${t(l[col] ?? "") || "<br>"}</div>`).join("")}</div>`).join("")}</div>`;
       case "aviso": return `<div class="ct-aviso"><div class="ct-aviso-titulo">${t(b.titulo)}</div><p>${t(b.texto)}</p></div>`;
       default: return `<p>${t(b.texto)}</p>`;
     }
@@ -174,7 +174,7 @@ function tabela(doc, b, largura) {
 }
 
 /** O PDF do contrato (Buffer), com a logo no cabeçalho e o rodapé em todas as páginas. */
-export function documentoEmPdf(texto, { marca = "", projeto = "", cnpj = "", tipo = "Contrato de Prestação de Serviços", marcaDagua = "" } = {}) {
+export function documentoEmPdf(texto, { marca = "", projeto = "", cnpj = "", tipo = "Contrato de Prestação de Serviços", marcaDagua = "", assinatura = "" } = {}) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
       size: "A4", bufferPages: true,
@@ -233,6 +233,10 @@ export function documentoEmPdf(texto, { marca = "", projeto = "", cnpj = "", tip
           [0, 1].forEach((c) => {
             const x = MARGEM.x + c * (col + 40);
             doc.moveTo(x, y).lineTo(x + col, y).lineWidth(0.8).strokeColor(COR.texto).stroke();
+            if (b.assinada && c === 0 && assinatura) {
+              const altura = 44;
+              doc.image(Buffer.from(assinatura.split(",")[1], "base64"), x, y - altura - 1, { fit: [col, altura], align: "center", valign: "bottom" });
+            }
             doc.y = y + 7;
             b.linhas.forEach((l, i) => escrever(doc, l[c] ?? " ", { x, largura: col, tamanho: i === 0 ? 10 : 8.8, align: "center", negrito: i === 0, cor: i === 0 ? COR.texto : COR.suave }));
           });

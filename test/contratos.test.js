@@ -140,3 +140,26 @@ test("contrato: no PDF, as assinaturas descem junto com o fecho, sem ficar sozin
   for (const n of [30, 34, 38, 42, 46]) assert.ok(paginas(await documentoEmPdf(`${comTexto(n)}\n\n${fim}`, { marca: "M" })) >= 1);
   assert.equal(lerBlocos(fim).at(-1).tipo, "assinatura");
 });
+
+test("contrato: a assinatura só aparece no bloco marcado, na folha e no PDF", async () => {
+  // JPEG mínimo de 1 x 1 ponto, branco.
+  const imagem = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
+  const marcado = "::assinatura assinada\nA | B\n::";
+  const simples = "::assinatura\nA | B\n::";
+  assert.equal(lerBlocos(marcado)[0].assinada, true);
+  assert.equal(lerBlocos(simples)[0].assinada, false);
+  const folha = documentoEmHtml(marcado, { assinatura: imagem });
+  assert.equal((folha.match(/class="ct-rubrica"/g) ?? []).length, 1);
+  assert.ok(folha.indexOf("ct-rubrica") < folha.indexOf(">A<"));
+  assert.doesNotMatch(documentoEmHtml(simples, { assinatura: imagem }), /ct-rubrica/);
+  assert.doesNotMatch(documentoEmHtml(marcado), /ct-rubrica/);
+  const imagens = (buf) => (buf.toString("latin1").match(/\/Subtype\s*\/Image/g) ?? []).length;
+  const semMarca = imagens(await documentoEmPdf(simples, { marca: "M", assinatura: imagem }));
+  assert.equal(imagens(await documentoEmPdf(marcado, { marca: "M", assinatura: imagem })), semMarca + 1);
+  assert.equal(imagens(await documentoEmPdf(marcado, { marca: "M" })), semMarca);
+  assert.equal(contrato.assinaturaValida(imagem), true);
+  assert.equal(contrato.assinaturaValida(""), true);
+  assert.equal(contrato.assinaturaValida("javascript:alert(1)"), false);
+  assert.equal(contrato.assinaturaValida('data:image/png;base64,AA" onerror="x'), false);
+  assert.equal(contrato.assinaturaValida(`data:image/png;base64,${"A".repeat(300_001)}`), false);
+});

@@ -579,7 +579,8 @@
   .ct-resumo-rotulo { font-size: 10px; color: #9fb3c8; margin-bottom: 3px; }
   .ct-resumo-valor { font-size: 13.33px; font-weight: 700; }
   .ct-assinaturas { display: grid; grid-template-columns: 1fr 1fr; gap: 53px; margin: 54px 0 24px; font-size: 11.7px; color: #5b6478; text-align: center; }
-  .ct-assinaturas > div { border-top: 1px solid #0f172a; padding-top: 8px; min-width: 0; }
+  .ct-assinaturas > div { border-top: 1px solid #0f172a; padding-top: 8px; min-width: 0; position: relative; }
+  .ct-rubrica { position: absolute; left: 50%; bottom: calc(100% + 1px); transform: translateX(-50%); height: 50px; width: auto; max-width: 100%; pointer-events: none; }
   .ct-nome { color: #0f172a; font-weight: 700; font-size: 13.33px; }
   .ct-aviso { background: #f1f7ff; border-left: 4px solid #0f8bff; border-radius: 8px; padding: 12px 16px; font-size: 11.7px; }
   .ct-aviso-titulo { font-weight: 700; font-size: 12.67px; margin-bottom: 3px; }
@@ -3712,8 +3713,8 @@ function textoDaFolha(corpo) {
       for (const tr of el.querySelectorAll("tbody tr")) linhas.push(`| ${[...tr.cells].map(celulaDaFolha).join(" | ")} |`);
       linhas.push("");
     } else if (el.matches(".ct-assinaturas")) {
-      const [esq, dir] = [...el.children].map((c) => [...c.children]);
-      linhas.push("::assinatura");
+      const [esq, dir] = [...el.children].map((c) => [...c.children].filter((x) => !x.matches(".ct-rubrica")));
+      linhas.push(el.hasAttribute("data-assinada") ? "::assinatura assinada" : "::assinatura");
       for (let i = 0; i < Math.max(esq?.length ?? 0, dir?.length ?? 0); i++) linhas.push(`${esq?.[i] ? celulaDaFolha(esq[i]) : ""} | ${dir?.[i] ? celulaDaFolha(dir[i]) : ""}`);
       linhas.push("::", "");
     } else if (el.matches(".ct-resumo")) {
