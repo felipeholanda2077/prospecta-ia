@@ -52,6 +52,7 @@ import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js
 import { escreverApresentacao } from "./ia/resposta.js";
 import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada } from "./respostas/processar.js";
 import { dashboardDoPainel } from "./dashboard.js";
+import * as agentes from "./respostas/agentes.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -921,6 +922,7 @@ app.get("/api/conversas/:leadId", async (req, res) => {
     interessado: conversa?.interessado ?? false,
     iaPausada: (await iaPausada(lead.id)) || null,
     numeroWhatsapp: lead.numero_wa ? (await uazap.numero(lead.numero_wa))?.nome ?? null : null,
+    agente: lead.agente_id ? (await db.buscarAgente(lead.agente_id))?.nome ?? null : null,
     mensagens: await db.historicoConversa(lead.id),
     agendadas: await db.agendadasDaConversa(lead.id),
     // A sugestão da IA vai para a caixa de resposta quando ninguém respondeu ainda a última mensagem.
@@ -1592,6 +1594,66 @@ app.get("/api/uazap/numeros/:id/status", comErro((req) => uazap.status(req.param
 app.post("/api/uazap/numeros/:id/conectar", comErro((req) => uazap.conectar(req.params.id, req.body?.telefone)));
 app.post("/api/uazap/numeros/:id/desconectar", comErro(async (req) => {
   await uazap.desconectar(req.params.id);
+  return { ok: true };
+}));
+
+// ---------- Agentes de atendimento (respondem no WhatsApp com o próprio prompt) ----------
+
+/** O agente para o painel: os números com nome, o que falta e os números do acompanhamento. */
+async function agenteNoPainel(a, { completo = false } = {}) {
+  const nomes = new Map((await uazap.numeros()).map((n) => [n.id, n.nome]));
+  const arquivos = await db.arquivosDoAgente(a.id);
+  const { prompt, conhecimento, ...resumo } = a;
+  return {
+    ...(completo ? a : resumo),
+    promptTamanho: prompt.length,
+    conhecimentoTamanho: conhecimento.length + arquivos.reduce((t, x) => t + x.tamanho, 0),
+    numerosNomes: a.numeros.map((id) => nomes.get(id) ?? "número removido"),
+    faltando: agentes.faltando(a, arquivos.length),
+    numerosConversa: await db.numerosDoAgente(a.id),
+    ...(completo ? { arquivos } : {}),
+  };
+}
+
+app.get("/api/agentes", comErro(async () => {
+  const lista = [];
+  for (const a of await db.listarAgentes()) lista.push(await agenteNoPainel(a));
+  // Os números da UAZap (sem token) e qual agente atende cada um, para o formulário.
+  const numeros = (await uazap.numeros()).map((n) => ({ id: n.id, nome: n.nome, principal: n.id === uazap.PRINCIPAL }));
+  return { agentes: lista, numeros };
+}));
+
+app.post("/api/agentes", comErro(async (req) => agenteNoPainel(await agentes.salvarAgente(null, req.body), { completo: true })));
+app.put("/api/agentes/:id", comErro(async (req) => agenteNoPainel(await agentes.salvarAgente(Number(req.params.id), req.body), { completo: true })));
+app.delete("/api/agentes/:id", comErro(async (req) => {
+  await agentes.excluirAgente(Number(req.params.id));
+  return { ok: true };
+}));
+
+// O agente e as conversas dele, com o andamento de cada uma (em conversa, delegou, sem resposta, fechou).
+app.get("/api/agentes/:id", comErro(async (req) => {
+  const a = await db.buscarAgente(Number(req.params.id));
+  if (!a) throw new Error("Agente não encontrado");
+  const conversas = (await conversasAvaliadas()).filter((c) => c.agente_id === a.id)
+    .map((c) => ({ ...c, agente: agentes.andamentoDoAgente(c) }));
+  const porEstado = Object.fromEntries(Object.keys(agentes.ANDAMENTOS).map((k) => [k, conversas.filter((c) => c.agente.estado === k).length]));
+  return { agente: await agenteNoPainel(a, { completo: true }), conversas, porEstado };
+}));
+
+app.post("/api/agentes/:id/arquivos", comErro(async (req) => {
+  await agentes.adicionarArquivo(Number(req.params.id), req.body?.nome, req.body?.texto);
+  return { arquivos: await db.arquivosDoAgente(Number(req.params.id)) };
+}));
+app.delete("/api/agentes/:id/arquivos/:arquivo", comErro(async (req) => {
+  await db.excluirArquivoDoAgente(Number(req.params.id), Number(req.params.arquivo));
+  return { arquivos: await db.arquivosDoAgente(Number(req.params.id)) };
+}));
+
+// Conversa de agente que virou venda (ou que volta a ficar aberta).
+app.post("/api/agentes/conversas/:leadId/fechou", comErro(async (req) => {
+  const lead = await db.buscarLead(req.params.leadId);
+  if (!lead?.agente_id) throw new Error("Conversa de agente não encontrada");
+  await db.atualizarLead(lead.id, { status: req.body?.fechou === false ? "respondeu" : "fechado" });
   return { ok: true };
 }));
 

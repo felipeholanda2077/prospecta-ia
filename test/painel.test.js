@@ -10,10 +10,11 @@ test("painel: o script compila (um erro aqui deixa o painel inteiro em branco)",
   for (const codigo of scripts) new vm.Script(codigo); // acusa erro de sintaxe e nome declarado duas vezes
 });
 
-test("painel: as abas do Instagram ligam na barra certa (há outra barra de abas em Contratos)", async () => {
+test("painel: as abas do Instagram ligam na barra certa (há outras barras de abas em Contratos e Agentes)", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
-  assert.equal((html.match(/class="ig-abas"/g) ?? []).length, 2);
+  assert.equal((html.match(/class="ig-abas"/g) ?? []).length, 3);
   assert.match(html, /id="ig-abas"/);
   assert.match(html, /id="ct-abas"/);
+  assert.match(html, /id="ag-abas"/);
   assert.doesNotMatch(html, /\$\("\.ig-abas"\)/);
 });

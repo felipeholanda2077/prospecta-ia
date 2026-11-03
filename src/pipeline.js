@@ -20,6 +20,7 @@ import { linkDaMidia } from "./conteudo/instagram.js";
 import { verificarAgendamentos, aplicarLinkAgendamento } from "./agenda/calendly.js";
 import { semSiteProprio, potencialDaEmpresa } from "./analise/prioridade.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
+import { numerosComAgente } from "./respostas/agentes.js";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
@@ -187,8 +188,12 @@ export async function numeroParaEnviar(m) {
       ? { numero: dono }
       : { motivo: `o número "${dono.nome}" está desconectado; sai quando você reconectar em Configurações` };
   }
-  const ativos = await uazap.conectados();
-  if (!ativos.length) return { motivo: "WhatsApp desconectado; sai quando você reconectar o número em Configurações" };
+  // Número com agente de atendimento não manda prospecção para empresas novas.
+  const comAgente = await numerosComAgente();
+  const conectados = await uazap.conectados();
+  const ativos = conectados.filter((n) => !comAgente.has(n.id));
+  if (!conectados.length) return { motivo: "WhatsApp desconectado; sai quando você reconectar o número em Configurações" };
+  if (!ativos.length) return { motivo: "os números conectados têm agente de atendimento e não mandam prospecção; conecte outro número em Configurações" };
   // Empresa nova vai para o número que mandou menos hoje, para dividir o volume entre eles.
   const enviadas = await Promise.all(ativos.map((n) => db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id })));
   return { numero: ativos[enviadas.indexOf(Math.min(...enviadas))] };

@@ -5,6 +5,8 @@ import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento } from "../agenda/calendly.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
 import { lerApresentacao } from "./apresentacao.js";
+import { responderComoAgente } from "../ia/agente.js";
+import { fontesDoAgente, PREFIXO_DELEGOU } from "./agentes.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
@@ -56,32 +58,80 @@ export function roboPelaVelocidade(historico, agora = new Date()) {
 
 export const AGRADECIMENTO_PADRAO = "Imagina, obrigado pelo retorno! Fico à disposição se precisarem no futuro. Um abraço!";
 
-/** Agenda uma mensagem da conversa para sair em alguns minutos, como uma pessoa responderia. */
-async function agendarResposta({ respostaId, lead, canal, de, assunto, origem_id, corpo, esperaMinMs = ESPERA_MIN_MS, esperaMaxMs = ESPERA_MAX_MS }) {
+/**
+ * Agenda uma mensagem da conversa para sair em alguns minutos, como uma pessoa responderia. Com `partes`
+ * (agentes), cada parte vira uma mensagem, uma logo depois da outra, na ordem.
+ */
+async function agendarResposta({ respostaId, lead, canal, de, assunto, origem_id, corpo, partes = [corpo], esperaMinMs = ESPERA_MIN_MS, esperaMaxMs = ESPERA_MAX_MS }) {
   // Responde para quem escreveu (pode ser um contato indicado, não o e-mail/número original da empresa).
   const destino = de || (canal === "email" ? lead.email : lead.whatsapp);
-  const mensagemId = await db.criarMensagem({
-    lead_id: lead.id,
-    canal,
-    destino,
-    assunto: canal === "email" ? (/^re:/i.test(assunto ?? "") ? assunto : `Re: ${assunto ?? ""}`) : null,
-    corpo,
-    status: "aprovada",
-    tipo: "resposta",
-    etapa: 0,
-    em_resposta_a: canal === "email" ? origem_id : null,
-  });
   const espera = esperaMinMs + Math.random() * (esperaMaxMs - esperaMinMs);
-  await db.atualizarMensagem(mensagemId, { agendada_para: new Date(Date.now() + espera).toISOString() });
-  await db.atualizarResposta(respostaId, { mensagem_id: mensagemId, lida: true });
-  return { mensagemId, espera };
+  const ids = [];
+  for (const [i, texto] of partes.entries()) {
+    const id = await db.criarMensagem({
+      lead_id: lead.id,
+      canal,
+      destino,
+      assunto: canal === "email" ? (/^re:/i.test(assunto ?? "") ? assunto : `Re: ${assunto ?? ""}`) : null,
+      corpo: texto,
+      status: "aprovada",
+      tipo: "resposta",
+      etapa: 0,
+      em_resposta_a: canal === "email" ? origem_id : null,
+    });
+    // Alguns segundos entre as partes; o envio ainda espera o intervalo normal entre uma mensagem e outra.
+    await db.atualizarMensagem(id, { agendada_para: new Date(Date.now() + espera + i * 5000).toISOString() });
+    ids.push(id);
+  }
+  await db.atualizarResposta(respostaId, { mensagem_id: ids[0], lida: true });
+  return { mensagemId: ids[0], espera };
+}
+
+// Agentes respondem mais rápido que a prospecção: quem chamou está esperando.
+const ESPERA_AGENTE_MS = [60_000, 150_000];
+const partesDa = (c) => (c.partes?.length ? c.partes : c.sugestao_resposta?.trim() ? [c.sugestao_resposta.trim()] : []);
+
+/**
+ * Agente de atendimento: responde em até 3 partes ou, quando delega (comando DELEGAR), manda a
+ * mensagem escolhida para essa hora (ou nada), para a IA nesta conversa e avisa você.
+ */
+async function responderPeloAgente({ respostaId, lead, canal, de, c, agente }) {
+  // A IA falhou (ou o áudio não foi transcrito): marca para você responder, sem parar o agente.
+  if (c.precisa_humano && !c.delegou) {
+    await db.atualizarResposta(respostaId, { precisa_humano: c.motivo_humano || "o agente não conseguiu responder" });
+    return { precisaHumano: c.motivo_humano };
+  }
+  let motivo = c.delegou ? c.motivo_humano || "o agente passou a conversa para você" : null;
+  if (!motivo && (await db.respostasEnviadasNaConversa(lead.id)) >= agente.max_respostas) {
+    motivo = `o agente já respondeu ${agente.max_respostas} vezes nesta conversa`;
+  }
+  const [esperaMinMs, esperaMaxMs] = ESPERA_AGENTE_MS;
+  if (!motivo) {
+    const partes = partesDa(c);
+    if (!partes.length) return null;
+    const { mensagemId, espera } = await agendarResposta({ respostaId, lead, canal, de, partes, esperaMinMs, esperaMaxMs });
+    log(`🤖 Agente ${agente.nome} respondeu ${lead.nome} em ${partes.length} parte(s); sai em ~${Math.round(espera / 60000)} min, em horário comercial`);
+    return { mensagemId };
+  }
+
+  const partes = agente.delegar_modo === "silencio" ? [] : agente.delegar_modo === "fixa" ? [agente.delegar_mensagem] : partesDa(c);
+  if (partes.length) await agendarResposta({ respostaId, lead, canal, de, partes, esperaMinMs, esperaMaxMs });
+  await db.atualizarResposta(respostaId, { precisa_humano: motivo });
+  await pausarIA(lead.id, `${PREFIXO_DELEGOU}${motivo}`);
+  await db.atualizarLead(lead.id, { agente_delegou_em: new Date().toISOString() });
+  await enviarNotificacao(`${lead.nome} precisa de você (agente ${agente.nome})`,
+    `${motivo}\n\nÚltima mensagem:\n${c.resumo}\n\nO agente parou nesta conversa: responda pelo painel (Respostas) e clique em "IA continua" se quiser que ele volte.`)
+    .catch((e) => log(`⚠️  Não foi possível enviar o aviso: ${e.message}`));
+  log(`🙋 Agente ${agente.nome} passou ${lead.nome} para você: ${motivo}`);
+  return { precisaHumano: motivo, delegou: true };
 }
 
 /**
  * Com a resposta automática ligada, agenda a próxima mensagem da conversa (sai na
  * próxima rodada em horário comercial) ou marca que a conversa precisa de você.
  */
-async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_id, c, campanha }) {
+async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_id, c, campanha, agente = null }) {
+  if (agente) return responderPeloAgente({ respostaId, lead, canal, de, c, agente });
   const auto = campanha.automacao;
   // Pedido de ajuda da IA fica marcado sempre, mesmo com a resposta automática desligada.
   let motivo = c.precisa_humano ? c.motivo_humano || "a IA pediu sua ajuda nesta conversa" : null;
@@ -124,6 +174,7 @@ export async function registrarResposta({
   lead, canal, origem_id, de, assunto = null, texto, campanha, forcarHumano = null,
   contatosIndicados = [], nomeRemetente = null, // cartão de contato do WhatsApp, já lido
   classificar = classificarResposta, apresentar = escreverApresentacao,
+  agente = null, responderAgente = responderComoAgente, // agente de atendimento do número que recebeu
 }) {
   if (origem_id && (await db.respostaJaRegistrada(origem_id))) return null;
 
@@ -131,14 +182,25 @@ export async function registrarResposta({
 
   // Robô do outro lado (ou conversa parada por você): registra sem gastar IA e sem responder.
   const pausada = await iaPausada(lead.id);
-  const robo = pausada ? null : roboPelaVelocidade(await db.historicoConversa(lead.id));
+  // No agente quem chamou foi o cliente, e gente responde rápido no WhatsApp: lá só a IA decide se é robô.
+  const robo = pausada || agente ? null : roboPelaVelocidade(await db.historicoConversa(lead.id));
   if (pausada || robo) {
     if (robo) await pararPorRobo(lead, robo);
     const id = await db.criarResposta({ lead_id: lead.id, canal, origem_id, de, assunto, texto: limpo, classificacao: "outro",
       resumo: `A IA não responde esta conversa: ${pausada || robo}.`, sugestao: null });
-    if (id) await db.atualizarResposta(id, { lida: true });
+    // Conversa de agente parada: quem responde é você.
+    if (id) await db.atualizarResposta(id, { lida: !agente, ...(agente ? { precisa_humano: pausada || robo } : {}) });
     log(`🤖 ${lead.nome} escreveu, mas a IA está parada nesta conversa (${pausada || robo})`);
     return id ? { id, classificacao: "outro", pausada: true } : null;
+  }
+
+  // Agente desligado: a conversa fica registrada no CRM dele, sem gastar IA, e quem responde é você.
+  if (agente && !agente.ligado) {
+    const id = await db.criarResposta({ lead_id: lead.id, canal, origem_id, de, assunto, texto: limpo, classificacao: "outro",
+      resumo: `O agente ${agente.nome} está desligado: a IA não respondeu.`, sugestao: null });
+    if (id) await db.atualizarResposta(id, { precisa_humano: `o agente ${agente.nome} está desligado` });
+    log(`💤 ${lead.nome} escreveu para o agente ${agente.nome}, que está desligado`);
+    return id ? { id, classificacao: "outro", desligado: true } : null;
   }
 
   let c;
@@ -147,12 +209,17 @@ export async function registrarResposta({
     // Ex.: áudio que não deu para transcrever: a sequência para e você responde.
     if (forcarHumano) throw new Error(forcarHumano);
     const historico = await db.historicoConversa(lead.id);
-    const contexto = {
-      texto: limpo, assunto, lead, historico, campanha, canal,
-      linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal),
-      apresentacao: await lerApresentacao(),
-    };
-    ({ c, apresentou } = await pensarResposta(contexto, { classificar, apresentar }));
+    if (agente) {
+      // O agente responde com o prompt e a base dele, sem a apresentação da FluxDeck.
+      c = await responderAgente({ agente, fontes: await fontesDoAgente(agente), texto: limpo, lead, historico });
+    } else {
+      const contexto = {
+        texto: limpo, assunto, lead, historico, campanha, canal,
+        linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal),
+        apresentacao: await lerApresentacao(),
+      };
+      ({ c, apresentou } = await pensarResposta(contexto, { classificar, apresentar }));
+    }
   } catch (e) {
     c = { classificacao: "outro", resumo: forcarHumano ? "Mandou um áudio." : `Não foi possível classificar automaticamente: ${e.message}`,
           sugestao_resposta: "", precisa_humano: true, motivo_humano: forcarHumano || "a IA não conseguiu ler esta resposta" };
@@ -174,7 +241,8 @@ export async function registrarResposta({
   if (!id) return null;
 
   // Já disse que não tem interesse: só reabre se agora mostrar interesse; o resto fica registrado sem resposta.
-  const jaEncerrada = ENCERRADOS.includes(lead.status);
+  // (Agente: quem chamou foi o cliente, então ele sempre é respondido.)
+  const jaEncerrada = ENCERRADOS.includes(lead.status) && !agente;
   if (jaEncerrada && !["interessado", "quer_informacoes", "descadastro"].includes(c.classificacao)) {
     await db.atualizarResposta(id, { lida: true });
     log(`💬 ${lead.nome} escreveu de novo (${c.classificacao}); está sem interesse, então nada é enviado`);
@@ -198,7 +266,11 @@ export async function registrarResposta({
       // Encerra: cancela tudo o que estava para sair (todos os canais), marca e agradece uma única vez.
       await db.cancelarPendentes(lead.id, "lead sem interesse");
       await db.atualizarLead(lead.id, { status: "sem_interesse", observacao: `Sem interesse no momento (respondeu por ${canal})` });
-      if (campanha.automacao?.respostaAutomatica) {
+      if (agente) {
+        // O agente se despede do jeito do prompt dele (ou não diz nada), sem o agradecimento padrão da FluxDeck.
+        const partes = partesDa(c);
+        if (partes.length) await agendarResposta({ respostaId: id, lead, canal, de, partes, esperaMinMs: ESPERA_AGENTE_MS[0], esperaMaxMs: ESPERA_AGENTE_MS[1] });
+      } else if (campanha.automacao?.respostaAutomatica) {
         const corpo = c.sugestao_resposta?.trim() || AGRADECIMENTO_PADRAO;
         await agendarResposta({ respostaId: id, lead, canal, de, assunto, origem_id, corpo, esperaMinMs: 60_000, esperaMaxMs: 3 * 60_000 });
         log(`🙏 ${lead.nome} não tem interesse: encerrada, com agradecimento`);
@@ -212,19 +284,20 @@ export async function registrarResposta({
     default:
       await db.cancelarPendentes(lead.id, "lead respondeu");
       if (!["agendado", "fechado"].includes(lead.status)) await db.atualizarLead(lead.id, { status: "respondeu" });
-      if (c.classificacao === "interessado" || c.classificacao === "quer_informacoes") {
+      if (!agente && (c.classificacao === "interessado" || c.classificacao === "quer_informacoes")) {
         await enviarNotificacao(
           `${lead.nome} respondeu (${c.classificacao.replace("_", " ")})`,
           `${c.resumo}\n\nResposta:\n${limpo}\n\nPróxima mensagem${campanha.automacao?.respostaAutomatica ? " (a IA vai enviar sozinha)" : " sugerida"}:\n${c.sugestao_resposta}\n\nContato: ${de}`
         ).catch((e) => log(`⚠️  Não foi possível enviar o aviso: ${e.message}`));
       }
-      if ((await responderSozinha({ respostaId: id, lead, canal, de, assunto, origem_id, c, campanha }))?.mensagemId && apresentou) {
+      if ((await responderSozinha({ respostaId: id, lead, canal, de, assunto, origem_id, c, campanha, agente }))?.mensagemId && apresentou) {
         await marcarApresentacaoEnviada(lead.id);
       }
   }
 
   // Indicou outra pessoa (cartão de contato, ou e-mail/telefone escrito na mensagem): a IA escreve para ela.
-  if (!["descadastro", "automatica", "sem_interesse"].includes(c.classificacao)) {
+  // Nas conversas de agente isso não acontece: a mensagem para o indicado é da FluxDeck.
+  if (!agente && !["descadastro", "automatica", "sem_interesse"].includes(c.classificacao)) {
     // Contatos escritos no texto só contam se a IA viu uma indicação (assinaturas de e-mail também têm telefone e e-mail).
     const doTexto = c.indicou_contato ? contatosNoTexto(limpo, [de, lead.email, lead.whatsapp]) : [];
     const indicados = [...contatosIndicados, ...doTexto];
@@ -249,10 +322,13 @@ async function pararPorRobo(lead, motivo) {
  * Conversa que a IA tinha passado para você: ela lê tudo de novo (com a sua observação, se houver)
  * e continua sozinha, respondendo a última mensagem em 1 a 2 minutos.
  */
-export async function continuarComIA(respostaId, campanha, { nota = "", classificar = classificarResposta, apresentar = escreverApresentacao } = {}) {
+export async function continuarComIA(respostaId, campanha, {
+  nota = "", classificar = classificarResposta, apresentar = escreverApresentacao, responderAgente = responderComoAgente,
+} = {}) {
   const r = await db.buscarResposta(respostaId);
   if (!r) throw new Error("Resposta não encontrada");
   const lead = await db.buscarLead(r.lead_id);
+  if (lead.agente_id) return continuarComAgente(r, lead, { nota, responderAgente });
   await retomarIA(lead.id); // você mandou a IA continuar: sai da pausa
   const contexto = {
     texto: r.texto, assunto: r.assunto, lead, historico: await db.historicoConversa(lead.id), campanha, canal: r.canal,
@@ -273,4 +349,29 @@ export async function continuarComIA(respostaId, campanha, { nota = "", classifi
   if (apresentou) await marcarApresentacaoEnviada(lead.id);
   log(`🤖 IA voltou a conversar com ${lead.nome}`);
   return { mensagemId, sugestao: c.sugestao_resposta.trim(), classificacao: c.classificacao };
+}
+
+/** "IA continua" numa conversa de agente: ele lê tudo de novo e responde, com o prompt dele. */
+async function continuarComAgente(r, lead, { nota, responderAgente }) {
+  const agente = await db.buscarAgente(lead.agente_id);
+  if (!agente) throw new Error("O agente desta conversa foi excluído");
+  if (!agente.ligado) throw new Error(`O agente ${agente.nome} está desligado: ligue em Agentes para ele voltar a responder`);
+  const c = await responderAgente({
+    agente, fontes: await fontesDoAgente(agente), texto: r.texto, lead, historico: await db.historicoConversa(lead.id),
+    nota: String(nota ?? "").trim().slice(0, 500),
+  });
+  if (c.delegou) throw new Error(`O agente pediu de novo para você responder: ${c.motivo_humano}`);
+  const partes = partesDa(c);
+  if (!partes.length) throw new Error("O agente não escreveu uma resposta para esta conversa");
+  await retomarIA(lead.id);
+  await db.atualizarResposta(r.id, {
+    precisa_humano: null, classificacao: c.classificacao, resumo: c.resumo, sugestao: c.sugestao_resposta,
+    temperatura: c.temperatura ?? null, proximo_passo: c.proximo_passo || null,
+  });
+  await db.cancelarPendentes(lead.id, "o agente respondeu de novo");
+  const { mensagemId } = await agendarResposta({
+    respostaId: r.id, lead, canal: r.canal, de: r.de, partes, esperaMinMs: 60_000, esperaMaxMs: 2 * 60_000,
+  });
+  log(`🤖 Agente ${agente.nome} voltou a conversar com ${lead.nome}`);
+  return { mensagemId, sugestao: c.sugestao_resposta, classificacao: c.classificacao };
 }

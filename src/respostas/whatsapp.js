@@ -3,11 +3,12 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import { variantesWhatsappBR } from "../analise/telefone.js";
 import { registrarResposta } from "./processar.js";
-import { extrairMensagemUazap, buscarMensagens as buscarMensagensUazap } from "../envio/uazap.js";
+import { extrairMensagemUazap, buscarMensagens as buscarMensagensUazap, PRINCIPAL } from "../envio/uazap.js";
 import { extrairMensagemEvolution, baixarAudio } from "../envio/evolution.js";
 import { transcrever } from "../ia/transcricao.js";
 import { extrairContatosVcard } from "./indicacao.js";
 import { avaliarContato, leadDoContato } from "./contatoNovo.js";
+import { agenteDoNumero } from "./agentes.js";
 
 /** Confere o cabeçalho X-Hub-Signature-256 enviado pela Meta. */
 export function assinaturaValida(corpoBruto, cabecalho, segredo) {
@@ -95,10 +96,15 @@ export async function textoDoAudio(m, baixar) {
   }
 }
 
-async function registrarMensagemWhatsappWeb(m, campanha, baixar = null, { avaliarNovo = null, numeroId = null, ...opcoesNovo } = {}) {
+async function registrarMensagemWhatsappWeb(m, campanha, baixar = null, { avaliarNovo = null, numeroId = null, responderAgente, ...opcoesNovo } = {}) {
   if (!m) return 0;
   const original = await mensagemOriginalWhatsapp(m.de);
-  const lead = original ? await db.buscarLead(original.lead_id) : await leadDoContato(m.de);
+  let lead = original ? await db.buscarLead(original.lead_id) : await leadDoContato(m.de);
+  // Número com agente: só a conversa da prospecção que já acontecia por ele continua com a IA da FluxDeck.
+  const agente = await agenteDoNumero(numeroId);
+  const conversaDaProspeccao = lead && !lead.agente_id && (lead.numero_wa || PRINCIPAL) === numeroId;
+  if (agente && !conversaDaProspeccao) return registrarMensagemDoAgente(m, agente, campanha, baixar, numeroId, responderAgente);
+  if (lead?.agente_id) lead = null; // contato de um agente que escreveu em outro número
   // A resposta da IA sai pelo mesmo número em que a empresa escreveu.
   if (lead && numeroId && lead.numero_wa !== numeroId) {
     await db.atualizarLead(lead.id, { numero_wa: numeroId });
@@ -133,6 +139,40 @@ async function registrarMensagemWhatsappWeb(m, campanha, baixar = null, { avalia
     forcarHumano,
     contatosIndicados: contatos,
     nomeRemetente: m.nome,
+  });
+  return r ? 1 : 0;
+}
+
+/**
+ * Mensagem que chegou num número com agente: o contato vira (ou já é) conversa desse agente, separada das
+ * dos outros agentes e da prospecção, e o agente responde com o prompt dele. Contato indicado não recebe
+ * mensagem da FluxDeck por aqui: fica só registrado na conversa.
+ */
+async function registrarMensagemDoAgente(m, agente, campanha, baixar, numeroId, responderAgente) {
+  const telefones = /^\d+$/.test(m.de) ? variantesWhatsappBR(m.de) : [m.de];
+  let lead = await db.leadDoAgente(agente.id, telefones);
+  if (!lead) {
+    const id = await db.criarLeadDeContato({
+      nome: m.nome || "Contato do WhatsApp", whatsapp: m.de, origem: "agente",
+      observacao: `Chamou no WhatsApp atendido pelo agente ${agente.nome}`,
+    });
+    await db.atualizarLead(id, { agente_id: agente.id, numero_wa: numeroId });
+    lead = await db.buscarLead(id);
+  } else if (lead.numero_wa !== numeroId) {
+    await db.atualizarLead(lead.id, { numero_wa: numeroId });
+    lead.numero_wa = numeroId;
+  }
+  let forcarHumano = null;
+  if (m.audio && !m.texto) ({ texto: m.texto, forcarHumano } = await textoDoAudio(m, baixar));
+  else if (m.audio) m.texto = `[áudio] ${m.texto}`;
+  const contatos = extrairContatosVcard(m.vcards ?? []);
+  if (contatos.length) {
+    const lista = contatos.map((c) => `${c.nome || "sem nome"}${c.empresa ? ` (${c.empresa})` : ""}: +${c.numero}`).join("; ");
+    m.texto = `[contato compartilhado] ${lista}${m.texto ? `\n${m.texto}` : ""}`;
+  }
+  const r = await registrarResposta({
+    lead, canal: "whatsapp", origem_id: m.id, de: m.de, texto: m.texto, campanha, forcarHumano,
+    nomeRemetente: m.nome, agente, ...(responderAgente ? { responderAgente } : {}),
   });
   return r ? 1 : 0;
 }

@@ -2,6 +2,8 @@
 // e o próximo passo. A base é a avaliação que a IA faz a cada resposta (quente, morna ou
 // fria), ajustada pela situação da empresa e pelo tempo sem resposta.
 
+import { PREFIXO_DELEGOU } from "./agentes.js";
+
 export const CHANCES = {
   fechada: { nivel: 5, rotulo: "Cliente fechado" },
   agendada: { nivel: 4, rotulo: "Reunião agendada" },
@@ -29,9 +31,12 @@ export function avaliarConversa(c, agora = new Date()) {
   const esfriou = ["quente", "morna"].includes(chance) && esperandoEmpresa && diasSemResposta > DIAS_PARA_ESFRIAR;
   if (esfriou) chance = chance === "quente" ? "morna" : "fria";
 
-  const precisaDeVoce = !ENCERRADAS.includes(c.status) && Boolean(c.recente?.precisa_humano) && !esperandoEmpresa;
+  // Conversa que um agente de atendimento passou para você continua com você até a IA voltar ("IA continua").
+  const delegada = Boolean(c.agente_id) && String(c.ia_pausada ?? "").startsWith(PREFIXO_DELEGOU);
+  const precisaDeVoce = !ENCERRADAS.includes(c.status) && (delegada || (Boolean(c.recente?.precisa_humano) && !esperandoEmpresa));
   let proximoPasso;
-  if (precisaDeVoce) proximoPasso = `Responder você: ${c.recente.precisa_humano}`;
+  if (delegada && !ENCERRADAS.includes(c.status)) proximoPasso = `Responder você: ${c.ia_pausada.slice(PREFIXO_DELEGOU.length)}`;
+  else if (precisaDeVoce) proximoPasso = `Responder você: ${c.recente.precisa_humano}`;
   else if (chance === "fechada") proximoPasso = "Cuidar do contrato e do projeto";
   else if (chance === "agendada") proximoPasso = "Preparar a reunião";
   else if (chance === "encerrada") proximoPasso = "Nenhum: conversa encerrada";

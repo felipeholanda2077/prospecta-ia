@@ -378,7 +378,7 @@ export async function descadastrar(contato, motivo = "pedido do contato") {
 const COLUNAS_LEAD = new Set([
   "nome", "nicho", "cidade", "endereco", "telefone", "whatsapp", "whatsapp_status", "email", "site", "maps_url",
   "avaliacao", "total_avaliacoes", "analise", "oportunidades", "status", "observacao", "instagram", "instagram_dados",
-  "numero_wa",
+  "numero_wa", "agente_id", "agente_delegou_em",
 ]);
 
 /** Insere a empresa se ainda não existir. Retorna true se for nova. */
@@ -989,7 +989,9 @@ export async function marcarRespostaLida(id) {
  */
 export async function conversas() {
   const linhas = await q(
-    `SELECT l.id, l.nome, l.status, l.nicho, l.cidade, l.whatsapp, l.email,
+    `SELECT l.id, l.nome, l.status, l.nicho, l.cidade, l.whatsapp, l.email, l.agente_id,
+            (SELECT a.nome FROM agentes a WHERE a.id = l.agente_id) AS agente_nome,
+            (SELECT e.valor FROM estado e WHERE e.chave = 'ia_pausada:' || l.id) AS ia_pausada,
             count(r.id)::int AS respostas,
             count(r.id) FILTER (WHERE NOT r.lida)::int AS nao_lidas,
             count(r.id) FILTER (WHERE r.precisa_humano IS NOT NULL AND NOT r.lida)::int AS precisa_de_voce,
@@ -1032,8 +1034,10 @@ export async function conversas() {
 export async function funilDeConversas() {
   // Não responderam: empresas contatadas sem nenhuma resposta de verdade (a automática do
   // WhatsApp Business não conta). "Na sequência" = ainda têm etapas para receber.
+  // As conversas dos agentes de atendimento não são da prospecção e ficam fora do funil.
   return um(
-    `WITH sem_resposta AS (
+    `WITH com_agente AS (SELECT id FROM leads WHERE agente_id IS NOT NULL),
+     sem_resposta AS (
        SELECT DISTINCT m.lead_id FROM mensagens m
         WHERE m.status = 'enviada' AND m.tipo <> 'resposta'
           AND NOT EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = m.lead_id AND r.classificacao IS DISTINCT FROM 'automatica')
@@ -1043,8 +1047,8 @@ export async function funilDeConversas() {
        (SELECT count(*) FROM sem_resposta)::int AS nao_responderam,
        (SELECT count(*) FROM sem_resposta s WHERE EXISTS (
           SELECT 1 FROM mensagens p WHERE p.lead_id = s.lead_id AND p.status = 'aprovada' AND p.tipo <> 'resposta'))::int AS nao_responderam_na_sequencia,
-       (SELECT count(DISTINCT lead_id) FROM respostas WHERE classificacao IS DISTINCT FROM 'automatica')::int AS responderam,
-       (SELECT count(DISTINCT lead_id) FROM respostas WHERE classificacao IN ('interessado', 'quer_informacoes'))::int AS interessadas,
+       (SELECT count(DISTINCT lead_id) FROM respostas WHERE classificacao IS DISTINCT FROM 'automatica' AND lead_id NOT IN (SELECT id FROM com_agente))::int AS responderam,
+       (SELECT count(DISTINCT lead_id) FROM respostas WHERE classificacao IN ('interessado', 'quer_informacoes') AND lead_id NOT IN (SELECT id FROM com_agente))::int AS interessadas,
        (SELECT count(*) FROM leads WHERE status = 'agendado')::int AS agendadas`
   );
 }
@@ -1107,5 +1111,58 @@ export async function estatisticas() {
       WHERE u.precisa_humano IS NOT NULL AND l.status NOT IN ('sem_interesse', 'descadastrado', 'descartado')
         AND NOT EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = u.lead_id AND m.status = 'enviada' AND m.enviada_em > u.recebida_em)`
     )).n,
+  };
+}
+
+// ---------- Agentes de atendimento ----------
+
+const COLUNAS_AGENTE = ["nome", "prompt", "conhecimento", "numeros", "ligado", "delegar_modo", "delegar_mensagem", "pendencias", "max_respostas"];
+const lerAgente = (a) => a && { ...a, numeros: JSON.parse(a.numeros || "[]") };
+
+export async function criarAgente(campos) {
+  const linha = await um(
+    `INSERT INTO agentes (${COLUNAS_AGENTE.join(", ")}) VALUES (${marcadores(COLUNAS_AGENTE.length)}) RETURNING id`,
+    COLUNAS_AGENTE.map((k) => (k === "numeros" ? JSON.stringify(campos.numeros ?? []) : campos[k]))
+  );
+  return linha.id;
+}
+
+export async function atualizarAgente(id, campos) {
+  const chaves = Object.keys(campos).filter((k) => COLUNAS_AGENTE.includes(k));
+  if (!chaves.length) return;
+  await q(`UPDATE agentes SET ${chaves.map((k, i) => `${k} = $${i + 2}`).join(", ")}, atualizado_em = now() WHERE id = $1`,
+    [id, ...chaves.map((k) => (k === "numeros" ? JSON.stringify(campos[k] ?? []) : campos[k]))]);
+}
+
+export const buscarAgente = async (id) => lerAgente(await um("SELECT * FROM agentes WHERE id = $1", [id]));
+export const listarAgentes = async () => (await q("SELECT * FROM agentes ORDER BY id")).map(lerAgente);
+export const excluirAgente = (id) => q("DELETE FROM agentes WHERE id = $1", [id]);
+
+export const arquivosDoAgente = (agenteId) =>
+  q("SELECT id, nome, length(texto)::int AS tamanho, criado_em FROM agente_arquivos WHERE agente_id = $1 ORDER BY id", [agenteId]);
+export const textosDoAgente = (agenteId) => q("SELECT nome, texto FROM agente_arquivos WHERE agente_id = $1 ORDER BY id", [agenteId]);
+export async function criarArquivoDoAgente(agenteId, nome, texto) {
+  return (await um("INSERT INTO agente_arquivos (agente_id, nome, texto) VALUES ($1, $2, $3) RETURNING id", [agenteId, nome, texto])).id;
+}
+export const excluirArquivoDoAgente = (agenteId, id) => q("DELETE FROM agente_arquivos WHERE agente_id = $1 AND id = $2", [agenteId, id]);
+
+/** O contato que já conversa com este agente (pelo telefone, com ou sem o nono dígito). */
+export async function leadDoAgente(agenteId, telefones) {
+  if (!telefones.length) return null;
+  return um(
+    `SELECT * FROM leads WHERE agente_id = $1 AND whatsapp IN (${marcadores(telefones.length, 2)}) ORDER BY id DESC LIMIT 1`,
+    [agenteId, ...telefones]
+  );
+}
+
+/** Números de um agente, lidos um por vez (em sequência, para não pesar no banco). */
+export async function numerosDoAgente(agenteId) {
+  const n = async (sql) => (await um(sql, [agenteId])).n;
+  return {
+    conversas: await n("SELECT count(*)::int AS n FROM leads WHERE agente_id = $1"),
+    recebidas: await n(`SELECT count(*)::int AS n FROM respostas r JOIN leads l ON l.id = r.lead_id WHERE l.agente_id = $1`),
+    respostas: await n(`SELECT count(*)::int AS n FROM mensagens m JOIN leads l ON l.id = m.lead_id
+                         WHERE l.agente_id = $1 AND m.tipo = 'resposta' AND m.status = 'enviada'`),
+    delegacoes: await n("SELECT count(*)::int AS n FROM leads WHERE agente_id = $1 AND agente_delegou_em IS NOT NULL"),
   };
 }

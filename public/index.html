@@ -1178,6 +1178,9 @@
         <div class="forn-grade" id="forn-lista"></div>
       </section>
 
+      <!-- Agentes de atendimento: a lista, e cada agente com o acompanhamento e a configuração -->
+      <section id="view-agentes" hidden><div id="ag-conteudo"></div></section>
+
       <section id="view-contratos" hidden>
         <div class="ig-abas" role="tablist" aria-label="Seções de contratos" id="ct-abas">
           <button type="button" class="ig-aba" role="tab" data-ct-aba="lista" aria-selected="true"><span data-ic="file"></span>Contratos</button>
@@ -1731,6 +1734,8 @@ const VIEWS = {
                sub: "Cadastre produtos para o Mercado Livre e a Shopee, responda perguntas com a IA e acompanhe os pedidos das suas contas." },
   respostas: { grupo: "Relacionamento", nome: "Respostas", curto: "Respostas", icone: "message", titulo: "Respostas",
                sub: "Cada conversa como no WhatsApp, com a chance de fechar e o próximo passo.", contador: () => stats?.respostasNaoLidas },
+  agentes:   { grupo: "Relacionamento", nome: "Agentes", icone: "users", titulo: "Agentes de atendimento",
+               sub: "Crie agentes que respondem no WhatsApp do número escolhido e acompanhe as conversas de cada um." },
   leads:     { grupo: "Relacionamento", nome: "Empresas", curto: "Empresas", icone: "building", titulo: "Empresas",
                sub: "Todas as empresas capturadas e em que etapa do funil estão." },
   contratos: { grupo: "Relacionamento", nome: "Contratos", icone: "file", titulo: "Contratos",
@@ -1784,12 +1789,14 @@ function irParaHash() {
   $("#view-contratos").hidden = viewAtual !== "contratos";
   $("#view-fornecedores").hidden = viewAtual !== "fornecedores";
   $("#view-marketplaces").hidden = viewAtual !== "marketplaces";
-  $("#view-lista").hidden = ["dashboard", "maps", "automacao", "configuracoes", "conteudo", "contratos", "fornecedores", "marketplaces"].includes(viewAtual);
+  $("#view-agentes").hidden = viewAtual !== "agentes";
+  $("#view-lista").hidden = ["dashboard", "maps", "automacao", "configuracoes", "conteudo", "contratos", "fornecedores", "marketplaces", "agentes"].includes(viewAtual);
   // Os números da prospecção não dizem nada nestas páginas.
-  $("#kpis").hidden = ["dashboard", "conteudo", "contratos", "fornecedores", "marketplaces"].includes(viewAtual);
+  $("#kpis").hidden = ["dashboard", "conteudo", "contratos", "fornecedores", "marketplaces", "agentes"].includes(viewAtual);
   if (viewAtual === "dashboard") carregarDashboard();
   if (viewAtual === "marketplaces") carregarMercadoLivre();
   if (viewAtual === "fornecedores") carregarFornecedores();
+  if (viewAtual === "agentes") carregarAgentes();
   if (viewAtual === "contratos") carregarContratos();
   if (viewAtual === "configuracoes") carregarConfiguracoes();
   if (viewAtual === "conteudo") carregarConteudo();
@@ -2735,7 +2742,7 @@ function itemConversa(c) {
     ${avatarConversa(c.nome, c.interessado)}
     <span class="meio"><span class="nome">${esc(c.nome)}</span>
       <span class="previa">${u ? ic(icCanal(u.canal), "sm") : ""} ${esc(previa)}</span>
-      <span>${c.interessado ? `${pilulaInteresse()} ` : ""}${pilulaChance(c.andamento)}${c.andamento.precisaDeVoce ? ` <span class="pilula perigo">${ic("alert", "sm")}Você</span>` : ""}</span></span>
+      <span>${c.agente_nome ? `<span class="pilula">${ic("users", "sm")}${esc(c.agente_nome)}</span> ` : ""}${c.interessado ? `${pilulaInteresse()} ` : ""}${pilulaChance(c.andamento)}${c.andamento.precisaDeVoce ? ` <span class="pilula perigo">${ic("alert", "sm")}Você</span>` : ""}</span></span>
     <span class="lado"><span>${horaCurta(u?.quando)}</span>${c.nao_lidas ? `<span class="badge-nl">${c.nao_lidas}</span>` : ""}</span>
   </button>`;
 }
@@ -2839,9 +2846,9 @@ async function abrirConversa(id, { atualizar = false } = {}) {
       <button class="btn fantasma sm so-celular" data-voltar-lista aria-label="Voltar para as conversas">${ic("arrowLeft", "sm")}</button>
       ${avatarConversa(d.lead.nome, d.interessado)}
       <div class="titulos"><h3>${esc(d.lead.nome)}${d.interessado ? ` ${pilulaInteresse()}` : ""}</h3>
-        <div class="meta">${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}${d.lead.instagram ? `<a href="https://www.instagram.com/${esc(d.lead.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(d.lead.instagram)}</a>` : ""}</div></div>
+        <div class="meta">${d.agente ? `<a href="#agentes">${ic("users", "sm")}Agente ${esc(d.agente)}</a>` : ""}${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}${d.lead.instagram ? `<a href="https://www.instagram.com/${esc(d.lead.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(d.lead.instagram)}</a>` : ""}</div></div>
       ${a ? pilulaChance(a) : ""}
-      ${!encerrada && d.lead.status !== "fechado" ? `<button class="btn ok sm" data-cliente-aceitou="${d.lead.id}" title="Gera o contrato desta empresa">${ic("file", "sm")}Aceitou: gerar contrato</button>
+      ${!encerrada && !d.agente && d.lead.status !== "fechado" ? `<button class="btn ok sm" data-cliente-aceitou="${d.lead.id}" title="Gera o contrato desta empresa">${ic("file", "sm")}Aceitou: gerar contrato</button>
         <button class="btn sm" data-link-pagamento="${d.lead.id}" title="Gera o link de pagamento de uma oferta">${ic("send", "sm")}Link de pagamento</button>` : ""}
     </div>
     <div class="chat-andamento" id="chat-andamento">${a ? htmlAndamento(d) : ""}</div>
@@ -5896,6 +5903,288 @@ function desenharFornecedores() {
   const cartoes = lista.map((f, i) => (passaNosFiltrosDoForn(f) ? cardDoForn(f, i) : "")).join("");
   $("#forn-lista").innerHTML = cartoes || `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">${lista.length ? "Nenhum fornecedor desta lista atende a esses filtros." : vazio}</div>`;
 }
+
+// ===================== Agentes de atendimento =====================
+// Cada agente responde no WhatsApp do número escolhido, com o próprio prompt e a própria base. As
+// conversas dele são contatos do CRM (aparecem também em Respostas e Empresas).
+let agenteAberto = null; // id do agente, "novo" ou null (a lista)
+let abaAgente = "acompanhar";
+let filtroAgente = "todas";
+let dadosAgentes = null;
+let detalheAgente = null;
+
+const ANDAMENTO_AGENTE = {
+  em_conversa: ["Em conversa", "acc"], delegou: ["Delegou para você", "perigo"], sem_resposta: ["Sem resposta", "atencao"],
+  fechou: ["Fechou", "ok"], encerrada: ["Encerrada", ""],
+};
+const DELEGAR_MODOS = [
+  ["mensagem", "Enviar a última mensagem do agente (se ele escrever uma) e parar"],
+  ["fixa", "Enviar uma mensagem fixa e parar"],
+  ["silencio", "Não enviar nada e parar"],
+];
+const ARQUIVO_TEXTO = /\.(txt|md|markdown|csv|tsv|json|html?|xml)$/i;
+
+async function carregarAgentes() {
+  const alvo = $("#ag-conteudo");
+  try {
+    dadosAgentes = await api("/api/agentes");
+    if (viewAtual !== "agentes") return;
+    if (agenteAberto) return abrirAgente(agenteAberto);
+    alvo.innerHTML = htmlListaAgentes();
+  } catch (e) {
+    alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+const textoFaltando = (a) => a.faltando?.length ? `Falta: ${a.faltando.join(", ")}` : "";
+
+function htmlListaAgentes() {
+  const lista = dadosAgentes.agentes;
+  return `<div class="ig-painel">
+    <div class="ig-barra">
+      <div class="ig-barra-texto"><h3>Agentes de atendimento</h3><p class="muted">Cada agente responde sozinho, com o prompt e a base de conhecimento dele, quem escrever para o número de WhatsApp escolhido. As conversas ficam no CRM, ligadas ao contato: aparecem aqui e em Respostas.</p></div>
+      <div class="ig-barra-botoes"><button class="btn primario" type="button" data-ag-novo>${ic("check")}Novo agente</button></div>
+    </div>
+    <div class="lista">${lista.length ? lista.map((a) => {
+      const n = a.numerosConversa;
+      return `<article class="cartao"><button type="button" class="ct-linha" data-ag-abrir="${a.id}">
+        <span class="avatar">${inicial(a.nome)}</span>
+        <span class="ct-linha-texto"><b>${esc(a.nome)}</b>
+          <span class="muted">${a.numerosNomes.length ? `${ic("phone", "sm")} ${esc(a.numerosNomes.join(", "))}` : "Sem número escolhido"} · ${n.conversas} conversa(s) · ${n.respostas} resposta(s) · ${n.delegacoes} delegação(ões)</span>
+          ${a.faltando.length ? `<span class="pilula atencao">${ic("alert", "sm")}${esc(textoFaltando(a))}</span>` : ""}</span>
+        <span class="pilula ${a.ligado ? "ok" : ""}">${a.ligado ? "Ligado" : "Desligado"}</span></button></article>`;
+    }).join("") : vazio("users", "Nenhum agente ainda", "Crie um agente, cole o prompt dele, escolha o número de WhatsApp e ligue quando estiver pronto.")}</div>
+  </div>`;
+}
+
+async function abrirAgente(id) {
+  agenteAberto = id;
+  const alvo = $("#ag-conteudo");
+  if (id === "novo") {
+    detalheAgente = null;
+    alvo.innerHTML = `<div class="ig-painel">${cabecalhoAgente(null)}${formularioAgente(null)}</div>`;
+    return;
+  }
+  try {
+    detalheAgente = await api(`/api/agentes/${id}`);
+  } catch (e) {
+    agenteAberto = null;
+    avisar(e.message, "perigo");
+    return carregarAgentes();
+  }
+  if (viewAtual !== "agentes" || agenteAberto !== id) return;
+  desenharAgente();
+}
+
+function cabecalhoAgente(a) {
+  return `<div class="ig-barra">
+    <div class="ig-barra-texto"><button type="button" class="btn fantasma sm" data-ag-voltar>${ic("arrowLeft", "sm")}Agentes</button>
+      <h3>${a ? esc(a.nome) : "Novo agente"} ${a ? `<span class="pilula ${a.ligado ? "ok" : ""}">${a.ligado ? "Ligado" : "Desligado"}</span>` : ""}</h3></div>
+  </div>`;
+}
+
+function desenharAgente() {
+  const { agente: a } = detalheAgente;
+  const avisos = [
+    a.faltando.length ? `<div class="alerta atencao">${ic("alert")}<div><b>${esc(textoFaltando(a))}.</b> ${a.faltando.includes("a base de conhecimento") ? "Sem a base, o agente não informa preços, planos nem condições: diz que vai confirmar e passa para você." : ""}</div></div>` : "",
+    a.pendencias ? `<div class="alerta info">${ic("clock")}<div><b>Pendente:</b> ${esc(a.pendencias)}</div></div>` : "",
+    !a.ligado ? `<div class="alerta info">${ic("alert")}<div>O agente está <b>desligado</b>${a.numerosNomes.length ? `: as mensagens que chegarem em ${esc(a.numerosNomes.join(", "))} ficam registradas aqui e quem responde é você` : ""}. Ligue em Configurar quando estiver pronto.</div></div>` : "",
+  ].join("");
+  $("#ag-conteudo").innerHTML = `<div class="ig-painel">${cabecalhoAgente(a)}${avisos}
+    <div class="ig-abas" role="tablist" aria-label="Seções do agente" id="ag-abas">
+      <button type="button" class="ig-aba" role="tab" data-ag-aba="acompanhar" aria-selected="${abaAgente === "acompanhar"}">${ic("message")}Acompanhar</button>
+      <button type="button" class="ig-aba" role="tab" data-ag-aba="configurar" aria-selected="${abaAgente === "configurar"}">${ic("settings")}Configurar</button>
+    </div>
+    <div class="ig-painel" data-ag-painel="acompanhar" ${abaAgente === "acompanhar" ? "" : "hidden"}>${htmlAcompanhamento()}</div>
+    <div data-ag-painel="configurar" ${abaAgente === "configurar" ? "" : "hidden"}>${formularioAgente(a)}</div>
+  </div>`;
+}
+
+function htmlAcompanhamento() {
+  const { agente: a, conversas, porEstado } = detalheAgente;
+  const n = a.numerosConversa;
+  const lista = filtroAgente === "todas" ? conversas : conversas.filter((c) => c.agente.estado === filtroAgente);
+  return `<div class="ind-grade">
+      <div class="ind acc"><b>${n.conversas}</b><span>Conversas</span></div>
+      <div class="ind"><b>${porEstado.em_conversa}</b><span>Em conversa</span></div>
+      <div class="ind ${porEstado.delegou ? "perigo" : ""}"><b>${porEstado.delegou}</b><span>Delegou para você</span></div>
+      <div class="ind atencao"><b>${porEstado.sem_resposta}</b><span>Sem resposta</span></div>
+      <div class="ind ok"><b>${porEstado.fechou}</b><span>Fecharam</span></div>
+      <div class="ind"><b>${n.respostas}</b><span>Respostas enviadas</span></div>
+      <div class="ind"><b>${n.delegacoes}</b><span>Delegações</span></div>
+    </div>
+    <div class="filtros" role="group" aria-label="Filtrar conversas do agente">
+      ${[["todas", "Todas"], ...Object.entries(ANDAMENTO_AGENTE).map(([k, [t]]) => [k, t])].map(([v, t]) =>
+        `<button type="button" class="filtro" data-ag-filtro="${v}" aria-pressed="${v === filtroAgente}">${t}${v !== "todas" && porEstado[v] ? ` (${porEstado[v]})` : ""}</button>`).join("")}
+    </div>
+    <div class="lista">${lista.length ? lista.map((c) => {
+      const [rotulo, cor] = ANDAMENTO_AGENTE[c.agente.estado];
+      const u = c.ultima;
+      return `<article class="cartao"><div class="ct-linha" style="cursor:default;flex-wrap:wrap">
+        <span class="avatar">${inicial(c.nome)}</span>
+        <span class="ct-linha-texto" style="flex:1 1 240px"><b>${esc(c.nome)}${c.whatsapp ? ` <span class="muted" style="font-weight:400">+${esc(c.whatsapp)}</span>` : ""}</b>
+          ${u ? `<span class="muted">${u.autor === "nos" ? "Agente: " : ""}${esc(u.texto.replace(/\s+/g, " ").slice(0, 160))}</span>` : ""}
+          <span class="muted" style="font-size:12.5px">${ic("clock", "sm")} ${u ? dataHora(u.quando) : ""} · ${esc(c.andamento.proximoPasso)}</span></span>
+        <span class="pilula ${cor}">${rotulo}</span>
+        <span style="display:flex;gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn sm" data-abrir-conversa="${c.id}">${ic("message", "sm")}Abrir conversa</button>
+          ${c.agente.estado === "fechou"
+            ? `<button type="button" class="btn fantasma sm" data-ag-fechou="${c.id}" data-valor="0">Reabrir</button>`
+            : `<button type="button" class="btn ok sm" data-ag-fechou="${c.id}" data-valor="1">${ic("checkCircle", "sm")}Fechou</button>`}
+        </span></div></article>`;
+    }).join("") : vazio("message", filtroAgente === "todas" ? "Nenhuma conversa ainda" : "Nenhuma conversa neste filtro",
+      a.ligado ? "Quando alguém escrever para o número do agente, a conversa aparece aqui." : "Ligue o agente e escolha o número para ele começar a atender.")}</div>`;
+}
+
+function formularioAgente(a) {
+  const numeros = dadosAgentes?.numeros ?? [];
+  const deOutro = new Map((dadosAgentes?.agentes ?? []).filter((x) => x.id !== a?.id).flatMap((x) => x.numeros.map((n) => [n, x.nome])));
+  const escolhidos = new Set(a?.numeros ?? []);
+  const modo = a?.delegar_modo ?? "mensagem";
+  return `<form class="cartao cartao-corpo" id="form-agente" style="display:grid;gap:18px">
+    <div class="campo"><label for="ag-nome">Nome do agente</label><input id="ag-nome" name="nome" maxlength="60" required value="${esc(a?.nome ?? "")}" placeholder="Ex.: Bruno"></div>
+    <label class="chave"><input type="checkbox" name="ligado" ${a?.ligado ? "checked" : ""}><div><b>Agente ligado</b>
+      <span>Responde sozinho quem escrever para o número escolhido. Desligado, as mensagens ficam registradas e quem responde é você.</span></div></label>
+    <fieldset class="campo" style="border:0;padding:0;margin:0"><legend class="rotulo" style="margin-bottom:6px">Número de WhatsApp que ele atende</legend>
+      ${numeros.length ? numeros.map((n) => `<label style="display:flex;gap:10px;align-items:flex-start;padding:6px 0">
+        <input type="checkbox" name="numeros" value="${esc(n.id)}" ${escolhidos.has(n.id) ? "checked" : ""} ${deOutro.has(n.id) ? "disabled" : ""}>
+        <span><b>${esc(n.nome)}</b>${deOutro.has(n.id) ? ` <span class="muted">(já é do agente ${esc(deOutro.get(n.id))})</span>` : ""}
+          ${n.principal ? `<br><span class="muted" style="font-size:13px">Este é o número da prospecção da FluxDeck. Com um agente, ele para de mandar mensagens para empresas novas, e os contatos novos que escreverem passam a ser atendidos pelo agente (as conversas da prospecção que já existem continuam com a IA da FluxDeck).</span>` : ""}</span></label>`).join("")
+        : `<p class="muted">Nenhum número da UAZap ainda. Conecte em <a href="#configuracoes">Configurações</a>.</p>`}
+      <span class="muted" style="font-size:13px">Todo contato novo que escrever para o número escolhido é atendido por este agente. Respostas saem em horário comercial, 1 a 2 minutos e meio depois da mensagem do cliente, em até 3 partes.</span>
+    </fieldset>
+    <div class="campo"><label for="ag-prompt">Prompt base (o treinamento do agente)</label>
+      <textarea id="ag-prompt" name="prompt" style="min-height:360px;font-size:13.5px" placeholder="Cole aqui o prompt do agente">${esc(a?.prompt ?? "")}</textarea>
+      <label class="btn sm" style="justify-self:start">${ic("file", "sm")}Abrir arquivo do prompt<input type="file" id="ag-prompt-arquivo" accept=".txt,.md,.markdown,text/*" hidden></label>
+      <span class="muted" style="font-size:12.5px">Se o prompt usar o comando DELEGAR, a palavra nunca vai para o cliente: a conversa passa para você e aparece como "precisa de você". Se o cliente perguntar diretamente se fala com uma pessoa, o agente responde com transparência.</span></div>
+    <div class="campo"><label for="ag-conhecimento">Base de conhecimento (preços, planos, cobertura, regras: o que for oficial)</label>
+      <textarea id="ag-conhecimento" name="conhecimento" style="min-height:200px;font-size:13.5px" placeholder="Cole aqui as informações oficiais. O agente só informa o que estiver na base.">${esc(a?.conhecimento ?? "")}</textarea></div>
+    <div class="campo"><span class="rotulo">Arquivos da base</span>
+      ${a ? `<div id="ag-arquivos">${htmlArquivosAgente(a.arquivos)}</div>
+        <label class="btn sm" style="justify-self:start">${ic("file", "sm")}Adicionar arquivo de texto<input type="file" id="ag-arquivo" accept=".txt,.md,.csv,.tsv,.json,.html,.xml,text/*" multiple hidden></label>
+        <span class="muted" style="font-size:12.5px">Arquivos de texto (.txt, .md, .csv). PDF ou Word: copie o texto e cole na base acima. Base grande: o agente usa os trechos que tratam do assunto da conversa.</span>`
+        : `<span class="muted" style="font-size:13px">Salve o agente para adicionar arquivos.</span>`}</div>
+    <div class="campo"><label for="ag-delegar">Quando o agente passar a conversa para você (DELEGAR)</label>
+      <select id="ag-delegar" name="delegar_modo">${DELEGAR_MODOS.map(([v, t]) => `<option value="${v}" ${v === modo ? "selected" : ""}>${t}</option>`).join("")}</select>
+      <textarea name="delegar_mensagem" id="ag-delegar-msg" style="min-height:80px" ${modo === "fixa" ? "" : "hidden"} placeholder="Ex.: Perfeito! Vou passar seus dados para o responsável pela contratação.">${esc(a?.delegar_mensagem ?? "")}</textarea>
+      <span class="muted" style="font-size:12.5px">Em todos os casos o agente para nesta conversa, ela aparece como "precisa de você" e você recebe um aviso por e-mail. Para ele voltar, clique em "IA continua" na conversa.</span></div>
+    <div class="campo" style="max-width:260px"><label for="ag-max">Máximo de respostas por conversa</label>
+      <input id="ag-max" name="max_respostas" type="number" min="1" max="200" value="${a?.max_respostas ?? 40}"></div>
+    <div class="campo"><label for="ag-pendencias">O que ainda falta (só aparece para você)</label>
+      <textarea id="ag-pendencias" name="pendencias" style="min-height:70px" placeholder="Ex.: receber a tabela oficial de preços">${esc(a?.pendencias ?? "")}</textarea></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn primario" type="submit">${ic("check")}Salvar agente</button>
+      ${a ? `<button class="btn perigo" type="button" data-ag-excluir="${a.id}">${ic("x")}Excluir</button>` : ""}
+    </div>
+  </form>`;
+}
+
+function htmlArquivosAgente(arquivos) {
+  return arquivos.length ? `<ul style="margin:0;padding:0;list-style:none;display:grid;gap:6px">${arquivos.map((f) =>
+    `<li style="display:flex;align-items:center;gap:8px">${ic("file", "sm")}<span>${esc(f.nome)} <span class="muted">(${Math.ceil(f.tamanho / 1000)} mil caracteres)</span></span>
+      <button type="button" class="btn fantasma sm" data-ag-tirar-arquivo="${f.id}" aria-label="Remover ${esc(f.nome)}">${ic("x", "sm")}</button></li>`).join("")}</ul>`
+    : `<p class="muted" style="margin:0">Nenhum arquivo.</p>`;
+}
+
+$("#view-agentes").addEventListener("click", async (ev) => {
+  const el = ev.target.closest("[data-ag-novo],[data-ag-abrir],[data-ag-voltar],[data-ag-aba],[data-ag-filtro],[data-ag-fechou],[data-ag-excluir],[data-ag-tirar-arquivo],[data-abrir-conversa]");
+  if (!el) return;
+  const d = el.dataset;
+  if (d.agNovo !== undefined) return abrirAgente("novo");
+  if (d.agAbrir) { abaAgente = "acompanhar"; filtroAgente = "todas"; return abrirAgente(Number(d.agAbrir)); }
+  if (d.agVoltar !== undefined) { agenteAberto = null; return carregarAgentes(); }
+  if (d.agAba) {
+    abaAgente = d.agAba;
+    $$("[data-ag-aba]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.agAba === abaAgente)));
+    $$("[data-ag-painel]").forEach((p) => (p.hidden = p.dataset.agPainel !== abaAgente));
+    return;
+  }
+  if (d.agFiltro) {
+    filtroAgente = d.agFiltro;
+    $("[data-ag-painel=acompanhar]").innerHTML = htmlAcompanhamento();
+    return;
+  }
+  if (d.abrirConversa) {
+    conversaAberta = Number(d.abrirConversa);
+    location.hash = "#respostas";
+    return;
+  }
+  try {
+    if (d.agFechou) {
+      await post(`/api/agentes/conversas/${d.agFechou}/fechou`, { fechou: d.valor === "1" });
+      avisar(d.valor === "1" ? "Conversa marcada como fechada" : "Conversa reaberta", "ok");
+      return abrirAgente(agenteAberto);
+    }
+    if (d.agExcluir) {
+      if (!confirm("Excluir este agente? Isso não pode ser desfeito.")) return;
+      await api(`/api/agentes/${d.agExcluir}`, { method: "DELETE" });
+      avisar("Agente excluído", "ok");
+      agenteAberto = null;
+      return carregarAgentes();
+    }
+    if (d.agTirarArquivo) {
+      const r = await api(`/api/agentes/${agenteAberto}/arquivos/${d.agTirarArquivo}`, { method: "DELETE" });
+      $("#ag-arquivos").innerHTML = htmlArquivosAgente(r.arquivos);
+      avisar("Arquivo removido da base", "ok");
+    }
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+});
+
+$("#view-agentes").addEventListener("change", async (ev) => {
+  if (ev.target.id === "ag-delegar") $("#ag-delegar-msg").hidden = ev.target.value !== "fixa";
+  if (ev.target.id === "ag-prompt-arquivo" && ev.target.files[0]) {
+    const f = ev.target.files[0];
+    ev.target.value = "";
+    if (!ARQUIVO_TEXTO.test(f.name)) return avisar("Só arquivos de texto (.txt ou .md). Para PDF ou Word, copie o texto e cole no campo.", "perigo", 7000);
+    $("#ag-prompt").value = await f.text();
+    return avisar(`Prompt de ${f.name} no campo. Clique em Salvar agente para guardar.`, "ok");
+  }
+  if (ev.target.id !== "ag-arquivo") return;
+  const arquivos = [...ev.target.files];
+  ev.target.value = "";
+  for (const f of arquivos) {
+    if (!ARQUIVO_TEXTO.test(f.name)) { avisar(`${f.name}: só arquivos de texto. Para PDF ou Word, copie o texto e cole na base.`, "perigo", 7000); continue; }
+    try {
+      const r = await post(`/api/agentes/${agenteAberto}/arquivos`, { nome: f.name, texto: await f.text() });
+      $("#ag-arquivos").innerHTML = htmlArquivosAgente(r.arquivos);
+      avisar(`${f.name} entrou na base`, "ok");
+    } catch (e) {
+      avisar(`${f.name}: ${e.message}`, "perigo", 7000);
+    }
+  }
+});
+
+$("#view-agentes").addEventListener("submit", async (ev) => {
+  if (ev.target.id !== "form-agente") return;
+  ev.preventDefault();
+  const f = ev.target;
+  const dados = {
+    nome: f.nome.value, prompt: f.prompt.value, conhecimento: f.conhecimento.value, ligado: f.ligado.checked,
+    numeros: [...f.querySelectorAll("input[name=numeros]:checked")].map((x) => x.value),
+    delegar_modo: f.delegar_modo.value, delegar_mensagem: f.delegar_mensagem.value,
+    max_respostas: Number(f.max_respostas.value), pendencias: f.pendencias.value,
+  };
+  const antes = detalheAgente?.agente;
+  if (dados.ligado && !antes?.ligado) {
+    const nomes = (dadosAgentes?.numeros ?? []).filter((n) => dados.numeros.includes(n.id)).map((n) => n.nome).join(", ");
+    if (!confirm(`Ligar o agente ${dados.nome}? Ele vai responder sozinho quem escrever para ${nomes || "o número escolhido"}.`)) return;
+  }
+  const botao = f.querySelector("button[type=submit]");
+  botao.disabled = true;
+  try {
+    const salvo = await api(antes ? `/api/agentes/${antes.id}` : "/api/agentes", { method: antes ? "PUT" : "POST", body: JSON.stringify(dados) });
+    avisar(antes ? "Agente salvo" : "Agente criado", "ok");
+    dadosAgentes = await api("/api/agentes");
+    abaAgente = antes ? abaAgente : "configurar";
+    await abrirAgente(salvo.id);
+  } catch (e) {
+    avisar(e.message, "perigo", 7000);
+  } finally {
+    botao.disabled = false;
+  }
+});
 
 async function carregarFornecedores() {
   try {
