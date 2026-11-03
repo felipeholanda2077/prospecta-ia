@@ -46,9 +46,10 @@ const LOTE_POR_RODADA = 5;
 // mesmo enviando na mão. O painel avisa quando você chega nesse número.
 export const LIMITE_DIRECT_DIA = 25;
 // Entre uma empresa nova e a próxima, de 5 a 12 minutos (sorteado a cada vez), para o número
-// e o e-mail não parecerem disparo em massa. Ajustável em Automação.
+// e o e-mail não parecerem disparo em massa. Ajustável em Automação. As etapas 2 e 3 do WhatsApp
+// dividem essa mesma vez: o número manda uma mensagem por vez, nunca várias em sequência.
 const INTERVALO_EMPRESAS_MIN = [5, 12];
-const VEZ_DA_EMPRESA_NOVA = "vez_da_empresa_nova";
+const VEZ_DO_PROXIMO_CONTATO = "vez_da_empresa_nova";
 
 /** Momento-limite para uma etapa terminar. */
 export function prazoPadrao() {
@@ -969,7 +970,7 @@ export function intervaloEntreEmpresasMs(auto = {}, sorteio = Math.random()) {
 
 /** Quando a próxima empresa nova pode receber o primeiro contato (null = já pode). */
 export async function proximaEmpresaNovaEm() {
-  const ate = Number(await db.lerEstado(VEZ_DA_EMPRESA_NOVA));
+  const ate = Number(await db.lerEstado(VEZ_DO_PROXIMO_CONTATO));
   return ate > Date.now() ? new Date(ate).toISOString() : null;
 }
 
@@ -979,16 +980,33 @@ export function rodadasRestantesHoje(limites, agora = new Date(), folgaMin = 0) 
 }
 
 /**
+ * O que sai numa chamada de envio. Respostas da conversa e etapas de e-mail saem direto; a "vez" é
+ * uma só: a etapa 2 ou 3 de WhatsApp mais antiga (elas vêm antes) ou, sem nenhuma, a empresa nova
+ * de mais potencial com vaga hoje (o e-mail e o WhatsApp dela saem juntos).
+ */
+export function filaDaChamada(enviaveis, vagas, { somenteDaVez = false } = {}) {
+  const daConversa = (m) => m.tipo === "resposta" || m.etapa > 1;
+  const seguimentoWhatsapp = (m) => m.canal === "whatsapp" && m.tipo !== "resposta" && m.etapa > 1;
+  const seguimento = enviaveis.find(seguimentoWhatsapp);
+  const novas = enviaveis.filter((m) => !daConversa(m) && vagas[m.canal] > 0);
+  const daVez = seguimento ? [seguimento] : novas.filter((m) => m.lead_id === novas[0]?.lead_id);
+  return {
+    fila: [...(somenteDaVez ? [] : enviaveis.filter((m) => daConversa(m) && !seguimentoWhatsapp(m))), ...daVez],
+    daVez,
+  };
+}
+
+/**
  * Etapa 4: envia a fila (etapas aprovadas e já no dia agendado), com intervalo variável.
  * Nada sai fora do horário comercial de segunda a sexta. Com `distribuir`, a cota de
  * hoje é espalhada pelas rodadas que faltam, para não sair tudo de uma vez.
- * Empresas novas saem uma por vez, com 5 a 12 minutos entre elas (o agendador do banco
- * chama `somenteNovas` a cada minuto para respeitar esse intervalo).
+ * Empresas novas e etapas 2 e 3 do WhatsApp saem uma por vez, com 5 a 12 minutos entre elas (o
+ * agendador do banco chama `somenteDaVez` a cada minuto para respeitar esse intervalo).
  */
-export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false, somenteNovas = false } = {}) {
+export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false, somenteDaVez = false } = {}) {
   const { limites } = campanha;
   if (!dentroDoHorario(limites)) {
-    if (!somenteNovas) log("📭 Fora do horário comercial; nada enviado");
+    if (!somenteDaVez) log("📭 Fora do horário comercial; nada enviado");
     return { enviadas: 0, motivo: "fora do horário comercial" };
   }
 
@@ -996,7 +1014,7 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   // Manual ou desconectado: o WhatsApp fica na fila e só o e-mail sai nesta rodada.
   const semWhatsapp = modo === "manual" || (await whatsappDesconectado(modo));
   if (semWhatsapp && modo !== "manual") {
-    if (!somenteNovas) log("📵 WhatsApp desconectado: as mensagens de WhatsApp ficam na fila até reconectar");
+    if (!somenteDaVez) log("📵 WhatsApp desconectado: as mensagens de WhatsApp ficam na fila até reconectar");
     await avisarWhatsappDesconectado(modo);
   }
   // A meta do dia é de empresas novas (etapa 1). No WhatsApp ela é espalhada até a hora em
@@ -1013,41 +1031,34 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   }
   const vagasDaRodada = { ...vagas };
   const todas = ordenarFilaDeEnvio(await db.filaDeEnvio(400));
-  const daConversa = (m) => m.tipo === "resposta" || m.etapa > 1;
   const enviaveis = todas.filter((m) => m.canal !== "whatsapp" || !semWhatsapp);
-  // Da empresa nova da vez (a de mais potencial com vaga hoje) saem juntos o e-mail e o WhatsApp.
-  const novas = enviaveis.filter((m) => !daConversa(m) && vagas[m.canal] > 0);
-  const empresaDaVez = novas[0]?.lead_id;
-  const fila = [
-    ...(somenteNovas ? [] : enviaveis.filter(daConversa)),
-    ...novas.filter((m) => m.lead_id === empresaDaVez),
-  ];
+  const { fila, daVez } = filaDaChamada(enviaveis, vagas, { somenteDaVez });
   const naFila = { email: 0, whatsapp: 0, instagram: 0 };
   for (const m of todas) naFila[m.canal]++;
   if (!fila.length) {
-    if (!somenteNovas) log("📭 Nada para enviar agora");
+    if (!somenteDaVez) log("📭 Nada para enviar agora");
     return { enviadas: 0, naFila, vagas: vagasDaRodada };
   }
 
   const intervalo = limites.intervaloEntreEnviosSegundos * 1000;
   let enviadas = 0;
-  let enviouEmpresaNova = false;
-  let proximaEmpresaNova = null;
+  let enviouDaVez = false;
+  let proximaVez = null;
   const porCanal = { email: 0, whatsapp: 0, instagram: 0 };
   for (const [i, m] of fila.entries()) {
-    const novaDaVez = !daConversa(m);
-    // A vez da empresa nova é reservada no banco: com dois agendadores rodando juntos, só um
-    // deles envia, e a próxima só sai depois do intervalo sorteado.
-    if (novaDaVez && !enviouEmpresaNova && proximaEmpresaNova === null) {
+    const naVez = daVez.includes(m);
+    // A vez é reservada no banco: com dois agendadores rodando juntos, só um deles envia, e a
+    // próxima (empresa nova ou etapa 2 e 3 do WhatsApp) só sai depois do intervalo sorteado.
+    if (naVez && proximaVez === null) {
       const espera = intervaloEntreEmpresasMs(campanha.automacao);
-      if (!(await db.travar(VEZ_DA_EMPRESA_NOVA, espera))) break;
-      proximaEmpresaNova = new Date(Date.now() + espera).toISOString();
+      if (!(await db.travar(VEZ_DO_PROXIMO_CONTATO, espera))) break;
+      proximaVez = new Date(Date.now() + espera).toISOString();
     }
     const r = await enviarMensagem(m, campanha);
     if (r.enviada) {
       enviadas++;
       porCanal[m.canal]++;
-      if (novaDaVez) enviouEmpresaNova = true;
+      if (naVez) enviouDaVez = true;
     }
     if (i === fila.length - 1) break;
     // Intervalo variável entre envios, para não parecer disparo em massa (nem cair no spam).
@@ -1056,14 +1067,14 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
     await esperar(espera);
   }
 
-  // Nada da empresa da vez saiu (bloqueada, limite, erro): a próxima não precisa esperar.
-  if (proximaEmpresaNova && !enviouEmpresaNova) {
-    await db.destravar(VEZ_DA_EMPRESA_NOVA);
-    proximaEmpresaNova = null;
+  // Nada da vez saiu (bloqueada, limite, erro): a próxima não precisa esperar.
+  if (proximaVez && !enviouDaVez) {
+    await db.destravar(VEZ_DO_PROXIMO_CONTATO);
+    proximaVez = null;
   }
-  if (enviouEmpresaNova) log(`⏱️  Próxima empresa nova a partir de ${new Date(proximaEmpresaNova).toLocaleTimeString("pt-BR", { timeZone: config.timezone })}`);
+  if (enviouDaVez) log(`⏱️  Próximo contato pelo número a partir de ${new Date(proximaVez).toLocaleTimeString("pt-BR", { timeZone: config.timezone })}`);
   log(`📨 ${enviadas} mensagens enviadas (e-mail: ${porCanal.email}, WhatsApp: ${porCanal.whatsapp})`);
-  return { enviadas, porCanal, naFila, vagas: vagasDaRodada, proximaEmpresaNova };
+  return { enviadas, porCanal, naFila, vagas: vagasDaRodada, proximaEmpresaNova: proximaVez };
 }
 
 /**

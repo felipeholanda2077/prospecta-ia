@@ -2273,10 +2273,16 @@ function comLink(texto) {
 /** Quando uma etapa aprovada vai sair. */
 function quandoSai(m) {
   if (m.canal === "instagram" && m.tipo !== "resposta") return "Você envia pelo botão Abrir direct";
-  if (m.etapa > 1 && !m.agendada_para) return "Aguardando a etapa anterior ser enviada";
+  const [min, max] = sessao?.intervaloEmpresas ?? [5, 12];
+  const seguimentoWhatsapp = m.canal === "whatsapp" && m.tipo !== "resposta" && m.etapa > 1;
+  if (m.etapa > 1 && !m.agendada_para) {
+    return seguimentoWhatsapp
+      ? `Aguardando a etapa anterior; depois o número manda uma mensagem por vez, com ${min} a ${max} min entre elas`
+      : "Aguardando a etapa anterior ser enviada";
+  }
   if (m.agendada_para && new Date(m.agendada_para) > new Date()) return `Agendada para ${dataHora(m.agendada_para)} (em horário comercial)`;
+  if (seguimentoWhatsapp) return `Sai na vez do número: uma mensagem por vez, com ${min} a ${max} min entre elas (em horário comercial)`;
   if (m.etapa <= 1 && m.tipo !== "resposta") {
-    const [min, max] = sessao?.intervaloEmpresas ?? [5, 12];
     return `Empresas novas saem uma por vez, das com mais potencial primeiro, com ${min} a ${max} min entre elas (em horário comercial)`;
   }
   return "Sai na próxima rodada de envios em horário comercial";
@@ -5889,7 +5895,7 @@ async function carregarAutomacao() {
     $("#auto-hoje").innerHTML = `<div class="config-grade">${barra("E-mail", a.hoje.email)}${barra("WhatsApp", a.hoje.whatsapp)}</div>
       ${a.aquecimentoWhatsapp && a.hoje.whatsapp.limite < a.metaDiaria.whatsapp
         ? `<p class="muted" style="margin:8px 0 0;font-size:13px">WhatsApp em aquecimento: hoje até ${a.hoje.whatsapp.limite} empresas novas, subindo ${a.aquecimentoPasso} por dia útil até ${a.metaDiaria.whatsapp}.</p>` : ""}
-      <p class="muted" style="margin:8px 0 0;font-size:13px">Empresas novas saem uma por vez, das com mais potencial primeiro, com ${a.intervaloEmpresasMin} a ${a.intervaloEmpresasMax} minutos entre uma e outra.${a.proximaEmpresaNova ? ` Próxima a partir de <b>${new Date(a.proximaEmpresaNova).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</b>.` : ""}</p>
+      <p class="muted" style="margin:8px 0 0;font-size:13px">Empresas novas e as etapas 2 e 3 do WhatsApp saem uma por vez, com ${a.intervaloEmpresasMin} a ${a.intervaloEmpresasMax} minutos entre uma e outra (as etapas 2 e 3 vão antes; entre as novas, as de mais potencial).${a.proximaEmpresaNova ? ` Próxima a partir de <b>${new Date(a.proximaEmpresaNova).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</b>.` : ""}</p>
       ${a.respostaAutomatica && !a.calendly ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>Coloque o link do Calendly para a IA conseguir levar as pessoas ao agendamento.</div></div>` : ""}
       ${a.ativo && sessao.modoWhatsapp === "manual" ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>O WhatsApp está no modo manual: as mensagens automáticas de WhatsApp vão ficar na Fila de envio esperando você. Conecte a UAZap ou a Evolution API em <a href="#configuracoes">Configurações</a> para elas saírem sozinhas.</div></div>` : ""}`;
   } catch (e) {

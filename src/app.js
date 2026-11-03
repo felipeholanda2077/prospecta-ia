@@ -314,9 +314,9 @@ const TAREFAS_CRON = {
   respostas: (c) => pipeline.verificarRespostas(c),
   // Chamado a cada 10 minutos (GitHub Actions); só envia em horário comercial.
   envios: (c) => pipeline.rodadaAutomatica(c),
-  // Chamado a cada minuto pelo agendador do banco: só a próxima empresa nova, quando acabar
-  // o intervalo de 5 a 12 minutos desde a anterior.
-  novas: (c) => pipeline.enviar(c, { somenteNovas: true, distribuir: Boolean(c.automacao?.ativo) }),
+  // Chamado a cada minuto pelo agendador do banco: só a vez (etapa 2 ou 3 do WhatsApp, ou a próxima
+  // empresa nova), quando acabar o intervalo de 5 a 12 minutos desde a anterior.
+  novas: (c) => pipeline.enviar(c, { somenteDaVez: true, distribuir: Boolean(c.automacao?.ativo) }),
   // A cada 15 minutos: no horário escolhido em Conteúdo, cria o post do dia para o Instagram.
   // Quando não há post para criar ou publicar, lê os insights (a cada 6 h) e atualiza os aprendizados.
   conteudo: async (c) => {

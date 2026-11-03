@@ -369,3 +369,21 @@ test("WhatsApp desconectado: as mensagens que falharam por isso voltam para a fi
   assert.equal((await db.buscarMensagem(email)).status, "erro");
   assert.equal(await pipeline.whatsappDesconectado("manual"), false);
 });
+
+test("etapas 2 e 3 do WhatsApp dividem a vez com as empresas novas: uma por chamada", () => {
+  const m = (id, lead, canal, etapa, tipo = "etapa") => ({ id, lead_id: lead, canal, etapa, tipo });
+  const enviaveis = [
+    m(1, 9, "whatsapp", 1, "resposta"), m(2, 10, "whatsapp", 2), m(3, 11, "whatsapp", 3), m(4, 12, "email", 2),
+    m(5, 20, "email", 1), m(6, 20, "whatsapp", 1), m(7, 21, "whatsapp", 1),
+  ];
+  const vagas = { email: 5, whatsapp: 5 };
+  const ids = (r) => ({ fila: r.fila.map((x) => x.id), daVez: r.daVez.map((x) => x.id) });
+  // Respostas e e-mails saem direto; da vez, só a etapa de WhatsApp mais antiga. A empresa nova espera.
+  assert.deepEqual(ids(pipeline.filaDaChamada(enviaveis, vagas)), { fila: [1, 4, 2], daVez: [2] });
+  assert.deepEqual(ids(pipeline.filaDaChamada(enviaveis, vagas, { somenteDaVez: true })), { fila: [2], daVez: [2] });
+  // Sem etapa de WhatsApp pendente, a vez é da empresa nova (e-mail e WhatsApp juntos).
+  const semSeguimento = enviaveis.filter((x) => ![2, 3].includes(x.id));
+  assert.deepEqual(ids(pipeline.filaDaChamada(semSeguimento, vagas, { somenteDaVez: true })), { fila: [5, 6], daVez: [5, 6] });
+  // Sem vaga hoje para empresas novas, nada fica com a vez.
+  assert.deepEqual(ids(pipeline.filaDaChamada(semSeguimento, { email: 0, whatsapp: 0 })), { fila: [1, 4], daVez: [] });
+});
