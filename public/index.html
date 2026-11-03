@@ -859,13 +859,6 @@
               <span>Responde em alguns minutos, em tom humano, uma informação por vez, até a pessoa marcar no Calendly. Passa para você se pedirem ligação, negociarem ou reclamarem.</span></div></label>
             <div class="config-grade">
               <div class="campo"><label for="auto-meta-email">E-mails por dia</label><input id="auto-meta-email" name="metaEmail" type="number" min="0" max="500"></div>
-              <div class="campo"><label for="auto-meta-wa">WhatsApp por dia (por número)</label><input id="auto-meta-wa" name="metaWhatsapp" type="number" min="0" max="300"></div>
-            </div>
-            <label class="chave"><input type="checkbox" name="aquecimentoWhatsapp"><div><b>Aquecer os números de WhatsApp</b>
-              <span>Cada número começa com poucas empresas novas por dia e sobe a cada dia útil até a meta. Número novo aquece do zero. Reduz bastante o risco de bloqueio.</span></div></label>
-            <div class="config-grade">
-              <div class="campo"><label for="auto-aq-inicial">Aquecimento: começar com (empresas novas por dia)</label><input id="auto-aq-inicial" name="aquecimentoInicial" type="number" min="5" max="300"></div>
-              <div class="campo"><label for="auto-aq-passo">Aquecimento: aumentar por dia útil</label><input id="auto-aq-passo" name="aquecimentoPasso" type="number" min="0" max="100"></div>
             </div>
             <div class="config-grade">
               <div class="campo"><label for="auto-int-min">Intervalo entre empresas novas: de (minutos)</label><input id="auto-int-min" name="intervaloEmpresasMin" type="number" min="1" max="60"></div>
@@ -3026,7 +3019,7 @@ const VAZIOS = {
 function previsaoDaFila(p) {
   if (!p?.termina) return "";
   const quando = new Date(p.termina).toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-  const ritmo = `uma mensagem a cada ~${p.ritmo.intervaloMin} min no WhatsApp, até ${p.ritmo.limiteWhatsapp} empresas novas por dia, só em horário comercial`;
+  const ritmo = `uma mensagem a cada ~${p.ritmo.intervaloMin} min no WhatsApp, sem limite de empresas novas por dia, só em horário comercial`;
   const extras = [
     p.manuais ? `${p.manuais} ${p.manuais === 1 ? "mensagem depende" : "mensagens dependem"} de você (envio manual) e não ${p.manuais === 1 ? "entra" : "entram"} na conta.` : "",
     p.semVaga ? `${p.semVaga} ${p.semVaga === 1 ? "mensagem fica" : "mensagens ficam"} de fora: o limite de empresas novas do canal está em zero.` : "",
@@ -3609,7 +3602,7 @@ async function carregarNumerosUazap() {
     const botao = (acao, icone, texto, classe = "") => `<button class="btn sm ${classe}" data-wa-acao="${acao}" data-wa-p="${p}">${ic(icone, "sm")}${texto}</button>`;
     return `<div class="numero-wa" style="border:1px solid var(--border);border-radius:12px;padding:14px;display:grid;gap:10px">
       <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><b>${esc(n.nome)}</b><span id="${p}-status"></span>
-        <span class="muted" style="font-size:13px">Hoje: ${n.hoje} de ${n.limite} empresas novas · ${n.conversas} conversa${n.conversas === 1 ? "" : "s"} · ${n.ultimoAviso ? `último aviso recebido em ${esc(dataHora(n.ultimoAviso))}` : "nenhum aviso recebido ainda"}</span></div>
+        <span class="muted" style="font-size:13px">Hoje: ${n.hoje} ${n.hoje === 1 ? "empresa nova" : "empresas novas"} · ${n.conversas} conversa${n.conversas === 1 ? "" : "s"} · ${n.ultimoAviso ? `último aviso recebido em ${esc(dataHora(n.ultimoAviso))}` : "nenhum aviso recebido ainda"}</span></div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">
         ${botao("qr", "grid", "QR code")}${botao("codigo", "phone", "Código")}${botao("status", "refresh", "Atualizar", "fantasma")}
         ${botao("editar", "settings", "Editar", "fantasma")}${botao("desconectar", "x", "Desconectar", "fantasma")}${botao("remover", "ban", "Remover", "perigo")}
@@ -5989,24 +5982,19 @@ async function carregarAutomacao() {
     f.respostaAutomatica.checked = a.respostaAutomatica;
     f.buscarNoInstagram.checked = a.buscarNoInstagram !== false;
     f.buscarPorCnpj.checked = a.buscarPorCnpj !== false;
-    f.aquecimentoWhatsapp.checked = a.aquecimentoWhatsapp;
-    f.aquecimentoInicial.value = a.aquecimentoInicial;
-    f.aquecimentoPasso.value = a.aquecimentoPasso;
     f.intervaloEmpresasMin.value = a.intervaloEmpresasMin;
     f.intervaloEmpresasMax.value = a.intervaloEmpresasMax;
     f.metaEmail.value = a.metaDiaria.email;
-    f.metaWhatsapp.value = a.metaDiaria.whatsapp;
     f.maxRespostasIA.value = a.maxRespostasIA;
     f.apresentacao.value = a.apresentacao ?? "";
     f.calendly.value = a.calendly ?? "";
     f.nichos.value = [...new Set((a.buscas ?? []).map((b) => b.nicho))].join("\n");
     f.cidades.value = [...new Set((a.buscas ?? []).flatMap((b) => b.cidades))].join("\n");
     $("#auto-status").innerHTML = a.ativo ? `<span class="pilula ok">Ligado</span>` : `<span class="pilula">Desligado</span>`;
-    const barra = (nome, h) => `<div><div style="display:flex;justify-content:space-between;font-size:13.5px"><b>${nome}</b><span class="muted">${h.enviadas} de ${h.limite} hoje</span></div>
-      <div class="medidor"><i style="width:${h.limite ? Math.min(100, (h.enviadas / h.limite) * 100) : 0}%"></i></div></div>`;
+    // Sem limite (o WhatsApp), só a contagem de hoje, sem barra.
+    const barra = (nome, h) => `<div><div style="display:flex;justify-content:space-between;font-size:13.5px"><b>${nome}</b><span class="muted">${h.limite == null ? `${h.enviadas} hoje · sem limite por dia` : `${h.enviadas} de ${h.limite} hoje`}</span></div>
+      ${h.limite == null ? "" : `<div class="medidor"><i style="width:${h.limite ? Math.min(100, (h.enviadas / h.limite) * 100) : 0}%"></i></div>`}</div>`;
     $("#auto-hoje").innerHTML = `<div class="config-grade">${barra("E-mail", a.hoje.email)}${barra("WhatsApp", a.hoje.whatsapp)}</div>
-      ${a.aquecimentoWhatsapp && a.hoje.whatsapp.limite < a.metaDiaria.whatsapp
-        ? `<p class="muted" style="margin:8px 0 0;font-size:13px">WhatsApp em aquecimento: hoje até ${a.hoje.whatsapp.limite} empresas novas, subindo ${a.aquecimentoPasso} por dia útil até ${a.metaDiaria.whatsapp}.</p>` : ""}
       <p class="muted" style="margin:8px 0 0;font-size:13px">Empresas novas e as etapas 2 e 3 do WhatsApp saem uma por vez, com ${a.intervaloEmpresasMin} a ${a.intervaloEmpresasMax} minutos entre uma e outra (as etapas 2 e 3 vão antes; entre as novas, as de mais potencial).${a.proximaEmpresaNova ? ` Próxima a partir de <b>${new Date(a.proximaEmpresaNova).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</b>.` : ""}</p>
       ${a.respostaAutomatica && !a.calendly ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>Coloque o link do Calendly para a IA conseguir levar as pessoas ao agendamento.</div></div>` : ""}
       ${a.ativo && sessao.modoWhatsapp === "manual" ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>O WhatsApp está no modo manual: as mensagens automáticas de WhatsApp vão ficar na Fila de envio esperando você. Conecte a UAZap ou a Evolution API em <a href="#configuracoes">Configurações</a> para elas saírem sozinhas.</div></div>` : ""}`;
@@ -6022,11 +6010,10 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
   btn.disabled = true;
   try {
     await api("/api/config/automacao", { method: "PUT", body: JSON.stringify({
-      ativo: f.ativo.checked, respostaAutomatica: f.respostaAutomatica.checked, aquecimentoWhatsapp: f.aquecimentoWhatsapp.checked,
+      ativo: f.ativo.checked, respostaAutomatica: f.respostaAutomatica.checked,
       buscarNoInstagram: f.buscarNoInstagram.checked,
       buscarPorCnpj: f.buscarPorCnpj.checked,
-      metaEmail: f.metaEmail.value, metaWhatsapp: f.metaWhatsapp.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
-      aquecimentoInicial: f.aquecimentoInicial.value, aquecimentoPasso: f.aquecimentoPasso.value,
+      metaEmail: f.metaEmail.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,
       calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value,
     }) });

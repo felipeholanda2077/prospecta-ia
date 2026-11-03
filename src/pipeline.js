@@ -160,64 +160,26 @@ export function dentroDoHorario(limites, agora = new Date()) {
   return hora >= limites.horarioComercial.inicio && hora < limites.horarioComercial.fim;
 }
 
-/** Dias úteis entre duas datas (sem contar o dia inicial). */
-export function diasUteisEntre(inicio, fim = new Date()) {
-  let dias = 0;
-  const d = new Date(inicio);
-  while (true) {
-    d.setTime(d.getTime() + 24 * 3600 * 1000);
-    if (d > fim) return dias;
-    if (!ehFimDeSemana(d)) dias++;
-  }
-}
+// WhatsApp sem limite de empresas novas por dia: o ritmo do número fica com o intervalo entre uma mensagem
+// e outra (5 a 12 minutos, ajustável em Automação). O e-mail continua com a meta do dia.
+export const SEM_LIMITE = Infinity;
 
-// Aquecimento do número de WhatsApp: começa com 50 empresas novas por dia e sobe 15 a cada
-// dia útil até a meta (os dois valores dá para mudar em Automação).
-const AQUECIMENTO_INICIAL = 50;
-const AQUECIMENTO_PASSO = 15;
-
-// Cada número de WhatsApp aquece no próprio ritmo (o principal usa a chave de antes de existirem vários).
-const chaveAquecimento = (numeroId) =>
-  !numeroId || numeroId === uazap.PRINCIPAL ? "aquecimento_whatsapp_inicio" : `aquecimento_whatsapp_inicio:${numeroId}`;
-
-/** Limite de empresas novas de hoje para um número de WhatsApp: a meta, ou menos enquanto ele aquece. */
-export async function limiteDoNumero(campanha, numeroId) {
-  const auto = campanha.automacao;
-  const meta = Number(auto?.metaDiaria?.whatsapp) || campanha.limites.envioDiarioMax;
-  if (!auto?.aquecimentoWhatsapp) return meta;
-  const inicio = await db.lerEstado(chaveAquecimento(numeroId));
-  const dias = inicio ? diasUteisEntre(inicio) : 0;
-  const inicial = Number(auto.aquecimentoInicial) || AQUECIMENTO_INICIAL;
-  const passo = Number(auto.aquecimentoPasso) || AQUECIMENTO_PASSO;
-  return Math.min(meta, inicial + passo * dias);
-}
-
-/**
- * Quantas mensagens de prospecção podem sair hoje por este canal. No WhatsApp a meta vale
- * por número: com vários números da UAZap conectados, o limite do dia é a soma deles.
- */
+/** Quantas mensagens de prospecção podem sair hoje por este canal (no WhatsApp, sem limite). */
 export async function limiteDoDia(campanha, canal) {
-  if (canal !== "whatsapp") return Number(campanha.automacao?.metaDiaria?.[canal]) || campanha.limites.envioDiarioMax;
-  if ((await integracaoWhatsapp()) === "uazap") {
-    const ativos = await uazap.conectados();
-    if (ativos.length > 1) {
-      return (await Promise.all(ativos.map((n) => limiteDoNumero(campanha, n.id)))).reduce((a, b) => a + b, 0);
-    }
-    if (ativos.length === 1) return limiteDoNumero(campanha, ativos[0].id);
-  }
-  return limiteDoNumero(campanha, null);
+  if (canal === "whatsapp") return SEM_LIMITE;
+  return Number(campanha.automacao?.metaDiaria?.[canal]) || campanha.limites.envioDiarioMax;
 }
 
 /**
  * Por qual número da UAZap sai esta mensagem. A conversa fica sempre no número que já fala com
- * a empresa; empresa nova vai para o número conectado com mais folga no limite de hoje.
+ * a empresa; empresa nova vai para o número conectado que mandou menos hoje.
  * Retorna { numero } ou { motivo } (a mensagem continua na fila).
  */
-export async function numeroParaEnviar(m, campanha) {
+export async function numeroParaEnviar(m) {
   const todos = await uazap.numeros();
   const doLead = m.numero_wa_lead !== undefined ? m.numero_wa_lead : (await db.buscarLead(m.lead_id))?.numero_wa;
   // Conversa de antes de existirem vários números: ela começou pelo principal. (Conversa nova, como a de
-  // quem preencheu o formulário do site, vai para o número com mais folga.)
+  // quem preencheu o formulário do site, vai para o número que mandou menos hoje.)
   const conversaAntiga = !doLead && (m.tipo === "resposta" || m.etapa > 1) && (await db.whatsappJaEnviado(m.lead_id)) ? uazap.PRINCIPAL : null;
   const dono = todos.find((n) => n.id === (doLead || conversaAntiga));
   if (dono) {
@@ -227,16 +189,9 @@ export async function numeroParaEnviar(m, campanha) {
   }
   const ativos = await uazap.conectados();
   if (!ativos.length) return { motivo: "WhatsApp desconectado; sai quando você reconectar o número em Configurações" };
-  const primeiroContato = m.tipo !== "resposta" && m.etapa <= 1;
-  const folgas = await Promise.all(ativos.map(async (n) => {
-    const enviadas = await db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id });
-    const limite = await limiteDoNumero(campanha, n.id);
-    return { numero: n, enviadas, limite };
-  }));
-  const livres = primeiroContato ? folgas.filter((f) => f.enviadas < f.limite) : folgas;
-  if (!livres.length) return { motivo: "todos os números de WhatsApp já atingiram o limite de hoje" };
-  livres.sort((a, b) => a.enviadas / Math.max(1, a.limite) - b.enviadas / Math.max(1, b.limite));
-  return { numero: livres[0].numero };
+  // Empresa nova vai para o número que mandou menos hoje, para dividir o volume entre eles.
+  const enviadas = await Promise.all(ativos.map((n) => db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id })));
+  return { numero: ativos[enviadas.indexOf(Math.min(...enviadas))] };
 }
 
 /** Minutos que faltam para o fim do horário comercial de hoje (negativo depois dele). */
@@ -829,7 +784,7 @@ export async function enviarMensagem(m, campanha) {
   }
   let numeroId = null;
   if (m.canal === "whatsapp" && modo === "uazap") {
-    const escolha = await numeroParaEnviar(m, campanha);
+    const escolha = await numeroParaEnviar(m);
     if (!escolha.numero) return { enviada: false, naFila: true, motivo: escolha.motivo };
     numeroId = escolha.numero.id;
   }
@@ -879,9 +834,6 @@ export async function enviarMensagem(m, campanha) {
       messageId = await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo });
     }
     await registrarEnvio(m, campanha, messageId, numeroId);
-    if (m.canal === "whatsapp" && !(await db.lerEstado(chaveAquecimento(numeroId)))) {
-      await db.gravarEstado(chaveAquecimento(numeroId), new Date().toISOString());
-    }
     log(`📨 ${m.canal} (etapa ${m.etapa}) enviado para ${m.empresa} <${m.destino}>${numeroId ? ` pelo número ${numeroId}` : ""}`);
     return { enviada: true };
   } catch (e) {
@@ -1143,7 +1095,7 @@ export async function previsaoDaFila(campanha, agora = new Date(), { mensagens =
     manuais,
     semVaga: semVaga.reduce((soma, s) => soma + s.etapas.length, 0),
     parado,
-    ritmo: { intervaloMin: Math.round(intervaloMs / 60_000), limiteWhatsapp: limite.whatsapp, limiteEmail: limite.email },
+    ritmo: { intervaloMin: Math.round(intervaloMs / 60_000), limiteEmail: limite.email },
   };
 }
 

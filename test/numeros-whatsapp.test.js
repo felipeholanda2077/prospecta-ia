@@ -9,11 +9,11 @@ const uazap = await import("../src/envio/uazap.js");
 const pipeline = await import("../src/pipeline.js");
 
 const URL_UAZAP = "https://fluxdeck.uazapi.com";
-// Sempre dentro do horário, sem aquecimento e com 1 empresa nova por número por dia.
+// Sempre dentro do horário.
 const campanha = {
   empresa: { nome: "FluxDeck" },
   limites: { horarioComercial: { inicio: 0, fim: 24 }, somenteDiasUteis: false, envioDiarioMax: 50 },
-  automacao: { metaDiaria: { email: 10, whatsapp: 1 }, aquecimentoWhatsapp: false },
+  automacao: { metaDiaria: { email: 10 } },
 };
 
 /** UAZap de mentira: cada instância é reconhecida pelo token; dá para desconectar uma delas. */
@@ -68,8 +68,8 @@ test("vários números: as empresas novas se dividem e cada conversa fica no seu
     await assert.rejects(uazap.salvarNumero({ nome: "Errado", url: URL_UAZAP, token: "X" }), /recusou o token/);
 
     assert.equal(await pipeline.modoWhatsapp(), "uazap");
-    // A meta (1 por dia) vale por número: com dois conectados, 2 empresas novas hoje.
-    assert.equal(await pipeline.limiteDoDia(campanha, "whatsapp"), 2);
+    // Sem limite por dia no WhatsApp: as empresas novas se dividem entre os números, pelo que cada um mandou hoje.
+    assert.equal(await pipeline.limiteDoDia(campanha, "whatsapp"), Infinity);
 
     const r1 = await pipeline.enviarMensagem(await leadComMensagem("Clínica 1", "5511988880001"), campanha);
     const r2 = await pipeline.enviarMensagem(await leadComMensagem("Clínica 2", "5511988880002"), campanha);
@@ -80,10 +80,10 @@ test("vários números: as empresas novas se dividem e cada conversa fica no seu
     assert.equal(await db.enviadasHoje("whatsapp", { primeiroContato: true, numero: dois.id }), 1);
     assert.deepEqual([await db.conversasDoNumero(um.id), await db.conversasDoNumero(dois.id)], [1, 1]);
 
-    // Os dois números já usaram a meta de hoje: a terceira empresa espera na fila.
+    // Sem limite: a terceira empresa sai também, pelo número que estiver com menos hoje (empate: o primeiro).
     const r3 = await pipeline.enviarMensagem(await leadComMensagem("Clínica 3", "5511988880003"), campanha);
-    assert.equal(r3.naFila, true);
-    assert.equal(falsa.envios.length, 2);
+    assert.equal(r3.enviada, true);
+    assert.deepEqual(falsa.envios.map((e) => e.token), ["A", "B", "A"]);
 
     // A resposta da conversa sai pelo número que já fala com a empresa (não conta na meta).
     assert.equal((await pipeline.enviarMensagem(await mensagem(l2.id, "5511988880002"), campanha)).enviada, true);
@@ -95,7 +95,6 @@ test("vários números: as empresas novas se dividem e cada conversa fica no seu
     const parada = await pipeline.enviarMensagem(await mensagem(l2.id, "5511988880002"), campanha);
     assert.equal(parada.naFila, true);
     assert.match(parada.motivo, /"IA 2" está desconectado/);
-    assert.equal(await pipeline.limiteDoDia(campanha, "whatsapp"), 1);
 
     // Cada número tem o próprio webhook.
     assert.equal((await uazap.webhookValido(um.segredoWebhook, { token: "A" }))?.id, um.id);
@@ -105,7 +104,7 @@ test("vários números: as empresas novas se dividem e cada conversa fica no seu
     // Tirar o número da lista: a conversa dele passa a sair por outro conectado.
     await uazap.removerNumero(dois.id);
     assert.deepEqual((await uazap.numeros()).map((n) => n.nome), ["IA 1"]);
-    const mudou = await pipeline.numeroParaEnviar(await mensagem(l2.id, "5511988880002"), campanha);
+    const mudou = await pipeline.numeroParaEnviar(await mensagem(l2.id, "5511988880002"));
     assert.equal(mudou.numero.id, um.id);
   } finally {
     falsa.restaurar();
@@ -288,7 +287,7 @@ test("fila de envio: previsão de quando tudo termina de sair, com a vez do núm
     const comercial = {
       ...campanha,
       limites: { ...campanha.limites, horarioComercial: { inicio: 9, fim: 18 }, somenteDiasUteis: true },
-      automacao: { ...campanha.automacao, metaDiaria: { email: 10, whatsapp: 50 }, intervaloEmpresasMin: 5, intervaloEmpresasMax: 12 },
+      automacao: { ...campanha.automacao, intervaloEmpresasMin: 5, intervaloEmpresasMax: 12 },
     };
     const etapas = (lead, empresa) => [1, 2, 3].map((etapa) => ({ lead_id: lead, empresa, canal: "whatsapp", tipo: "inicial", etapa, agendada_para: null }));
     const mensagens = [...etapas(901, "A"), ...etapas(902, "B")];

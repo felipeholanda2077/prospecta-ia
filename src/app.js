@@ -1031,7 +1031,7 @@ app.get("/api/config/automacao", async (req, res) => {
     buscas: campanha.buscas,
     hoje: {
       email: { enviadas: await db.enviadasHoje("email", { primeiroContato: true }), limite: await pipeline.limiteDoDia(campanha, "email") },
-      whatsapp: { enviadas: await db.enviadasHoje("whatsapp", { primeiroContato: true }), limite: await pipeline.limiteDoDia(campanha, "whatsapp") },
+      whatsapp: { enviadas: await db.enviadasHoje("whatsapp", { primeiroContato: true }), limite: null }, // sem limite por dia
     },
     calendlyConectado: (await calendly.status()).conectado,
     proximaEmpresaNova: await pipeline.proximaEmpresaNovaEm(),
@@ -1056,10 +1056,7 @@ app.put("/api/config/automacao", async (req, res) => {
   const novo = {
     ativo: Boolean(b.ativo),
     respostaAutomatica: Boolean(b.respostaAutomatica),
-    metaDiaria: { email: inteiro(b.metaEmail, 0, 500, AUTOMACAO_PADRAO.metaDiaria.email), whatsapp: inteiro(b.metaWhatsapp, 0, 300, AUTOMACAO_PADRAO.metaDiaria.whatsapp) },
-    aquecimentoWhatsapp: b.aquecimentoWhatsapp !== false,
-    aquecimentoInicial: inteiro(b.aquecimentoInicial, 5, 300, AUTOMACAO_PADRAO.aquecimentoInicial),
-    aquecimentoPasso: inteiro(b.aquecimentoPasso, 0, 100, AUTOMACAO_PADRAO.aquecimentoPasso),
+    metaDiaria: { email: inteiro(b.metaEmail, 0, 500, AUTOMACAO_PADRAO.metaDiaria.email) },
     intervaloEmpresasMin: intervaloMin,
     intervaloEmpresasMax: Math.max(intervaloMin, inteiro(b.intervaloEmpresasMax, 1, 120, AUTOMACAO_PADRAO.intervaloEmpresasMax)),
     maxRespostasIA: inteiro(b.maxRespostasIA, 1, 20, AUTOMACAO_PADRAO.maxRespostasIA),
@@ -1569,7 +1566,6 @@ app.get("/api/uazap/numeros", comErro(async () => {
   return Promise.all((await uazap.statusDeTodos()).map(async (n) => ({
     ...n,
     hoje: await db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id }),
-    limite: await pipeline.limiteDoNumero(campanha, n.id),
     conversas: await db.conversasDoNumero(n.id),
     ultimoAviso: await db.lerEstado(`uazap_ultimo_aviso:${n.id}`),
   })));

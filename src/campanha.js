@@ -10,10 +10,7 @@ const PLACEHOLDER = /seu nome|seudominio|99999-9999/i;
 export const AUTOMACAO_PADRAO = {
   ativo: false, // busca, aprova e envia sozinho
   respostaAutomatica: false, // a IA responde as conversas sozinha
-  metaDiaria: { email: 100, whatsapp: 15 }, // empresas novas por dia em cada canal
-  aquecimentoWhatsapp: true, // começa com `aquecimentoInicial`/dia e sobe `aquecimentoPasso` por dia útil
-  aquecimentoInicial: 50,
-  aquecimentoPasso: 15,
+  metaDiaria: { email: 100 }, // empresas novas por dia no e-mail (o WhatsApp não tem limite por dia: vale o intervalo)
   intervaloEmpresasMin: 5, // minutos entre uma empresa nova e a próxima (sorteado entre o mínimo e o máximo)
   intervaloEmpresasMax: 12,
   maxRespostasIA: 6, // depois disso a conversa passa para você

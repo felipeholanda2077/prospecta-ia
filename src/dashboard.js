@@ -335,7 +335,6 @@ async function automacao(c, agora) {
   const emails = await db.enviadasHoje("email", { primeiroContato: true });
   const whats = await db.enviadasHoje("whatsapp", { primeiroContato: true });
   const limiteEmail = await pipeline.limiteDoDia(campanha, "email");
-  const limiteWhats = (await c.whatsappRespondeu()) ? await pipeline.limiteDoDia(campanha, "whatsapp") : null;
   const ligado = campanha.automacao.ativo;
   const noHorario = pipeline.dentroDoHorario(campanha.limites, agora);
   const modoTeste = Boolean(config.modoTeste.email || config.modoTeste.whatsapp);
@@ -345,7 +344,7 @@ async function automacao(c, agora) {
       ind("Próxima no WhatsApp", proximo.quando ? horaDoEnvio(proximo.quando, agora) : "Nada programado", "aprovada", { tom: proximo.quando ? "" : "atencao", detalhe: proximo.oQue ?? proximo.motivo }),
       ind("Funil automático", ligado ? "Ligado" : "Desligado", "automacao", { tom: ligado ? "ok" : "", detalhe: campanha.automacao.respostaAutomatica ? "IA responde sozinha" : "Respostas com a sua aprovação" }),
       ind("Horário de envio", noHorario ? "Dentro" : "Fora", "automacao", { tom: noHorario ? "ok" : "", detalhe: `Das ${campanha.limites.horarioComercial.inicio}h às ${campanha.limites.horarioComercial.fim}h` }),
-      ind("Novas por WhatsApp", `${whats}${limiteWhats != null ? ` de ${limiteWhats}` : ""}`, "automacao", { detalhe: proximaNova ? `Próxima às ${new Date(proximaNova).toLocaleTimeString("pt-BR", { timeZone: config.timezone, hour: "2-digit", minute: "2-digit" })}` : "Hoje" }),
+      ind("Novas por WhatsApp", whats, "automacao", { detalhe: proximaNova ? `Próxima às ${new Date(proximaNova).toLocaleTimeString("pt-BR", { timeZone: config.timezone, hour: "2-digit", minute: "2-digit" })}` : "Hoje" }),
       ind("Novas por e-mail", `${emails} de ${limiteEmail}`, "automacao", { detalhe: "Hoje" }),
       ind("Última rodada", ultimaRodada ? tempoAtras(ultimaRodada, +agora) : "Nenhuma", "automacao"),
     ],
