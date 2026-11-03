@@ -1082,7 +1082,7 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
       enviadas++;
       porCanal[m.canal]++;
       if (naVez) enviouDaVez = true;
-    }
+    } else if (r.naFila) log(`⏸️  ${m.empresa} (${m.canal}, ${m.tipo === "resposta" ? "resposta" : `etapa ${m.etapa}`}) continua na fila: ${r.motivo}`);
     if (i === fila.length - 1) break;
     // Intervalo variável entre envios, para não parecer disparo em massa (nem cair no spam).
     const espera = Math.round(intervalo * (0.6 + Math.random() * 0.8));
