@@ -626,3 +626,34 @@ test("valores só quando a pessoa pergunta: sem pergunta de preço, nenhum R$ sa
   const rb = await registrarResposta({ lead: b, canal: "email", origem_id: "vp-2", de: "com@preco.com", texto: "Quanto custa um site?", campanha: camp, classificar: comValor });
   assert.match(rb.sugestao_resposta, /R\$ 570/);
 });
+
+test("descoberta antes da call: sem entender a dor, nada de apresentação nem convite; entendida, a apresentação vai", async () => {
+  const { semConviteCedo } = await import("../src/ia/resposta.js");
+  assert.equal(semConviteCedo("Entendi! E hoje quem responde as mensagens? Se quiser, marcamos um bate-papo rápido: https://calendly.com/fluxdeck"),
+    "Entendi! E hoje quem responde as mensagens?");
+  assert.equal(semConviteCedo("Vocês atendem fora do horário comercial? Como os clientes agendam visita?"),
+    "Vocês atendem fora do horário comercial? Como os clientes agendam visita?"); // descoberta não é convite
+  assert.equal(semConviteCedo("Bora marcar uma call?"), "Bora marcar uma call?"); // se for só o convite, fica
+
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 5 } };
+  const resposta = (extra) => async () => ({ classificacao: "quer_informacoes", resumo: "x", precisa_humano: false, motivo_humano: "", indicou_contato: false,
+    temperatura: "morna", proximo_passo: "", robo: false, encerrar: false, ...extra });
+  let apresentou = 0;
+  const apresentar = async () => { apresentou++; return "Como funciona: ... Se quiser, marcamos um bate-papo."; };
+
+  const a = await novoLead("Descobrindo Dor", "dor@teste.com");
+  await enviada(a, 1);
+  const ra = await registrarResposta({ lead: a, canal: "email", origem_id: "dor-1", de: "dor@teste.com", campanha: camp, apresentar,
+    texto: "Nós trabalhamos com todas as ferramentas digitais. Vem de indicação e web.",
+    classificar: resposta({ dor_entendida: false, pediu_conversa: false, sugestao_resposta: "Faz sentido! Onde vocês sentem mais aperto hoje? Se quiser, marcamos um bate-papo." }) });
+  assert.equal(apresentou, 0);
+  assert.equal(ra.sugestao_resposta, "Faz sentido! Onde vocês sentem mais aperto hoje?");
+
+  const b = await novoLead("Dor Entendida", "entendida@teste.com");
+  await enviada(b, 1);
+  const rb = await registrarResposta({ lead: b, canal: "email", origem_id: "dor-2", de: "entendida@teste.com", campanha: camp, apresentar,
+    texto: "Perdemos muito cliente porque ninguém responde o WhatsApp à noite.",
+    classificar: resposta({ dor_entendida: true, pediu_conversa: false, sugestao_resposta: "Entendi." }) });
+  assert.equal(apresentou, 1);
+  assert.match(rb.sugestao_resposta, /bate-papo/);
+});

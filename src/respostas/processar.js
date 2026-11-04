@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { classificarResposta, limparTextoResposta, escreverApresentacao, semCumprimentoRepetido, pediuValor, semValores } from "../ia/resposta.js";
+import { classificarResposta, limparTextoResposta, escreverApresentacao, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo } from "../ia/resposta.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento } from "../agenda/calendly.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
@@ -170,8 +170,11 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
 function ajustarResposta(c, historico, texto) {
   if (!c) return c;
   const podeValores = pediuValor(texto, historico);
+  // Ainda descobrindo a dor e a pessoa não pediu conversa: nada de convite para bate-papo ou call.
+  const cedoParaConvite = c.dor_entendida === false && c.pediu_conversa === false;
   const ajustar = (t, i) => {
-    const sem = i === 0 ? semCumprimentoRepetido(t, historico) : t;
+    let sem = i === 0 ? semCumprimentoRepetido(t, historico) : t;
+    if (cedoParaConvite) sem = semConviteCedo(sem);
     return podeValores ? sem : semValores(sem);
   };
   if (c.partes?.length) {
@@ -182,12 +185,14 @@ function ajustarResposta(c, historico, texto) {
 }
 
 /**
- * Classifica a última mensagem e escreve a próxima. Na primeira demonstração de interesse,
+ * Classifica a última mensagem e escreve a próxima. Quando a dor já está entendida (ou a pessoa pediu),
  * a próxima mensagem é a apresentação (processo, planos, prazo) com o convite.
  */
 async function pensarResposta(contexto, { classificar, apresentar }) {
   const c = await classificar(contexto);
-  if (QUER_SABER.includes(c.classificacao) && c.sugestao_resposta && !c.precisa_humano && !(await jaApresentou(contexto.lead.id))) {
+  // A apresentação (planos e convite) só vai depois de entender a dor, ou quando a pessoa pede (como funciona, valores, call).
+  const descobrindo = c.dor_entendida === false && c.pediu_conversa === false;
+  if (QUER_SABER.includes(c.classificacao) && c.sugestao_resposta && !c.precisa_humano && !descobrindo && !(await jaApresentou(contexto.lead.id))) {
     return { c: { ...c, sugestao_resposta: await apresentar(contexto) }, apresentou: true };
   }
   return { c, apresentou: false };

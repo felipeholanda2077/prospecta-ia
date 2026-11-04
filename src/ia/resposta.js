@@ -20,6 +20,8 @@ const ClassificacaoSchema = z.object({
   proximo_passo: z.string(),
   robo: z.boolean(),
   encerrar: z.boolean(),
+  dor_entendida: z.boolean(),
+  pediu_conversa: z.boolean(),
 });
 
 const CLASSIFICACAO_JSON_SCHEMA = {
@@ -62,12 +64,21 @@ const CLASSIFICACAO_JSON_SCHEMA = {
       description: "true quando não há nada a responder: a pessoa só agradeceu ou se despediu e você já tinha agradecido " +
         "(responder viraria um vai e volta de obrigados), ou disse que vai repassar e você já agradeceu",
     },
+    dor_entendida: {
+      type: "boolean",
+      description: "true só quando, pela conversa INTEIRA, já está claro o que a empresa precisa e por quê (ex.: \"perde " +
+        "cliente porque demora para responder no WhatsApp\", \"não tem site e o estoque não aparece no Google\"); false enquanto ainda é preciso descobrir",
+    },
+    pediu_conversa: {
+      type: "boolean",
+      description: "true quando a pessoa pediu ligação, reunião, call, orçamento, valores, ou perguntou como funciona / quais os planos",
+    },
     sugestao_resposta: {
       type: "string",
       description: "próxima mensagem da conversa; vazio se robo ou encerrar; em sem_interesse, um agradecimento curto; vazio se for descadastro ou automatica",
     },
   },
-  required: ["classificacao", "resumo", "sugestao_resposta", "precisa_humano", "motivo_humano", "indicou_contato", "temperatura", "proximo_passo", "robo", "encerrar"],
+  required: ["classificacao", "resumo", "sugestao_resposta", "precisa_humano", "motivo_humano", "indicou_contato", "temperatura", "proximo_passo", "robo", "encerrar", "dor_entendida", "pediu_conversa"],
   additionalProperties: false,
 };
 
@@ -145,6 +156,24 @@ export function semValores(texto) {
   return limpas.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+const FALA_DE_CONVITE = /\b(bate-papo|bate papo|call|reuni[ãa]o)\b|\bmarcar(mos)? (um|uma) (conversa|liga[çc][ãa]o|videochamada)|calendly/i;
+
+/**
+ * Ainda descobrindo a dor (e a pessoa não pediu conversa): tira da mensagem as frases que convidam para
+ * bate-papo, call ou reunião (e o link de agendamento). Se a mensagem inteira for o convite, ela fica como está.
+ */
+export function semConviteCedo(texto) {
+  if (!texto || !FALA_DE_CONVITE.test(texto)) return texto;
+  const linhas = [];
+  for (const linha of String(texto).split("\n")) {
+    if (!FALA_DE_CONVITE.test(linha)) { linhas.push(linha); continue; }
+    const frases = linha.split(/(?<=[.!?])\s+/).filter((f) => !FALA_DE_CONVITE.test(f));
+    if (frases.length) linhas.push(frases.join(" "));
+  }
+  const limpo = linhas.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return limpo || texto;
+}
+
 /** Texto da conversa até aqui, para a IA não repetir o que já foi dito. */
 export function formatarHistorico(historico) {
   if (!historico?.length) return "(nenhuma mensagem anterior registrada)";
@@ -194,7 +223,11 @@ ${apresentacao}
 Como conduzir (tom humano, como ${quem} escrevendo do próprio celular, em primeira pessoa):
 - Responda primeiro, de forma direta e simpática, o que a empresa perguntou ou comentou. Use o nome da pessoa se ela disse.
 - Entregue no máximo UMA informação nova por mensagem; não despeje tudo de uma vez.
-- Se ainda não houver interesse claro, faça uma pergunta curta de descoberta (como fazem hoje, o que é prioridade).
+- DESCOBERTA ANTES DE TUDO: antes de oferecer qualquer solução ou bate-papo, entenda a dor da empresa, com UMA pergunta
+  por mensagem, aprofundando no que ela respondeu: como atendem e vendem hoje, onde perdem cliente ou tempo, quem responde
+  as mensagens, o que mais incomoda. O objetivo é descobrir EXATAMENTE o que ela precisa: atendimento mais rápido (IA no
+  WhatsApp), presença online (site), vendas online (loja), gestão (sistema), agenda, ou outra coisa. Não presuma: se
+  ela disse que já tem algo (ex.: um CRM, um site), pergunte o que ainda falta nele.
 ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com o que está na apresentação.
 ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, como estão escritos. Orçamento exato, desconto ou
   condição especial: diga que isso vocês fecham no bate-papo, conforme o que ela precisa.` : `- Valores: a pessoa AINDA NÃO perguntou de preço. NÃO cite nenhum valor, preço ou R$, nem "a partir de". Se falar de
@@ -203,7 +236,10 @@ ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, co
   juntos no bate-papo.
 ` : `- Preço: não passe valor de cara. Se perguntarem, diga que depende do que eles precisam e convide para o bate-papo
   rápido, onde você mostra exemplos e passa o valor certo. Só se insistirem depois disso, diga o "a partir de" do catálogo.
-`}- Interesse claro ou pedido de mais detalhes: convide para o bate-papo${linkAgendamento
+`}- Só convide para o bate-papo quando dor_entendida for true (você já sabe exatamente o que ela precisa e por quê) e
+  ela mostrar interesse, OU quando ela mesma pedir (ligação, reunião, call, orçamento, "como funciona"). Fora isso, NÃO
+  fale de bate-papo, call, reunião nem agenda: continue descobrindo.
+- Na hora de convidar: convide para o bate-papo${linkAgendamento
       ? ` e mande exatamente este link para a pessoa escolher o horário: ${linkAgendamento}`
       : " com duas opções de horário em dias úteis"}.
 - Se a pessoa já recebeu o link e disse que vai marcar, agradeça em uma frase, sem insistir.
