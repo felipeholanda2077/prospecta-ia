@@ -390,6 +390,9 @@ test("funil: quantas empresas contatadas não responderam (a resposta automátic
   assert.equal(depois.contatadas - antes.contatadas, 3);
   assert.equal(depois.nao_responderam - antes.nao_responderam, 2);
   assert.equal(depois.nao_responderam_na_sequencia - antes.nao_responderam_na_sequencia, 1);
+  // Por ramo: os ramos somam no máximo o total de contatadas, e responderam nunca passa de contatadas.
+  assert.ok(Array.isArray(depois.por_ramo) && depois.por_ramo.length > 0);
+  for (const r of depois.por_ramo) assert.ok(r.responderam <= r.contatadas && r.interessadas <= r.responderam);
   const ind = indicadoresDasConversas([], depois);
   assert.equal(ind.naoResponderam, depois.nao_responderam);
   assert.equal(ind.naoResponderamNaSequencia + ind.naoResponderamSequenciaEncerrada, ind.naoResponderam);

@@ -395,6 +395,55 @@ ${formatarHistorico(historico)}`,
   return { opcao: r.opcao, mensagem: r.mensagem.trim() };
 }
 
+const ReativacaoSchema = z.object({ oferta: z.enum(["guia", "diagnostico"]), assunto: z.string(), mensagem: z.string() });
+const REATIVACAO_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    oferta: { type: "string", enum: ["guia", "diagnostico"], description: "guia = o guia gratuito em PDF; diagnostico = os pontos do site" },
+    assunto: { type: "string", description: "assunto do e-mail, curto e pessoal (vazio fora do e-mail)" },
+    mensagem: { type: "string", description: "a mensagem pronta para enviar" },
+  },
+  required: ["oferta", "assunto", "mensagem"],
+  additionalProperties: false,
+};
+
+/**
+ * Reativação de quem recebeu a sequência e não respondeu (30 dias depois): uma mensagem só, diferente da primeira
+ * abordagem, que dá algo de valor (o guia gratuito ou um mini diagnóstico do site, com os `pontos` reais da análise)
+ * e fala da dor do ramo. Sem venda, sem preço e sem cobrar a falta de resposta. Retorna { oferta, assunto, mensagem }.
+ */
+export async function escreverReativacao({ lead, canal, campanha, historico = [], dor = "", pontos = [], linkGuia = "" }) {
+  const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
+  const r = await gerarJson({
+    system: `${contextoEmpresa(campanha, { semValores: true })}
+
+Você é ${quem}. Há mais de um mês a ${lead.nome} recebeu algumas mensagens suas e não respondeu. Escreva UMA mensagem de
+reativação (${NOME_DO_CANAL[canal] ?? canal}), bem diferente da primeira abordagem: em vez de vender, DÊ algo de valor.
+Escolha a oferta:
+${pontos.length ? `- diagnostico: você olhou o site deles e anotou estes pontos (use SÓ estes, com suas palavras):
+${pontos.map((p) => `  • ${p}`).join("\n")}
+  Conte 2 ou 3 deles de forma simples, como quem ajuda, e diga que dá para resolver.
+` : ""}- guia: um guia prático em PDF, de presente, feito para a ${lead.nome}, com passos simples para atrair mais clientes pelo site,
+  pelo Google e pelo WhatsApp. Mande exatamente este link: ${linkGuia}
+${pontos.length ? "Prefira o diagnóstico (é mais pessoal) quando os pontos fizerem sentido para o ramo." : "Use o guia."}
+Fale da dor mais comum do ramo deles: ${dor}.
+Regras:
+- Não cobre a falta de resposta ("não sei se viu", "voltando aqui", "só para lembrar") e não repita a primeira mensagem.
+- Sem preço, sem planos, sem convite para call. Termine com UMA pergunta leve (ex.: se faz sentido você mandar mais detalhes).
+- ${canal === "email" ? "E-mail em texto simples, 60 a 120 palavras, com saudação e assinatura curta; assunto curto, pessoal, sem caixa alta." : "No máximo 4 frases curtas (até ~500 caracteres), sem assinatura; assunto vazio."}
+- Português do Brasil, tom humano, no máximo 1 emoji.${FORMATO_DO_CANAL[canal] ?? ""}
+- Nunca mencione assistente, robô, IA, sistema ou "equipe" respondendo por ${quem}.`,
+    pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""})${lead.site ? ` · site: ${lead.site}` : " · sem site próprio"}
+
+Mensagens que você já mandou (mais antigas primeiro; não repita):
+${formatarHistorico(historico)}`,
+    jsonSchema: REATIVACAO_JSON_SCHEMA,
+    zodSchema: ReativacaoSchema,
+    effort: "low",
+  });
+  return { oferta: r.oferta, assunto: r.assunto.trim(), mensagem: r.mensagem.trim() };
+}
+
 const IndicadoSchema = z.object({ assunto: z.string(), mensagem: z.string() });
 const INDICADO_JSON_SCHEMA = {
   type: "object",

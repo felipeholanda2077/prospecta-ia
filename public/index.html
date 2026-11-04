@@ -386,6 +386,10 @@
   .fv-followup > div { display: grid; gap: 3px; }
   .fv-followup .ic { color: var(--accent-text); margin-top: 2px; }
   .fa-cor { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .fv-ramos { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .fv-ramos th { text-align: left; font-weight: 600; color: var(--subtle); font-size: 12px; padding: 4px 6px 4px 0; }
+  .fv-ramos td { padding: 4px 6px 4px 0; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .fv-ramos th:not(:first-child), .fv-ramos td:not(:first-child) { text-align: right; }
   @media (max-width: 900px) { .funil-visual { grid-template-columns: 1fr; } }
   .funil-etapa small { font-size: 12px; color: var(--subtle); line-height: 1.35; }
   .funil-etapa.sem-resposta .funil-barra i { background: var(--warn); }
@@ -2384,7 +2388,7 @@ function vazio(icone, titulo, texto, acao = "") {
   return `<div class="cartao vazio"><div class="ic-grande">${ic(icone, "lg")}</div><h3>${titulo}</h3><p>${texto}</p>${acao}</div>`;
 }
 
-const NOMES_ETAPA = { 1: "Primeiro contato", 2: "Se não responder", 3: "Último toque" };
+const NOMES_ETAPA = { 1: "Primeiro contato", 2: "Se não responder", 3: "Último toque", 4: "Reativação (30 dias depois)" };
 
 /** Envio pela sua mão: o WhatsApp manual, ou o primeiro direct do Instagram (que a Meta não deixa a API mandar). */
 const botaoManual = (m, atributo) => m.canal === "instagram"
@@ -2415,6 +2419,7 @@ function etiquetaEtapa(m) {
   if (m.canal === "instagram" && m.tipo !== "resposta") return `<span class="pilula">${ic("camera", "sm")}Direct único</span>${pilulaDirectsHoje()}`;
   if (m.tipo === "resposta") return `<span class="pilula acc">${ic("message", "sm")}Resposta na conversa</span>`;
   if (m.tipo === "followup") return `<span class="pilula">${ic("repeat", "sm")}Follow-up</span>`;
+  if (m.tipo === "reativacao") return `<span class="pilula acc">${ic("repeat", "sm")}Reativação · 30 dias depois</span>`;
   return `<span class="pilula">${ic("repeat", "sm")}Etapa ${m.etapa} de 3</span>`;
 }
 
@@ -2557,6 +2562,7 @@ function pilulaPrioridade(p) {
 
 function nomeDaEtapa(m) {
   if (m.tipo === "resposta") return "Resposta da conversa";
+  if (m.tipo === "reativacao") return "Reativação (uma mensagem só, 30 dias depois)";
   return `Etapa ${m.etapa} de 3`;
 }
 
@@ -2637,7 +2643,7 @@ function agruparSequencias(lista) {
 }
 
 function blocoEtapa(m, total) {
-  const quando = m.etapa === 1 ? "sai ao aprovar, em horário comercial"
+  const quando = m.etapa === 1 || m.tipo === "reativacao" ? "sai ao aprovar, em horário comercial"
     : m.canal === "email"
       ? `${(sessao.diasEntreEmails ?? [1, 2])[m.etapa - 2] ?? 2} ${((sessao.diasEntreEmails ?? [1, 2])[m.etapa - 2] ?? 2) === 1 ? "dia útil" : "dias úteis"} depois da etapa ${m.etapa - 1}, se não houver resposta`
       : `cerca de ${sessao.cadencia[m.etapa - 2] ?? 2} h depois da etapa ${m.etapa - 1}, no mesmo dia, se não houver resposta`;
@@ -2826,7 +2832,7 @@ function htmlIndicadores(ind) {
  * grupo da legenda tem a cor da faixa onde aquelas empresas pararam.
  */
 const FAIXAS_FUNIL = [
-  { nome: "Contatadas", cor: "#6d5ef5", pararam: [["recebendo_etapas", "Recebendo as etapas"], ["sem_resposta", "Sem resposta"], ["descartadas", "Descartadas por você"]] },
+  { nome: "Contatadas", cor: "#6d5ef5", pararam: [["recebendo_etapas", "Recebendo as etapas"], ["sem_resposta", "Sem resposta"], ["descartadas", "Descartadas ou encerradas"]] },
   { nome: "Responderam", cor: "#4f6ef7", pararam: [["em_conversa", "Em conversa"], ["recusaram", "Recusaram"]] },
   { nome: "Interessadas", cor: "#1677ff", pararam: [["interessadas", "Falta agendar"]] },
   { nome: "Agendaram", cor: "#06b6d4", pararam: [["agendaram", "Reunião marcada"]] },
@@ -2895,6 +2901,11 @@ function htmlFunilVisual(f) {
       <div class="fv-bloco fv-followup">${ic("bell")}<div><b>Follow-up da IA</b>
         <span><b>${receberam}</b> ${receberam === 1 ? "empresa recebeu" : "empresas receberam"} follow-up · <b>${voltaram}</b> ${voltaram === 1 ? "voltou" : "voltaram"} a responder${receberam ? ` (${pctDe(voltaram, receberam)}%)` : ""}</span>
         <small class="muted">Para quem mostrou interesse e ficou 1 dia sem responder; até 2 seguidos.</small></div></div>
+      ${(f.por_ramo ?? []).length ? `<div class="fv-bloco"><b>Resposta por ramo</b><span class="muted">qual ramo responde mais à primeira abordagem</span>
+        <table class="fv-ramos"><thead><tr><th>Ramo</th><th>Contatadas</th><th>Responderam</th><th>Interessadas</th></tr></thead><tbody>
+        ${f.por_ramo.map((r) => `<tr><td>${esc(r.ramo.charAt(0).toUpperCase() + r.ramo.slice(1))}</td><td>${r.contatadas}</td>
+          <td><b>${pctDe(r.responderam, r.contatadas)}%</b> <span class="muted">(${r.responderam})</span></td><td>${r.interessadas}</td></tr>`).join("")}
+        </tbody></table></div>` : ""}
     </div>
   </div>`;
 }
@@ -2987,7 +2998,7 @@ function bolhasDaConversa(d, { somenteLer = false } = {}) {
     const outroContato = m.canal !== "instagram" && m.contato && !contatoPrincipal.some((c) => String(c).toLowerCase() === String(m.contato).toLowerCase());
     const detalhes = [
       ic(icCanal(m.canal), "sm"),
-      m.autor === "nos" ? (m.followup ? `${ic("bell", "sm")}follow-up ${m.followup} de 2 · ${horasDepois ?? "?"} h sem resposta` : m.etapa >= 1 ? `etapa ${m.etapa}` : "resposta") : (ROTULOS_RESPOSTA[m.tipo]?.[0] ?? ""),
+      m.autor === "nos" ? (m.followup ? `${ic("bell", "sm")}follow-up ${m.followup} de 2 · ${horasDepois ?? "?"} h sem resposta` : m.tipo === "reativacao" ? "reativação" : m.etapa >= 1 ? `etapa ${m.etapa}` : "resposta") : (ROTULOS_RESPOSTA[m.tipo]?.[0] ?? ""),
       outroContato ? `${m.autor === "nos" ? "para" : "de"} ${esc(m.contato)}` : "",
       new Date(m.quando).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) + (m.autor === "nos" ? " ✓✓" : ""),
     ].filter(Boolean).join(" · ");

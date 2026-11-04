@@ -980,6 +980,42 @@ export async function interessadosParaFollowup(agoraIso = new Date().toISOString
   );
 }
 
+/**
+ * Empresas para a reativação: receberam a sequência inteira, nunca responderam, nada na fila para elas e a
+ * última mensagem saiu antes de `antesIso` (30 dias de pausa). Quem já foi reativada é conferido pelo registro.
+ */
+export async function paraReativar(antesIso, limite = 40) {
+  return q(
+    `SELECT l.* FROM leads l
+      WHERE l.agente_id IS NULL AND l.status = 'contatado'
+        AND NOT EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IS DISTINCT FROM 'automatica')
+        AND NOT EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status IN ('rascunho', 'aprovada', 'enviando'))
+        AND (SELECT max(m.enviada_em) FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada') < $1::timestamptz
+      ORDER BY l.id LIMIT $2`,
+    [antesIso, limite]
+  );
+}
+
+/** Reativações criadas hoje (para o limite do dia). */
+export async function reativacoesHoje() {
+  return (await um(
+    `SELECT count(*)::int AS n FROM mensagens WHERE tipo = 'reativacao'
+        AND (criado_em AT TIME ZONE $1::text)::date = (now() AT TIME ZONE $1::text)::date`,
+    [config.timezone]
+  )).n;
+}
+
+/** Reativações enviadas antes de `antesIso` cuja empresa não respondeu depois. */
+export async function reativacoesSemResposta(antesIso) {
+  return q(
+    `SELECT m.lead_id FROM mensagens m JOIN leads l ON l.id = m.lead_id
+      WHERE m.tipo = 'reativacao' AND m.status = 'enviada' AND m.enviada_em < $1::timestamptz AND l.status = 'contatado'
+        AND NOT EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = m.lead_id AND r.recebida_em > m.enviada_em
+                          AND r.classificacao IS DISTINCT FROM 'automatica')`,
+    [antesIso]
+  );
+}
+
 /** Esta empresa já mandou exatamente este texto antes? (Robô repete a mesma mensagem.) */
 export async function textoJaRecebido(leadId, texto) {
   return Boolean(await um(
@@ -1073,7 +1109,8 @@ export async function funilDeConversas() {
              CASE WHEN EXISTS (SELECT 1 FROM mensagens p WHERE p.lead_id = l.id AND p.status = 'aprovada' AND p.tipo <> 'resposta')
                   THEN 'recebendo_etapas' ELSE 'sem_resposta' END
            WHEN EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IN ('interessado', 'quer_informacoes')) THEN 'interessadas'
-           ELSE 'em_conversa' END AS etapa
+           ELSE 'em_conversa' END AS etapa,
+           lower(coalesce(nullif(btrim(l.nicho), ''), 'outros')) AS ramo
          FROM leads l
         WHERE l.agente_id IS NULL
           AND EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada' AND m.tipo <> 'resposta')
@@ -1103,10 +1140,17 @@ export async function funilDeConversas() {
          WHERE m.followup IS NOT NULL AND m.status = 'enviada'
            AND EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = m.lead_id AND r.recebida_em > m.enviada_em
                          AND r.classificacao IS DISTINCT FROM 'automatica'))::int AS followup_responderam,
-       (SELECT json_object_agg(etapa, n) FROM (SELECT etapa, count(*)::int AS n FROM etapas GROUP BY etapa) x) AS agora`
+       (SELECT json_object_agg(etapa, n) FROM (SELECT etapa, count(*)::int AS n FROM etapas GROUP BY etapa) x) AS agora,
+       -- Por ramo: quantas foram contatadas, responderam e se interessaram (para ver qual ramo responde mais).
+       (SELECT json_agg(x) FROM (
+          SELECT ramo, count(*)::int AS contatadas,
+                 count(*) FILTER (WHERE etapa NOT IN ('recebendo_etapas', 'sem_resposta', 'descartadas'))::int AS responderam,
+                 count(*) FILTER (WHERE etapa IN ('interessadas', 'agendaram', 'fecharam'))::int AS interessadas
+            FROM etapas GROUP BY ramo ORDER BY count(*) DESC, ramo LIMIT 8) x) AS por_ramo`
   );
   const agora = typeof f.agora === "string" ? JSON.parse(f.agora) : f.agora ?? {};
-  return { ...f, agora: Object.fromEntries(ETAPAS_DO_FUNIL.map((e) => [e, Number(agora[e]) || 0])) };
+  const porRamo = typeof f.por_ramo === "string" ? JSON.parse(f.por_ramo) : f.por_ramo ?? [];
+  return { ...f, por_ramo: porRamo, agora: Object.fromEntries(ETAPAS_DO_FUNIL.map((e) => [e, Number(agora[e]) || 0])) };
 }
 
 /** As etapas do "funil agora", na ordem em que aparecem no painel. */

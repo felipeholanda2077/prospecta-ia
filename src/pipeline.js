@@ -22,6 +22,7 @@ import { semSiteProprio, potencialDaEmpresa } from "./analise/prioridade.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 import { numerosComAgente } from "./respostas/agentes.js";
 import { followupsDeInteressados } from "./respostas/followup.js";
+import { rodadaDeReativacao } from "./respostas/reativacao.js";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
@@ -1263,6 +1264,14 @@ async function rodada(campanha) {
   if (!semTempo(ate)) {
     resultado.followups = await followupsDeInteressados(campanha).catch((e) => {
       log(`⚠️  Falha nos follow-ups: ${e.message}`);
+      return { erro: e.message };
+    });
+  }
+  // Reativação de quem recebeu tudo e não respondeu há 30 dias (uma mensagem só) e encerramento de quem não
+  // respondeu a ela em 7 dias.
+  if (!semTempo(ate)) {
+    resultado.reativacao = await rodadaDeReativacao(campanha).catch((e) => {
+      log(`⚠️  Falha na reativação: ${e.message}`);
       return { erro: e.message };
     });
   }
