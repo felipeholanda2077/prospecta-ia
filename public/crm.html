@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>CRM do agente</title>
+<link rel="icon" type="image/jpeg" href="/fluxdeck-logo.jpg">
+<link rel="apple-touch-icon" href="/fluxdeck-logo.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -12,7 +14,7 @@
   /* CRM externo de um agente de atendimento: login próprio, só as conversas desse agente. */
   :root {
     --bg: #f4f5fa; --surface: #ffffff; --surface-2: #f0f1f8; --surface-3: #e8eaf4; --text: #14151f; --muted: #5d6275; --subtle: #8a8fa5; --border: #e3e5ef;
-    --accent: #5b4cf0; --accent-hover: #4a3be0; --accent-soft: #ecebff; --accent-text: #4636d6;
+    --accent: #1677ff; --accent-hover: #0f63d6; --accent-soft: #e6f0ff; --accent-text: #0d5bd1;
     --ok: #12a150; --ok-soft: #e2f6ea; --danger: #d92d4a; --danger-soft: #fde8ec; --warn: #b7791f; --warn-soft: #fdf3dc;
     --chat: #efe7dd; --bolha: #d9fdd3; --radius: 16px; --radius-sm: 10px;
     --shadow: 0 1px 2px rgba(20, 21, 40, .05), 0 10px 30px -14px rgba(20, 21, 40, .2);
@@ -21,7 +23,7 @@
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #0b0c14; --surface: #141625; --surface-2: #1b1e31; --surface-3: #23273e; --text: #eceef8; --muted: #9aa0b8; --subtle: #6f7590; --border: #262940;
-      --accent: #8b7dff; --accent-hover: #9d91ff; --accent-soft: #232046; --accent-text: #b3aaff;
+      --accent: #3d8bff; --accent-hover: #5a9dff; --accent-soft: #0f2442; --accent-text: #7fb3ff;
       --ok: #34c574; --ok-soft: #10291c; --danger: #ff6b81; --danger-soft: #3a1720; --warn: #e0a43a; --warn-soft: #33260e;
       --chat: #0e1a14; --bolha: #144d37; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .7);
       color-scheme: dark;
@@ -29,7 +31,7 @@
   }
   :root[data-theme="dark"] {
     --bg: #0b0c14; --surface: #141625; --surface-2: #1b1e31; --surface-3: #23273e; --text: #eceef8; --muted: #9aa0b8; --subtle: #6f7590; --border: #262940;
-    --accent: #8b7dff; --accent-hover: #9d91ff; --accent-soft: #232046; --accent-text: #b3aaff;
+    --accent: #3d8bff; --accent-hover: #5a9dff; --accent-soft: #0f2442; --accent-text: #7fb3ff;
     --ok: #34c574; --ok-soft: #10291c; --danger: #ff6b81; --danger-soft: #3a1720; --warn: #e0a43a; --warn-soft: #33260e;
     --chat: #0e1a14; --bolha: #144d37; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .7);
     color-scheme: dark;
@@ -72,23 +74,72 @@
   .pilula.perigo { background: var(--danger-soft); color: var(--danger); }
   .pilula.atencao { background: var(--warn-soft); color: var(--warn); }
   .avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #fff;
-            background: linear-gradient(135deg, var(--accent), #06b6d4); position: relative; }
+            background: linear-gradient(135deg, #1677ff, #06b6d4); position: relative; }
   .avatar.grande { width: 72px; height: 72px; font-size: 28px; }
   .avatar .ponto { position: absolute; right: -1px; bottom: -1px; width: 13px; height: 13px; border-radius: 50%; background: var(--subtle); border: 2px solid var(--surface); }
   .avatar.grande .ponto { width: 18px; height: 18px; border-width: 3px; }
   .ligado .avatar .ponto { background: var(--ok); }
 
   /* Login */
-  .login { min-height: 100vh; display: grid; place-items: center; padding: 16px;
-           background: radial-gradient(1200px 600px at 10% -10%, var(--accent-soft), transparent), var(--bg); }
-  .login .cartao { width: min(400px, 100%); padding: 32px 28px; display: grid; gap: 16px; }
-  .login .selo { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--accent), #06b6d4); }
-  .erro { color: var(--danger); font-size: 14px; min-height: 1em; }
+  .login { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); background: var(--bg); }
+  .login-marca { position: relative; overflow: hidden; color: #fff; padding: 40px 48px; display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
+                 background: radial-gradient(900px 500px at 0% 0%, rgba(22, 119, 255, .55), transparent 60%), radial-gradient(700px 500px at 100% 100%, rgba(6, 182, 212, .35), transparent 60%), #05070f; }
+  .login-marca::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1px); background-size: 22px 22px; pointer-events: none; }
+  .login-marca > * { position: relative; z-index: 1; }
+  .logo-linha { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 20px; letter-spacing: -.01em; }
+  .logo { width: 44px; height: 44px; border-radius: 12px; display: block; background: #000; box-shadow: 0 0 0 1px rgba(255,255,255,.12); }
+  .logo.grande { width: 56px; height: 56px; border-radius: 16px; }
+  .login-texto { max-width: 480px; display: grid; gap: 18px; }
+  .login-texto h1 { font-size: clamp(28px, 3.2vw, 40px); line-height: 1.15; letter-spacing: -.02em; }
+  .login-texto p { color: rgba(255,255,255,.75); font-size: 16px; }
+  .beneficios { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 14px; }
+  .beneficios li { display: flex; gap: 12px; align-items: flex-start; color: rgba(255,255,255,.9); }
+  .beneficios .bola { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; background: rgba(255,255,255,.1); color: #7fb3ff; }
+  .beneficios b { display: block; color: #fff; }
+  .beneficios small { color: rgba(255,255,255,.65); font-size: 13.5px; }
+  .login-rodape { color: rgba(255,255,255,.5); font-size: 13px; }
+  .login-form-lado { display: grid; place-items: center; padding: 32px 20px; position: relative; }
+  .login-cartao { width: min(400px, 100%); display: grid; gap: 16px; }
+  .login-cartao h2 { font-size: 26px; letter-spacing: -.01em; }
+  .login-cartao .sub { color: var(--muted); margin-top: 4px; }
+  .campo-ic { position: relative; }
+  .campo-ic > .ic { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--subtle); pointer-events: none; }
+  .campo-ic input { padding-left: 40px; min-height: 48px; }
+  .campo-ic input.com-olho { padding-right: 46px; }
+  .olho { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
+  .olho:hover { background: var(--surface-2); color: var(--text); }
+  .campo.invalido input { border-color: var(--danger); }
+  .erro-campo { color: var(--danger); font-size: 12.5px; }
+  .aviso-caps { display: flex; gap: 6px; align-items: center; color: var(--warn); font-size: 12.5px; }
+  .linha-entre { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+  .check { display: inline-flex; gap: 8px; align-items: center; cursor: pointer; color: var(--muted); }
+  .check input { width: 18px; height: 18px; min-height: 0; padding: 0; accent-color: var(--accent); }
+  .link { font: inherit; font-weight: 600; color: var(--accent-text); background: none; border: 0; padding: 0; cursor: pointer; }
+  .link:hover { text-decoration: underline; }
+  .btn.grande { min-height: 50px; font-size: 15px; border-radius: 12px; }
+  .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; animation: girar .7s linear infinite; }
+  @keyframes girar { to { transform: rotate(360deg); } }
+  .alerta.perigo { background: var(--danger-soft); color: var(--danger); }
+  .tremer { animation: tremer .35s ease; }
+  @keyframes tremer { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+  .seguro { display: flex; gap: 8px; align-items: center; justify-content: center; color: var(--subtle); font-size: 12.5px; }
+  .ajuda { font-size: 13.5px; color: var(--muted); background: var(--surface-2); padding: 10px 12px; border-radius: var(--radius-sm); }
+  .tema { position: absolute; top: 16px; right: 16px; }
+  .so-celular { display: none; }
+  @media (max-width: 900px) {
+    .login { grid-template-columns: 1fr; }
+    .login-marca { display: none; }
+    .so-celular { display: block; }
+  }
 
   /* Estrutura */
-  .app { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+  .app { display: grid; grid-template-columns: 256px 1fr; min-height: 100vh; }
   .lateral { position: sticky; top: 0; height: 100vh; background: var(--surface); border-right: 1px solid var(--border); padding: 18px 14px; display: flex; flex-direction: column; gap: 18px; }
-  .marca { display: flex; align-items: center; gap: 12px; padding: 4px 6px; }
+  .marca-fluxdeck { display: flex; align-items: center; gap: 10px; padding: 2px 6px 4px; }
+  .marca-fluxdeck .logo { width: 34px; height: 34px; border-radius: 10px; }
+  .marca-fluxdeck b { font-size: 16px; font-weight: 800; letter-spacing: -.01em; display: block; line-height: 1.1; }
+  .marca-fluxdeck small { color: var(--muted); font-size: 12px; }
+  .marca { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-2); }
   .marca b { display: block; font-size: 15px; }
   .marca small { color: var(--muted); font-size: 12.5px; }
   .menu { display: grid; gap: 4px; }
@@ -101,6 +152,13 @@
   .badge.azul { background: var(--accent); }
   .rodape-lateral { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px 6px 0; border-top: 1px solid var(--border); }
   .rodape-lateral small { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .barra-celular { display: none; }
+  .esqueleto { border-radius: 8px; background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2)); background-size: 200% 100%; animation: brilho 1.2s ease infinite; }
+  @keyframes brilho { to { background-position: -200% 0; } }
+  .esq-item { display: flex; gap: 12px; align-items: center; padding: 10px; }
+  .esq-item .esqueleto:first-child { width: 40px; height: 40px; border-radius: 50%; flex: none; }
+  .rodape-app { color: var(--subtle); font-size: 12.5px; display: flex; align-items: center; gap: 8px; justify-content: center; padding-top: 8px; }
+  .rodape-app img { width: 18px; height: 18px; border-radius: 5px; }
   .principal { min-width: 0; padding: 20px 24px 40px; display: grid; gap: 18px; align-content: start; max-width: 1320px; width: 100%; }
   .topo { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
   .topo h1 { font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
@@ -208,6 +266,9 @@
   @media (max-width: 900px) {
     .app { grid-template-columns: 1fr; }
     .lateral { display: none; }
+    .barra-celular { display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 15; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 16px; }
+    .barra-celular .logo { width: 30px; height: 30px; border-radius: 8px; }
+    .barra-celular b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .principal { padding: 16px 16px 90px; }
     .crm { grid-template-columns: 1fr; height: auto; min-height: 0; }
     .crm .lado-lista { max-height: 70vh; }
@@ -227,18 +288,51 @@
 </head>
 <body>
   <section class="login" id="tela-login" hidden>
-    <form class="cartao" id="form-login">
-      <div class="selo"><span data-ic="message"></span></div>
-      <div><h1 style="font-size:22px">CRM do agente</h1><p class="muted" style="margin-top:4px">Entre com o usuário e a senha que você recebeu.</p></div>
-      <div class="campo"><label for="usuario">Usuário</label><input id="usuario" name="usuario" autocomplete="username" autocapitalize="none" required></div>
-      <div class="campo"><label for="senha">Senha</label><input id="senha" name="senha" type="password" autocomplete="current-password" required></div>
-      <p class="erro" id="erro-login"></p>
-      <button class="btn primario" type="submit">Entrar</button>
-    </form>
+    <div class="login-marca">
+      <div class="logo-linha"><img class="logo" src="/fluxdeck-logo.jpg" alt="">FluxDeck</div>
+      <div class="login-texto">
+        <h1>Seu atendimento com IA no WhatsApp, num lugar só.</h1>
+        <p>Acompanhe cada conversa, assuma quando quiser e ajuste a IA do jeito do seu negócio.</p>
+        <ul class="beneficios">
+          <li><span class="bola"><span data-ic="message"></span></span><div><b>Conversas em tempo real</b><small>Tudo o que a IA respondeu, e o que precisa de você.</small></div></li>
+          <li><span class="bola"><span data-ic="spark"></span></span><div><b>IA treinada com as suas regras</b><small>Preços, planos e o jeito de atender que você definir.</small></div></li>
+          <li><span class="bola"><span data-ic="users"></span></span><div><b>Você assume com um clique</b><small>A IA para na hora e a conversa segue com você.</small></div></li>
+        </ul>
+      </div>
+      <div class="login-rodape">© FluxDeck · CRM de agentes de atendimento</div>
+    </div>
+    <div class="login-form-lado">
+      <button class="btn fantasma sm tema" type="button" data-tema title="Alternar tema claro e escuro" aria-label="Alternar tema claro e escuro"><span data-ic="moon"></span></button>
+      <form class="login-cartao" id="form-login" novalidate>
+        <img class="logo grande so-celular" src="/fluxdeck-logo.jpg" alt="FluxDeck">
+        <div><h2>Entrar no CRM</h2><p class="sub">Use o usuário e a senha que você recebeu da FluxDeck.</p></div>
+        <div class="alerta perigo" id="erro-login" role="alert" hidden></div>
+        <div class="campo" id="campo-usuario">
+          <label for="usuario">Usuário</label>
+          <div class="campo-ic"><span data-ic="users"></span><input id="usuario" name="usuario" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="seu.usuario"></div>
+          <span class="erro-campo" hidden>Informe o seu usuário.</span>
+        </div>
+        <div class="campo" id="campo-senha">
+          <label for="senha">Senha</label>
+          <div class="campo-ic"><span data-ic="lock"></span><input id="senha" name="senha" type="password" class="com-olho" autocomplete="current-password" placeholder="Sua senha">
+            <button class="olho" type="button" id="ver-senha" aria-label="Mostrar senha" aria-pressed="false"><span data-ic="eye"></span></button></div>
+          <span class="erro-campo" hidden>Informe a sua senha.</span>
+          <span class="aviso-caps" id="caps" hidden><span data-ic="alert"></span>Caps Lock está ligado</span>
+        </div>
+        <div class="linha-entre">
+          <label class="check"><input type="checkbox" id="lembrar">Lembrar meu usuário</label>
+          <button class="link" type="button" id="esqueci" aria-expanded="false" aria-controls="ajuda-senha">Esqueci a senha</button>
+        </div>
+        <p class="ajuda" id="ajuda-senha" hidden>Fale com a FluxDeck: ela remove o login antigo e cria uma senha nova para você em poucos minutos.</p>
+        <button class="btn primario grande" type="submit" id="entrar"><span class="spinner" hidden></span><span>Entrar</span></button>
+        <div class="seguro"><span data-ic="lock"></span>Conexão segura · a sessão fica ativa por 7 dias neste aparelho</div>
+      </form>
+    </div>
   </section>
 
   <div class="app" id="app" hidden>
     <aside class="lateral">
+      <div class="marca-fluxdeck"><img class="logo" src="/fluxdeck-logo.jpg" alt=""><div><b>FluxDeck</b><small>CRM de agentes</small></div></div>
       <div class="marca"><div class="avatar" id="avatar-lateral">?<span class="ponto"></span></div><div><b id="nome-lateral">Agente</b><small id="estado-lateral">Desligado</small></div></div>
       <nav class="menu" aria-label="Seções do CRM">
         <button type="button" data-ir="conversas" aria-current="page"><span data-ic="message"></span>Conversas<span class="badge" data-contador hidden></span></button>
@@ -246,9 +340,14 @@
         <button type="button" data-ir="perfil"><span data-ic="spark"></span>Perfil da IA</button>
         <button type="button" data-ir="base"><span data-ic="file"></span>Base de conhecimento</button>
       </nav>
-      <div class="rodape-lateral"><span data-ic="users"></span><small id="voce"></small><button class="btn fantasma sm" type="button" data-sair title="Sair"><span data-ic="logout"></span></button></div>
+      <div class="rodape-lateral"><span data-ic="users"></span><small id="voce"></small>
+        <button class="btn fantasma sm" type="button" data-tema title="Alternar tema claro e escuro" aria-label="Alternar tema claro e escuro"><span data-ic="moon"></span></button>
+        <button class="btn fantasma sm" type="button" data-sair title="Sair" aria-label="Sair"><span data-ic="logout"></span></button></div>
     </aside>
 
+    <header class="barra-celular"><img class="logo" src="/fluxdeck-logo.jpg" alt="FluxDeck"><b id="nome-celular">CRM</b>
+      <button class="btn fantasma sm" type="button" data-tema aria-label="Alternar tema claro e escuro"><span data-ic="moon"></span></button>
+      <button class="btn fantasma sm" type="button" data-sair aria-label="Sair"><span data-ic="logout"></span></button></header>
     <main class="principal">
       <header class="topo">
         <div><h1 id="titulo-pagina">Conversas</h1><p id="sub-pagina"></p></div>
@@ -326,6 +425,7 @@
           <label class="btn sm" style="justify-self:start"><span data-ic="file"></span>Adicionar arquivo<input type="file" id="arquivo" accept=".txt,.md,.csv,.tsv,.json,.html,.xml,text/*" multiple hidden></label>
         </div>
       </section>
+      <footer class="rodape-app"><img src="/fluxdeck-logo.jpg" alt="">CRM de agentes · FluxDeck</footer>
     </main>
 
     <nav class="nav-inferior" aria-label="Seções do CRM">
@@ -360,6 +460,11 @@ const ICONES = {
   send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   x: '<path d="M18 6 6 18M6 6l12 12"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M9.9 4.2A10 10 0 0 1 12 4c6.5 0 10 8 10 8a17 17 0 0 1-3 4M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M14.1 14.1a3 3 0 1 1-4.2-4.2"/><path d="m2 2 20 20"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
 };
 const ic = (nome, cls = "") => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONES[nome] ?? ""}</svg>`;
 const hidratarIcones = (raiz = document) => raiz.querySelectorAll("[data-ic]").forEach((el) => { el.outerHTML = ic(el.dataset.ic); });
@@ -403,22 +508,89 @@ function avisar(texto, tipo = "") {
 function mostrarLogin() {
   $("#app").hidden = true;
   $("#tela-login").hidden = false;
-  setTimeout(() => $("#usuario").focus(), 50);
+  setTimeout(() => ($("#usuario").value ? $("#senha") : $("#usuario")).focus(), 50);
 }
+
+// ---------- Login ----------
+// O usuário lembrado e o tema ficam só neste navegador (e o login funciona igual se o navegador não guardar nada).
+const guardado = {
+  ler: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  gravar: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} },
+};
+
+function aplicarTema(tema) {
+  if (tema) document.documentElement.dataset.theme = tema;
+  const escuro = tema ? tema === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  $$("[data-tema]").forEach((b) => { b.innerHTML = ic(escuro ? "sun" : "moon"); });
+}
+aplicarTema(guardado.ler("crm_tema"));
+
+function erroDeLogin(texto) {
+  const caixa = $("#erro-login");
+  caixa.innerHTML = `${ic("alert")}<div>${esc(texto)}</div>`;
+  caixa.hidden = false;
+  const cartao = $("#form-login");
+  cartao.classList.remove("tremer");
+  void cartao.offsetWidth;
+  cartao.classList.add("tremer");
+}
+
+function marcarCampo(id, invalido) {
+  $(id).classList.toggle("invalido", invalido);
+  $(`${id} .erro-campo`).hidden = !invalido;
+}
+
+$("#usuario").value = guardado.ler("crm_usuario") ?? "";
+$("#lembrar").checked = Boolean(guardado.ler("crm_usuario"));
+
+$("#ver-senha").addEventListener("click", (ev) => {
+  const campo = $("#senha");
+  const mostrar = campo.type === "password";
+  campo.type = mostrar ? "text" : "password";
+  ev.currentTarget.innerHTML = ic(mostrar ? "eyeOff" : "eye");
+  ev.currentTarget.setAttribute("aria-pressed", String(mostrar));
+  ev.currentTarget.setAttribute("aria-label", mostrar ? "Esconder senha" : "Mostrar senha");
+  campo.focus();
+});
+
+for (const tipo of ["keydown", "keyup"]) {
+  $("#senha").addEventListener(tipo, (ev) => { $("#caps").hidden = !ev.getModifierState?.("CapsLock"); });
+}
+$("#usuario").addEventListener("input", () => marcarCampo("#campo-usuario", false));
+$("#senha").addEventListener("input", () => marcarCampo("#campo-senha", false));
+
+$("#esqueci").addEventListener("click", (ev) => {
+  const ajuda = $("#ajuda-senha");
+  ajuda.hidden = !ajuda.hidden;
+  ev.currentTarget.setAttribute("aria-expanded", String(!ajuda.hidden));
+});
 
 $("#form-login").addEventListener("submit", async (ev) => {
   ev.preventDefault();
-  $("#erro-login").textContent = "";
-  const botao = ev.target.querySelector("button");
+  $("#erro-login").hidden = true;
+  const usuario = $("#usuario").value.trim();
+  const senha = $("#senha").value;
+  marcarCampo("#campo-usuario", !usuario);
+  marcarCampo("#campo-senha", !senha);
+  if (!usuario) return $("#usuario").focus();
+  if (!senha) return $("#senha").focus();
+  const botao = $("#entrar");
   botao.disabled = true;
+  botao.querySelector(".spinner").hidden = false;
+  botao.lastElementChild.textContent = "Entrando...";
   try {
-    await post("/api/crm/login", { usuario: $("#usuario").value, senha: $("#senha").value });
+    await post("/api/crm/login", { usuario, senha });
+    guardado.gravar("crm_usuario", $("#lembrar").checked ? usuario : null);
     $("#senha").value = "";
     await iniciar();
   } catch (e) {
-    $("#erro-login").textContent = e.message;
+    erroDeLogin(/incorretos/i.test(e.message) ? "Usuário ou senha incorretos. Confira e tente de novo."
+      : /fetch|network|internet/i.test(e.message) ? "Sem conexão com o servidor. Confira a internet e tente de novo." : e.message);
+    $("#senha").select();
   } finally {
     botao.disabled = false;
+    botao.querySelector(".spinner").hidden = true;
+    botao.lastElementChild.textContent = "Entrar";
   }
 });
 
@@ -437,6 +609,7 @@ function desenharIdentidade() {
   $("#app").classList.toggle("ligado", eu.ligado);
   $("#avatar-lateral").innerHTML = `${inicial(eu.agente)}<span class="ponto"></span>`;
   $("#nome-lateral").textContent = eu.agente;
+  $("#nome-celular").textContent = `CRM · ${eu.agente}`;
   $("#estado-lateral").textContent = eu.ligado ? "Atendendo agora" : "Desligado";
   $("#voce").textContent = eu.voce;
   $$("[data-ponto-wa]").forEach((p) => p.classList.toggle("ok", Boolean(eu.whatsappConectado)));
@@ -489,6 +662,10 @@ $("#chave-ligado").addEventListener("change", async (ev) => {
 
 // ---------- Conversas ----------
 async function carregarConversas() {
+  if (!dados) {
+    $("#lista").innerHTML = Array.from({ length: 5 }, () => `<div class="esq-item"><span class="esqueleto"></span><span style="flex:1;display:grid;gap:6px"><span class="esqueleto" style="height:12px;width:60%"></span><span class="esqueleto" style="height:10px;width:85%"></span></span></div>`).join("");
+    $("#numeros").innerHTML = Array.from({ length: 7 }, () => `<div class="num"><span class="esqueleto" style="width:38px;height:38px;border-radius:12px"></span><span style="flex:1;display:grid;gap:6px"><span class="esqueleto" style="height:16px;width:40%"></span><span class="esqueleto" style="height:10px;width:70%"></span></span></div>`).join("");
+  }
   dados = await api("/api/crm/conversas");
   const n = dados.numeros, e = dados.porEstado;
   $("#numeros").innerHTML = [
@@ -800,7 +977,7 @@ $("#arquivo").addEventListener("change", async (ev) => {
 
 // ---------- Cliques ----------
 document.addEventListener("click", async (ev) => {
-  const el = ev.target.closest("[data-ir],[data-sair],[data-filtro],[data-conversa],[data-voltar],[data-assumir],[data-continua],[data-fechou],[data-tirar-arquivo],[data-wa-criar],[data-wa-qr],[data-wa-desconectar]");
+  const el = ev.target.closest("[data-ir],[data-sair],[data-tema],[data-filtro],[data-conversa],[data-voltar],[data-assumir],[data-continua],[data-fechou],[data-tirar-arquivo],[data-wa-criar],[data-wa-qr],[data-wa-desconectar]");
   if (!el) return;
   const d = el.dataset;
   if (d.waCriar !== undefined) return acaoWhatsapp(() => post("/api/crm/whatsapp"), el);
@@ -811,6 +988,12 @@ document.addEventListener("click", async (ev) => {
   }
   if (d.ir) return irPara(d.ir);
   if (d.sair !== undefined) { await post("/api/crm/sair").catch(() => {}); return mostrarLogin(); }
+  if (d.tema !== undefined) {
+    const atual = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    const novo = atual === "dark" ? "light" : "dark";
+    guardado.gravar("crm_tema", novo);
+    return aplicarTema(novo);
+  }
   if (d.filtro) { filtro = d.filtro; return desenharLista(); }
   if (d.conversa) return abrir(Number(d.conversa)).catch((e) => avisar(e.message, "perigo"));
   if (d.voltar !== undefined) { aberta = null; desenharLista(); return desenharPainelVazio(); }
