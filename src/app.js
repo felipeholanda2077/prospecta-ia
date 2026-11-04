@@ -1100,6 +1100,12 @@ app.get("/api/conversas", async (req, res) => {
   res.json({ indicadores: indicadoresDasConversas(conversas, await db.funilDeConversas()), conversas });
 });
 
+// As empresas de uma ou mais etapas do funil (clicar numa etapa da tela Respostas mostra quem são).
+app.get("/api/funil/empresas", async (req, res) => {
+  const etapas = String(req.query.etapas ?? "").split(",").map((e) => e.trim()).filter(Boolean);
+  res.json({ empresas: await db.empresasDasEtapas(etapas) });
+});
+
 // As conversas do direct do Instagram e o andamento de cada uma, para a aba Direct.
 app.get("/api/instagram/directs", async (req, res) => {
   const resumo = new Map((await db.resumoDosDirects()).map((r) => [r.lead_id, r]));

@@ -386,6 +386,17 @@
   .fv-followup > div { display: grid; gap: 3px; }
   .fv-followup .ic { color: var(--accent-text); margin-top: 2px; }
   .fa-cor { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  button.fv-etapa { font: inherit; border: 0; cursor: pointer; transition: filter .15s; }
+  button.fv-etapa:hover { filter: brightness(1.12); }
+  button.fv-item { font: inherit; color: inherit; background: none; border: 0; padding: 3px 6px; margin: 0 -6px; width: calc(100% + 12px); border-radius: 6px; cursor: pointer; text-align: left; }
+  button.fv-item:hover { background: var(--surface-3); }
+  .fe-corpo { max-width: 760px; padding: 18px; }
+  .fe-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .fe-cab h3 { margin: 0; }
+  .fe-linha { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); }
+  .fe-info { flex: 1; min-width: 0; display: grid; gap: 2px; }
+  .fe-info small { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; overflow-wrap: anywhere; }
+  @media (max-width: 640px) { .fe-linha { flex-wrap: wrap; } .fe-linha .btn { width: 100%; } }
   .fv-ramos { width: 100%; border-collapse: collapse; font-size: 13px; }
   .fv-ramos th { text-align: left; font-weight: 600; color: var(--subtle); font-size: 12px; padding: 4px 6px 4px 0; }
   .fv-ramos td { padding: 4px 6px 4px 0; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
@@ -2882,22 +2893,24 @@ function htmlFunilVisual(f) {
     const partes = fx.pararam.filter(([k]) => k !== "descartadas" || agora[k]).map(([k, nome]) => `${agora[k] ?? 0} ${nome.toLowerCase()}`);
     if (seguem) partes.push(`${seguem.total} ${seguem.nome.toLowerCase()}`);
     const taxa = i ? ` · ${pctDe(fx.total, faixas[i - 1].total)}%` : "";
-    return `<div class="fv-etapa" style="width:${w}%;background:${fx.cor};padding:6px ${Math.round(corte + 1)}%;clip-path:polygon(0 0,100% 0,${100 - corte}% 100%,${corte}% 100%)"
-      title="${esc(`${fx.total} ${fx.nome.toLowerCase()} = ${partes.join(" + ")}`)}">
-      <b>${fx.total}</b><span>${fx.nome}${taxa}</span><small>${seguem ? `= ${partes.join(" + ")}` : "viraram clientes"}</small></div>`;
+    const chegaram = faixas.slice(i).flatMap((x) => x.pararam.map(([k]) => k)).join(",");
+    return `<button type="button" class="fv-etapa" data-funil-etapas="${chegaram}" data-funil-titulo="${esc(fx.nome)}" style="width:${w}%;background:${fx.cor};padding:6px ${Math.round(corte + 1)}%;clip-path:polygon(0 0,100% 0,${100 - corte}% 100%,${corte}% 100%)"
+      title="${esc(`${fx.total} ${fx.nome.toLowerCase()} = ${partes.join(" + ")} · clique para ver quem são`)}">
+      <b>${fx.total}</b><span>${fx.nome}${taxa}</span><small>${seguem ? `= ${partes.join(" + ")}` : "viraram clientes"}</small></button>`;
   }).join("");
   const total = faixas[0].total;
   const legenda = faixas.map((fx) => {
     const itens = fx.pararam.filter(([k]) => k !== "descartadas" || agora[k]);
     return `<li><span class="fa-cor" style="background:${fx.cor}"></span><div class="fv-grupo"><span class="fv-grupo-nome">Pararam em ${fx.nome.toLowerCase()}</span>
-      ${itens.map(([k, nome]) => `<span class="fv-item${k === "recusaram" ? " recusa" : ""}"><span>${nome}</span><b>${agora[k] ?? 0}</b><small>${pctDe(agora[k] ?? 0, total)}%</small></span>`).join("")}</div></li>`;
+      ${itens.map(([k, nome]) => `<button type="button" class="fv-item${k === "recusaram" ? " recusa" : ""}" data-funil-etapas="${k}" data-funil-titulo="${esc(nome)}" title="Ver quem são">
+        <span>${nome}</span><b>${agora[k] ?? 0}</b><small>${pctDe(agora[k] ?? 0, total)}%</small></button>`).join("")}</div></li>`;
   }).join("");
   const receberam = f.followup_receberam ?? 0;
   const voltaram = f.followup_responderam ?? 0;
   return `<div class="funil-visual" aria-label="Funil das conversas">
-    <div class="fv-funil"><div class="fv-titulo"><b>Funil da prospecção</b><span class="muted">quantas empresas chegaram a cada etapa (a % é de quem veio da etapa anterior)</span></div>${funil}</div>
+    <div class="fv-funil"><div class="fv-titulo"><b>Funil da prospecção</b><span class="muted">quantas empresas chegaram a cada etapa (a % é de quem veio da etapa anterior); clique numa faixa para ver quem são</span></div>${funil}</div>
     <div class="fv-lado">
-      <div class="fv-bloco"><b>Onde estão agora</b><span class="muted">as ${total} empresas, cada uma onde parou; a cor é a da faixa do funil</span><ul class="fv-lista">${legenda}</ul></div>
+      <div class="fv-bloco"><b>Onde estão agora</b><span class="muted">as ${total} empresas, cada uma onde parou; a cor é a da faixa do funil. Clique para ver quem são.</span><ul class="fv-lista">${legenda}</ul></div>
       <div class="fv-bloco fv-followup">${ic("bell")}<div><b>Follow-up da IA</b>
         <span><b>${receberam}</b> ${receberam === 1 ? "empresa recebeu" : "empresas receberam"} follow-up · <b>${voltaram}</b> ${voltaram === 1 ? "voltou" : "voltaram"} a responder${receberam ? ` (${pctDe(voltaram, receberam)}%)` : ""}</span>
         <small class="muted">Para quem mostrou interesse e ficou 1 dia sem responder; até 2 seguidos.</small></div></div>
@@ -2909,6 +2922,53 @@ function htmlFunilVisual(f) {
     </div>
   </div>`;
 }
+
+/** Abre a lista das empresas de uma etapa (ou de uma faixa) do funil, com o botão para ver a conversa de cada uma. */
+async function abrirEmpresasDoFunil(etapas, titulo) {
+  $("#funil-empresas")?.remove();
+  const janela = document.createElement("div");
+  janela.className = "feed-modal";
+  janela.id = "funil-empresas";
+  janela.setAttribute("role", "dialog");
+  janela.setAttribute("aria-modal", "true");
+  janela.setAttribute("aria-label", titulo);
+  janela.innerHTML = `<div class="feed-modal-corpo fe-corpo cartao"><div class="fe-cab"><h3>${esc(titulo)}</h3>
+    <button type="button" class="btn sm" data-fechar-funil>${ic("x", "sm")}Fechar</button></div><div id="fe-lista"><p class="muted">Carregando...</p></div></div>`;
+  document.body.append(janela);
+  $("[data-fechar-funil]", janela).focus();
+  try {
+    const { empresas } = await api(`/api/funil/empresas?etapas=${encodeURIComponent(etapas)}`);
+    const nomeDaEtapa = Object.fromEntries(FAIXAS_FUNIL.flatMap((fx) => fx.pararam));
+    $("#fe-lista", janela).innerHTML = empresas.length ? `<p class="muted" style="margin:0 0 10px">${empresas.length} ${empresas.length === 1 ? "empresa" : "empresas"}</p>` +
+      empresas.map((e) => `<article class="fe-linha">
+        <span class="avatar">${inicial(e.nome)}</span>
+        <div class="fe-info"><b>${esc(e.nome)}</b>
+          <small class="muted">${[e.nicho, e.cidade].filter(Boolean).map(esc).join(" · ")}${etapas.includes(",") ? ` · <span class="pilula">${esc(nomeDaEtapa[e.etapa] ?? e.etapa)}</span>` : ""}</small>
+          <small class="muted">${[e.whatsapp && `${ic("message", "sm")}${esc(e.whatsapp)}`, e.email && `${ic("mail", "sm")}${esc(e.email)}`, e.instagram && `${ic("camera", "sm")}@${esc(e.instagram)}`].filter(Boolean).join(" ")}</small>
+          <small class="muted">${e.ultima_dela ? `Respondeu por último em ${dataHora(e.ultima_dela)}` : "Nunca respondeu"}${e.ultima_nossa ? ` · nossa última mensagem em ${dataHora(e.ultima_nossa)}` : ""}</small></div>
+        <button type="button" class="btn sm" data-funil-conversa="${e.id}">${ic("message", "sm")}Ver conversa</button></article>`).join("")
+      : `<p class="muted">Nenhuma empresa nesta etapa agora.</p>`;
+  } catch (e) {
+    $("#fe-lista", janela).innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+document.addEventListener("click", async (ev) => {
+  const etapa = ev.target.closest("[data-funil-etapas]");
+  if (etapa) return abrirEmpresasDoFunil(etapa.dataset.funilEtapas, etapa.dataset.funilTitulo);
+  const janela = $("#funil-empresas");
+  if (!janela) return;
+  if (ev.target.closest("[data-fechar-funil]") || ev.target === janela) return janela.remove();
+  const conversa = ev.target.closest("[data-funil-conversa]");
+  if (conversa) {
+    janela.remove();
+    conversaAberta = Number(conversa.dataset.funilConversa);
+    if (viewAtual !== "respostas") return void (location.hash = "#respostas");
+    await abrirConversa(conversaAberta).catch((e) => avisar(e.message, "perigo"));
+    $("#chat-app")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+});
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("#funil-empresas")?.remove(); });
 
 function horaCurta(quando) {
   if (!quando) return "";

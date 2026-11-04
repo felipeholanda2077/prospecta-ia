@@ -682,6 +682,13 @@ test("funil: conta quem recusou e onde cada empresa contatada está agora (uma e
   assert.equal(depois.agora.recusaram - antes.agora.recusaram, 1);
   assert.equal(depois.agora.interessadas - antes.agora.interessadas, 1);
   assert.equal(depois.agora.recebendo_etapas - antes.agora.recebendo_etapas, 1);
+  // Clicar numa etapa mostra quem são: a lista bate com o número da etapa.
+  const listaRecusaram = await db.empresasDasEtapas(["recusaram"]);
+  assert.equal(listaRecusaram.length, depois.agora.recusaram);
+  assert.ok(listaRecusaram.some((e) => e.id === recusou.id && e.etapa === "recusaram"));
+  const listaFaixa = await db.empresasDasEtapas(["interessadas", "agendaram", "fecharam"]);
+  assert.ok(listaFaixa.some((e) => e.id === interessada.id));
+  assert.deepEqual(await db.empresasDasEtapas(["nao-existe"]), []);
   // Cada empresa contatada está numa etapa só.
   assert.equal(Object.values(depois.agora).reduce((a, b) => a + b, 0), depois.contatadas);
   const ind = indicadoresDasConversas([], depois);

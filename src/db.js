@@ -1091,16 +1091,12 @@ export async function conversas() {
   }));
 }
 
-/** Números do funil: empresas contatadas, que responderam, mostraram interesse e agendaram. */
-export async function funilDeConversas() {
-  // Não responderam: empresas contatadas sem nenhuma resposta de verdade (a automática do
-  // WhatsApp Business não conta). "Na sequência" = ainda têm etapas para receber.
-  // As conversas dos agentes de atendimento não são da prospecção e ficam fora do funil.
-  // "agora": onde cada empresa contatada está neste momento, numa etapa só (sem contar duas vezes).
-  const f = await um(
-    `WITH com_agente AS (SELECT id FROM leads WHERE agente_id IS NOT NULL),
-     etapas AS (
-       SELECT CASE
+/**
+ * A etapa em que cada empresa contatada está agora (uma etapa por empresa). É a mesma regra no funil da tela
+ * Respostas e na lista de empresas de cada etapa.
+ */
+const SQL_ETAPAS = `
+       SELECT l.id, CASE
            WHEN l.status = 'fechado' THEN 'fecharam'
            WHEN l.status = 'agendado' THEN 'agendaram'
            WHEN l.status IN ('sem_interesse', 'descadastrado') THEN 'recusaram'
@@ -1113,8 +1109,17 @@ export async function funilDeConversas() {
            lower(coalesce(nullif(btrim(l.nicho), ''), 'outros')) AS ramo
          FROM leads l
         WHERE l.agente_id IS NULL
-          AND EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada' AND m.tipo <> 'resposta')
-     ),
+          AND EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada' AND m.tipo <> 'resposta')`;
+
+/** Números do funil: empresas contatadas, que responderam, mostraram interesse e agendaram. */
+export async function funilDeConversas() {
+  // Não responderam: empresas contatadas sem nenhuma resposta de verdade (a automática do
+  // WhatsApp Business não conta). "Na sequência" = ainda têm etapas para receber.
+  // As conversas dos agentes de atendimento não são da prospecção e ficam fora do funil.
+  // "agora": onde cada empresa contatada está neste momento, numa etapa só (sem contar duas vezes).
+  const f = await um(
+    `WITH com_agente AS (SELECT id FROM leads WHERE agente_id IS NOT NULL),
+     etapas AS (${SQL_ETAPAS}),
      sem_resposta AS (
        SELECT DISTINCT m.lead_id FROM mensagens m
         WHERE m.status = 'enviada' AND m.tipo <> 'resposta'
@@ -1151,6 +1156,23 @@ export async function funilDeConversas() {
   const agora = typeof f.agora === "string" ? JSON.parse(f.agora) : f.agora ?? {};
   const porRamo = typeof f.por_ramo === "string" ? JSON.parse(f.por_ramo) : f.por_ramo ?? [];
   return { ...f, por_ramo: porRamo, agora: Object.fromEntries(ETAPAS_DO_FUNIL.map((e) => [e, Number(agora[e]) || 0])) };
+}
+
+/** As empresas que estão agora nestas etapas do funil, com a última mensagem nossa e a última delas. */
+export async function empresasDasEtapas(etapas, limite = 300) {
+  const validas = etapas.filter((e) => ETAPAS_DO_FUNIL.includes(e));
+  if (!validas.length) return [];
+  return q(
+    `WITH etapas AS (${SQL_ETAPAS})
+     SELECT l.id, l.nome, l.nicho, l.cidade, l.whatsapp, l.email, l.instagram, l.status, e.etapa,
+            (SELECT max(m.enviada_em) FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada') AS ultima_nossa,
+            (SELECT max(r.recebida_em) FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IS DISTINCT FROM 'automatica') AS ultima_dela
+       FROM etapas e JOIN leads l ON l.id = e.id
+      WHERE e.etapa IN (${marcadores(validas.length)})
+      ORDER BY coalesce((SELECT max(r.recebida_em) FROM respostas r WHERE r.lead_id = l.id), l.atualizado_em) DESC
+      LIMIT ${Number(limite) || 300}`,
+    validas
+  );
 }
 
 /** As etapas do "funil agora", na ordem em que aparecem no painel. */
