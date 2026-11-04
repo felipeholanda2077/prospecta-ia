@@ -1092,6 +1092,17 @@ export async function funilDeConversas() {
        (SELECT count(DISTINCT lead_id) FROM respostas WHERE classificacao IN ('interessado', 'quer_informacoes') AND lead_id NOT IN (SELECT id FROM com_agente))::int AS interessadas,
        (SELECT count(*) FROM leads WHERE status = 'agendado')::int AS agendadas,
        (SELECT count(*) FROM etapas WHERE etapa = 'recusaram')::int AS recusaram,
+       -- Follow-up da IA: empresas que receberam (o registro marca também os primeiros, de antes da coluna) e
+       -- quantas voltaram a responder depois de um follow-up.
+       (SELECT count(*) FROM (
+          SELECT lead_id FROM mensagens WHERE followup IS NOT NULL AND status = 'enviada'
+          UNION
+          SELECT substring(chave from 13)::int FROM estado WHERE chave LIKE 'followup_ia:%' AND valor LIKE '{%'
+        ) f)::int AS followup_receberam,
+       (SELECT count(DISTINCT m.lead_id) FROM mensagens m
+         WHERE m.followup IS NOT NULL AND m.status = 'enviada'
+           AND EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = m.lead_id AND r.recebida_em > m.enviada_em
+                         AND r.classificacao IS DISTINCT FROM 'automatica'))::int AS followup_responderam,
        (SELECT json_object_agg(etapa, n) FROM (SELECT etapa, count(*)::int AS n FROM etapas GROUP BY etapa) x) AS agora`
   );
   const agora = typeof f.agora === "string" ? JSON.parse(f.agora) : f.agora ?? {};

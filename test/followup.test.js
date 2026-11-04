@@ -103,4 +103,11 @@ test("follow-up no painel: a mensagem fica marcada e a previsão diz quando sai 
   const historico = await db.historicoConversa(lead.id);
   assert.equal(historico.at(-1).followup, 1);
   assert.equal(historico.find((h) => h.autor === "lead").followup, null);
+
+  // No funil: conta quem recebeu follow-up e quem voltou a responder depois dele.
+  const antes = await db.funilDeConversas();
+  await db.criarResposta({ lead_id: lead.id, canal: "whatsapp", origem_id: "painel-volta", de: "5511900000000", texto: "Opa, vamos sim", classificacao: "interessado", resumo: "x" });
+  const depois = await db.funilDeConversas();
+  assert.ok(depois.followup_receberam >= 1);
+  assert.equal(depois.followup_responderam - antes.followup_responderam, 1);
 });
