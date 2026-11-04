@@ -105,9 +105,10 @@
   .campo-ic { position: relative; }
   .campo-ic > .ic { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--subtle); pointer-events: none; }
   .campo-ic input { padding-left: 40px; min-height: 48px; }
-  .campo-ic input.com-olho { padding-right: 46px; }
-  .olho { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; }
-  .olho:hover { background: var(--surface-2); color: var(--text); }
+  .campo-ic input.com-olho { padding-right: 112px; }
+  .olho { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--surface-2);
+          color: var(--accent-text); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 13px; font-weight: 600; }
+  .olho:hover { background: var(--accent-soft); }
   .campo.invalido input { border-color: var(--danger); }
   .erro-campo { color: var(--danger); font-size: 12.5px; }
   .aviso-caps { display: flex; gap: 6px; align-items: center; color: var(--warn); font-size: 12.5px; }
@@ -315,7 +316,7 @@
         <div class="campo" id="campo-senha">
           <label for="senha">Senha</label>
           <div class="campo-ic"><span data-ic="lock"></span><input id="senha" name="senha" type="password" class="com-olho" autocomplete="current-password" placeholder="Sua senha">
-            <button class="olho" type="button" id="ver-senha" aria-label="Mostrar senha" aria-pressed="false"><span data-ic="eye"></span></button></div>
+            <button class="olho" type="button" id="ver-senha" aria-label="Mostrar senha" aria-pressed="false"><span data-ic="eye"></span><span>Mostrar</span></button></div>
           <span class="erro-campo" hidden>Informe a sua senha.</span>
           <span class="aviso-caps" id="caps" hidden><span data-ic="alert"></span>Caps Lock está ligado</span>
         </div>
@@ -547,7 +548,7 @@ $("#ver-senha").addEventListener("click", (ev) => {
   const campo = $("#senha");
   const mostrar = campo.type === "password";
   campo.type = mostrar ? "text" : "password";
-  ev.currentTarget.innerHTML = ic(mostrar ? "eyeOff" : "eye");
+  ev.currentTarget.innerHTML = `${ic(mostrar ? "eyeOff" : "eye")}<span>${mostrar ? "Ocultar" : "Mostrar"}</span>`;
   ev.currentTarget.setAttribute("aria-pressed", String(mostrar));
   ev.currentTarget.setAttribute("aria-label", mostrar ? "Esconder senha" : "Mostrar senha");
   campo.focus();

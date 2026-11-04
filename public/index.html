@@ -119,6 +119,11 @@
   .login-card h1 { font-size: 24px; margin: 22px 0 4px; }
   .login-card form { display: grid; gap: 14px; margin-top: 22px; }
   .login-card .btn { width: 100%; min-height: 46px; }
+  .senha-com-botao { position: relative; }
+  .senha-com-botao input { padding-right: 86px; }
+  .ver-senha { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font: inherit; font-size: 13px; font-weight: 600; padding: 6px 10px;
+               border: 0; border-radius: 8px; background: var(--surface-2); color: var(--accent-text); cursor: pointer; }
+  .ver-senha:hover { background: var(--accent-soft); }
   .erro-texto { color: var(--danger); font-size: 14px; margin: 0; }
   .erro-texto:empty { display: none; }
 
@@ -767,7 +772,9 @@
     <p class="muted" style="margin:0">Entre para encontrar clientes e aprovar as propostas da IA.</p>
     <form id="form-login">
       <div class="campo"><label for="usuario">Usuário</label><input id="usuario" name="usuario" autocomplete="username" value="admin" required></div>
-      <div class="campo"><label for="senha">Senha</label><input id="senha" name="senha" type="password" autocomplete="current-password" required></div>
+      <div class="campo"><label for="senha">Senha</label>
+        <div class="senha-com-botao"><input id="senha" name="senha" type="password" autocomplete="current-password" required>
+          <button type="button" class="ver-senha" id="ver-senha" aria-label="Mostrar senha" aria-pressed="false">Mostrar</button></div></div>
       <p class="erro-texto" id="erro-login" role="alert"></p>
       <button class="btn primario" type="submit">Entrar</button>
     </form>
@@ -1820,6 +1827,16 @@ function mostrarLogin() {
   $("#tela-login").hidden = false;
   setTimeout(() => $("#senha").focus(), 50);
 }
+
+$("#ver-senha").addEventListener("click", (ev) => {
+  const campo = $("#senha");
+  const mostrar = campo.type === "password";
+  campo.type = mostrar ? "text" : "password";
+  ev.currentTarget.textContent = mostrar ? "Ocultar" : "Mostrar";
+  ev.currentTarget.setAttribute("aria-pressed", String(mostrar));
+  ev.currentTarget.setAttribute("aria-label", mostrar ? "Esconder senha" : "Mostrar senha");
+  campo.focus();
+});
 
 $("#form-login").addEventListener("submit", async (ev) => {
   ev.preventDefault();
