@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { classificarResposta, limparTextoResposta, escreverApresentacao, semCumprimentoRepetido } from "../ia/resposta.js";
+import { classificarResposta, limparTextoResposta, escreverApresentacao, semCumprimentoRepetido, pediuValor, semValores } from "../ia/resposta.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento } from "../agenda/calendly.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
@@ -163,12 +163,22 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
  * Em qualquer resposta humana, as etapas pendentes são canceladas e, com a resposta
  * automática ligada, a IA continua a conversa rumo ao agendamento.
  */
-/** A resposta sem um "Bom dia!" de novo no começo, se a conversa já começou (em todas as partes do agente também). */
-function semRepetirCumprimento(c, historico) {
+/**
+ * Últimos acertos antes de a resposta sair: sem "Bom dia!" de novo se a conversa já começou, e sem valores (R$)
+ * se a pessoa ainda não perguntou de preço. Vale para todas as partes da resposta do agente também.
+ */
+function ajustarResposta(c, historico, texto) {
   if (!c) return c;
-  const partes = c.partes?.length ? c.partes.map((p, i) => (i === 0 ? semCumprimentoRepetido(p, historico) : p)) : c.partes;
-  const sugestao = c.partes?.length ? partes.join("\n\n") : semCumprimentoRepetido(c.sugestao_resposta, historico);
-  return { ...c, partes, sugestao_resposta: sugestao };
+  const podeValores = pediuValor(texto, historico);
+  const ajustar = (t, i) => {
+    const sem = i === 0 ? semCumprimentoRepetido(t, historico) : t;
+    return podeValores ? sem : semValores(sem);
+  };
+  if (c.partes?.length) {
+    const partes = c.partes.map(ajustar).filter((p) => p?.trim());
+    return { ...c, partes, sugestao_resposta: partes.join("\n\n") };
+  }
+  return { ...c, sugestao_resposta: c.sugestao_resposta ? ajustar(c.sugestao_resposta, 0) : c.sugestao_resposta };
 }
 
 /**
@@ -250,7 +260,7 @@ export async function registrarResposta({
     c = { classificacao: "outro", resumo: forcarHumano ? "Mandou um áudio." : `Não foi possível classificar automaticamente: ${e.message}`,
           sugestao_resposta: "", precisa_humano: true, motivo_humano: forcarHumano || "a IA não conseguiu ler esta resposta" };
   }
-  c = semRepetirCumprimento(c, historico);
+  c = ajustarResposta(c, historico, limpo);
 
   const id = await db.criarResposta({
     lead_id: lead.id,
@@ -367,7 +377,7 @@ export async function continuarComIA(respostaId, campanha, {
   };
   const pensado = await pensarResposta(contexto, { classificar, apresentar });
   const { apresentou } = pensado;
-  const c = semRepetirCumprimento(pensado.c, contexto.historico);
+  const c = ajustarResposta(pensado.c, contexto.historico, r.texto);
   if (!c.sugestao_resposta?.trim()) throw new Error("A IA não escreveu uma resposta para esta conversa");
   await db.atualizarResposta(r.id, {
     precisa_humano: null, classificacao: c.classificacao, resumo: c.resumo, sugestao: c.sugestao_resposta,
@@ -389,10 +399,10 @@ async function continuarComAgente(r, lead, { nota, responderAgente }) {
   if (!agente) throw new Error("O agente desta conversa foi excluído");
   if (!agente.ligado) throw new Error(`O agente ${agente.nome} está desligado: ligue em Agentes para ele voltar a responder`);
   const historico = await db.historicoConversa(lead.id);
-  const c = semRepetirCumprimento(await responderAgente({
+  const c = ajustarResposta(await responderAgente({
     agente, fontes: await fontesDoAgente(agente), texto: r.texto, lead, historico,
     nota: String(nota ?? "").trim().slice(0, 500),
-  }), historico);
+  }), historico, r.texto);
   if (c.delegou) throw new Error(`O agente pediu de novo para você responder: ${c.motivo_humano}`);
   const partes = partesDa(c);
   if (!partes.length) throw new Error("O agente não escreveu uma resposta para esta conversa");

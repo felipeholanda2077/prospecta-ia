@@ -593,3 +593,36 @@ test("mensagem automática do WhatsApp Business não para a conversa, e pessoa e
     classificar: async () => { throw new Error("não deveria gastar IA"); } });
   assert.match(await iaPausada(lead.id), /atendimento automático/);
 });
+
+test("valores só quando a pessoa pergunta: sem pergunta de preço, nenhum R$ sai na resposta", async () => {
+  const { pediuValor, semValores } = await import("../src/ia/resposta.js");
+  const nos = [{ autor: "nos", texto: "Oi, tudo bem? Aqui é o Felipe, da FluxDeck." }];
+  for (const t of ["Bom dia.\nSobre o que seria ?", "Me desculpa você quer me vender algo é isso?", "Temos um crm que faz a distribuição dos leads", "vocês valorizam o atendimento?"]) {
+    assert.equal(pediuValor(t, nos), false, t);
+  }
+  for (const t of ["Quanto custa um site?", "qual o valor?", "Me passa um orçamento", "quais são os planos?", "e a mensalidade, quanto fica?"]) {
+    assert.equal(pediuValor(t, nos), true, t);
+  }
+  // Perguntou antes na conversa: valores podem continuar.
+  assert.equal(pediuValor("ok, e o prazo?", [...nos, { autor: "lead", texto: "Quanto custa?" }]), true);
+
+  const re9ve = "Entendo a desconfiança, e vou ser direto.\n\nComo funciona:\n1) Reunião inicial gratuita de 30 minutos\n2) Definição do escopo\n\n" +
+    "Plano que mais se encaixa no que vocês usam:\n• Automação de atendimento e CRM: R$ 750/mês (chatbot, funil de vendas)\n\nSe quiser saber mais, marcamos um bate-papo.";
+  const sem = semValores(re9ve);
+  assert.doesNotMatch(sem, /R\$|Plano que mais se encaixa/);
+  assert.match(sem, /Reunião inicial gratuita de 30 minutos/); // o resto fica
+  assert.equal(semValores("O site fica R$ 570 por mês. Quer que eu te mostre exemplos?"), "Quer que eu te mostre exemplos?");
+
+  // Na conversa: sem pergunta de preço, o valor sai antes de enviar; com pergunta, fica.
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 5 } };
+  const comValor = async () => ({ classificacao: "outro", resumo: "x", sugestao_resposta: "Temos o plano de site por R$ 570/mês. Quer ver exemplos?",
+    precisa_humano: false, motivo_humano: "", indicou_contato: false, temperatura: "morna", proximo_passo: "", robo: false, encerrar: false });
+  const a = await novoLead("Sem Pergunta Preco", "sem@preco.com");
+  await enviada(a, 1);
+  const ra = await registrarResposta({ lead: a, canal: "email", origem_id: "vp-1", de: "sem@preco.com", texto: "Legal, como funciona?", campanha: camp, classificar: comValor });
+  assert.equal(ra.sugestao_resposta, "Quer ver exemplos?");
+  const b = await novoLead("Com Pergunta Preco", "com@preco.com");
+  await enviada(b, 1);
+  const rb = await registrarResposta({ lead: b, canal: "email", origem_id: "vp-2", de: "com@preco.com", texto: "Quanto custa um site?", campanha: camp, classificar: comValor });
+  assert.match(rb.sugestao_resposta, /R\$ 570/);
+});

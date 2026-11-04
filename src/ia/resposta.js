@@ -112,6 +112,39 @@ export function semCumprimentoRepetido(texto, historico) {
   return sem.charAt(0).toUpperCase() + sem.slice(1);
 }
 
+// A pessoa perguntou de preço? ("quanto custa", "qual o valor", "orçamento", "mensalidade", "quais os planos?"...)
+const PERGUNTOU_VALOR = /\b(pre[çc]os?|valor(es)?|custos?|custa|investimento|or[çc]amento|mensalidade|tabela)\b|quanto\s+(custa|cobra|fica|sai|seria|vale|é|e)\b|r\$|\bplanos?\b[^.!\n]*\?/i;
+
+/** Valores só entram na conversa depois que a pessoa pergunta (agora ou antes, na mesma conversa). */
+export function pediuValor(texto, historico = []) {
+  return [texto, ...(historico ?? []).filter((h) => h.autor === "lead").map((h) => h.texto)]
+    .some((t) => PERGUNTOU_VALOR.test(String(t ?? "").replace(/^\[áudio\]\s*/, "")));
+}
+
+const TEM_VALOR = /r\$\s*\d|\d+(?:[.,]\d+)?\s*reais\b/i;
+const ITEM_DE_LISTA = /^\s*([-•*]|\d+[.)])\s/;
+
+/**
+ * Tira os valores de uma mensagem (para quando a pessoa ainda não perguntou): item de lista com valor sai
+ * inteiro; num parágrafo, sai só a frase com o valor; um título que ficou sem itens ("Planos:") sai também.
+ */
+export function semValores(texto) {
+  if (!texto || !TEM_VALOR.test(texto)) return texto;
+  const linhas = [];
+  for (const linha of String(texto).split("\n")) {
+    if (!TEM_VALOR.test(linha)) { linhas.push(linha); continue; }
+    if (ITEM_DE_LISTA.test(linha)) continue;
+    const frases = linha.split(/(?<=[.!?])\s+/).filter((f) => !TEM_VALOR.test(f));
+    if (frases.length) linhas.push(frases.join(" "));
+  }
+  const limpas = linhas.filter((l, i) => {
+    if (!/:\s*$/.test(l)) return true;
+    const proxima = linhas.slice(i + 1).find((x) => x.trim());
+    return Boolean(proxima && ITEM_DE_LISTA.test(proxima));
+  });
+  return limpas.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 /** Texto da conversa até aqui, para a IA não repetir o que já foi dito. */
 export function formatarHistorico(historico) {
   if (!historico?.length) return "(nenhuma mensagem anterior registrada)";
@@ -142,6 +175,7 @@ const NOME_DO_CANAL = { email: "e-mail", whatsapp: "WhatsApp", instagram: "direc
 export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email", linkAgendamento = "", apresentacao = "", nota = "" }) {
   const porRegra = classificarPorRegra(String(texto ?? "").replace(/^\[áudio\]\s*/, ""), assunto);
   if (porRegra) return porRegra;
+  const podeValores = pediuValor(texto, historico);
 
   const limite = canal === "email" ? "até 100 palavras, com assinatura curta" : "no máximo 3 frases curtas (até ~400 caracteres), sem assinatura";
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
@@ -162,8 +196,9 @@ Como conduzir (tom humano, como ${quem} escrevendo do próprio celular, em prime
 - Entregue no máximo UMA informação nova por mensagem; não despeje tudo de uma vez.
 - Se ainda não houver interesse claro, faça uma pergunta curta de descoberta (como fazem hoje, o que é prioridade).
 ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com o que está na apresentação.
-- Valores: use só os da apresentação, como estão escritos. Orçamento exato, desconto ou condição especial: diga que
-  isso vocês fecham no bate-papo, conforme o que ela precisa.
+${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, como estão escritos. Orçamento exato, desconto ou
+  condição especial: diga que isso vocês fecham no bate-papo, conforme o que ela precisa.` : `- Valores: a pessoa AINDA NÃO perguntou de preço. NÃO cite nenhum valor, preço ou R$, nem "a partir de". Se falar de
+  planos, diga só o que cada um faz. Valor só quando ela perguntar.`}
 - Se pedir algo que não está na apresentação nem no catálogo, não prometa: diga com sinceridade que vocês veem isso
   juntos no bate-papo.
 ` : `- Preço: não passe valor de cara. Se perguntarem, diga que depende do que eles precisam e convide para o bate-papo
@@ -227,6 +262,7 @@ const APRESENTACAO_JSON_SCHEMA = {
  */
 export async function escreverApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", apresentacao, linkAgendamento = "" }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
+  const podeValores = pediuValor(texto, historico);
   const r = await gerarJson({
     system: `${contextoEmpresa(campanha, { semValores: true })}
 
@@ -236,8 +272,11 @@ A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa (${NOME_D
       : "Comece com o cumprimento certo (bom dia, boa tarde...)."}
 2. Uma apresentação em tópicos curtos, com quebras de linha, tirada SÓ da apresentação abaixo:
    - como funciona (as etapas, resumidas);
-   - os planos: SÓ os planos da apresentação, com o nome e os valores exatamente como estão escritos (não invente
-     planos, valores ou "a partir de", nem arredonde), uma linha cada, começando pelos que combinam com o que ela precisa;
+   - ${podeValores
+      ? `os planos: SÓ os planos da apresentação, com o nome e os valores exatamente como estão escritos (não invente
+     planos, valores ou "a partir de", nem arredonde), uma linha cada, começando pelos que combinam com o que ela precisa;`
+      : `os planos que combinam com o que ela precisa: SÓ o nome e para que serve, SEM NENHUM valor, preço ou R$ (ela ainda
+     não perguntou de preço); no fim, uma frase dizendo que você passa os valores se ela quiser;`}
    - em quanto tempo fica pronto.
 3. Se ela pediu algo que não está na apresentação, uma frase sincera dizendo que isso vocês veem juntos no bate-papo.
 4. Feche dizendo que, se ela quiser saber mais, vocês marcam um bate-papo${linkAgendamento
