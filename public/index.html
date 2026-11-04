@@ -1640,6 +1640,7 @@ const dataHora = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "s
 const inicial = (nome) => esc((String(nome ?? "?").trim()[0] ?? "?").toUpperCase());
 
 const ICONES = {
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   camera: '<rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>',
   crown: '<path d="m2 7 4.5 4L12 4l5.5 7L22 7l-2 12H4L2 7Z"/><path d="M4 22h16"/>',
   pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
@@ -2821,7 +2822,7 @@ function itemConversa(c) {
     ${avatarConversa(c.nome, c.interessado)}
     <span class="meio"><span class="nome">${esc(c.nome)}</span>
       <span class="previa">${u ? ic(icCanal(u.canal), "sm") : ""} ${esc(previa)}</span>
-      <span>${c.agente_nome ? `<span class="pilula">${ic("users", "sm")}${esc(c.agente_nome)}</span> ` : ""}${c.interessado ? `${pilulaInteresse()} ` : ""}${pilulaChance(c.andamento)}${c.andamento.precisaDeVoce ? ` <span class="pilula perigo">${ic("alert", "sm")}Você</span>` : ""}</span></span>
+      <span>${c.followup?.quando ? `<span class="pilula" title="${esc(textoDoFollowup(c.followup))}">${ic("bell", "sm")}follow-up ${emQuantoTempo(c.followup.quando)}</span> ` : ""}${c.agente_nome ? `<span class="pilula">${ic("users", "sm")}${esc(c.agente_nome)}</span> ` : ""}${c.interessado ? `${pilulaInteresse()} ` : ""}${pilulaChance(c.andamento)}${c.andamento.precisaDeVoce ? ` <span class="pilula perigo">${ic("alert", "sm")}Você</span>` : ""}</span></span>
     <span class="lado"><span>${horaCurta(u?.quando)}</span>${c.nao_lidas ? `<span class="badge-nl">${c.nao_lidas}</span>` : ""}</span>
   </button>`;
 }
@@ -2872,8 +2873,11 @@ async function carregarRespostas(alvo, { manterChat = false } = {}) {
 function bolhasDaConversa(d, { somenteLer = false } = {}) {
   const contatoPrincipal = [d.lead.whatsapp, d.lead.email].filter(Boolean);
   let diaAnterior = "";
+  let anterior = null;
   const partes = [];
   for (const m of d.mensagens) {
+    const horasDepois = anterior ? Math.max(1, Math.round((new Date(m.quando) - new Date(anterior.quando)) / 36e5)) : null;
+    anterior = m;
     const dia = new Date(m.quando).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
     if (dia !== diaAnterior) partes.push(`<div class="dia">${new Date(m.quando).toDateString() === new Date().toDateString() ? "Hoje" : dia}</div>`);
     diaAnterior = dia;
@@ -2881,7 +2885,7 @@ function bolhasDaConversa(d, { somenteLer = false } = {}) {
     const outroContato = m.canal !== "instagram" && m.contato && !contatoPrincipal.some((c) => String(c).toLowerCase() === String(m.contato).toLowerCase());
     const detalhes = [
       ic(icCanal(m.canal), "sm"),
-      m.autor === "nos" ? (m.etapa >= 1 ? `etapa ${m.etapa}` : "resposta") : (ROTULOS_RESPOSTA[m.tipo]?.[0] ?? ""),
+      m.autor === "nos" ? (m.followup ? `${ic("bell", "sm")}follow-up ${m.followup} de 2 · ${horasDepois ?? "?"} h sem resposta` : m.etapa >= 1 ? `etapa ${m.etapa}` : "resposta") : (ROTULOS_RESPOSTA[m.tipo]?.[0] ?? ""),
       outroContato ? `${m.autor === "nos" ? "para" : "de"} ${esc(m.contato)}` : "",
       new Date(m.quando).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) + (m.autor === "nos" ? " ✓✓" : ""),
     ].filter(Boolean).join(" · ");
@@ -2889,7 +2893,7 @@ function bolhasDaConversa(d, { somenteLer = false } = {}) {
   }
   for (const a of d.agendadas) {
     const quando = a.agendada_para ? `sai ${dataHora(a.agendada_para)}` : "aguardando a etapa anterior";
-    partes.push(`<div class="bolha agendada">${esc(a.texto)}<div class="rodape-b">${ic("clock", "sm")}${a.tipo === "resposta" ? "resposta da IA" : `etapa ${a.etapa}`} · ${quando}
+    partes.push(`<div class="bolha agendada">${esc(a.texto)}<div class="rodape-b">${ic("clock", "sm")}${a.followup ? `follow-up ${a.followup} de 2 da IA` : a.tipo === "resposta" ? "resposta da IA" : `etapa ${a.etapa}`} · ${quando}
       ${somenteLer ? "" : `· <button class="link" data-cancelar-agendada="${a.id}">não enviar</button>`}</div></div>`);
   }
   return partes.join("");
@@ -2951,12 +2955,28 @@ async function abrirConversa(id, { atualizar = false } = {}) {
   }
 }
 
+/** "em ~6 h", "em 40 min" ou "na próxima rodada" (já passou da hora). */
+function emQuantoTempo(iso) {
+  const min = Math.round((new Date(iso) - Date.now()) / 60_000);
+  if (min <= 0) return "na próxima rodada";
+  if (min < 60) return `em ${min} min`;
+  return `em ~${Math.round(min / 60)} h`;
+}
+
+/** O follow-up automático da conversa, em uma frase (ou "" quando não se aplica). */
+function textoDoFollowup(f) {
+  if (!f) return "";
+  if (f.fim) return `Follow-up: já foram os ${f.de} sem resposta; a IA não insiste mais`;
+  return `Follow-up ${f.numero} de ${f.de} da IA: sai ${emQuantoTempo(f.quando)} (a partir de ${dataHora(f.quando)}, em horário comercial)`;
+}
+
 function htmlAndamento(d) {
   const a = d.andamento;
   return [
     `<span>Chance de fechar: <b>${a.rotulo}</b>${a.esfriou ? ` (esfriou: ${a.diasSemResposta} dias sem resposta)` : ""}</span>`,
     `<span>Próximo passo: <b>${esc(a.proximoPasso)}</b></span>`,
     `<span>${a.aguardando === "empresa" ? "Aguardando a empresa" : "A empresa está esperando você"}</span>`,
+    textoDoFollowup(d.followup) ? `<span>${ic("bell", "sm")} ${textoDoFollowup(d.followup)}</span>` : "",
     d.resposta?.resumo ? `<span class="resumo-ultima" title="${esc(d.resposta.resumo)}">Última resposta: ${esc(d.resposta.resumo)}</span>` : "",
   ].filter(Boolean).join("");
 }

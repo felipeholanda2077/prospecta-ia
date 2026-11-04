@@ -83,3 +83,24 @@ test("follow-up: sem pergunta de preço, valor que a IA escreveu sai antes de ir
   const [m] = await pendentes(lead.id);
   assert.equal(m.corpo, "Lembrei de vocês. Hoje vocês divulgam o estoque onde?");
 });
+
+test("follow-up no painel: a mensagem fica marcada e a previsão diz quando sai o próximo", async () => {
+  const { previsaoDoFollowup } = await import("../src/respostas/followup.js");
+  const base = { interessado: true, status: "respondeu", ultimaDela: horasAtras(10) };
+  const p = previsaoDoFollowup({ ...base, ultima: { autor: "nos", canal: "whatsapp", quando: horasAtras(6) } });
+  assert.equal(p.numero, 1);
+  assert.ok(Math.abs(new Date(p.quando) - (Date.now() + 18 * 3600_000)) < 60_000); // 1 dia depois da nossa última mensagem
+  assert.equal(previsaoDoFollowup({ ...base, interessado: false, ultima: { autor: "nos", canal: "whatsapp", quando: horasAtras(6) } }), null);
+  assert.equal(previsaoDoFollowup({ ...base, ultima: { autor: "lead", canal: "whatsapp", quando: horasAtras(1) } }), null); // a vez é sua
+  assert.equal(previsaoDoFollowup({ ...base, temFila: true, ultima: { autor: "nos", canal: "whatsapp", quando: horasAtras(6) } }), null);
+  assert.equal(previsaoDoFollowup({ ...base, ultima: { autor: "nos", canal: "whatsapp", quando: horasAtras(6) }, registro: { n: 2, desde: horasAtras(7) } }).fim, true);
+
+  const lead = await conversa("Loja Painel");
+  await followupsDeInteressados(campanha, { escrever: async () => ({ opcao: "retomar", mensagem: "E aí, conseguiram pensar no atendimento da web?" }) });
+  const [agendada] = await db.agendadasDaConversa(lead.id);
+  assert.equal(agendada.followup, 1);
+  await marcarEnviada(lead.id, 0);
+  const historico = await db.historicoConversa(lead.id);
+  assert.equal(historico.at(-1).followup, 1);
+  assert.equal(historico.find((h) => h.autor === "lead").followup, null);
+});

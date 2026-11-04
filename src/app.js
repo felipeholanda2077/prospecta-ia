@@ -54,6 +54,7 @@ import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada } from "
 import { dashboardDoPainel } from "./dashboard.js";
 import * as agentes from "./respostas/agentes.js";
 import * as crm from "./respostas/crmAgente.js";
+import { previsaoDoFollowup, registrosDeFollowup } from "./respostas/followup.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -1087,8 +1088,15 @@ async function conversasAvaliadas() {
     || Number(b.interessado) - Number(a.interessado) || chance(b) - chance(a) || quando(b) - quando(a));
 }
 
+/** O próximo follow-up automático de uma conversa da lista (ver respostas/followup.js). */
+const followupDaConversa = (c, registros) => previsaoDoFollowup({
+  interessado: c.mostrou_interesse, status: c.status, agenteId: c.agente_id, ultima: c.ultima, ultimaDela: c.ultima_resposta,
+  pausada: c.ia_pausada, temFila: Boolean(c.proxima), registro: registros.get(c.id),
+});
+
 app.get("/api/conversas", async (req, res) => {
-  const conversas = await conversasAvaliadas();
+  const registros = await registrosDeFollowup();
+  const conversas = (await conversasAvaliadas()).map((c) => ({ ...c, followup: followupDaConversa(c, registros) }));
   res.json({ indicadores: indicadoresDasConversas(conversas, await db.funilDeConversas()), conversas });
 });
 
@@ -1109,6 +1117,7 @@ app.get("/api/conversas/:leadId", async (req, res) => {
     lead: { ...dados, oportunidades: JSON.parse(dados.oportunidades || "[]") },
     andamento: conversa?.andamento ?? null,
     interessado: conversa?.interessado ?? false,
+    followup: conversa ? followupDaConversa(conversa, await registrosDeFollowup()) : null,
     iaPausada: (await iaPausada(lead.id)) || null,
     numeroWhatsapp: lead.numero_wa ? (await uazap.numero(lead.numero_wa))?.nome ?? null : null,
     agente: lead.agente_id ? (await db.buscarAgente(lead.agente_id))?.nome ?? null : null,

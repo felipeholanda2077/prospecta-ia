@@ -500,12 +500,12 @@ export async function contatoJaUsado(destino, status = ["rascunho", "aprovada", 
 
 export async function criarMensagem({
   lead_id, canal, destino, assunto, corpo, status = "rascunho", tipo = "inicial", responde_a = null, etapa = 1,
-  enviada_em = null, em_resposta_a = null,
+  enviada_em = null, em_resposta_a = null, followup = null,
 }) {
   const linha = await um(
-    `INSERT INTO mensagens (lead_id, canal, destino, assunto, corpo, status, tipo, responde_a, etapa, enviada_em, em_resposta_a)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-    [lead_id, canal, normalizarContato(destino), assunto ?? null, corpo, status, tipo, responde_a, etapa, enviada_em, em_resposta_a]
+    `INSERT INTO mensagens (lead_id, canal, destino, assunto, corpo, status, tipo, responde_a, etapa, enviada_em, em_resposta_a, followup)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+    [lead_id, canal, normalizarContato(destino), assunto ?? null, corpo, status, tipo, responde_a, etapa, enviada_em, em_resposta_a, followup]
   );
   return linha.id;
 }
@@ -636,10 +636,10 @@ export async function resumoDosDirects() {
 
 export async function historicoConversa(leadId) {
   return q(
-    `SELECT 'nos' AS autor, canal, assunto, corpo AS texto, enviada_em AS quando, etapa, destino AS contato, tipo
+    `SELECT 'nos' AS autor, canal, assunto, corpo AS texto, enviada_em AS quando, etapa, destino AS contato, tipo, followup
        FROM mensagens WHERE lead_id = $1 AND status = 'enviada'
      UNION ALL
-     SELECT 'lead' AS autor, canal, assunto, texto, recebida_em AS quando, NULL AS etapa, de AS contato, classificacao AS tipo
+     SELECT 'lead' AS autor, canal, assunto, texto, recebida_em AS quando, NULL AS etapa, de AS contato, classificacao AS tipo, NULL AS followup
        FROM respostas WHERE lead_id = $1 AND classificacao IS DISTINCT FROM 'automatica'
      ORDER BY quando`,
     [leadId]
@@ -1081,7 +1081,7 @@ export async function funilDeConversas() {
 /** Mensagens que ainda vão sair nesta conversa (respostas da IA e etapas agendadas). */
 export async function agendadasDaConversa(leadId) {
   return q(
-    `SELECT id, canal, corpo AS texto, agendada_para, tipo, etapa, destino AS contato FROM mensagens
+    `SELECT id, canal, corpo AS texto, agendada_para, tipo, etapa, destino AS contato, followup FROM mensagens
       WHERE lead_id = $1 AND status = 'aprovada' ORDER BY agendada_para NULLS LAST, id`,
     [leadId]
   );

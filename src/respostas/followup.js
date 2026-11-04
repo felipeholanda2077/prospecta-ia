@@ -76,7 +76,7 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
         lead_id: lead.id, canal: dela.canal, destino: dela.de || (dela.canal === "email" ? lead.email : lead.whatsapp),
         assunto: dela.canal === "email" ? (/^re:/i.test(dela.assunto ?? "") ? dela.assunto : `Re: ${dela.assunto ?? lead.nome}`) : null,
         corpo: corpo.trim(), status: "aprovada", tipo: "resposta", etapa: 0,
-        em_resposta_a: dela.canal === "email" ? dela.origem_id : null,
+        em_resposta_a: dela.canal === "email" ? dela.origem_id : null, followup: plano.numero,
       });
       // Alguns minutos, como uma pessoa; a fila envia em horário comercial.
       await db.atualizarMensagem(id, { agendada_para: new Date(Date.now() + (2 + Math.random() * 6) * 60_000).toISOString() });
@@ -90,4 +90,31 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
     }
   }
   return { criados };
+}
+
+/**
+ * Para o painel: o próximo follow-up de uma conversa, com os dados que a lista de conversas já tem.
+ * Retorna { quando, numero, de } (sai a partir de `quando`, na rodada em horário comercial), { fim: true, de }
+ * quando já foram os MAX_SEGUIDOS sem resposta, ou null quando não se aplica.
+ * `ultima` = última mensagem da conversa ({ autor, quando, canal }); `ultimaDela` = quando a empresa escreveu por último.
+ */
+export function previsaoDoFollowup({ interessado, status, agenteId = null, ultima, ultimaDela, pausada = "", temFila = false, registro = null }, agora = new Date()) {
+  if (!interessado || agenteId || status !== "respondeu" || pausada || temFila || !ultima || !ultimaDela) return null;
+  if (ultima.autor !== "nos" || !CANAIS.includes(ultima.canal)) return null;
+  const quando = new Date(new Date(ultima.quando).getTime() + DIA_MS);
+  if (quando - new Date(ultimaDela) > DIAS_MAXIMOS * DIA_MS) return null;
+  const valendo = registro && new Date(registro.desde) >= new Date(ultimaDela) ? registro : null;
+  const n = valendo?.n ?? 0;
+  if (n >= MAX_SEGUIDOS) return { fim: true, de: MAX_SEGUIDOS };
+  return { quando: quando.toISOString(), numero: n + 1, de: MAX_SEGUIDOS, atrasado: quando < agora };
+}
+
+/** Os registros de follow-up de várias conversas de uma vez (uma leitura só), por id da empresa. */
+export async function registrosDeFollowup() {
+  const linhas = await db.consultar("SELECT chave, valor FROM estado WHERE chave LIKE 'followup_ia:%'");
+  const mapa = new Map();
+  for (const l of linhas) {
+    try { mapa.set(Number(l.chave.split(":")[1]), JSON.parse(l.valor)); } catch { /* registro estragado: ignora */ }
+  }
+  return mapa;
 }
