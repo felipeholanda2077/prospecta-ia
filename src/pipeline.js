@@ -21,6 +21,7 @@ import { verificarAgendamentos, aplicarLinkAgendamento } from "./agenda/calendly
 import { semSiteProprio, potencialDaEmpresa } from "./analise/prioridade.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 import { numerosComAgente } from "./respostas/agentes.js";
+import { followupsDeInteressados } from "./respostas/followup.js";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
@@ -1258,6 +1259,13 @@ async function rodada(campanha) {
     log(`⚠️  Falha ao conferir o Calendly: ${e.message}`);
     return { erro: e.message };
   });
+  // Follow-up de quem mostrou interesse e parou de responder há 1 dia (sai pela fila de respostas, em minutos).
+  if (!semTempo(ate)) {
+    resultado.followups = await followupsDeInteressados(campanha).catch((e) => {
+      log(`⚠️  Falha nos follow-ups: ${e.message}`);
+      return { erro: e.message };
+    });
+  }
   resultado.envio = await enviar(campanha, { ate, distribuir: Boolean(campanha.automacao?.ativo) });
   if (!campanha.automacao?.ativo) return resultado;
 

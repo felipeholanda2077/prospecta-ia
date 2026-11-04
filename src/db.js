@@ -963,6 +963,23 @@ export async function buscarResposta(id) {
   return um(`SELECT r.*, l.nome AS empresa, l.token, l.email, l.whatsapp FROM respostas r JOIN leads l ON l.id = r.lead_id WHERE r.id = $1`, [id]);
 }
 
+/**
+ * Conversas da prospecção com interesse que podem precisar de follow-up: a empresa mostrou interesse,
+ * a conversa está aberta (respondeu), nada na fila para ela e a nossa última mensagem saiu há mais de 1 dia.
+ * O resto (pausa, quantos follow-ups já foram) é conferido conversa por conversa.
+ */
+export async function interessadosParaFollowup(agoraIso = new Date().toISOString(), limite = 40) {
+  return q(
+    `SELECT l.* FROM leads l
+      WHERE l.agente_id IS NULL AND l.status = 'respondeu'
+        AND EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IN ('interessado', 'quer_informacoes'))
+        AND NOT EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status IN ('rascunho', 'aprovada', 'enviando'))
+        AND (SELECT max(m.enviada_em) FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada') < $1::timestamptz - interval '1 day'
+      ORDER BY l.id DESC LIMIT $2`,
+    [agoraIso, limite]
+  );
+}
+
 /** Esta empresa já mandou exatamente este texto antes? (Robô repete a mesma mensagem.) */
 export async function textoJaRecebido(leadId, texto) {
   return Boolean(await um(

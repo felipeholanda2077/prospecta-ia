@@ -340,6 +340,61 @@ ${texto}`,
   return r.mensagem.trim();
 }
 
+const FollowupSchema = z.object({ opcao: z.enum(["retomar", "material"]), mensagem: z.string() });
+const FOLLOWUP_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    opcao: { type: "string", enum: ["retomar", "material"], description: "retomar = retoma de onde pararam; material = oferece o guia gratuito" },
+    mensagem: { type: "string", description: "a mensagem de follow-up, pronta para enviar" },
+  },
+  required: ["opcao", "mensagem"],
+  additionalProperties: false,
+};
+
+/**
+ * Follow-up para quem mostrou interesse e parou de responder há 1 dia: retoma de onde pararam (com o último
+ * assunto da conversa) ou oferece um material de graça (o guia em PDF da empresa). `evitar` = a opção do
+ * follow-up anterior, para não repetir. Retorna { opcao, mensagem }.
+ */
+export async function escreverFollowup({ lead, historico, campanha, canal = "whatsapp", numero = 1, evitar = null, apresentacao = "", linkMaterial = "" }) {
+  const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
+  const ultimaDela = [...(historico ?? [])].reverse().find((h) => h.autor === "lead");
+  const podeValores = pediuValor(ultimaDela?.texto, historico);
+  const r = await gerarJson({
+    system: `${contextoEmpresa(campanha, { semValores: true })}
+
+Você é ${quem}. Esta empresa mostrou interesse na conversa, mas não responde há 1 dia ou mais. Escreva um follow-up
+(${NOME_DO_CANAL[canal] ?? "WhatsApp"}; é o ${numero}º seguido sem resposta), escolhendo UMA destas opções:
+- retomar: continue exatamente de onde a conversa parou, citando o último assunto (o que ela contou, a pergunta que
+  ficou sem resposta), de um jeito leve e útil, com UMA pergunta simples no fim.
+- material: ofereça de presente um material gratuito: um guia prático em PDF, feito para a ${lead.nome}, com passos
+  simples para atrair mais clientes pelo site, pelo Google e pelo WhatsApp. Mande exatamente este link: ${linkMaterial}
+  Diga em uma frase por que ele ajuda no que ela contou, e termine com uma pergunta leve.
+${evitar ? `O follow-up anterior foi "${evitar}": agora use a OUTRA opção.` : "Escolha a que fizer mais sentido para esta conversa."}
+Regras:
+- Nada de cobrança ("não sei se viu", "só passando para lembrar", "fico no aguardo"), nada de pressão.
+- Não cumprimente com "bom dia/boa tarde" nem se apresente de novo: vocês já conversaram. Um "Oi, [nome]!" leve pode.
+- ${podeValores ? "Se citar valores, só os da apresentação, como estão escritos." : "Não cite valores, preços ou R$: ela não perguntou de preço."}
+- Não convide para bate-papo, call ou reunião, a menos que ela já tenha pedido isso na conversa.
+- Não repita frases que já estão no histórico. Não invente fatos.
+- No máximo 3 frases curtas (até ~400 caracteres), Português do Brasil, no máximo 1 emoji.${FORMATO_DO_CANAL[canal] ?? FORMATO_DO_CANAL.whatsapp}
+- Nunca mencione assistente, robô, IA, sistema ou "equipe" respondendo por ${quem}.
+${apresentacao ? `
+O que a ${campanha.empresa.nome} faz (para entender; não despeje):
+<apresentacao>
+${apresentacao}
+</apresentacao>` : ""}`,
+    pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""})
+
+Histórico da conversa (mais antigo primeiro):
+${formatarHistorico(historico)}`,
+    jsonSchema: FOLLOWUP_JSON_SCHEMA,
+    zodSchema: FollowupSchema,
+    effort: "low",
+  });
+  return { opcao: r.opcao, mensagem: r.mensagem.trim() };
+}
+
 const IndicadoSchema = z.object({ assunto: z.string(), mensagem: z.string() });
 const INDICADO_JSON_SCHEMA = {
   type: "object",
