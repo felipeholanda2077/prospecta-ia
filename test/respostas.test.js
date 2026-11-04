@@ -685,3 +685,12 @@ test("funil: conta quem recusou e onde cada empresa contatada está agora (uma e
   assert.equal(ind.recusaram, depois.recusaram);
   assert.equal(ind.taxaRecusa, Math.round((depois.recusaram / depois.responderam) * 100));
 });
+
+test("funil, legenda e cartão do topo usam a mesma conta de empresas interessadas", async () => {
+  const f = await db.funilDeConversas();
+  const s = await db.estatisticas();
+  assert.equal(s.empresasInteressadas, f.agora.interessadas + f.agora.agendaram + f.agora.fecharam);
+  // Responderam (pelas etapas) + não responderam + descartadas = contatadas.
+  const a = f.agora;
+  assert.equal(a.em_conversa + a.interessadas + a.agendaram + a.fecharam + a.recusaram + a.recebendo_etapas + a.sem_resposta + a.descartadas, f.contatadas);
+});

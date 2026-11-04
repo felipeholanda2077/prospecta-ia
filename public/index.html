@@ -374,9 +374,14 @@
   .fv-bloco { display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); font-size: 13.5px; }
   .fv-bloco .muted { font-size: 12.5px; }
   .fv-lista { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }
-  .fv-lista li { display: grid; grid-template-columns: 10px 1fr auto 40px; gap: 8px; align-items: center; }
-  .fv-lista b { font-variant-numeric: tabular-nums; text-align: right; }
-  .fv-lista small { color: var(--subtle); text-align: right; }
+  .fv-lista li { display: grid; grid-template-columns: 10px 1fr; gap: 8px; align-items: start; }
+  .fv-lista .fa-cor { margin-top: 4px; }
+  .fv-grupo { display: grid; gap: 3px; }
+  .fv-grupo-nome { font-size: 12px; color: var(--subtle); }
+  .fv-item { display: grid; grid-template-columns: 1fr auto 40px; gap: 8px; }
+  .fv-item b { font-variant-numeric: tabular-nums; text-align: right; }
+  .fv-item small { color: var(--subtle); text-align: right; }
+  .fv-item.recusa b { color: var(--danger); }
   .fv-followup { grid-template-columns: auto 1fr; align-items: start; gap: 10px; color: var(--text); }
   .fv-followup > div { display: grid; gap: 3px; }
   .fv-followup .ic { color: var(--accent-text); margin-top: 2px; }
@@ -1970,12 +1975,13 @@ async function carregarStats() {
   stats = await api("/api/stats");
   stats.sequenciasPendentes = stats.sequenciasPendentes ?? stats.mensagens.rascunho;
   const capturadas = Object.values(stats.leads).reduce((a, b) => a + b, 0);
-  const interessados = (stats.respostas.interessado ?? 0) + (stats.respostas.quer_informacoes ?? 0);
+  // Empresas interessadas (a mesma conta do funil da tela Respostas), não a quantidade de mensagens com interesse.
+  const interessados = stats.empresasInteressadas ?? (stats.respostas.interessado ?? 0) + (stats.respostas.quer_informacoes ?? 0);
   const itens = [
     ["building", "", capturadas, "Empresas capturadas"],
     ["checkCircle", "atencao", stats.sequenciasPendentes ?? 0, "Sequências para aprovar"],
     ["send", "", stats.enviadasHoje, "Enviadas hoje"],
-    ["heart", "ok", interessados, "Interessados"],
+    ["heart", "ok", interessados, "Empresas interessadas"],
     ["calendar", "ok", stats.leads.agendado ?? 0, "Reuniões agendadas"],
     ["alert", stats.precisamDeVoce ? "perigo" : "", stats.precisamDeVoce ?? 0, "Precisam de você"],
   ];
@@ -2810,66 +2816,84 @@ function htmlIndicadores(ind) {
       <div class="ind ${ind.precisamDeVoce ? "perigo" : ""}"><b>${ind.precisamDeVoce}</b><span>Precisam de você</span></div>
       <div class="ind ok"><b>${ind.agendadas}</b><span>Reuniões agendadas</span></div>
     </div>
-    <div class="funil" aria-label="Funil das conversas">
-      <div class="funil-etapa"><span>Contatadas</span><b>${f.contatadas}</b>${barra(f.contatadas)}</div>
-      <div class="funil-etapa"><span>Responderam · ${ind.taxaResposta}%</span><b>${f.responderam}</b>${barra(f.responderam)}</div>
-      <div class="funil-etapa sem-resposta"><span>Não responderam · ${ind.taxaSemResposta}%</span><b>${ind.naoResponderam}</b>${barra(ind.naoResponderam)}
-        <small>${ind.naoResponderamNaSequencia} ainda recebendo as etapas · ${ind.naoResponderamSequenciaEncerrada} já receberam todas</small></div>
-      <div class="funil-etapa"><span>Mostraram interesse · ${ind.taxaInteresse}%</span><b>${f.interessadas}</b>${barra(f.interessadas)}</div>
-      <div class="funil-etapa"><span>Agendaram · ${ind.taxaAgendamento}%</span><b>${f.agendadas}</b>${barra(f.agendadas)}</div>
-      <div class="funil-etapa recusa"><span>Recusaram · ${ind.taxaRecusa ?? 0}%</span><b>${ind.recusaram ?? 0}</b>${barra(ind.recusaram ?? 0)}
-        <small>disseram não ou pediram para sair, de quem respondeu</small></div>
-    </div>
+    ${htmlCardsDoFunil(f)}
     ${htmlFunilVisual(f)}`;
 }
 
-// Onde cada empresa contatada está agora (uma etapa por empresa), com a cor de cada etapa.
-const ETAPAS_FUNIL = [
-  ["recebendo_etapas", "Recebendo as etapas", "var(--accent)", "ainda não responderam; a sequência continua"],
-  ["sem_resposta", "Sem resposta", "var(--warn)", "receberam todas as etapas e não responderam"],
-  ["em_conversa", "Em conversa", "var(--cyan)", "responderam; a IA ainda está entendendo a dor"],
-  ["interessadas", "Interessadas", "#14b8a6", "mostraram interesse; falta agendar"],
-  ["agendaram", "Agendaram", "#3b82f6", "reunião marcada"],
-  ["fecharam", "Fecharam", "var(--ok)", "viraram clientes"],
-  ["recusaram", "Recusaram", "var(--danger)", "disseram não ou pediram para sair"],
-  ["descartadas", "Descartadas por você", "var(--subtle)", "tiradas do funil no painel"],
+/**
+ * O funil, a legenda e os cartões saem da mesma conta: a etapa em que cada empresa contatada está agora
+ * (`f.agora`, uma etapa por empresa). Cada faixa do funil soma as etapas de quem chegou até ela, e cada
+ * grupo da legenda tem a cor da faixa onde aquelas empresas pararam.
+ */
+const FAIXAS_FUNIL = [
+  { nome: "Contatadas", cor: "#6d5ef5", pararam: [["recebendo_etapas", "Recebendo as etapas"], ["sem_resposta", "Sem resposta"], ["descartadas", "Descartadas por você"]] },
+  { nome: "Responderam", cor: "#4f6ef7", pararam: [["em_conversa", "Em conversa"], ["recusaram", "Recusaram"]] },
+  { nome: "Interessadas", cor: "#1677ff", pararam: [["interessadas", "Falta agendar"]] },
+  { nome: "Agendaram", cor: "#06b6d4", pararam: [["agendaram", "Reunião marcada"]] },
+  { nome: "Fecharam", cor: "#22c55e", pararam: [["fecharam", "Viraram clientes"]] },
 ];
 
-/**
- * O funil desenhado: cada etapa afunila na seguinte (contatadas → responderam → interessadas → agendaram →
- * fecharam), com a conversão de uma para a outra. Do lado, onde cada empresa está agora e o follow-up da IA.
- */
+/** Quantas empresas chegaram a cada faixa (a faixa e todas as seguintes) e quantas pararam nela. */
+function faixasDoFunil(agora = {}) {
+  const pararam = FAIXAS_FUNIL.map((fx) => fx.pararam.reduce((t, [k]) => t + (agora[k] ?? 0), 0));
+  return FAIXAS_FUNIL.map((fx, i) => ({ ...fx, total: pararam.slice(i).reduce((a, b) => a + b, 0), pararamAqui: pararam[i] }));
+}
+
+const pctDe = (n, de) => (de ? Math.round((n / de) * 100) : 0);
+
+/** Os cartões em cima do funil, com os mesmos números das faixas. */
+function htmlCardsDoFunil(f) {
+  const a = f.agora ?? {};
+  const [contatadas, responderam, interessadas, agendaram] = faixasDoFunil(a).map((x) => x.total);
+  const naoResponderam = (a.recebendo_etapas ?? 0) + (a.sem_resposta ?? 0);
+  const recusaram = a.recusaram ?? 0;
+  const barra = (n, classe = "") => `<span class="funil-barra ${classe}"><i style="width:${contatadas ? Math.max(2, Math.round((n / contatadas) * 100)) : 0}%"></i></span>`;
+  return `<div class="funil" aria-label="Números do funil">
+      <div class="funil-etapa"><span>Contatadas</span><b>${contatadas}</b>${barra(contatadas)}</div>
+      <div class="funil-etapa"><span>Responderam · ${pctDe(responderam, contatadas)}%</span><b>${responderam}</b>${barra(responderam)}</div>
+      <div class="funil-etapa sem-resposta"><span>Não responderam · ${pctDe(naoResponderam, contatadas)}%</span><b>${naoResponderam}</b>${barra(naoResponderam)}
+        <small>${a.recebendo_etapas ?? 0} ainda recebendo as etapas · ${a.sem_resposta ?? 0} já receberam todas</small></div>
+      <div class="funil-etapa"><span>Interessadas · ${pctDe(interessadas, responderam)}%</span><b>${interessadas}</b>${barra(interessadas)}
+        <small>das que responderam</small></div>
+      <div class="funil-etapa"><span>Agendaram · ${pctDe(agendaram, interessadas)}%</span><b>${agendaram}</b>${barra(agendaram)}
+        <small>das interessadas</small></div>
+      <div class="funil-etapa recusa"><span>Recusaram · ${pctDe(recusaram, responderam)}%</span><b>${recusaram}</b>${barra(recusaram)}
+        <small>das que responderam</small></div>
+    </div>`;
+}
+
+/** O funil desenhado e, do lado, onde cada empresa parou (mesmas cores e números) e o follow-up da IA. */
 function htmlFunilVisual(f) {
   const agora = f.agora ?? {};
-  const etapas = [
-    ["Contatadas", f.contatadas, "#6d5ef5"],
-    ["Responderam", f.responderam, "#4f6ef7"],
-    ["Mostraram interesse", f.interessadas, "#1677ff"],
-    ["Agendaram", f.agendadas, "#06b6d4"],
-    ["Fecharam", agora.fecharam ?? 0, "#22c55e"],
-  ];
+  const faixas = faixasDoFunil(agora);
   const larguras = [100, 85, 70, 56, 44];
-  const pct = (n, de) => (de ? Math.round((n / de) * 100) : 0);
-  const funil = etapas.map(([nome, n, cor], i) => {
+  const funil = faixas.map((fx, i) => {
     const w = larguras[i];
     const proxima = larguras[i + 1] ?? w - 8; // a ponta do funil afina menos, para o texto caber
-    const corte = (((w - proxima) / 2) / w) * 100; // a borda de baixo encontra o topo da próxima etapa
-    const de = ["receberam a 1ª mensagem", "das contatadas", "das que responderam", "das interessadas", "das que agendaram"][i];
-    const conversao = i ? `${pct(n, etapas[i - 1][1])}% ${de}` : de;
-    return `<div class="fv-etapa" style="width:${w}%;background:${cor};padding:6px ${Math.round(corte + 1)}%;clip-path:polygon(0 0,100% 0,${100 - corte}% 100%,${corte}% 100%)">
-      <b>${n}</b><span>${nome}</span><small>${conversao}</small></div>`;
+    const corte = (((w - proxima) / 2) / w) * 100; // a borda de baixo encontra o topo da próxima faixa
+    const seguem = faixas[i + 1];
+    // De onde vem o número: quem parou nesta faixa + quem seguiu para a próxima.
+    const partes = fx.pararam.filter(([k]) => k !== "descartadas" || agora[k]).map(([k, nome]) => `${agora[k] ?? 0} ${nome.toLowerCase()}`);
+    if (seguem) partes.push(`${seguem.total} ${seguem.nome.toLowerCase()}`);
+    const taxa = i ? ` · ${pctDe(fx.total, faixas[i - 1].total)}%` : "";
+    return `<div class="fv-etapa" style="width:${w}%;background:${fx.cor};padding:6px ${Math.round(corte + 1)}%;clip-path:polygon(0 0,100% 0,${100 - corte}% 100%,${corte}% 100%)"
+      title="${esc(`${fx.total} ${fx.nome.toLowerCase()} = ${partes.join(" + ")}`)}">
+      <b>${fx.total}</b><span>${fx.nome}${taxa}</span><small>${seguem ? `= ${partes.join(" + ")}` : "viraram clientes"}</small></div>`;
   }).join("");
-  const total = ETAPAS_FUNIL.reduce((t, [k]) => t + (agora[k] ?? 0), 0);
-  const lista = ETAPAS_FUNIL.filter(([k]) => k !== "descartadas" || agora[k]).map(([k, nome, cor, dica]) =>
-    `<li title="${esc(dica)}"><span class="fa-cor" style="background:${cor}"></span><span>${esc(nome)}</span><b>${agora[k] ?? 0}</b><small>${pct(agora[k] ?? 0, total)}%</small></li>`).join("");
+  const total = faixas[0].total;
+  const legenda = faixas.map((fx) => {
+    const itens = fx.pararam.filter(([k]) => k !== "descartadas" || agora[k]);
+    return `<li><span class="fa-cor" style="background:${fx.cor}"></span><div class="fv-grupo"><span class="fv-grupo-nome">Pararam em ${fx.nome.toLowerCase()}</span>
+      ${itens.map(([k, nome]) => `<span class="fv-item${k === "recusaram" ? " recusa" : ""}"><span>${nome}</span><b>${agora[k] ?? 0}</b><small>${pctDe(agora[k] ?? 0, total)}%</small></span>`).join("")}</div></li>`;
+  }).join("");
   const receberam = f.followup_receberam ?? 0;
   const voltaram = f.followup_responderam ?? 0;
   return `<div class="funil-visual" aria-label="Funil das conversas">
-    <div class="fv-funil"><div class="fv-titulo"><b>Funil da prospecção</b><span class="muted">de quantas empresas chegaram a cada etapa</span></div>${funil}</div>
+    <div class="fv-funil"><div class="fv-titulo"><b>Funil da prospecção</b><span class="muted">quantas empresas chegaram a cada etapa (a % é de quem veio da etapa anterior)</span></div>${funil}</div>
     <div class="fv-lado">
-      <div class="fv-bloco"><b>Onde estão agora</b><span class="muted">cada uma das ${total} empresas numa etapa só</span><ul class="fv-lista">${lista}</ul></div>
+      <div class="fv-bloco"><b>Onde estão agora</b><span class="muted">as ${total} empresas, cada uma onde parou; a cor é a da faixa do funil</span><ul class="fv-lista">${legenda}</ul></div>
       <div class="fv-bloco fv-followup">${ic("bell")}<div><b>Follow-up da IA</b>
-        <span><b>${receberam}</b> ${receberam === 1 ? "empresa recebeu" : "empresas receberam"} follow-up · <b>${voltaram}</b> ${voltaram === 1 ? "voltou" : "voltaram"} a responder${receberam ? ` (${pct(voltaram, receberam)}%)` : ""}</span>
+        <span><b>${receberam}</b> ${receberam === 1 ? "empresa recebeu" : "empresas receberam"} follow-up · <b>${voltaram}</b> ${voltaram === 1 ? "voltou" : "voltaram"} a responder${receberam ? ` (${pctDe(voltaram, receberam)}%)` : ""}</span>
         <small class="muted">Para quem mostrou interesse e ficou 1 dia sem responder; até 2 seguidos.</small></div></div>
     </div>
   </div>`;

@@ -1159,6 +1159,16 @@ export async function estatisticas() {
       "SELECT count(DISTINCT lead_id)::int AS n FROM respostas WHERE NOT lida AND classificacao IS DISTINCT FROM 'automatica'"
     )).n,
     sequenciasPendentes: (await um("SELECT count(DISTINCT (lead_id, canal))::int AS n FROM mensagens WHERE status = 'rascunho'")).n,
+    // Empresas (não mensagens) que mostraram interesse e seguem no funil: a mesma regra do funil da tela Respostas
+    // (interessadas que ainda não agendaram + agendaram + fecharam).
+    empresasInteressadas: (await um(
+      `SELECT count(*)::int AS n FROM leads l
+        WHERE l.agente_id IS NULL
+          AND EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada' AND m.tipo <> 'resposta')
+          AND (l.status IN ('agendado', 'fechado')
+               OR (l.status NOT IN ('sem_interesse', 'descadastrado', 'descartado')
+                   AND EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IN ('interessado', 'quer_informacoes'))))`
+    )).n,
     filaEmpresas: (await um("SELECT count(DISTINCT lead_id)::int AS n FROM mensagens WHERE status = 'aprovada'")).n,
     enviadasHojePorCanal: { email: await enviadasHoje("email"), whatsapp: await enviadasHoje("whatsapp") },
     // Mesma regra da página de Respostas: a última resposta pediu você e ninguém respondeu depois dela.

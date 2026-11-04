@@ -240,7 +240,8 @@ async function empresas(c) {
     indicadores: [
       ind("Capturadas", Object.values(s.leads).reduce((a, b) => a + b, 0), "leads"),
       ind("Em andamento", de("novo", "analisado", "proposta_gerada", "contatado", "respondeu", "agendado"), "leads", { tom: "acc" }),
-      ind("Interessadas", (s.respostas.interessado ?? 0) + (s.respostas.quer_informacoes ?? 0), "leads", { tom: "ok" }),
+      // Empresas (não mensagens) interessadas: a mesma conta do funil da tela Respostas.
+      ind("Interessadas", s.empresasInteressadas ?? (s.respostas.interessado ?? 0) + (s.respostas.quer_informacoes ?? 0), "leads", { tom: "ok" }),
       ind("Clientes fechados", de("fechado"), "leads", { tom: "ok" }),
       ind("Descartadas", de("sem_interesse", "descartado", "descadastrado"), "leads", { detalhe: `${s.descadastros} descadastro${s.descadastros === 1 ? "" : "s"}` }),
     ],
