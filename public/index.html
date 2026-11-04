@@ -289,13 +289,13 @@
   details.etapa-fila > summary::-webkit-details-marker { display: none; }
   details.etapa-fila > summary:hover { background: var(--surface-2); }
   details.etapa-fila[open] > summary { background: var(--surface-2); }
-  .etapa-fila .quando { font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .etapa-fila .quando { font-size: 13px; color: var(--muted); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .etapa-fila .trecho { grid-column: 2 / 4; min-width: 0; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   details.etapa-fila[open] .trecho { display: none; }
   .etapa-fila .titulo-etapa { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-weight: 600; font-size: 14px; }
   @media (max-width: 640px) {
     details.etapa-fila > summary { grid-template-columns: auto minmax(0, 1fr); }
-    .etapa-fila .quando { grid-column: 2; }
+    .etapa-fila .quando { grid-column: 2; white-space: normal; }
   }
   .etapa-seq { border-top: 1px solid var(--border); }
   .etapa-seq:first-of-type { border-top: 0; }
