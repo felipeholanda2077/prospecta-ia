@@ -120,6 +120,7 @@ test("crm do agente: o dono cria o número do agente na UAZap, lê o QR code e o
   const carla = await db.criarAgente({ nome: "Carla", prompt: "p", conhecimento: "", numeros: [], ligado: false, delegar_modo: "mensagem", max_respostas: 40 });
   const original = globalThis.fetch;
   const chamadas = [];
+  let webhooks = [];
   // UAZap de mentira (o servidor de teste continua respondendo pelo fetch de verdade).
   globalThis.fetch = async (url, opcoes = {}) => {
     const u = new URL(String(url));
@@ -129,7 +130,8 @@ test("crm do agente: o dono cria o número do agente na UAZap, lê o QR code e o
     if (u.pathname === "/instance/all") return opcoes.headers?.admintoken === "ADM" ? Response.json([]) : Response.json({ error: "x" }, { status: 401 });
     if (rota === "POST /instance/create") return Response.json({ token: "NOVO", instance: { name: "x" } });
     if (rota === "GET /instance/status") return Response.json({ instance: { status: "disconnected" }, status: { connected: false } });
-    if (rota === "POST /webhook") return Response.json({ ok: true });
+    if (rota === "POST /webhook") { webhooks = [JSON.parse(opcoes.body)]; return Response.json({ ok: true }); }
+    if (rota === "GET /webhook") return Response.json(webhooks);
     if (rota === "POST /instance/connect") return Response.json({ instance: { status: "connecting", qrcode: "data:image/png;base64,QR" } });
     return Response.json({ error: "rota desconhecida" }, { status: 404 });
   };
@@ -157,8 +159,15 @@ test("crm do agente: o dono cria o número do agente na UAZap, lê o QR code e o
       assert.equal(criar.headers.admintoken, "ADM");
       assert.match(criar.corpo.name, /^agente-\d+-carla$/);
       assert.ok(chamadas.some((c) => c.rota === "POST /webhook" && c.headers.token === "NOVO" && /\/webhooks\/uazap\//.test(c.corpo.url)));
+      assert.equal(criado.numero.webhook, true); // webhook configurado e conferido na UAZap
       const agente = await db.buscarAgente(carla);
       assert.equal(agente.numeros.length, 1);
+      // Se a UAZap perder o webhook, o sistema confere e aponta de novo sozinho.
+      webhooks = [];
+      await db.gravarEstado(`uazap_webhook_conferido:${agente.numeros[0]}`, "");
+      const antes = chamadas.filter((c) => c.rota === "POST /webhook").length;
+      assert.equal((await (await chamar("/api/crm/whatsapp", { cookie: dona })).json()).numero.webhook, true);
+      assert.equal(chamadas.filter((c) => c.rota === "POST /webhook").length, antes + 1);
       assert.equal(agente.ligado, false); // conectar não liga a IA sozinho
 
       // Um número só por agente: criar de novo é recusado, e o painel também não deixa dois números.

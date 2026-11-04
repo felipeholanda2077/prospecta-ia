@@ -296,6 +296,30 @@ export async function configurarWebhook(id) {
   return destino;
 }
 
+/**
+ * O webhook da instância aponta para este sistema? Lê a configuração na UAZap: true, false, ou null quando
+ * não deu para ler (a UAZap respondeu num formato diferente ou recusou).
+ */
+export async function webhookConfigurado(id) {
+  const n = await numero(id);
+  if (!n?.segredoWebhook) return false;
+  try {
+    const dados = await chamarCom(n, "/webhook");
+    const lista = Array.isArray(dados) ? dados : Array.isArray(dados?.webhooks) ? dados.webhooks : [dados?.webhook ?? dados];
+    return lista.some((w) => String(w?.url ?? "").includes(n.segredoWebhook) && w?.enabled !== false);
+  } catch {
+    return null;
+  }
+}
+
+/** Confere o webhook e, se a UAZap não tiver o nosso, configura de novo. Retorna true, false ou null (não deu para saber). */
+export async function garantirWebhook(id) {
+  const ok = await webhookConfigurado(id);
+  if (ok !== false) return ok;
+  await configurarWebhook(id);
+  return webhookConfigurado(id);
+}
+
 // Destino: o telefone (só os dígitos) ou, para contato que só tem o identificador do WhatsApp (@lid),
 // o identificador inteiro. Sem isso o @lid virava um "telefone" que não existe.
 const paraUazap = (destino) => (String(destino).includes("@") ? String(destino) : String(destino).replace(/\D/g, ""));

@@ -592,14 +592,30 @@ const statusDoNumero = async (id) => {
   const st = await uazap.status(id).catch((e) => ({ estado: e.message, conectado: false }));
   return { nome: n.nome, estado: st.estado, conectado: st.conectado, qrcode: st.qrcode ?? null, paircode: st.paircode ?? null, perfil: st.perfil ?? null, telefone: st.numero ?? null };
 };
+// O webhook da instância é configurado ao criar o número e conferido de novo de tempos em tempos (e quando conecta):
+// se a UAZap tiver perdido a configuração, o sistema aponta de novo sozinho.
+const CONFERIR_WEBHOOK_MS = 10 * 60_000;
+async function webhookDoNumero(id, { conectado, forcar = false }) {
+  const chave = `uazap_webhook_conferido:${id}`;
+  const salvo = JSON.parse((await db.lerEstado(chave)) || "null");
+  const mudouConexao = salvo && salvo.conectado !== conectado;
+  if (!forcar && !mudouConexao && salvo && Date.now() - salvo.quando < CONFERIR_WEBHOOK_MS) return salvo.ok;
+  const ok = await uazap.garantirWebhook(id).catch(() => null);
+  await db.gravarEstado(chave, JSON.stringify({ ok, conectado, quando: Date.now() }));
+  return ok;
+}
+
 app.get("/api/crm/whatsapp", rotaCrm(async (req) => {
   const id = numeroDoCrm(req);
-  return { numero: id ? await statusDoNumero(id) : null, criarAutomatico: Boolean((await uazap.lerAdmin()).adminToken) };
+  const numero = id ? await statusDoNumero(id) : null;
+  const webhook = numero ? await webhookDoNumero(id, { conectado: numero.conectado }) : null;
+  return { numero: numero && { ...numero, webhook }, criarAutomatico: Boolean((await uazap.lerAdmin()).adminToken), ligado: req.crm.agente.ligado };
 }));
 app.post("/api/crm/whatsapp", rotaCrm(async (req) => {
   const n = await agentes.criarNumeroDoAgente(req.crm.agente.id);
   const st = await uazap.conectar(n.id).catch(() => null);
-  return { numero: { ...(await statusDoNumero(n.id)), ...(st ? { qrcode: st.qrcode, paircode: st.paircode } : {}) } };
+  const webhook = await webhookDoNumero(n.id, { conectado: false, forcar: true });
+  return { numero: { ...(await statusDoNumero(n.id)), webhook, ...(st ? { qrcode: st.qrcode, paircode: st.paircode } : {}) } };
 }));
 app.post("/api/crm/whatsapp/conectar", rotaCrm(async (req) => {
   const id = numeroDoCrm(req);

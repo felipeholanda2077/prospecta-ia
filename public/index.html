@@ -284,17 +284,17 @@
   /* Fila de envio: um cartão por empresa, com cada etapa numa linha que abre. */
   .fila-resumo { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 20px 14px; }
   details.etapa-fila { border-top: 1px solid var(--border); }
-  details.etapa-fila > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px;
+  details.etapa-fila > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 4px 12px;
                                  align-items: center; padding: 12px 20px; }
   details.etapa-fila > summary::-webkit-details-marker { display: none; }
   details.etapa-fila > summary:hover { background: var(--surface-2); }
   details.etapa-fila[open] > summary { background: var(--surface-2); }
   .etapa-fila .quando { font-size: 13px; color: var(--muted); white-space: nowrap; }
-  .etapa-fila .trecho { grid-column: 2 / 4; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .etapa-fila .trecho { grid-column: 2 / 4; min-width: 0; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   details.etapa-fila[open] .trecho { display: none; }
   .etapa-fila .titulo-etapa { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-weight: 600; font-size: 14px; }
   @media (max-width: 640px) {
-    details.etapa-fila > summary { grid-template-columns: auto 1fr; }
+    details.etapa-fila > summary { grid-template-columns: auto minmax(0, 1fr); }
     .etapa-fila .quando { grid-column: 2; }
   }
   .etapa-seq { border-top: 1px solid var(--border); }
@@ -667,6 +667,10 @@
   .ig-aba[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
   .ig-aba:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .ig-painel { display: grid; gap: 16px; }
+  /* Itens de grade encolhem até a largura da tela (sem isso, um texto longo empurra a página para os lados no celular). */
+  .ig-painel > *, .cartao, .cartao-corpo, .chat-app > * { min-width: 0; }
+  img, video, canvas { max-width: 100%; }
+  pre, code { overflow-wrap: anywhere; }
   .ig-painel[hidden] { display: none; }
   .ct-linha { font: inherit; color: inherit; background: none; border: 0; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
   .ct-linha:hover { background: var(--surface-2); border-radius: var(--radius); }

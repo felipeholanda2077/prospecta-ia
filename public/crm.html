@@ -257,15 +257,38 @@
 
   .ponto-wa { margin-left: auto; width: 9px; height: 9px; border-radius: 50%; background: var(--subtle); }
   .ponto-wa.ok { background: var(--ok); }
-  .wa { padding: 24px; display: grid; gap: 18px; max-width: 760px; }
+  .wa-grade { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  .wa-cartao { padding: 22px; display: grid; gap: 18px; }
   .wa-cab { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-  .wa-cab .circulo { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-soft); color: var(--ok); flex: none; }
-  .passos { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
-  .qr { display: grid; justify-items: center; gap: 10px; padding: 18px; border-radius: var(--radius); background: #fff; color: #14151f; justify-self: start; }
-  .qr img { width: 260px; height: 260px; image-rendering: pixelated; }
-  .codigo { font: 700 30px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; padding: 10px 16px; border-radius: var(--radius-sm); background: var(--surface-2); justify-self: start; }
+  .wa-cab .circulo { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); flex: none; }
+  .wa-cab .circulo.ok { background: var(--ok-soft); color: var(--ok); }
+  .wa-cab .texto { flex: 1; min-width: 180px; }
+  .qr-area { display: grid; justify-items: center; gap: 12px; padding: 22px; border-radius: var(--radius); background: var(--surface-2); }
+  .qr { position: relative; padding: 14px; border-radius: 16px; background: #fff; box-shadow: 0 10px 30px -12px rgba(0,0,0,.45); }
+  .qr img { width: min(240px, 62vw); height: auto; aspect-ratio: 1; display: block; image-rendering: pixelated; }
+  .qr-legenda { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted); text-align: center; }
+  .pulso { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; animation: pulso 1.4s ease infinite; }
+  @keyframes pulso { 50% { opacity: .25; } }
+  .codigo { font: 700 clamp(22px, 6vw, 30px)/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .14em; padding: 14px 18px; border-radius: var(--radius-sm); background: #fff; color: #14151f; }
   .linha-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
-  .linha-form .campo { flex: 1 1 220px; }
+  .linha-form .campo { flex: 1 1 200px; }
+  .detalhes { border-top: 1px solid var(--border); padding-top: 14px; }
+  .detalhes summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--accent-text); list-style: none; display: flex; gap: 8px; align-items: center; }
+  .detalhes summary::-webkit-details-marker { display: none; }
+  .detalhes[open] summary { margin-bottom: 12px; }
+  .passos-wa { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+  .passos-wa li { display: grid; grid-template-columns: 30px 1fr; gap: 12px; position: relative; padding-bottom: 14px; }
+  .passos-wa li:not(:last-child)::before { content: ""; position: absolute; left: 14px; top: 30px; bottom: 0; width: 2px; background: var(--border); }
+  .passos-wa .marca-passo { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; background: var(--surface-2); color: var(--muted); border: 2px solid var(--border); }
+  .passos-wa li.feito .marca-passo { background: var(--ok); color: #fff; border-color: var(--ok); }
+  .passos-wa li.agora .marca-passo { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .passos-wa li.atencao .marca-passo { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+  .passos-wa b { display: block; font-size: 14.5px; }
+  .passos-wa small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .passos-wa li.agora b { color: var(--accent-text); }
+  .no-celular { display: grid; gap: 6px; margin-top: 8px; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-2); font-size: 13px; color: var(--muted); }
+  .no-celular b { color: var(--text); display: inline; font-size: 13px; }
+  @media (max-width: 980px) { .wa-grade { grid-template-columns: 1fr; } }
   .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--surface); padding: 11px 18px; border-radius: 999px; font-size: 14px;
            z-index: 30; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
   .toast.perigo { background: var(--danger); color: #fff; }
@@ -387,7 +410,7 @@
 
       <!-- WhatsApp do agente -->
       <section data-pagina="whatsapp" hidden>
-        <div class="cartao wa" id="wa"></div>
+        <div id="wa"></div>
       </section>
 
       <!-- Perfil da IA -->
@@ -663,6 +686,7 @@ $("#chave-ligado").addEventListener("change", async (ev) => {
   try {
     eu.ligado = (await post("/api/crm/ligado", { ligado: ligar })).ligado;
     avisar(eu.ligado ? "Agente ligado: ele já responde as próximas mensagens" : "Agente desligado: agora quem responde é você");
+    if (pagina === "whatsapp") carregarWhatsapp();
   } catch (e) {
     avisar(e.message, "perigo");
   } finally {
@@ -785,41 +809,65 @@ async function carregarWhatsapp() {
   }
 }
 
-function desenharWhatsapp({ numero, criarAutomatico }) {
+/** O passo a passo da conexão, com o que já foi feito. */
+function passosDaConexao({ numero, ligado }) {
+  const conectado = Boolean(numero?.conectado);
+  const passo = (estado, n, titulo, texto) => `<li class="${estado}"><span class="marca-passo">${estado === "feito" ? ic("check", "sm") : estado === "atencao" ? "!" : n}</span><div><b>${titulo}</b>${texto ? `<small>${texto}</small>` : ""}</div></li>`;
+  const webhook = numero?.webhook;
+  return `<ol class="passos-wa">
+    ${passo(numero ? "feito" : "agora", 1, "Criar o número do agente", numero ? esc(numero.nome) : "Um clique: o sistema cria o WhatsApp do agente na UAZap.")}
+    ${passo(!numero ? "" : webhook === false ? "atencao" : "feito", 2, "Mensagens ligadas ao sistema",
+      !numero ? "Feito sozinho ao criar o número (webhook automático)." : webhook === false ? "A UAZap não confirmou o webhook; o sistema tenta de novo sozinho." : webhook === null ? "Configurado ao criar o número." : "Webhook configurado e conferido automaticamente.")}
+    ${passo(conectado ? "feito" : numero ? "agora" : "", 3, "Ler o QR code com o celular",
+      conectado ? `Conectado${numero.telefone ? ` como +${esc(numero.telefone)}` : ""}.` : `<span class="no-celular"><span>1. Abra o <b>WhatsApp</b> no celular do atendimento.</span><span>2. Toque em <b>⋮</b> (Android) ou <b>Configurações</b> (iPhone) → <b>Aparelhos conectados</b>.</span><span>3. Toque em <b>Conectar um aparelho</b> e aponte para o QR code.</span></span>`)}
+    ${passo(conectado && ligado ? "feito" : conectado ? "agora" : "", 4, "Ligar a IA", conectado && ligado ? "A IA está respondendo sozinha." : "No botão do topo, quando o treinamento e a base estiverem prontos.")}
+  </ol>`;
+}
+
+function desenharWhatsapp({ numero, criarAutomatico, ligado = eu?.ligado }) {
   $$("[data-ponto-wa]").forEach((p) => p.classList.toggle("ok", Boolean(numero?.conectado)));
+  const lateral = `<aside class="cartao wa-cartao"><div><h3>Como conectar</h3><p class="dica">Leva menos de um minuto. Cada agente usa um número só.</p></div>${passosDaConexao({ numero, ligado })}</aside>`;
   if (!numero) {
     pararAcompanhamento();
-    $("#wa").innerHTML = `
-      <div class="wa-cab"><span class="circulo">${ic("phone", "lg")}</span><div><h3>Conecte o WhatsApp do agente</h3><p class="dica">Um número por agente. Use um número só para o atendimento, não o seu pessoal.</p></div></div>
-      <ol class="passos">
-        <li>Clique em <b>Criar número</b>: o sistema cria o WhatsApp do agente na hora.</li>
-        <li>No celular, abra o WhatsApp → <b>Aparelhos conectados</b> → <b>Conectar um aparelho</b>.</li>
-        <li>Aponte a câmera para o QR code que vai aparecer aqui.</li>
-        <li>Conectado, o número já fica com a IA. Para ela responder, ligue o agente no botão do topo.</li>
-      </ol>
-      <div><button class="btn primario grande" type="button" data-wa-criar ${criarAutomatico ? "" : "disabled"}>${ic("phone")}Criar número e mostrar QR code</button></div>
-      ${criarAutomatico ? "" : `<div class="alerta atencao">${ic("clock")}<div><b>Quase lá.</b> A FluxDeck ainda está ativando a criação de números para o seu CRM. Assim que ela ativar, este botão funciona; você não precisa de token nem de nenhum código.</div></div>`}`;
+    $("#wa").innerHTML = `<div class="wa-grade">
+      <div class="cartao wa-cartao">
+        <div class="wa-cab"><span class="circulo ok">${ic("phone", "lg")}</span><div class="texto"><h3>Conecte o WhatsApp do agente</h3><p class="dica">Use um número só para o atendimento, não o seu pessoal.</p></div></div>
+        <div class="qr-area"><span class="vazio" style="padding:10px"><span class="circulo">${ic("phone", "lg")}</span><p>O QR code aparece aqui assim que o número for criado.</p></span></div>
+        <button class="btn primario grande" type="button" data-wa-criar ${criarAutomatico ? "" : "disabled"}>${ic("phone")}Criar número e mostrar QR code</button>
+        ${criarAutomatico ? "" : `<div class="alerta atencao">${ic("clock")}<div><b>Quase lá.</b> A FluxDeck ainda está ativando a criação de números para o seu CRM. Assim que ela ativar, este botão funciona; você não precisa de token nem de nenhum código.</div></div>`}
+      </div>${lateral}</div>`;
     return;
   }
   const conectado = numero.conectado;
-  const conexao = numero.qrcode
-    ? `<div class="qr"><img src="${esc(numero.qrcode)}" alt="QR code para conectar o WhatsApp"><small>Leia com o WhatsApp do celular. O QR code muda a cada poucos segundos.</small></div>`
-    : numero.paircode ? `<div class="codigo">${esc(numero.paircode)}</div><span class="dica">No WhatsApp: Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone, e digite este código.</span>` : "";
-  $("#wa").innerHTML = `
-    <div class="wa-cab"><span class="circulo" style="${conectado ? "" : "background:var(--surface-2);color:var(--muted)"}">${ic("phone", "lg")}</span>
-      <div style="flex:1;min-width:200px"><h3>${esc(numero.perfil || numero.nome)}</h3><p class="dica">${numero.telefone ? `+${esc(numero.telefone)}` : "Número do agente na UAZap"}</p></div>
-      <span class="pilula ${conectado ? "ok" : numero.qrcode || numero.paircode ? "atencao" : ""}">${conectado ? "Conectado" : numero.qrcode || numero.paircode ? "Aguardando leitura" : "Desconectado"}</span></div>
-    ${conectado
-      ? `<div class="alerta info">${ic("checkCircle")}<div>WhatsApp conectado e ligado à IA. ${eu.ligado ? "O agente está respondendo." : "Ligue o agente no botão do topo para ele começar a responder."}</div></div>
-         <div class="acoes"><button class="btn" type="button" data-wa-desconectar>${ic("x", "sm")}Desconectar</button></div>`
-      : `${conexao}
-         <div class="acoes"><button class="btn primario" type="button" data-wa-qr>${ic("phone", "sm")}${numero.qrcode ? "Gerar outro QR code" : "Mostrar QR code"}</button></div>
-         <form class="linha-form" id="form-wa-codigo">
-           <div class="campo"><label for="wa-telefone">Prefere código? Telefone do WhatsApp com DDD</label><input id="wa-telefone" name="telefone" inputmode="tel" placeholder="Ex.: 11 91234-5678"></div>
-           <button class="btn" type="submit">Conectar com código</button>
-         </form>`}`;
+  const aguardando = !conectado && (numero.qrcode || numero.paircode);
+  const pilula = `<span class="pilula ${conectado ? "ok" : aguardando ? "atencao" : ""}">${conectado ? "Conectado" : aguardando ? "Aguardando leitura" : "Desconectado"}</span>`;
+  const cab = `<div class="wa-cab"><span class="circulo ${conectado ? "ok" : ""}">${ic(conectado ? "checkCircle" : "phone", "lg")}</span>
+    <div class="texto"><h3>${esc(conectado ? numero.perfil || numero.nome : numero.nome)}</h3><p class="dica">${conectado && numero.telefone ? `+${esc(numero.telefone)} · ` : ""}número do agente na UAZap</p></div>${pilula}</div>`;
+  let corpo;
+  if (conectado) {
+    corpo = `${cab}
+      <div class="alerta info">${ic("checkCircle")}<div><b>WhatsApp conectado e ligado à IA.</b> ${ligado ? "O agente está respondendo sozinho." : "Falta só ligar o agente para ele começar a responder."}</div></div>
+      <div class="acoes">${ligado ? "" : `<button class="btn primario" type="button" data-wa-ligar>${ic("zap", "sm")}Ligar o agente agora</button>`}
+        <button class="btn fantasma" type="button" data-wa-desconectar>${ic("x", "sm")}Desconectar</button></div>`;
+  } else {
+    const conexao = numero.qrcode
+      ? `<div class="qr"><img id="qr-img" src="${esc(numero.qrcode)}" alt="QR code para conectar o WhatsApp"></div>
+         <span class="qr-legenda"><span class="pulso"></span>Atualiza sozinho. Conectou, esta tela muda na hora.</span>`
+      : numero.paircode
+        ? `<div class="codigo">${esc(numero.paircode)}</div><span class="qr-legenda">No WhatsApp: Aparelhos conectados → Conectar um aparelho → <b>Conectar com número de telefone</b>, e digite este código.</span>`
+        : `<span class="vazio" style="padding:10px"><span class="circulo">${ic("phone", "lg")}</span><p>Clique em Mostrar QR code para conectar.</p></span>`;
+    corpo = `${cab}
+      <div class="qr-area">${conexao}</div>
+      <div class="acoes"><button class="btn ${numero.qrcode ? "" : "primario"}" type="button" data-wa-qr>${ic("phone", "sm")}${numero.qrcode ? "Gerar outro QR code" : "Mostrar QR code"}</button></div>
+      <details class="detalhes"><summary>${ic("phone", "sm")}Não consegue ler o QR code? Conecte com um código</summary>
+        <form class="linha-form" id="form-wa-codigo">
+          <div class="campo"><label for="wa-telefone">Telefone do WhatsApp com DDD</label><input id="wa-telefone" name="telefone" inputmode="tel" autocomplete="tel" placeholder="Ex.: 11 91234-5678"></div>
+          <button class="btn" type="submit">Gerar código</button>
+        </form></details>`;
+  }
+  $("#wa").innerHTML = `<div class="wa-grade"><div class="cartao wa-cartao">${corpo}</div>${lateral}</div>`;
   // Enquanto espera a leitura, confere sozinho a cada poucos segundos se já conectou.
-  if (!conectado && (numero.qrcode || numero.paircode)) acompanharConexao();
+  if (aguardando) acompanharConexao();
   else pararAcompanhamento();
 }
 
@@ -829,6 +877,8 @@ function acompanharConexao() {
   acompanhamento = setInterval(async () => {
     if (pagina !== "whatsapp" || ++voltas > 60) return pararAcompanhamento();
     const r = await api("/api/crm/whatsapp").catch(() => null);
+    // O QR code muda a cada poucos segundos: troca a imagem sem redesenhar a tela.
+    if (r?.numero?.qrcode && $("#qr-img") && $("#qr-img").getAttribute("src") !== r.numero.qrcode) $("#qr-img").src = r.numero.qrcode;
     if (!r?.numero?.conectado) return;
     pararAcompanhamento();
     avisar("WhatsApp conectado!");
@@ -987,10 +1037,15 @@ $("#arquivo").addEventListener("change", async (ev) => {
 
 // ---------- Cliques ----------
 document.addEventListener("click", async (ev) => {
-  const el = ev.target.closest("[data-ir],[data-desenho],[data-sair],[data-tema],[data-filtro],[data-conversa],[data-voltar],[data-assumir],[data-continua],[data-fechou],[data-tirar-arquivo],[data-wa-criar],[data-wa-qr],[data-wa-desconectar]");
+  const el = ev.target.closest("[data-ir],[data-desenho],[data-sair],[data-tema],[data-filtro],[data-conversa],[data-voltar],[data-assumir],[data-continua],[data-fechou],[data-tirar-arquivo],[data-wa-criar],[data-wa-qr],[data-wa-desconectar],[data-wa-ligar]");
   if (!el) return;
   const d = el.dataset;
   if (d.waCriar !== undefined) return acaoWhatsapp(() => post("/api/crm/whatsapp"), el);
+  if (d.waLigar !== undefined) {
+    const chave = $("#chave-ligado");
+    chave.checked = true;
+    return chave.dispatchEvent(new Event("change"));
+  }
   if (d.waQr !== undefined) return acaoWhatsapp(() => post("/api/crm/whatsapp/conectar"), el);
   if (d.waDesconectar !== undefined) {
     if (!confirm("Desconectar o WhatsApp do agente? A IA para de receber e responder mensagens até você conectar de novo.")) return;
