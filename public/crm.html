@@ -11,173 +11,358 @@
 <style>
   /* CRM externo de um agente de atendimento: login próprio, só as conversas desse agente. */
   :root {
-    --bg: #f4f5fa; --surface: #ffffff; --surface-2: #f0f1f8; --text: #14151f; --muted: #5d6275; --subtle: #8a8fa5; --border: #e3e5ef;
+    --bg: #f4f5fa; --surface: #ffffff; --surface-2: #f0f1f8; --surface-3: #e8eaf4; --text: #14151f; --muted: #5d6275; --subtle: #8a8fa5; --border: #e3e5ef;
     --accent: #5b4cf0; --accent-hover: #4a3be0; --accent-soft: #ecebff; --accent-text: #4636d6;
     --ok: #12a150; --ok-soft: #e2f6ea; --danger: #d92d4a; --danger-soft: #fde8ec; --warn: #b7791f; --warn-soft: #fdf3dc;
-    --chat: #efe7dd; --bolha: #d9fdd3; --radius: 14px; --radius-sm: 10px;
-    --shadow: 0 1px 2px rgba(20, 21, 40, .05), 0 8px 24px -12px rgba(20, 21, 40, .18);
+    --chat: #efe7dd; --bolha: #d9fdd3; --radius: 16px; --radius-sm: 10px;
+    --shadow: 0 1px 2px rgba(20, 21, 40, .05), 0 10px 30px -14px rgba(20, 21, 40, .2);
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #0b0c14; --surface: #141625; --surface-2: #1b1e31; --text: #eceef8; --muted: #9aa0b8; --subtle: #6f7590; --border: #262940;
+      --bg: #0b0c14; --surface: #141625; --surface-2: #1b1e31; --surface-3: #23273e; --text: #eceef8; --muted: #9aa0b8; --subtle: #6f7590; --border: #262940;
       --accent: #8b7dff; --accent-hover: #9d91ff; --accent-soft: #232046; --accent-text: #b3aaff;
       --ok: #34c574; --ok-soft: #10291c; --danger: #ff6b81; --danger-soft: #3a1720; --warn: #e0a43a; --warn-soft: #33260e;
-      --chat: #0e1a14; --bolha: #144d37; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -12px rgba(0, 0, 0, .6);
+      --chat: #0e1a14; --bolha: #144d37; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .7);
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #0b0c14; --surface: #141625; --surface-2: #1b1e31; --text: #eceef8; --muted: #9aa0b8; --subtle: #6f7590; --border: #262940;
+    --bg: #0b0c14; --surface: #141625; --surface-2: #1b1e31; --surface-3: #23273e; --text: #eceef8; --muted: #9aa0b8; --subtle: #6f7590; --border: #262940;
     --accent: #8b7dff; --accent-hover: #9d91ff; --accent-soft: #232046; --accent-text: #b3aaff;
     --ok: #34c574; --ok-soft: #10291c; --danger: #ff6b81; --danger-soft: #3a1720; --warn: #e0a43a; --warn-soft: #33260e;
-    --chat: #0e1a14; --bolha: #144d37; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px -12px rgba(0, 0, 0, .6);
+    --chat: #0e1a14; --bolha: #144d37; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .7);
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   body { margin: 0; font: 15px/1.55 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
-  h1, h2, h3 { margin: 0; line-height: 1.25; }
+  h1, h2, h3, p { margin: 0; }
+  h1, h2, h3 { line-height: 1.25; }
   .muted { color: var(--muted); }
+  .ic { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .ic.sm { width: 15px; height: 15px; }
+  .ic.lg { width: 28px; height: 28px; }
   .btn { font: inherit; font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px;
-         padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; }
+         padding: 8px 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s; }
   .btn:hover { background: var(--surface-2); }
   .btn:disabled { opacity: .6; cursor: progress; }
-  .btn.primario { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primario { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 6px 16px -8px var(--accent); }
   .btn.primario:hover { background: var(--accent-hover); }
   .btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
   .btn.fantasma { background: transparent; border-color: transparent; color: var(--muted); }
+  .btn.fantasma:hover { background: var(--surface-2); color: var(--text); }
   .btn.sm { min-height: 34px; padding: 6px 12px; font-size: 13px; }
-  input, textarea { width: 100%; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; min-height: 42px; }
-  input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+  .btn.icone { padding: 0; width: 44px; min-height: 44px; border-radius: 50%; }
+  input, textarea, select { width: 100%; font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; min-height: 42px; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
   textarea { resize: vertical; line-height: 1.55; }
-  label.rotulo { font-size: 12.5px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 6px; }
+  .campo { display: grid; gap: 6px; }
+  .campo > label, .rotulo { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .dica { font-size: 12.5px; color: var(--muted); }
   .cartao { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
   .alerta { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-sm); font-size: 14px; }
+  .alerta .ic { margin-top: 2px; }
   .alerta.atencao { background: var(--warn-soft); color: var(--warn); }
-  .alerta.perigo { background: var(--danger-soft); color: var(--danger); }
   .alerta.info { background: var(--accent-soft); color: var(--accent-text); }
+  .alerta button.link { font: inherit; font-weight: 700; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
   .pilula { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 1.2; padding: 4px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
   .pilula.acc { background: var(--accent-soft); color: var(--accent-text); }
   .pilula.ok { background: var(--ok-soft); color: var(--ok); }
   .pilula.perigo { background: var(--danger-soft); color: var(--danger); }
   .pilula.atencao { background: var(--warn-soft); color: var(--warn); }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #fff;
+            background: linear-gradient(135deg, var(--accent), #06b6d4); position: relative; }
+  .avatar.grande { width: 72px; height: 72px; font-size: 28px; }
+  .avatar .ponto { position: absolute; right: -1px; bottom: -1px; width: 13px; height: 13px; border-radius: 50%; background: var(--subtle); border: 2px solid var(--surface); }
+  .avatar.grande .ponto { width: 18px; height: 18px; border-width: 3px; }
+  .ligado .avatar .ponto { background: var(--ok); }
 
   /* Login */
-  .login { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
-  .login .cartao { width: min(400px, 100%); padding: 28px; display: grid; gap: 14px; }
-  .erro { color: var(--danger); font-size: 14px; margin: 0; min-height: 1em; }
+  .login { min-height: 100vh; display: grid; place-items: center; padding: 16px;
+           background: radial-gradient(1200px 600px at 10% -10%, var(--accent-soft), transparent), var(--bg); }
+  .login .cartao { width: min(400px, 100%); padding: 32px 28px; display: grid; gap: 16px; }
+  .login .selo { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--accent), #06b6d4); }
+  .erro { color: var(--danger); font-size: 14px; min-height: 1em; }
 
-  /* App */
-  .topo { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); padding: 12px 16px;
-          display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .topo .titulo { flex: 1; min-width: 180px; }
-  .topo small { color: var(--muted); }
-  main { max-width: 1240px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
-  .abas { display: flex; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 5px; }
-  .aba { flex: 1; font: inherit; font-weight: 600; font-size: 14px; padding: 9px 12px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); cursor: pointer; }
-  .aba[aria-selected="true"] { background: var(--accent-soft); color: var(--accent-text); }
-  .numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-  .num { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 2px; }
-  .num b { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
-  .num span { font-size: 13px; color: var(--muted); }
-  .num.perigo b { color: var(--danger); } .num.ok b { color: var(--ok); } .num.atencao b { color: var(--warn); } .num.acc b { color: var(--accent-text); }
+  /* Estrutura */
+  .app { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+  .lateral { position: sticky; top: 0; height: 100vh; background: var(--surface); border-right: 1px solid var(--border); padding: 18px 14px; display: flex; flex-direction: column; gap: 18px; }
+  .marca { display: flex; align-items: center; gap: 12px; padding: 4px 6px; }
+  .marca b { display: block; font-size: 15px; }
+  .marca small { color: var(--muted); font-size: 12.5px; }
+  .menu { display: grid; gap: 4px; }
+  .menu button { font: inherit; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 0; border-radius: var(--radius-sm);
+                 background: transparent; color: var(--muted); cursor: pointer; text-align: left; }
+  .menu button:hover { background: var(--surface-2); color: var(--text); }
+  .menu button[aria-current="page"] { background: var(--accent-soft); color: var(--accent-text); }
+  .menu .badge { margin-left: auto; }
+  .badge { background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 7px; line-height: 1.5; }
+  .badge.azul { background: var(--accent); }
+  .rodape-lateral { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px 6px 0; border-top: 1px solid var(--border); }
+  .rodape-lateral small { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .principal { min-width: 0; padding: 20px 24px 40px; display: grid; gap: 18px; align-content: start; max-width: 1320px; width: 100%; }
+  .topo { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+  .topo h1 { font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
+  .topo p { color: var(--muted); font-size: 14px; margin-top: 2px; }
+
+  /* Liga e desliga */
+  .interruptor { display: flex; align-items: center; gap: 12px; padding: 10px 16px 10px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border);
+                 box-shadow: var(--shadow); cursor: pointer; user-select: none; }
+  .interruptor input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .trilho { width: 52px; height: 30px; border-radius: 999px; background: var(--surface-3); position: relative; flex: none; transition: background .2s; }
+  .trilho::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+  .interruptor input:checked + .trilho { background: var(--ok); }
+  .interruptor input:checked + .trilho::after { transform: translateX(22px); }
+  .interruptor input:focus-visible + .trilho { box-shadow: 0 0 0 4px var(--accent-soft); }
+  .interruptor b { display: block; font-size: 14px; }
+  .interruptor small { display: block; font-size: 12px; color: var(--muted); }
+  .interruptor.ocupado { opacity: .6; pointer-events: none; }
+
+  /* Números */
+  .numeros { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .num { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: flex; gap: 12px; align-items: center; box-shadow: var(--shadow); }
+  .num .bolinha { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; background: var(--surface-2); color: var(--muted); flex: none; }
+  .num b { display: block; font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .num span { font-size: 12.5px; color: var(--muted); }
+  .num.acc .bolinha { background: var(--accent-soft); color: var(--accent-text); }
+  .num.ok .bolinha { background: var(--ok-soft); color: var(--ok); }
+  .num.perigo .bolinha { background: var(--danger-soft); color: var(--danger); }
+  .num.atencao .bolinha { background: var(--warn-soft); color: var(--warn); }
+
+  /* Conversas */
+  .crm { display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: stretch; height: calc(100vh - 300px); min-height: 520px; }
+  .lado-lista { display: flex; flex-direction: column; overflow: hidden; }
+  .lado-lista .cab { padding: 14px; display: grid; gap: 10px; border-bottom: 1px solid var(--border); }
+  .busca { position: relative; }
+  .busca .ic { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--subtle); }
+  .busca input { padding-left: 38px; }
   .filtros { display: flex; gap: 6px; flex-wrap: wrap; }
-  .filtro { font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; }
+  .filtro { font: inherit; font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; }
   .filtro[aria-pressed="true"] { background: var(--text); color: var(--surface); border-color: var(--text); }
-  .crm { display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: start; }
-  .lista { display: grid; gap: 8px; max-height: calc(100vh - 330px); min-height: 200px; overflow: auto; padding-right: 2px; }
-  .item { font: inherit; color: inherit; text-align: left; width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
-          padding: 12px; cursor: pointer; display: grid; gap: 4px; }
-  .item[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .lista { flex: 1; overflow: auto; padding: 6px; }
+  .item { font: inherit; color: inherit; text-align: left; width: 100%; background: transparent; border: 0; border-radius: var(--radius-sm); padding: 10px; cursor: pointer;
+          display: flex; gap: 12px; align-items: center; }
+  .item:hover { background: var(--surface-2); }
+  .item[aria-current="true"] { background: var(--accent-soft); }
+  .item .meio { flex: 1; min-width: 0; display: grid; gap: 2px; }
   .item .linha { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  .item .linha b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .item .previa { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .badge { background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 7px; }
-  .painel { display: grid; grid-template-rows: auto 1fr auto; min-height: 520px; overflow: hidden; }
+  .item small { color: var(--subtle); font-size: 11.5px; white-space: nowrap; }
+  .painel { display: flex; flex-direction: column; overflow: hidden; }
   .painel-topo { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-  .painel-topo .nome { flex: 1; min-width: 160px; }
-  .msgs { background: var(--chat); padding: 16px; display: flex; flex-direction: column; gap: 8px; overflow: auto; max-height: calc(100vh - 360px); min-height: 300px; }
-  .bolha { max-width: 78%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; box-shadow: 0 1px 1px rgba(0,0,0,.08); }
-  .bolha.lead { background: var(--surface); align-self: flex-start; }
-  .bolha.nos { background: var(--bolha); align-self: flex-end; }
+  .painel-topo .nome { flex: 1; min-width: 150px; }
+  .painel-topo .nome small { color: var(--muted); }
+  .msgs { flex: 1; background: var(--chat); padding: 18px; display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+  .bolha { max-width: 76%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14.5px; box-shadow: 0 1px 1px rgba(0,0,0,.08); color: var(--text); }
+  .bolha.lead { background: var(--surface); align-self: flex-start; border-top-left-radius: 4px; }
+  .bolha.nos { background: var(--bolha); align-self: flex-end; border-top-right-radius: 4px; }
   .bolha.agendada { background: transparent; border: 1px dashed var(--subtle); align-self: flex-end; color: var(--muted); }
-  .bolha small { display: block; font-size: 11.5px; color: var(--muted); margin-top: 4px; text-align: right; }
-  .escrever { padding: 12px 16px; border-top: 1px solid var(--border); display: grid; gap: 8px; }
-  .escrever textarea { min-height: 70px; }
-  .vazio { padding: 40px 16px; text-align: center; color: var(--muted); }
-  .base { padding: 18px; display: grid; gap: 14px; }
-  .base textarea { min-height: 320px; font-size: 14px; }
-  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text); color: var(--surface); padding: 10px 16px; border-radius: 999px; font-size: 14px; z-index: 20; max-width: calc(100% - 32px); }
+  .bolha small { display: block; font-size: 11px; color: var(--muted); margin-top: 4px; text-align: right; }
+  .dia { align-self: center; font-size: 12px; color: var(--muted); background: var(--surface); padding: 3px 10px; border-radius: 999px; margin: 6px 0; }
+  .escrever { padding: 12px 14px; border-top: 1px solid var(--border); display: grid; gap: 8px; background: var(--surface); }
+  .escrever .linha { display: flex; gap: 10px; align-items: flex-end; }
+  .escrever textarea { min-height: 46px; max-height: 180px; border-radius: 22px; padding: 11px 16px; }
+  .vazio { flex: 1; display: grid; place-items: center; align-content: center; gap: 10px; padding: 40px 20px; text-align: center; color: var(--muted); }
+  .vazio .circulo { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text); }
+  .vazio h3 { color: var(--text); font-size: 16px; }
+
+  /* Perfil e base */
+  .grade-perfil { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+  .ficha { padding: 22px; display: grid; gap: 14px; justify-items: center; text-align: center; position: sticky; top: 20px; }
+  .ficha h2 { font-size: 18px; }
+  .ficha .info { width: 100%; display: grid; gap: 8px; text-align: left; font-size: 13.5px; }
+  .ficha .info div { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+  .ficha .info span { color: var(--muted); }
+  .formulario { padding: 22px; display: grid; gap: 18px; }
+  .formulario h3 { font-size: 16px; }
+  .regras { display: grid; gap: 8px; padding: 14px; border-radius: var(--radius-sm); background: var(--surface-2); font-size: 13.5px; }
+  .regras div { display: flex; gap: 8px; align-items: flex-start; }
+  .regras .ic { color: var(--ok); margin-top: 2px; }
+  .acoes { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  #prompt { min-height: 380px; font-size: 13.5px; }
+  #conhecimento { min-height: 340px; font-size: 14px; }
+  .arquivo { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .arquivo span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--surface); padding: 11px 18px; border-radius: 999px; font-size: 14px;
+           z-index: 30; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
   .toast.perigo { background: var(--danger); color: #fff; }
-  .voltar { display: none; }
+  .nav-inferior, .voltar { display: none; }
+  @media (max-width: 1100px) {
+    .grade-perfil { grid-template-columns: 1fr; }
+    .ficha { position: static; }
+  }
   @media (max-width: 900px) {
-    .crm { grid-template-columns: 1fr; }
+    .app { grid-template-columns: 1fr; }
+    .lateral { display: none; }
+    .principal { padding: 16px 16px 90px; }
+    .crm { grid-template-columns: 1fr; height: auto; min-height: 0; }
+    .crm .lado-lista { max-height: 70vh; }
     .crm.com-conversa .lado-lista { display: none; }
     .crm:not(.com-conversa) .painel { display: none; }
-    .lista, .msgs { max-height: none; }
+    .painel { min-height: 75vh; }
     .voltar { display: inline-flex; }
+    .nav-inferior { display: grid; grid-template-columns: repeat(3, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface);
+                    border-top: 1px solid var(--border); padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); }
+    .nav-inferior button { font: inherit; font-size: 11.5px; font-weight: 600; display: grid; justify-items: center; gap: 2px; padding: 6px; border: 0; background: none; color: var(--muted); cursor: pointer; position: relative; }
+    .nav-inferior button[aria-current="page"] { color: var(--accent-text); }
+    .nav-inferior .badge { position: absolute; top: 2px; left: 55%; }
+    .topo { align-items: stretch; }
+    .interruptor { width: 100%; }
   }
 </style>
 </head>
 <body>
   <section class="login" id="tela-login" hidden>
     <form class="cartao" id="form-login">
-      <div><h1 style="font-size:22px">CRM do agente</h1><p class="muted" style="margin:4px 0 0">Entre com o usuário e a senha que você recebeu.</p></div>
-      <div><label class="rotulo" for="usuario">Usuário</label><input id="usuario" name="usuario" autocomplete="username" autocapitalize="none" required></div>
-      <div><label class="rotulo" for="senha">Senha</label><input id="senha" name="senha" type="password" autocomplete="current-password" required></div>
+      <div class="selo"><span data-ic="message"></span></div>
+      <div><h1 style="font-size:22px">CRM do agente</h1><p class="muted" style="margin-top:4px">Entre com o usuário e a senha que você recebeu.</p></div>
+      <div class="campo"><label for="usuario">Usuário</label><input id="usuario" name="usuario" autocomplete="username" autocapitalize="none" required></div>
+      <div class="campo"><label for="senha">Senha</label><input id="senha" name="senha" type="password" autocomplete="current-password" required></div>
       <p class="erro" id="erro-login"></p>
       <button class="btn primario" type="submit">Entrar</button>
     </form>
   </section>
 
-  <section id="app" hidden>
-    <header class="topo">
-      <div class="titulo"><h2 id="nome-agente">Agente</h2><small id="sub-agente"></small></div>
-      <span class="pilula" id="estado-agente"></span>
-      <button class="btn fantasma sm" type="button" id="sair">Sair</button>
-    </header>
-    <main>
-      <div id="avisos"></div>
-      <div class="abas" role="tablist">
-        <button class="aba" role="tab" data-aba="conversas" aria-selected="true">Conversas</button>
-        <button class="aba" role="tab" data-aba="base" aria-selected="false">Base de conhecimento</button>
-      </div>
-      <div data-painel="conversas" style="display:grid;gap:16px">
+  <div class="app" id="app" hidden>
+    <aside class="lateral">
+      <div class="marca"><div class="avatar" id="avatar-lateral">?<span class="ponto"></span></div><div><b id="nome-lateral">Agente</b><small id="estado-lateral">Desligado</small></div></div>
+      <nav class="menu" aria-label="Seções do CRM">
+        <button type="button" data-ir="conversas" aria-current="page"><span data-ic="message"></span>Conversas<span class="badge" data-contador hidden></span></button>
+        <button type="button" data-ir="perfil"><span data-ic="spark"></span>Perfil da IA</button>
+        <button type="button" data-ir="base"><span data-ic="file"></span>Base de conhecimento</button>
+      </nav>
+      <div class="rodape-lateral"><span data-ic="users"></span><small id="voce"></small><button class="btn fantasma sm" type="button" data-sair title="Sair"><span data-ic="logout"></span></button></div>
+    </aside>
+
+    <main class="principal">
+      <header class="topo">
+        <div><h1 id="titulo-pagina">Conversas</h1><p id="sub-pagina"></p></div>
+        <label class="interruptor" id="interruptor" title="Liga e desliga o agente">
+          <input type="checkbox" id="chave-ligado" aria-describedby="chave-sub">
+          <span class="trilho"></span>
+          <span><b id="chave-titulo">Agente desligado</b><small id="chave-sub">Ligue para ele responder sozinho</small></span>
+        </label>
+      </header>
+      <div id="avisos" style="display:grid;gap:10px"></div>
+
+      <!-- Conversas -->
+      <section data-pagina="conversas" style="display:grid;gap:16px">
         <div class="numeros" id="numeros"></div>
         <div class="crm" id="crm">
-          <div class="lado-lista" style="display:grid;gap:10px">
-            <div class="filtros" id="filtros"></div>
+          <div class="cartao lado-lista">
+            <div class="cab">
+              <div class="busca"><span data-ic="search"></span><input id="busca" type="search" placeholder="Buscar por nome ou telefone" aria-label="Buscar conversa"></div>
+              <div class="filtros" id="filtros"></div>
+            </div>
             <div class="lista" id="lista"></div>
           </div>
-          <section class="cartao painel" id="painel"><div class="vazio">Escolha uma conversa para ver tudo o que foi falado.</div></section>
+          <section class="cartao painel" id="painel"></section>
         </div>
-      </div>
-      <section class="cartao base" data-painel="base" hidden>
-        <div><h3>Base de conhecimento</h3><p class="muted" style="margin:4px 0 0">O agente só informa preços, planos, cobertura e condições que estiverem aqui. Sem a base, ele diz que vai confirmar e passa a conversa para você.</p></div>
-        <textarea id="conhecimento" placeholder="Cole aqui as informações oficiais: planos, preços, instalação, cobertura, formas de pagamento, regras de cancelamento..."></textarea>
-        <div><button class="btn primario" type="button" id="salvar-base">Salvar base</button></div>
-        <div style="display:grid;gap:8px">
-          <span class="rotulo">Arquivos</span>
-          <div id="arquivos"></div>
-          <label class="btn sm" style="justify-self:start">Adicionar arquivo de texto<input type="file" id="arquivo" accept=".txt,.md,.csv,.tsv,.json,.html,.xml,text/*" multiple hidden></label>
-          <span class="muted" style="font-size:13px">Arquivos de texto (.txt, .md, .csv). PDF ou Word: copie o texto e cole na base acima.</span>
+      </section>
+
+      <!-- Perfil da IA -->
+      <section data-pagina="perfil" hidden>
+        <div class="grade-perfil">
+          <aside class="cartao ficha" id="ficha"></aside>
+          <form class="cartao formulario" id="form-perfil">
+            <div><h3>Identidade</h3><p class="dica">Como a IA se chama no atendimento.</p></div>
+            <div class="campo"><label for="p-nome">Nome da IA</label><input id="p-nome" name="nome" maxlength="60" required placeholder="Ex.: Bruno"></div>
+            <div><h3>Treinamento</h3><p class="dica">O prompt base: quem ela é, como fala, o passo a passo do atendimento e o que nunca pode fazer.</p></div>
+            <div class="campo">
+              <textarea id="prompt" name="prompt" placeholder="Cole aqui o treinamento da IA"></textarea>
+              <div class="acoes"><label class="btn sm"><span data-ic="file"></span>Abrir arquivo<input type="file" id="arquivo-prompt" accept=".txt,.md,.markdown,text/*" hidden></label><span class="dica" id="contador-prompt"></span></div>
+            </div>
+            <div class="regras">
+              <b>O sistema sempre garante</b>
+              <div><span data-ic="checkCircle"></span>O comando DELEGAR nunca chega ao cliente: a conversa passa para você e aparece como "Precisa de você".</div>
+              <div><span data-ic="checkCircle"></span>Se o cliente perguntar diretamente se fala com uma pessoa, a IA responde com transparência.</div>
+              <div><span data-ic="checkCircle"></span>Preços, planos e condições só saem da Base de conhecimento.</div>
+              <div><span data-ic="checkCircle"></span>Respostas longas saem em até 3 mensagens, como alguém digitando.</div>
+            </div>
+            <div><h3>Quando passar a conversa para você</h3></div>
+            <div class="campo">
+              <select id="p-delegar" name="delegar_modo">
+                <option value="mensagem">Enviar a última mensagem da IA (se ela escrever uma) e parar</option>
+                <option value="fixa">Enviar uma mensagem fixa e parar</option>
+                <option value="silencio">Não enviar nada e parar</option>
+              </select>
+              <textarea id="p-delegar-msg" name="delegar_mensagem" style="min-height:80px" hidden placeholder="Ex.: Perfeito! Vou passar seus dados para o responsável pela contratação."></textarea>
+              <span class="dica">Em todos os casos a IA para nessa conversa até você clicar em "Agente continua".</span>
+            </div>
+            <div class="campo" style="max-width:280px"><label for="p-max">Máximo de respostas por conversa</label><input id="p-max" name="max_respostas" type="number" min="1" max="200"></div>
+            <div class="acoes"><button class="btn primario" type="submit"><span data-ic="check"></span>Salvar perfil</button><span class="dica">As próximas respostas já usam o perfil salvo.</span></div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Base de conhecimento -->
+      <section data-pagina="base" hidden>
+        <div class="cartao formulario">
+          <div class="acoes" style="justify-content:space-between"><div><h3>Informações oficiais</h3><p class="dica">Planos, preços, instalação, cobertura, formas de pagamento, regras de cancelamento. A IA só informa o que estiver aqui.</p></div><span class="pilula" id="estado-base"></span></div>
+          <textarea id="conhecimento" placeholder="Cole aqui as informações oficiais..."></textarea>
+          <div class="acoes"><button class="btn primario" type="button" id="salvar-base"><span data-ic="check"></span>Salvar base</button></div>
+          <div><h3>Arquivos</h3><p class="dica">Arquivos de texto (.txt, .md, .csv). PDF ou Word: copie o texto e cole acima.</p></div>
+          <div id="arquivos" style="display:grid;gap:8px"></div>
+          <label class="btn sm" style="justify-self:start"><span data-ic="file"></span>Adicionar arquivo<input type="file" id="arquivo" accept=".txt,.md,.csv,.tsv,.json,.html,.xml,text/*" multiple hidden></label>
         </div>
       </section>
     </main>
-  </section>
+
+    <nav class="nav-inferior" aria-label="Seções do CRM">
+      <button type="button" data-ir="conversas" aria-current="page"><span data-ic="message"></span>Conversas<span class="badge" data-contador hidden></span></button>
+      <button type="button" data-ir="perfil"><span data-ic="spark"></span>Perfil da IA</button>
+      <button type="button" data-ir="base"><span data-ic="file"></span>Base</button>
+    </nav>
+  </div>
 
 <script>
 const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const hora = (d) => new Date(d).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 const dataHora = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "");
+const quandoCurto = (d) => (!d ? "" : new Date(d).toDateString() === new Date().toDateString() ? hora(d) : new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }));
+const inicial = (n) => esc((String(n ?? "?").trim()[0] ?? "?").toUpperCase());
+const ICONES = {
+  message: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h8M8 9h2"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  zap: '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',
+  phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  checkCircle: '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  spark: '<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/>',
+  arrowLeft: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+};
+const ic = (nome, cls = "") => `<svg class="ic ${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICONES[nome] ?? ""}</svg>`;
+const hidratarIcones = (raiz = document) => raiz.querySelectorAll("[data-ic]").forEach((el) => { el.outerHTML = ic(el.dataset.ic); });
+hidratarIcones();
+
 const ANDAMENTO = {
   em_conversa: ["Em conversa", "acc"], delegou: ["Precisa de você", "perigo"], sem_resposta: ["Sem resposta", "atencao"],
   fechou: ["Fechou", "ok"], encerrada: ["Encerrada", ""],
 };
+const PAGINAS = {
+  conversas: ["Conversas", "Tudo o que a IA atendeu no WhatsApp, e o que precisa de você."],
+  perfil: ["Perfil da IA", "Quem é a IA, como ela atende e o que fazer quando ela passa a conversa para você."],
+  base: ["Base de conhecimento", "As informações oficiais que a IA usa para responder."],
+};
 const ARQUIVO_TEXTO = /\.(txt|md|markdown|csv|tsv|json|html?|xml)$/i;
+let eu = null;
 let dados = null;
 let filtro = "todas";
+let busca = "";
 let aberta = null;
+let pagina = "conversas";
 
 async function api(caminho, opcoes = {}) {
   const resp = await fetch(caminho, { headers: { "Content-Type": "application/json" }, credentials: "same-origin", ...opcoes });
@@ -193,7 +378,7 @@ function avisar(texto, tipo = "") {
   el.className = `toast ${tipo}`;
   el.textContent = texto;
   document.body.append(el);
-  setTimeout(() => el.remove(), 4500);
+  setTimeout(() => el.remove(), 5000);
 }
 
 function mostrarLogin() {
@@ -205,133 +390,324 @@ function mostrarLogin() {
 $("#form-login").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   $("#erro-login").textContent = "";
+  const botao = ev.target.querySelector("button");
+  botao.disabled = true;
   try {
     await post("/api/crm/login", { usuario: $("#usuario").value, senha: $("#senha").value });
     $("#senha").value = "";
-    iniciar();
+    await iniciar();
   } catch (e) {
     $("#erro-login").textContent = e.message;
+  } finally {
+    botao.disabled = false;
   }
 });
 
-$("#sair").addEventListener("click", async () => {
-  await post("/api/crm/sair").catch(() => {});
-  mostrarLogin();
-});
-
 async function iniciar() {
-  let eu;
   try { eu = await api("/api/crm/eu"); } catch { return mostrarLogin(); }
   $("#tela-login").hidden = true;
   $("#app").hidden = false;
-  document.title = `CRM · ${eu.agente}`;
-  $("#nome-agente").textContent = `CRM · ${eu.agente}`;
-  $("#sub-agente").textContent = `${eu.voce}${eu.numeros.length ? ` · WhatsApp: ${eu.numeros.join(", ")}` : ""}`;
-  $("#estado-agente").className = `pilula ${eu.ligado ? "ok" : ""}`;
-  $("#estado-agente").textContent = eu.ligado ? "Agente ligado" : "Agente desligado";
-  $("#avisos").innerHTML = [
-    eu.semBase ? `<div class="alerta atencao"><div><b>Falta a base de conhecimento.</b> Sem ela, o agente não informa preços, planos nem condições. Preencha em <b>Base de conhecimento</b>.</div></div>` : "",
-    !eu.ligado ? `<div class="alerta info"><div>O agente está desligado: as mensagens que chegarem ficam registradas aqui e quem responde é você.</div></div>` : "",
-  ].join("");
+  desenharIdentidade();
+  irPara(pagina);
   await carregarConversas();
 }
 
+/** Nome, avatar, liga e desliga e avisos: tudo o que depende do estado do agente. */
+function desenharIdentidade() {
+  document.title = `CRM · ${eu.agente}`;
+  $("#app").classList.toggle("ligado", eu.ligado);
+  $("#avatar-lateral").innerHTML = `${inicial(eu.agente)}<span class="ponto"></span>`;
+  $("#nome-lateral").textContent = eu.agente;
+  $("#estado-lateral").textContent = eu.ligado ? "Atendendo agora" : "Desligado";
+  $("#voce").textContent = eu.voce;
+  $("#chave-ligado").checked = eu.ligado;
+  $("#chave-titulo").textContent = eu.ligado ? "Agente ligado" : "Agente desligado";
+  $("#chave-sub").textContent = eu.ligado
+    ? `Respondendo sozinho${eu.numeros.length ? ` no ${eu.numeros.join(", ")}` : ""}`
+    : eu.numeros.length ? "Ligue para ele responder sozinho" : "Falta conectar o número de WhatsApp";
+  $("#avisos").innerHTML = [
+    eu.semBase ? `<div class="alerta atencao">${ic("alert")}<div><b>Falta a base de conhecimento.</b> Sem ela, a IA não informa preços, planos nem condições: diz que vai confirmar e passa para você. <button class="link" type="button" data-ir="base">Preencher agora</button></div></div>` : "",
+    !eu.numeros.length ? `<div class="alerta info">${ic("phone")}<div><b>Ainda sem número de WhatsApp.</b> A FluxDeck conecta o número do agente; depois é só ligar aqui em cima.</div></div>` : "",
+  ].join("");
+}
+
+function irPara(id) {
+  pagina = id;
+  $$("[data-ir]").forEach((b) => (b.closest(".menu, .nav-inferior") ? (b.dataset.ir === id ? b.setAttribute("aria-current", "page") : b.removeAttribute("aria-current")) : null));
+  $$("[data-pagina]").forEach((s) => (s.hidden = s.dataset.pagina !== id));
+  $("#titulo-pagina").textContent = PAGINAS[id][0];
+  $("#sub-pagina").textContent = PAGINAS[id][1];
+  if (id === "perfil") carregarPerfil();
+  if (id === "base") carregarBase();
+  window.scrollTo({ top: 0 });
+}
+
+// ---------- Liga e desliga ----------
+$("#chave-ligado").addEventListener("change", async (ev) => {
+  const ligar = ev.target.checked;
+  if (ligar && !confirm(`Ligar o agente ${eu.agente}? Ele vai responder sozinho quem escrever para ${eu.numeros.join(", ") || "o número dele"}.`)) {
+    ev.target.checked = false;
+    return;
+  }
+  if (!ligar && !confirm(`Desligar o agente ${eu.agente}? As mensagens continuam chegando aqui, mas quem responde passa a ser você.`)) {
+    ev.target.checked = true;
+    return;
+  }
+  $("#interruptor").classList.add("ocupado");
+  try {
+    eu.ligado = (await post("/api/crm/ligado", { ligado: ligar })).ligado;
+    avisar(eu.ligado ? "Agente ligado: ele já responde as próximas mensagens" : "Agente desligado: agora quem responde é você");
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    $("#interruptor").classList.remove("ocupado");
+    desenharIdentidade();
+  }
+});
+
+// ---------- Conversas ----------
 async function carregarConversas() {
   dados = await api("/api/crm/conversas");
   const n = dados.numeros, e = dados.porEstado;
   $("#numeros").innerHTML = [
-    ["acc", n.conversas, "Conversas"], ["", e.em_conversa, "Em conversa"], [e.delegou ? "perigo" : "", e.delegou, "Precisam de você"],
-    ["atencao", e.sem_resposta, "Sem resposta"], ["ok", e.fechou, "Fecharam"], ["", n.respostas, "Respostas enviadas"], ["", n.delegacoes, "Delegações"],
-  ].map(([c, v, t]) => `<div class="num ${c}"><b>${v}</b><span>${t}</span></div>`).join("");
+    ["acc", "message", n.conversas, "Conversas"], ["", "zap", e.em_conversa, "Em conversa"], [e.delegou ? "perigo" : "", "alert", e.delegou, "Precisam de você"],
+    ["atencao", "clock", e.sem_resposta, "Sem resposta"], ["ok", "checkCircle", e.fechou, "Fecharam"], ["", "send", n.respostas, "Respostas da IA"], ["", "users", n.delegacoes, "Delegações"],
+  ].map(([c, i, v, t]) => `<div class="num ${c}"><span class="bolinha">${ic(i)}</span><div><b>${v}</b><span>${t}</span></div></div>`).join("");
+  $$("[data-contador]").forEach((b) => { b.hidden = !e.delegou; b.textContent = e.delegou; });
   desenharLista();
   if (aberta && dados.conversas.some((c) => c.id === aberta)) await abrir(aberta, { atualizar: true });
+  else if (!aberta) desenharPainelVazio();
+}
+
+function desenharPainelVazio() {
+  $("#crm").classList.remove("com-conversa");
+  $("#painel").innerHTML = `<div class="vazio"><span class="circulo">${ic("message", "lg")}</span><h3>${dados?.conversas.length ? "Escolha uma conversa" : "Nenhuma conversa ainda"}</h3>
+    <p>${dados?.conversas.length ? "Toda a conversa aparece aqui, com as respostas da IA e as suas." : "Quando alguém escrever para o WhatsApp do agente, a conversa aparece aqui."}</p></div>`;
 }
 
 function desenharLista() {
   $("#filtros").innerHTML = [["todas", "Todas"], ...Object.entries(ANDAMENTO).map(([k, [t]]) => [k, t])].map(([v, t]) =>
-    `<button class="filtro" data-filtro="${v}" aria-pressed="${v === filtro}">${t}${v !== "todas" && dados.porEstado[v] ? ` (${dados.porEstado[v]})` : ""}</button>`).join("");
-  const lista = filtro === "todas" ? dados.conversas : dados.conversas.filter((c) => c.agente.estado === filtro);
+    `<button class="filtro" type="button" data-filtro="${v}" aria-pressed="${v === filtro}">${t}${v !== "todas" && dados.porEstado[v] ? ` · ${dados.porEstado[v]}` : ""}</button>`).join("");
+  const termo = busca.trim().toLowerCase();
+  const lista = dados.conversas
+    .filter((c) => filtro === "todas" || c.agente.estado === filtro)
+    .filter((c) => !termo || `${c.nome} ${c.whatsapp ?? ""}`.toLowerCase().includes(termo));
   $("#lista").innerHTML = lista.length ? lista.map((c) => {
     const [rotulo, cor] = ANDAMENTO[c.agente.estado];
     const u = c.ultima;
-    return `<button class="item" data-conversa="${c.id}" aria-current="${c.id === aberta}">
-      <span class="linha"><b>${esc(c.nome)}</b>${c.nao_lidas ? `<span class="badge">${c.nao_lidas}</span>` : `<small class="muted">${u ? dataHora(u.quando) : ""}</small>`}</span>
-      <span class="previa">${u ? `${u.autor === "nos" ? "Você/agente: " : ""}${esc(u.texto.replace(/\s+/g, " "))}` : ""}</span>
-      <span class="linha"><span class="pilula ${cor}">${rotulo}</span></span></button>`;
-  }).join("") : `<div class="vazio">${dados.conversas.length ? "Nenhuma conversa neste filtro." : "Nenhuma conversa ainda. Quando alguém escrever para o WhatsApp do agente, a conversa aparece aqui."}</div>`;
+    return `<button class="item" type="button" data-conversa="${c.id}" aria-current="${c.id === aberta}">
+      <span class="avatar">${inicial(c.nome)}</span>
+      <span class="meio">
+        <span class="linha"><b>${esc(c.nome)}</b><small>${quandoCurto(u?.quando)}</small></span>
+        <span class="previa">${u ? `${u.autor === "nos" ? "✓ " : ""}${esc(u.texto.replace(/\s+/g, " "))}` : ""}</span>
+        <span class="linha"><span class="pilula ${cor}">${rotulo}</span>${c.nao_lidas ? `<span class="badge azul">${c.nao_lidas}</span>` : ""}</span>
+      </span></button>`;
+  }).join("") : `<div class="vazio" style="padding:30px 10px"><p>${dados.conversas.length ? "Nada encontrado com esse filtro." : "As conversas aparecem aqui."}</p></div>`;
 }
+
+$("#busca").addEventListener("input", (ev) => { busca = ev.target.value; desenharLista(); });
 
 async function abrir(id, { atualizar = false } = {}) {
   aberta = id;
-  document.querySelectorAll(".item").forEach((el) => el.setAttribute("aria-current", String(Number(el.dataset.conversa) === id)));
+  $$(".item").forEach((el) => el.setAttribute("aria-current", String(Number(el.dataset.conversa) === id)));
   $("#crm").classList.add("com-conversa");
   const d = await api(`/api/crm/conversas/${id}`);
   if (aberta !== id) return;
   const c = dados.conversas.find((x) => x.id === id);
   const [rotulo, cor] = ANDAMENTO[c?.agente.estado ?? "em_conversa"];
-  const msgs = [
-    ...d.mensagens.map((m) => `<div class="bolha ${m.autor}">${esc(m.texto)}<small>${dataHora(m.quando)}</small></div>`),
-    ...d.agendadas.map((m) => `<div class="bolha agendada">${esc(m.texto)}<small>vai sair ${dataHora(m.agendada_para)}</small></div>`),
-  ].join("") || `<div class="vazio">Sem mensagens.</div>`;
+  let diaAnterior = "";
+  const partes = [];
+  for (const m of d.mensagens) {
+    const dia = new Date(m.quando).toDateString();
+    if (dia !== diaAnterior) partes.push(`<div class="dia">${dia === new Date().toDateString() ? "Hoje" : new Date(m.quando).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" })}</div>`);
+    diaAnterior = dia;
+    partes.push(`<div class="bolha ${m.autor}">${esc(m.texto)}<small>${hora(m.quando)}${m.autor === "nos" ? " ✓✓" : ""}</small></div>`);
+  }
+  for (const m of d.agendadas) partes.push(`<div class="bolha agendada">${esc(m.texto)}<small>${ic("clock", "sm")} sai ${dataHora(m.agendada_para)}</small></div>`);
+  const msgs = partes.join("") || `<div class="vazio"><p>Sem mensagens.</p></div>`;
   if (atualizar && $("#msgs")) {
-    $("#msgs").innerHTML = msgs;
+    const caixa = $("#msgs");
+    const noFim = caixa.scrollHeight - caixa.scrollTop - caixa.clientHeight < 40;
+    caixa.innerHTML = msgs;
+    if (noFim) caixa.scrollTop = caixa.scrollHeight;
     return;
   }
   const fechou = d.lead.status === "fechado";
   $("#painel").innerHTML = `
     <div class="painel-topo">
-      <button class="btn fantasma sm voltar" type="button" data-voltar>← Conversas</button>
-      <div class="nome"><b>${esc(d.lead.nome)}</b>${d.lead.whatsapp ? `<br><small class="muted">+${esc(d.lead.whatsapp)}</small>` : ""}</div>
+      <button class="btn fantasma sm voltar" type="button" data-voltar>${ic("arrowLeft", "sm")}</button>
+      <span class="avatar">${inicial(d.lead.nome)}</span>
+      <div class="nome"><b>${esc(d.lead.nome)}</b><br><small>${d.lead.whatsapp ? `+${esc(d.lead.whatsapp)}` : ""}</small></div>
       <span class="pilula ${cor}">${rotulo}</span>
       ${d.iaPausada
-        ? `<button class="btn sm primario" type="button" data-continua>Agente continua</button>`
-        : `<button class="btn sm" type="button" data-assumir>Assumir conversa</button>`}
-      <button class="btn sm ${fechou ? "" : "ok"}" type="button" data-fechou="${fechou ? 0 : 1}">${fechou ? "Reabrir" : "Fechou"}</button>
+        ? `<button class="btn sm primario" type="button" data-continua>${ic("spark", "sm")}Agente continua</button>`
+        : `<button class="btn sm" type="button" data-assumir>${ic("users", "sm")}Assumir conversa</button>`}
+      <button class="btn sm ${fechou ? "" : "ok"}" type="button" data-fechou="${fechou ? 0 : 1}">${ic(fechou ? "x" : "checkCircle", "sm")}${fechou ? "Reabrir" : "Fechou"}</button>
     </div>
     <div class="msgs" id="msgs">${msgs}</div>
     <form class="escrever" id="form-responder">
-      ${d.iaPausada ? `<div class="alerta info" style="font-size:13px"><div>O agente está parado nesta conversa (${esc(d.iaPausada)}). Responda você ou clique em <b>Agente continua</b>.</div></div>` : ""}
-      <textarea name="texto" placeholder="Escreva sua resposta para o cliente"></textarea>
-      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn primario" type="submit">Enviar pelo WhatsApp</button>
-        <small class="muted">Sai pelo WhatsApp do agente, em horário comercial. Ao responder, o agente para nesta conversa até você clicar em "Agente continua".</small>
+      ${d.iaPausada ? `<div class="alerta info" style="font-size:13px">${ic("users", "sm")}<div>${esc(motivoDaPausa(d.iaPausada))} Responda você ou clique em <b>Agente continua</b>.</div></div>` : ""}
+      <div class="linha">
+        <textarea name="texto" rows="1" placeholder="Escreva sua resposta para o cliente" aria-label="Sua resposta"></textarea>
+        <button class="btn primario icone" type="submit" title="Enviar pelo WhatsApp" aria-label="Enviar pelo WhatsApp">${ic("send")}</button>
       </div>
+      <span class="dica">Sai pelo WhatsApp do agente, em horário comercial. Ao responder, a IA para nesta conversa até você clicar em "Agente continua".</span>
     </form>`;
   const caixa = $("#msgs");
   caixa.scrollTop = caixa.scrollHeight;
 }
 
+/** Por que a IA está parada nesta conversa, em linguagem de gente. */
+function motivoDaPausa(pausa) {
+  const delegou = "delegou para você: ";
+  return pausa.startsWith(delegou) ? `A IA passou esta conversa para você: ${pausa.slice(delegou.length)}.` : `A IA está parada nesta conversa: ${pausa}.`;
+}
+
+// ---------- Perfil da IA ----------
+async function carregarPerfil() {
+  try {
+    const p = await api("/api/crm/perfil");
+    const f = $("#form-perfil");
+    f.nome.value = p.nome;
+    f.prompt.value = p.prompt;
+    f.delegar_modo.value = p.delegar_modo;
+    f.delegar_mensagem.value = p.delegar_mensagem;
+    f.max_respostas.value = p.max_respostas;
+    $("#p-delegar-msg").hidden = p.delegar_modo !== "fixa";
+    contarPrompt();
+    desenharFicha(p);
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+}
+
+function desenharFicha(p) {
+  $("#ficha").innerHTML = `
+    <div class="${p.ligado ? "ligado" : ""}"><span class="avatar grande">${inicial(p.nome)}<span class="ponto"></span></span></div>
+    <div><h2>${esc(p.nome)}</h2><p class="dica">Atendimento comercial no WhatsApp</p></div>
+    <span class="pilula ${p.ligado ? "ok" : ""}">${p.ligado ? "Atendendo agora" : "Desligado"}</span>
+    <div class="info">
+      <div><span>WhatsApp</span><b>${p.numeros.length ? esc(p.numeros.join(", ")) : "não conectado"}</b></div>
+      <div><span>Treinamento</span><b>${p.prompt.length ? `${Math.ceil(p.prompt.length / 1000)} mil caracteres` : "vazio"}</b></div>
+      <div><span>Base de conhecimento</span><b>${eu.semBase ? "falta preencher" : "preenchida"}</b></div>
+      <div><span>Respostas por conversa</span><b>até ${p.max_respostas}</b></div>
+    </div>`;
+}
+
+const contarPrompt = () => { $("#contador-prompt").textContent = `${$("#prompt").value.length.toLocaleString("pt-BR")} caracteres`; };
+$("#prompt").addEventListener("input", contarPrompt);
+$("#p-delegar").addEventListener("change", (ev) => { $("#p-delegar-msg").hidden = ev.target.value !== "fixa"; });
+$("#arquivo-prompt").addEventListener("change", async (ev) => {
+  const f = ev.target.files[0];
+  ev.target.value = "";
+  if (!f) return;
+  if (!ARQUIVO_TEXTO.test(f.name)) return avisar("Só arquivos de texto (.txt ou .md). Para PDF ou Word, copie o texto e cole no campo.", "perigo");
+  $("#prompt").value = await f.text();
+  contarPrompt();
+  avisar(`Treinamento de ${f.name} no campo. Clique em Salvar perfil para guardar.`);
+});
+
+$("#form-perfil").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const botao = f.querySelector("button[type=submit]");
+  botao.disabled = true;
+  try {
+    const p = await api("/api/crm/perfil", { method: "PUT", body: JSON.stringify({
+      nome: f.nome.value, prompt: f.prompt.value, delegar_modo: f.delegar_modo.value, delegar_mensagem: f.delegar_mensagem.value, max_respostas: Number(f.max_respostas.value),
+    }) });
+    eu.agente = p.nome;
+    desenharIdentidade();
+    desenharFicha(p);
+    avisar("Perfil salvo: as próximas respostas já usam ele");
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    botao.disabled = false;
+  }
+});
+
+// ---------- Base de conhecimento ----------
+function desenharArquivos(arquivos) {
+  $("#arquivos").innerHTML = arquivos.length ? arquivos.map((f) =>
+    `<div class="arquivo">${ic("file")}<span>${esc(f.nome)} <small class="muted">· ${Math.ceil(f.tamanho / 1000)} mil caracteres</small></span>
+      <button class="btn fantasma sm" type="button" data-tirar-arquivo="${f.id}" aria-label="Remover ${esc(f.nome)}">${ic("x", "sm")}</button></div>`).join("")
+    : `<span class="dica">Nenhum arquivo.</span>`;
+  const temBase = Boolean($("#conhecimento").value.trim()) || arquivos.length > 0;
+  $("#estado-base").className = `pilula ${temBase ? "ok" : "atencao"}`;
+  $("#estado-base").textContent = temBase ? "Base preenchida" : "Falta preencher";
+}
+
+async function carregarBase() {
+  try {
+    const b = await api("/api/crm/base");
+    $("#conhecimento").value = b.conhecimento;
+    desenharArquivos(b.arquivos);
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+}
+
+$("#salvar-base").addEventListener("click", async (ev) => {
+  const botao = ev.currentTarget;
+  botao.disabled = true;
+  try {
+    await api("/api/crm/base", { method: "PUT", body: JSON.stringify({ conhecimento: $("#conhecimento").value }) });
+    avisar("Base salva: a IA já usa nas próximas respostas");
+    eu = await api("/api/crm/eu");
+    desenharIdentidade();
+    await carregarBase();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    botao.disabled = false;
+  }
+});
+
+$("#arquivo").addEventListener("change", async (ev) => {
+  const arquivos = [...ev.target.files];
+  ev.target.value = "";
+  for (const f of arquivos) {
+    if (!ARQUIVO_TEXTO.test(f.name)) { avisar(`${f.name}: só arquivos de texto. Para PDF ou Word, copie o texto e cole na base.`, "perigo"); continue; }
+    try {
+      desenharArquivos((await post("/api/crm/base/arquivos", { nome: f.name, texto: await f.text() })).arquivos);
+      avisar(`${f.name} entrou na base`);
+    } catch (e) {
+      avisar(`${f.name}: ${e.message}`, "perigo");
+    }
+  }
+  eu = await api("/api/crm/eu").catch(() => eu);
+  desenharIdentidade();
+});
+
+// ---------- Cliques ----------
 document.addEventListener("click", async (ev) => {
-  const el = ev.target.closest("[data-aba],[data-filtro],[data-conversa],[data-voltar],[data-assumir],[data-continua],[data-fechou],[data-tirar-arquivo]");
+  const el = ev.target.closest("[data-ir],[data-sair],[data-filtro],[data-conversa],[data-voltar],[data-assumir],[data-continua],[data-fechou],[data-tirar-arquivo]");
   if (!el) return;
   const d = el.dataset;
-  if (d.aba) {
-    document.querySelectorAll("[data-aba]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.aba === d.aba)));
-    document.querySelectorAll("[data-painel]").forEach((p) => (p.hidden = p.dataset.painel !== d.aba));
-    if (d.aba === "base") carregarBase();
-    return;
-  }
+  if (d.ir) return irPara(d.ir);
+  if (d.sair !== undefined) { await post("/api/crm/sair").catch(() => {}); return mostrarLogin(); }
   if (d.filtro) { filtro = d.filtro; return desenharLista(); }
   if (d.conversa) return abrir(Number(d.conversa)).catch((e) => avisar(e.message, "perigo"));
-  if (d.voltar !== undefined) { aberta = null; $("#crm").classList.remove("com-conversa"); return; }
+  if (d.voltar !== undefined) { aberta = null; desenharLista(); return desenharPainelVazio(); }
   el.disabled = true;
   try {
+    if (d.tirarArquivo) {
+      desenharArquivos((await api(`/api/crm/base/arquivos/${d.tirarArquivo}`, { method: "DELETE" })).arquivos);
+      eu = await api("/api/crm/eu");
+      return desenharIdentidade();
+    }
     if (d.assumir !== undefined) {
       await post(`/api/crm/conversas/${aberta}/assumir`);
-      avisar("Você assumiu a conversa: o agente não responde mais nela");
+      avisar("Você assumiu a conversa: a IA não responde mais nela");
     }
     if (d.continua !== undefined) {
       await post(`/api/crm/conversas/${aberta}/agente-continua`);
-      avisar("O agente voltou e vai responder em 1 a 2 minutos");
+      avisar("A IA voltou e responde em 1 a 2 minutos");
     }
     if (d.fechou) {
       await post(`/api/crm/conversas/${aberta}/fechou`, { fechou: d.fechou === "1" });
       avisar(d.fechou === "1" ? "Marcada como fechada" : "Conversa reaberta");
-    }
-    if (d.tirarArquivo) {
-      const r = await api(`/api/crm/base/arquivos/${d.tirarArquivo}`, { method: "DELETE" });
-      desenharArquivos(r.arquivos);
-      return;
     }
     $("#painel").innerHTML = "";
     await carregarConversas();
@@ -361,51 +737,16 @@ document.addEventListener("submit", async (ev) => {
   }
 });
 
-function desenharArquivos(arquivos) {
-  $("#arquivos").innerHTML = arquivos.length ? arquivos.map((f) =>
-    `<div style="display:flex;align-items:center;gap:8px">${esc(f.nome)} <small class="muted">(${Math.ceil(f.tamanho / 1000)} mil caracteres)</small>
-      <button class="btn fantasma sm" type="button" data-tirar-arquivo="${f.id}">Remover</button></div>`).join("") : `<span class="muted">Nenhum arquivo.</span>`;
-}
-
-async function carregarBase() {
-  try {
-    const b = await api("/api/crm/base");
-    $("#conhecimento").value = b.conhecimento;
-    desenharArquivos(b.arquivos);
-  } catch (e) {
-    avisar(e.message, "perigo");
-  }
-}
-
-$("#salvar-base").addEventListener("click", async (ev) => {
-  ev.target.disabled = true;
-  try {
-    await api("/api/crm/base", { method: "PUT", body: JSON.stringify({ conhecimento: $("#conhecimento").value }) });
-    avisar("Base salva: o agente já usa nas próximas respostas");
-    iniciar();
-  } catch (e) {
-    avisar(e.message, "perigo");
-  } finally {
-    ev.target.disabled = false;
-  }
-});
-
-$("#arquivo").addEventListener("change", async (ev) => {
-  const arquivos = [...ev.target.files];
-  ev.target.value = "";
-  for (const f of arquivos) {
-    if (!ARQUIVO_TEXTO.test(f.name)) { avisar(`${f.name}: só arquivos de texto. Para PDF ou Word, copie o texto e cole na base.`, "perigo"); continue; }
-    try {
-      desenharArquivos((await post("/api/crm/base/arquivos", { nome: f.name, texto: await f.text() })).arquivos);
-      avisar(`${f.name} entrou na base`);
-    } catch (e) {
-      avisar(`${f.name}: ${e.message}`, "perigo");
-    }
+// Enter envia; Shift+Enter quebra a linha.
+document.addEventListener("keydown", (ev) => {
+  if (ev.target.name === "texto" && ev.key === "Enter" && !ev.shiftKey) {
+    ev.preventDefault();
+    ev.target.form.requestSubmit();
   }
 });
 
 // Conversas novas aparecem sozinhas.
-setInterval(() => { if (!$("#app").hidden && !document.hidden && !$("[data-painel=conversas]").hidden) carregarConversas().catch(() => {}); }, 30_000);
+setInterval(() => { if (!$("#app").hidden && !document.hidden && pagina === "conversas") carregarConversas().catch(() => {}); }, 30_000);
 iniciar();
 </script>
 </body>

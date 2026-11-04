@@ -10,6 +10,8 @@ const db = await import("../src/db.js");
 const { app } = await import("../src/app.js");
 
 await db.iniciar();
+// Um número na UAZap (gravado antes de o sistema ler a lista, que fica guardada por 30 s).
+await db.gravarConfig("uazap", { numeros: [{ id: "rastreio", nome: "Rastreio", url: "https://x.uazapi.com", token: "B", segredoWebhook: "s2" }] });
 
 async function comServidor(fazer) {
   const servidor = app.listen(0);
@@ -84,6 +86,19 @@ test("crm do agente: login próprio, só as conversas do agente, e remover o log
     await chamar("/api/crm/base", { cookie: ana, metodo: "PUT", corpo: { conhecimento: "Plano Básico: R$ 59,90" } });
     assert.equal((await db.buscarAgente(bruno)).conhecimento, "Plano Básico: R$ 59,90");
     assert.equal((await db.buscarAgente(bruno)).ligado, false); // salvar a base não liga o agente
+
+    // Liga e desliga e perfil da IA pelo CRM: sem número, não liga; o perfil salva nome, treinamento e o que fazer ao delegar.
+    const ligar = await chamar("/api/crm/ligado", { cookie: ana, metodo: "POST", corpo: { ligado: true } });
+    assert.equal(ligar.status, 400);
+    assert.match((await ligar.json()).erro, /número de WhatsApp/);
+    const perfil = await (await chamar("/api/crm/perfil", { cookie: ana, metodo: "PUT", corpo: { nome: "Bruno", prompt: "Novo treinamento", delegar_modo: "fixa", delegar_mensagem: "Já te passo para o responsável.", max_respostas: 25 } })).json();
+    assert.equal(perfil.prompt, "Novo treinamento");
+    assert.equal(perfil.max_respostas, 25);
+    assert.equal((await db.buscarAgente(bruno)).delegar_mensagem, "Já te passo para o responsável.");
+    assert.deepEqual((await db.buscarAgente(bruno)).numeros, []); // o CRM não muda o número
+    await db.atualizarAgente(bruno, { numeros: ["rastreio"] });
+    assert.equal((await (await chamar("/api/crm/ligado", { cookie: ana, metodo: "POST", corpo: { ligado: true } })).json()).ligado, true);
+    assert.equal((await (await chamar("/api/crm/ligado", { cookie: ana, metodo: "POST", corpo: { ligado: false } })).json()).ligado, false);
 
     // Cookie adulterado (outro acesso) não vale.
     const [nome, valor] = ana.split("=");

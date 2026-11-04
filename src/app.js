@@ -583,6 +583,31 @@ app.post("/api/crm/conversas/:leadId/fechou", rotaCrm(async (req) => {
   return { ok: true };
 }));
 
+// Liga e desliga o agente pelo CRM. O número de WhatsApp quem conecta é a FluxDeck, no painel.
+app.post("/api/crm/ligado", rotaCrm(async (req) => {
+  const a = req.crm.agente;
+  const ligado = req.body?.ligado === true;
+  if (ligado && !a.numeros.length) throw new Error("O agente ainda não tem um número de WhatsApp. Peça para a FluxDeck conectar o número antes de ligar.");
+  if (ligado && !a.prompt.trim()) throw new Error("Escreva o treinamento do agente em Perfil da IA antes de ligar.");
+  const salvo = await agentes.salvarAgente(a.id, { ligado });
+  return { ligado: salvo.ligado };
+}));
+
+// Perfil da IA: nome, treinamento (prompt) e o que fazer quando ela passa a conversa para uma pessoa.
+const perfilDoAgente = async (a) => ({
+  nome: a.nome, prompt: a.prompt, delegar_modo: a.delegar_modo, delegar_mensagem: a.delegar_mensagem ?? "",
+  max_respostas: a.max_respostas, ligado: a.ligado,
+  numeros: await Promise.all(a.numeros.map(async (id) => (await uazap.numero(id))?.nome ?? "número removido")),
+});
+app.get("/api/crm/perfil", rotaCrm((req) => perfilDoAgente(req.crm.agente)));
+app.put("/api/crm/perfil", rotaCrm(async (req) => {
+  const b = req.body ?? {};
+  const salvo = await agentes.salvarAgente(req.crm.agente.id, {
+    nome: b.nome, prompt: b.prompt, delegar_modo: b.delegar_modo, delegar_mensagem: b.delegar_mensagem, max_respostas: b.max_respostas,
+  });
+  return perfilDoAgente(salvo);
+}));
+
 // A base de conhecimento do agente: quem conhece os preços e as regras é o dono do CRM.
 app.get("/api/crm/base", rotaCrm(async (req) => ({
   conhecimento: req.crm.agente.conhecimento, arquivos: await db.arquivosDoAgente(req.crm.agente.id),
