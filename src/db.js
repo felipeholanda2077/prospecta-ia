@@ -1116,7 +1116,7 @@ export async function estatisticas() {
 
 // ---------- Agentes de atendimento ----------
 
-const COLUNAS_AGENTE = ["nome", "prompt", "conhecimento", "numeros", "ligado", "delegar_modo", "delegar_mensagem", "pendencias", "max_respostas"];
+const COLUNAS_AGENTE = ["nome", "prompt", "conhecimento", "numeros", "ligado", "delegar_modo", "delegar_mensagem", "pendencias", "max_respostas", "avatar"];
 const lerAgente = (a) => a && { ...a, numeros: JSON.parse(a.numeros || "[]") };
 
 export async function criarAgente(campos) {

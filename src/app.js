@@ -524,7 +524,7 @@ app.get("/api/crm/eu", rotaCrm(async (req) => {
   const nomes = new Map((await uazap.numeros()).map((n) => [n.id, n.nome]));
   const arquivos = await db.arquivosDoAgente(a.id);
   return {
-    voce: acesso.nome, agente: a.nome, ligado: a.ligado, numeros: a.numeros.map((id) => nomes.get(id) ?? "número removido"),
+    voce: acesso.nome, agente: a.nome, avatar: a.avatar || "atendente", ligado: a.ligado, numeros: a.numeros.map((id) => nomes.get(id) ?? "número removido"),
     semBase: !a.conhecimento.trim() && !arquivos.length,
     whatsappConectado: a.numeros.length ? await uazap.conectadoAgora(a.numeros[0]) : false,
   };
@@ -597,7 +597,7 @@ app.get("/api/crm/whatsapp", rotaCrm(async (req) => {
   return { numero: id ? await statusDoNumero(id) : null, criarAutomatico: Boolean((await uazap.lerAdmin()).adminToken) };
 }));
 app.post("/api/crm/whatsapp", rotaCrm(async (req) => {
-  const n = await agentes.criarNumeroDoAgente(req.crm.agente.id, { token: req.body?.token });
+  const n = await agentes.criarNumeroDoAgente(req.crm.agente.id);
   const st = await uazap.conectar(n.id).catch(() => null);
   return { numero: { ...(await statusDoNumero(n.id)), ...(st ? { qrcode: st.qrcode, paircode: st.paircode } : {}) } };
 }));
@@ -626,7 +626,7 @@ app.post("/api/crm/ligado", rotaCrm(async (req) => {
 
 // Perfil da IA: nome, treinamento (prompt) e o que fazer quando ela passa a conversa para uma pessoa.
 const perfilDoAgente = async (a) => ({
-  nome: a.nome, prompt: a.prompt, delegar_modo: a.delegar_modo, delegar_mensagem: a.delegar_mensagem ?? "",
+  nome: a.nome, avatar: a.avatar || "atendente", prompt: a.prompt, delegar_modo: a.delegar_modo, delegar_mensagem: a.delegar_mensagem ?? "",
   max_respostas: a.max_respostas, ligado: a.ligado,
   numeros: await Promise.all(a.numeros.map(async (id) => (await uazap.numero(id))?.nome ?? "número removido")),
 });
@@ -634,7 +634,7 @@ app.get("/api/crm/perfil", rotaCrm((req) => perfilDoAgente(req.crm.agente)));
 app.put("/api/crm/perfil", rotaCrm(async (req) => {
   const b = req.body ?? {};
   const salvo = await agentes.salvarAgente(req.crm.agente.id, {
-    nome: b.nome, prompt: b.prompt, delegar_modo: b.delegar_modo, delegar_mensagem: b.delegar_mensagem, max_respostas: b.max_respostas,
+    nome: b.nome, avatar: b.avatar, prompt: b.prompt, delegar_modo: b.delegar_modo, delegar_mensagem: b.delegar_mensagem, max_respostas: b.max_respostas,
   });
   return perfilDoAgente(salvo);
 }));
@@ -1793,16 +1793,28 @@ async function agenteNoPainel(a, { completo = false } = {}) {
     numerosNomes: a.numeros.map((id) => nomes.get(id) ?? "número removido"),
     faltando: agentes.faltando(a, arquivos.length),
     numerosConversa: await db.numerosDoAgente(a.id),
+    logins: (await db.acessosDoAgente(a.id)).length,
+    whatsappConectado: a.numeros.length ? await uazap.conectadoAgora(a.numeros[0]) : null,
     ...(completo ? { arquivos, acessos: await db.acessosDoAgente(a.id) } : {}),
   };
 }
 
 app.get("/api/agentes", comErro(async () => {
   const lista = [];
-  for (const a of await db.listarAgentes()) lista.push(await agenteNoPainel(a));
+  // Quantas conversas de cada agente precisam de você e quantas fecharam (uma leitura das conversas para todos).
+  const avaliadas = (await conversasAvaliadas()).filter((c) => c.agente_id);
+  for (const a of await db.listarAgentes()) {
+    const dele = avaliadas.filter((c) => c.agente_id === a.id);
+    lista.push({
+      ...(await agenteNoPainel(a)),
+      precisam: dele.filter((c) => c.andamento.precisaDeVoce).length,
+      fecharam: dele.filter((c) => agentes.andamentoDoAgente(c).estado === "fechou").length,
+    });
+  }
   // Os números da UAZap (sem token) e qual agente atende cada um, para o formulário.
   const numeros = (await uazap.numeros()).map((n) => ({ id: n.id, nome: n.nome, principal: n.id === uazap.PRINCIPAL }));
-  return { agentes: lista, numeros };
+  // Sem o admin token da UAZap, o CRM do agente não consegue criar o número sozinho.
+  return { agentes: lista, numeros, criarNumeros: Boolean((await uazap.lerAdmin()).adminToken) };
 }));
 
 app.post("/api/agentes", comErro(async (req) => agenteNoPainel(await agentes.salvarAgente(null, req.body), { completo: true })));

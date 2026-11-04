@@ -337,6 +337,8 @@ CREATE TABLE IF NOT EXISTS agente_arquivos (
   texto     text NOT NULL,
   criado_em timestamptz NOT NULL DEFAULT now()
 );
+-- O desenho da foto de perfil do agente (chave de public/avatares-ia.js).
+ALTER TABLE agentes ADD COLUMN IF NOT EXISTS avatar text;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS agente_id integer;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS agente_delegou_em timestamptz;
 CREATE INDEX IF NOT EXISTS idx_leads_agente ON leads(agente_id) WHERE agente_id IS NOT NULL;

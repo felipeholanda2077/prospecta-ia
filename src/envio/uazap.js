@@ -132,7 +132,7 @@ export async function salvarAdmin({ url, adminToken }) {
 /** Cria uma instância nova no servidor da UAZap e devolve { url, token } dela. */
 export async function criarInstancia(nome) {
   const admin = await lerAdmin();
-  if (!admin.url || !admin.adminToken) throw new Error("A criação de números ainda não está configurada na FluxDeck (falta o admin token da UAZap).");
+  if (!admin.url || !admin.adminToken) throw new Error("A criação de números ainda não foi ativada pela FluxDeck. Peça para ela salvar o admin token da UAZap em Configurações; depois é só clicar em Criar número.");
   let r = await chamarAdmin(admin, "/instance/create", { method: "POST", corpo: { name: nome } });
   // Versões anteriores da UAZap criam a instância em /instance/init.
   if (r.status === 404 || r.status === 405) r = await chamarAdmin(admin, "/instance/init", { method: "POST", corpo: { name: nome } });

@@ -7,6 +7,7 @@
 <title>CRM do agente</title>
 <link rel="icon" type="image/jpeg" href="/fluxdeck-logo.jpg">
 <link rel="apple-touch-icon" href="/fluxdeck-logo.jpg">
+<script src="/avatares-ia.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -76,6 +77,15 @@
   .avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #fff;
             background: linear-gradient(135deg, #1677ff, #06b6d4); position: relative; }
   .avatar.grande { width: 72px; height: 72px; font-size: 28px; }
+  .avatar.desenho { background: none; }
+  .avatar.desenho svg { width: 100%; height: 100%; display: block; }
+  .avatar.enorme { width: 108px; height: 108px; }
+  .avatar.enorme .ponto { width: 22px; height: 22px; border-width: 4px; right: 2px; bottom: 2px; }
+  .desenhos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }
+  .desenhos button { font: inherit; font-size: 11.5px; color: var(--muted); display: grid; justify-items: center; gap: 4px; padding: 8px 4px; border-radius: var(--radius-sm);
+                     border: 2px solid transparent; background: var(--surface-2); cursor: pointer; }
+  .desenhos button svg { width: 46px; height: 46px; }
+  .desenhos button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
   .avatar .ponto { position: absolute; right: -1px; bottom: -1px; width: 13px; height: 13px; border-radius: 50%; background: var(--subtle); border: 2px solid var(--surface); }
   .avatar.grande .ponto { width: 18px; height: 18px; border-width: 3px; }
   .ligado .avatar .ponto { background: var(--ok); }
@@ -334,7 +344,7 @@
   <div class="app" id="app" hidden>
     <aside class="lateral">
       <div class="marca-fluxdeck"><img class="logo" src="/fluxdeck-logo.jpg" alt=""><div><b>FluxDeck</b><small>CRM de agentes</small></div></div>
-      <div class="marca"><div class="avatar" id="avatar-lateral">?<span class="ponto"></span></div><div><b id="nome-lateral">Agente</b><small id="estado-lateral">Desligado</small></div></div>
+      <div class="marca"><div class="avatar desenho" id="avatar-lateral"><span class="ponto"></span></div><div><b id="nome-lateral">Agente</b><small id="estado-lateral">Desligado</small></div></div>
       <nav class="menu" aria-label="Seções do CRM">
         <button type="button" data-ir="conversas" aria-current="page"><span data-ic="message"></span>Conversas<span class="badge" data-contador hidden></span></button>
         <button type="button" data-ir="whatsapp"><span data-ic="phone"></span>WhatsApp<span class="ponto-wa" data-ponto-wa></span></button>
@@ -608,7 +618,7 @@ async function iniciar() {
 function desenharIdentidade() {
   document.title = `CRM · ${eu.agente}`;
   $("#app").classList.toggle("ligado", eu.ligado);
-  $("#avatar-lateral").innerHTML = `${inicial(eu.agente)}<span class="ponto"></span>`;
+  $("#avatar-lateral").innerHTML = `${avatarIA(eu.avatar)}<span class="ponto"></span>`;
   $("#nome-lateral").textContent = eu.agente;
   $("#nome-celular").textContent = `CRM · ${eu.agente}`;
   $("#estado-lateral").textContent = eu.ligado ? "Atendendo agora" : "Desligado";
@@ -782,18 +792,13 @@ function desenharWhatsapp({ numero, criarAutomatico }) {
     $("#wa").innerHTML = `
       <div class="wa-cab"><span class="circulo">${ic("phone", "lg")}</span><div><h3>Conecte o WhatsApp do agente</h3><p class="dica">Um número por agente. Use um número só para o atendimento, não o seu pessoal.</p></div></div>
       <ol class="passos">
-        <li>Clique em <b>${criarAutomatico ? "Criar número" : "Conectar"}</b>.</li>
+        <li>Clique em <b>Criar número</b>: o sistema cria o WhatsApp do agente na hora.</li>
         <li>No celular, abra o WhatsApp → <b>Aparelhos conectados</b> → <b>Conectar um aparelho</b>.</li>
         <li>Aponte a câmera para o QR code que vai aparecer aqui.</li>
         <li>Conectado, o número já fica com a IA. Para ela responder, ligue o agente no botão do topo.</li>
       </ol>
-      ${criarAutomatico
-        ? `<div><button class="btn primario" type="button" data-wa-criar>${ic("phone")}Criar número e mostrar QR code</button></div>`
-        : `<form class="linha-form" id="form-wa-token">
-            <div class="campo"><label for="wa-token">Token da instância na UAZap</label><input id="wa-token" name="token" type="password" autocomplete="off" required placeholder="Cole o token que a FluxDeck passou"></div>
-            <button class="btn primario" type="submit">${ic("phone")}Conectar</button>
-          </form>
-          <span class="dica">A criação automática do número ainda não foi ativada pela FluxDeck. Com o token de uma instância da UAZap, dá para conectar do mesmo jeito.</span>`}`;
+      <div><button class="btn primario grande" type="button" data-wa-criar ${criarAutomatico ? "" : "disabled"}>${ic("phone")}Criar número e mostrar QR code</button></div>
+      ${criarAutomatico ? "" : `<div class="alerta atencao">${ic("clock")}<div><b>Quase lá.</b> A FluxDeck ainda está ativando a criação de números para o seu CRM. Assim que ela ativar, este botão funciona; você não precisa de token nem de nenhum código.</div></div>`}`;
     return;
   }
   const conectado = numero.conectado;
@@ -849,10 +854,6 @@ async function acaoWhatsapp(fazer, botao) {
 }
 
 document.addEventListener("submit", (ev) => {
-  if (ev.target.id === "form-wa-token") {
-    ev.preventDefault();
-    acaoWhatsapp(() => post("/api/crm/whatsapp", { token: ev.target.token.value }), ev.submitter);
-  }
   if (ev.target.id === "form-wa-codigo") {
     ev.preventDefault();
     acaoWhatsapp(() => post("/api/crm/whatsapp/conectar", { telefone: ev.target.telefone.value }), ev.submitter);
@@ -869,6 +870,7 @@ async function carregarPerfil() {
     f.delegar_modo.value = p.delegar_modo;
     f.delegar_mensagem.value = p.delegar_mensagem;
     f.max_respostas.value = p.max_respostas;
+    desenhoEscolhido = p.avatar;
     $("#p-delegar-msg").hidden = p.delegar_modo !== "fixa";
     contarPrompt();
     desenharFicha(p);
@@ -877,11 +879,17 @@ async function carregarPerfil() {
   }
 }
 
+let desenhoEscolhido = "atendente";
+
 function desenharFicha(p) {
   $("#ficha").innerHTML = `
-    <div class="${p.ligado ? "ligado" : ""}"><span class="avatar grande">${inicial(p.nome)}<span class="ponto"></span></span></div>
+    <div class="${p.ligado ? "ligado" : ""}"><span class="avatar desenho enorme" id="ficha-avatar">${avatarIA(desenhoEscolhido)}<span class="ponto"></span></span></div>
     <div><h2>${esc(p.nome)}</h2><p class="dica">Atendimento comercial no WhatsApp</p></div>
     <span class="pilula ${p.ligado ? "ok" : ""}">${p.ligado ? "Atendendo agora" : "Desligado"}</span>
+    <div style="width:100%;display:grid;gap:8px;text-align:left"><span class="rotulo">Foto de perfil da IA</span>
+      <div class="desenhos" role="group" aria-label="Escolha o desenho da IA">${Object.entries(AVATARES_IA).map(([k, v]) =>
+        `<button type="button" data-desenho="${k}" aria-pressed="${k === desenhoEscolhido}" title="${esc(v.nome)}">${v.svg}<span>${esc(v.nome)}</span></button>`).join("")}</div>
+      <span class="dica">Clique em Salvar perfil para guardar.</span></div>
     <div class="info">
       <div><span>WhatsApp</span><b>${p.numeros.length ? esc(p.numeros.join(", ")) : "não conectado"}</b></div>
       <div><span>Treinamento</span><b>${p.prompt.length ? `${Math.ceil(p.prompt.length / 1000)} mil caracteres` : "vazio"}</b></div>
@@ -910,9 +918,10 @@ $("#form-perfil").addEventListener("submit", async (ev) => {
   botao.disabled = true;
   try {
     const p = await api("/api/crm/perfil", { method: "PUT", body: JSON.stringify({
-      nome: f.nome.value, prompt: f.prompt.value, delegar_modo: f.delegar_modo.value, delegar_mensagem: f.delegar_mensagem.value, max_respostas: Number(f.max_respostas.value),
+      nome: f.nome.value, avatar: desenhoEscolhido, prompt: f.prompt.value, delegar_modo: f.delegar_modo.value, delegar_mensagem: f.delegar_mensagem.value, max_respostas: Number(f.max_respostas.value),
     }) });
     eu.agente = p.nome;
+    eu.avatar = p.avatar;
     desenharIdentidade();
     desenharFicha(p);
     avisar("Perfil salvo: as próximas respostas já usam ele");
@@ -978,7 +987,7 @@ $("#arquivo").addEventListener("change", async (ev) => {
 
 // ---------- Cliques ----------
 document.addEventListener("click", async (ev) => {
-  const el = ev.target.closest("[data-ir],[data-sair],[data-tema],[data-filtro],[data-conversa],[data-voltar],[data-assumir],[data-continua],[data-fechou],[data-tirar-arquivo],[data-wa-criar],[data-wa-qr],[data-wa-desconectar]");
+  const el = ev.target.closest("[data-ir],[data-desenho],[data-sair],[data-tema],[data-filtro],[data-conversa],[data-voltar],[data-assumir],[data-continua],[data-fechou],[data-tirar-arquivo],[data-wa-criar],[data-wa-qr],[data-wa-desconectar]");
   if (!el) return;
   const d = el.dataset;
   if (d.waCriar !== undefined) return acaoWhatsapp(() => post("/api/crm/whatsapp"), el);
@@ -988,6 +997,12 @@ document.addEventListener("click", async (ev) => {
     return acaoWhatsapp(() => post("/api/crm/whatsapp/desconectar"), el);
   }
   if (d.ir) return irPara(d.ir);
+  if (d.desenho) {
+    desenhoEscolhido = d.desenho;
+    $$("[data-desenho]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.desenho === desenhoEscolhido)));
+    $("#ficha-avatar").innerHTML = `${avatarIA(desenhoEscolhido)}<span class="ponto"></span>`;
+    return;
+  }
   if (d.sair !== undefined) { await post("/api/crm/sair").catch(() => {}); return mostrarLogin(); }
   if (d.tema !== undefined) {
     const atual = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");

@@ -94,6 +94,10 @@ test("crm do agente: login próprio, só as conversas do agente, e remover o log
     const perfil = await (await chamar("/api/crm/perfil", { cookie: ana, metodo: "PUT", corpo: { nome: "Bruno", prompt: "Novo treinamento", delegar_modo: "fixa", delegar_mensagem: "Já te passo para o responsável.", max_respostas: 25 } })).json();
     assert.equal(perfil.prompt, "Novo treinamento");
     assert.equal(perfil.max_respostas, 25);
+    assert.equal(perfil.avatar, "atendente"); // sem escolha, a atendente
+    assert.equal((await (await chamar("/api/crm/perfil", { cookie: ana, metodo: "PUT", corpo: { avatar: "rastreio" } })).json()).avatar, "rastreio");
+    assert.equal((await (await chamar("/api/crm/perfil", { cookie: ana, metodo: "PUT", corpo: { avatar: "nao-existe" } })).json()).avatar, "atendente");
+    assert.equal((await db.buscarAgente(bruno)).prompt, "Novo treinamento"); // salvar só o desenho não apaga o resto
     assert.equal((await db.buscarAgente(bruno)).delegar_mensagem, "Já te passo para o responsável.");
     assert.deepEqual((await db.buscarAgente(bruno)).numeros, []); // o CRM não muda o número
     await db.atualizarAgente(bruno, { numeros: ["rastreio"] });

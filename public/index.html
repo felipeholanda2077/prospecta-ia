@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#5b4cf0">
 <title>FluxDeck · Prospecção com IA</title>
+<script src="/avatares-ia.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Source+Serif+4:wght@400;600&display=swap" rel="stylesheet">
@@ -670,6 +671,56 @@
   .ct-linha { font: inherit; color: inherit; background: none; border: 0; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
   .ct-linha:hover { background: var(--surface-2); border-radius: var(--radius); }
   .ct-linha-texto { flex: 1; min-width: 0; display: grid; gap: 2px; }
+  /* Agentes de atendimento */
+  .ag-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  .ag-cartao { padding: 16px; display: grid; gap: 14px; align-content: start; }
+  .ag-topo { display: flex; align-items: center; gap: 12px; }
+  .ag-nome { flex: 1; min-width: 0; display: grid; gap: 2px; }
+  .ag-nome b { font-size: 16px; }
+  .ag-nome .muted { font-size: 13px; display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+  .ag-avatar { position: relative; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; flex: none; color: #fff; font-weight: 800; font-size: 18px;
+               background: linear-gradient(135deg, var(--accent), var(--cyan)); }
+  .ag-avatar i { position: absolute; right: -1px; bottom: -1px; width: 14px; height: 14px; border-radius: 50%; background: var(--subtle); border: 2px solid var(--surface); }
+  .ag-avatar.on i { background: var(--ok); }
+  .ag-avatar.grande { width: 68px; height: 68px; font-size: 26px; }
+  .ag-avatar.grande i { width: 18px; height: 18px; border-width: 3px; }
+  .ag-avatar svg { width: 100%; height: 100%; display: block; }
+  .ag-avatar:has(svg) { background: none; }
+  .ag-desenhos { display: flex; flex-wrap: wrap; gap: 10px; }
+  .ag-desenhos button { font: inherit; font-size: 12px; color: var(--muted); display: grid; justify-items: center; gap: 4px; padding: 8px 10px; min-width: 84px;
+                        border-radius: var(--radius-sm); border: 2px solid transparent; background: var(--surface-2); cursor: pointer; }
+  .ag-desenhos button svg { width: 48px; height: 48px; }
+  .ag-desenhos button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
+  .ag-ok { color: var(--ok); font-weight: 600; } .ag-off { color: var(--subtle); }
+  .ag-mini { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .ag-mini div { background: var(--surface-2); border-radius: var(--radius-sm); padding: 8px 10px; display: grid; gap: 1px; }
+  .ag-mini b { font-size: 18px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .ag-mini span { font-size: 11.5px; color: var(--muted); line-height: 1.25; }
+  .ag-mini .perigo b { color: var(--danger); } .ag-mini .ok b { color: var(--ok); }
+  .ag-falta { display: flex; gap: 6px; align-items: center; font-size: 13px; color: var(--warn); background: var(--warn-soft); padding: 7px 10px; border-radius: var(--radius-sm); }
+  .ag-acoes { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .ag-acoes .muted { font-size: 13px; display: inline-flex; gap: 5px; align-items: center; }
+  .ag-hero { padding: 20px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .ag-hero-texto { flex: 1 1 280px; min-width: 0; display: grid; gap: 6px; }
+  .ag-hero-texto h2 { margin: 0; font-size: 22px; }
+  .ag-hero-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--muted); font-size: 13.5px; }
+  .ag-hero-meta span { display: inline-flex; gap: 5px; align-items: center; }
+  .ag-hero-acoes { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .ag-chave { padding: 10px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); align-items: center; }
+  .ag-chave span { font-size: 12.5px; }
+  .ag-secao h4 { margin: 0; font-size: 15px; }
+  .ag-secao p { margin: 2px 0 0; font-size: 13px; }
+  .ag-secao:not(:first-child) { border-top: 1px solid var(--border); padding-top: 16px; }
+  .ag-regras { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--ok); background: var(--ok-soft); padding: 9px 12px; border-radius: var(--radius-sm); }
+  .ag-salvar { display: flex; gap: 10px; flex-wrap: wrap; position: sticky; bottom: 0; padding: 12px 0 2px; background: var(--surface); border-top: 1px solid var(--border); }
+  .ag-opcoes { display: grid; gap: 8px; }
+  .ag-opcao { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; }
+  .ag-opcao.marcada { border-color: var(--accent); background: var(--accent-soft); }
+  .ag-opcao.desativada { opacity: .55; cursor: not-allowed; }
+  .ag-opcao input { width: 18px; height: 18px; min-height: 0; padding: 0; margin-top: 2px; flex: none; accent-color: var(--accent); box-shadow: none; }
+  .ag-opcao > span { flex: 1; min-width: 0; }
+  .ag-opcao small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  @media (max-width: 640px) { .ag-mini { grid-template-columns: repeat(2, 1fr); } .ag-grade { grid-template-columns: 1fr; } }
   .ct-linha-texto .muted { overflow-wrap: anywhere; font-size: 13.5px; }
   .ig-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; justify-content: space-between; }
   .ig-barra h3 { margin: 0; font-size: 17px; }
@@ -5961,7 +6012,7 @@ function desenharFornecedores() {
 // Cada agente responde no WhatsApp do número escolhido, com o próprio prompt e a própria base. As
 // conversas dele são contatos do CRM (aparecem também em Respostas e Empresas).
 let agenteAberto = null; // id do agente, "novo" ou null (a lista)
-let abaAgente = "acompanhar";
+let abaAgente = "acompanhar"; // acompanhar | treinamento | whatsapp
 let filtroAgente = "todas";
 let dadosAgentes = null;
 let detalheAgente = null;
@@ -5993,21 +6044,49 @@ const textoFaltando = (a) => a.faltando?.length ? `Falta: ${a.faltando.join(", "
 
 function htmlListaAgentes() {
   const lista = dadosAgentes.agentes;
+  const soma = (f) => lista.reduce((t, a) => t + f(a), 0);
+  const precisam = soma((a) => a.precisam);
   return `<div class="ig-painel">
     <div class="ig-barra">
-      <div class="ig-barra-texto"><h3>Agentes de atendimento</h3><p class="muted">Cada agente responde sozinho, com o prompt e a base de conhecimento dele, quem escrever para o número de WhatsApp escolhido. As conversas ficam no CRM, ligadas ao contato: aparecem aqui e em Respostas.</p></div>
-      <div class="ig-barra-botoes"><button class="btn primario" type="button" data-ag-novo>${ic("check")}Novo agente</button></div>
+      <div class="ig-barra-texto"><p class="muted">Cada agente responde sozinho, com o treinamento e a base dele, quem escrever para o número de WhatsApp dele. O dono acompanha tudo no CRM externo, com login próprio.</p></div>
+      <div class="ig-barra-botoes"><a class="btn" href="/crm" target="_blank" rel="noopener">${ic("external")}CRM externo</a><button class="btn primario" type="button" data-ag-novo>${ic("check")}Novo agente</button></div>
     </div>
-    <div class="lista">${lista.length ? lista.map((a) => {
-      const n = a.numerosConversa;
-      return `<article class="cartao"><button type="button" class="ct-linha" data-ag-abrir="${a.id}">
-        <span class="avatar">${inicial(a.nome)}</span>
-        <span class="ct-linha-texto"><b>${esc(a.nome)}</b>
-          <span class="muted">${a.numerosNomes.length ? `${ic("phone", "sm")} ${esc(a.numerosNomes.join(", "))}` : "Sem número escolhido"} · ${n.conversas} conversa(s) · ${n.respostas} resposta(s) · ${n.delegacoes} delegação(ões)</span>
-          ${a.faltando.length ? `<span class="pilula atencao" style="justify-self:start">${ic("alert", "sm")}${esc(textoFaltando(a))}</span>` : ""}</span>
-        <span class="pilula ${a.ligado ? "ok" : ""}">${a.ligado ? "Ligado" : "Desligado"}</span></button></article>`;
-    }).join("") : vazio("users", "Nenhum agente ainda", "Crie um agente, cole o prompt dele, escolha o número de WhatsApp e ligue quando estiver pronto.")}</div>
+    ${lista.length ? `<div class="ind-grade">
+      <div class="ind acc"><b>${lista.length}</b><span>Agentes</span></div>
+      <div class="ind ok"><b>${lista.filter((a) => a.ligado).length}</b><span>Ligados agora</span></div>
+      <div class="ind"><b>${soma((a) => a.numerosConversa.conversas)}</b><span>Conversas</span></div>
+      <div class="ind ${precisam ? "perigo" : ""}"><b>${precisam}</b><span>Precisam de você</span></div>
+      <div class="ind ok"><b>${soma((a) => a.fecharam)}</b><span>Fecharam</span></div>
+    </div>` : ""}
+    <div class="ag-grade">${lista.length ? lista.map(cartaoAgente).join("")
+      : vazio("users", "Nenhum agente ainda", "Crie um agente, cole o treinamento dele, conecte o WhatsApp e ligue quando estiver pronto.", `<button class="btn primario" type="button" data-ag-novo>${ic("check")}Criar o primeiro agente</button>`)}</div>
   </div>`;
+}
+
+/** Um agente na lista: status, número, os números das conversas e o que falta. */
+function cartaoAgente(a) {
+  const n = a.numerosConversa;
+  const wa = a.numerosNomes.length
+    ? `${ic("phone", "sm")}${esc(a.numerosNomes[0])} · <span class="${a.whatsappConectado ? "ag-ok" : "ag-off"}">${a.whatsappConectado ? "conectado" : "desconectado"}</span>`
+    : `${ic("phone", "sm")}Sem número`;
+  return `<article class="cartao ag-cartao">
+    <div class="ag-topo">
+      <span class="ag-avatar ${a.ligado ? "on" : ""}">${avatarIA(a.avatar)}<i></i></span>
+      <div class="ag-nome"><b>${esc(a.nome)}</b><span class="muted">${wa}</span></div>
+      <span class="pilula ${a.ligado ? "ok" : ""}">${a.ligado ? "Ligado" : "Desligado"}</span>
+    </div>
+    <div class="ag-mini">
+      <div><b>${n.conversas}</b><span>Conversas</span></div>
+      <div class="${a.precisam ? "perigo" : ""}"><b>${a.precisam}</b><span>Precisam de você</span></div>
+      <div class="ok"><b>${a.fecharam}</b><span>Fecharam</span></div>
+      <div><b>${n.respostas}</b><span>Respostas da IA</span></div>
+    </div>
+    ${a.faltando.length ? `<div class="ag-falta">${ic("alert", "sm")}${esc(textoFaltando(a))}</div>` : ""}
+    <div class="ag-acoes">
+      <button class="btn primario sm" type="button" data-ag-abrir="${a.id}">${ic("settings", "sm")}Abrir</button>
+      <span class="muted">${ic("users", "sm")} ${a.logins ? `${a.logins} login${a.logins > 1 ? "s" : ""} no CRM` : "sem login no CRM"}</span>
+    </div>
+  </article>`;
 }
 
 async function abrirAgente(id) {
@@ -6030,10 +6109,24 @@ async function abrirAgente(id) {
 }
 
 function cabecalhoAgente(a) {
-  return `<div class="ig-barra">
-    <div class="ig-barra-texto"><button type="button" class="btn fantasma sm" data-ag-voltar>${ic("arrowLeft", "sm")}Agentes</button>
-      <h3>${a ? esc(a.nome) : "Novo agente"} ${a ? `<span class="pilula ${a.ligado ? "ok" : ""}">${a.ligado ? "Ligado" : "Desligado"}</span>` : ""}</h3></div>
-  </div>`;
+  if (!a) return `<div class="ig-barra"><div class="ig-barra-texto"><button type="button" class="btn fantasma sm" data-ag-voltar>${ic("arrowLeft", "sm")}Agentes</button>
+    <h3>Novo agente</h3><p class="muted">Dê um nome e cole o treinamento. Depois de salvar, você escolhe o número e cria o login do CRM.</p></div></div>`;
+  const wa = a.numerosNomes.length
+    ? `${ic("phone", "sm")}${esc(a.numerosNomes[0])} · <span class="${a.whatsappConectado ? "ag-ok" : "ag-off"}">${a.whatsappConectado ? "conectado" : "desconectado"}</span>`
+    : `${ic("phone", "sm")}sem número`;
+  return `<div><button type="button" class="btn fantasma sm" data-ag-voltar>${ic("arrowLeft", "sm")}Agentes</button></div>
+    <div class="cartao ag-hero">
+      <span class="ag-avatar grande ${a.ligado ? "on" : ""}">${avatarIA(a.avatar)}<i></i></span>
+      <div class="ag-hero-texto"><h2>${esc(a.nome)}</h2>
+        <div class="ag-hero-meta"><span>${wa}</span><span>${ic("users", "sm")}${a.acessos?.length ? `${a.acessos.length} login${a.acessos.length > 1 ? "s" : ""} no CRM` : "sem login no CRM"}</span>
+          <span>${ic("file", "sm")}treinamento ${a.promptTamanho ? `de ${Math.ceil(a.promptTamanho / 1000)} mil caracteres` : "vazio"}</span>
+          <span>${ic("spark", "sm")}base ${a.conhecimentoTamanho ? `de ${Math.ceil(a.conhecimentoTamanho / 1000)} mil caracteres` : "vazia"}</span></div></div>
+      <div class="ag-hero-acoes">
+        <label class="chave ag-chave"><input type="checkbox" data-ag-ligar ${a.ligado ? "checked" : ""}><div><b>${a.ligado ? "Agente ligado" : "Agente desligado"}</b>
+          <span>${a.ligado ? "Respondendo sozinho" : "Quem responde é você"}</span></div></label>
+        <a class="btn sm" href="/crm" target="_blank" rel="noopener">${ic("external", "sm")}CRM externo</a>
+      </div>
+    </div>`;
 }
 
 function desenharAgente() {
@@ -6041,15 +6134,15 @@ function desenharAgente() {
   const avisos = [
     a.faltando.length ? `<div class="alerta atencao">${ic("alert")}<div><b>${esc(textoFaltando(a))}.</b> ${a.faltando.includes("a base de conhecimento") ? "Sem a base, o agente não informa preços, planos nem condições: diz que vai confirmar e passa para você." : ""}</div></div>` : "",
     a.pendencias ? `<div class="alerta info">${ic("clock")}<div><b>Pendente:</b> ${esc(a.pendencias)}</div></div>` : "",
-    !a.ligado ? `<div class="alerta info">${ic("alert")}<div>O agente está <b>desligado</b>${a.numerosNomes.length ? `: as mensagens que chegarem em ${esc(a.numerosNomes.join(", "))} ficam registradas aqui e quem responde é você` : ""}. Ligue em Configurar quando estiver pronto.</div></div>` : "",
   ].join("");
+  const aba = (id, icone, texto) => `<button type="button" class="ig-aba" role="tab" data-ag-aba="${id}" aria-selected="${abaAgente === id}">${ic(icone)}${texto}</button>`;
   $("#ag-conteudo").innerHTML = `<div class="ig-painel">${cabecalhoAgente(a)}${avisos}
     <div class="ig-abas" role="tablist" aria-label="Seções do agente" id="ag-abas">
-      <button type="button" class="ig-aba" role="tab" data-ag-aba="acompanhar" aria-selected="${abaAgente === "acompanhar"}">${ic("message")}Acompanhar</button>
-      <button type="button" class="ig-aba" role="tab" data-ag-aba="configurar" aria-selected="${abaAgente === "configurar"}">${ic("settings")}Configurar</button>
+      ${aba("acompanhar", "message", "Acompanhar")}${aba("treinamento", "spark", "Treinamento")}${aba("whatsapp", "phone", "WhatsApp e CRM")}
     </div>
     <div class="ig-painel" data-ag-painel="acompanhar" ${abaAgente === "acompanhar" ? "" : "hidden"}>${htmlAcompanhamento()}</div>
-    <div data-ag-painel="configurar" style="display:grid;gap:16px" ${abaAgente === "configurar" ? "" : "hidden"}>${htmlCrmExterno(a)}${formularioAgente(a)}</div>
+    <div data-ag-painel="treinamento" ${abaAgente === "treinamento" ? "" : "hidden"}>${formularioAgente(a)}</div>
+    <div data-ag-painel="whatsapp" style="display:grid;gap:16px" ${abaAgente === "whatsapp" ? "" : "hidden"}>${formularioNumero(a)}${htmlCrmExterno(a)}</div>
   </div>`;
 }
 
@@ -6090,46 +6183,66 @@ function htmlAcompanhamento() {
 }
 
 function formularioAgente(a) {
-  const numeros = dadosAgentes?.numeros ?? [];
-  const deOutro = new Map((dadosAgentes?.agentes ?? []).filter((x) => x.id !== a?.id).flatMap((x) => x.numeros.map((n) => [n, x.nome])));
-  const escolhidos = new Set(a?.numeros ?? []);
   const modo = a?.delegar_modo ?? "mensagem";
+  const secao = (titulo, texto) => `<div class="ag-secao"><h4>${titulo}</h4>${texto ? `<p class="muted">${texto}</p>` : ""}</div>`;
   return `<form class="cartao cartao-corpo" id="form-agente" style="display:grid;gap:18px">
-    <div class="campo"><label for="ag-nome">Nome do agente</label><input id="ag-nome" name="nome" maxlength="60" required value="${esc(a?.nome ?? "")}" placeholder="Ex.: Bruno"></div>
-    <label class="chave"><input type="checkbox" name="ligado" ${a?.ligado ? "checked" : ""}><div><b>Agente ligado</b>
-      <span>Responde sozinho quem escrever para o número escolhido. Desligado, as mensagens ficam registradas e quem responde é você.</span></div></label>
-    <fieldset class="campo" style="border:0;padding:0;margin:0"><legend class="rotulo" style="margin-bottom:6px">Número de WhatsApp que ele atende (um por agente)</legend>
-      <label style="display:flex;gap:10px;align-items:flex-start;padding:6px 0"><input type="radio" name="numeros" value="" ${escolhidos.size ? "" : "checked"}><span><b>Nenhum número</b> <span class="muted">(o dono pode criar o número no CRM do agente)</span></span></label>
-      ${numeros.length ? numeros.map((n) => `<label style="display:flex;gap:10px;align-items:flex-start;padding:6px 0">
-        <input type="radio" name="numeros" value="${esc(n.id)}" ${escolhidos.has(n.id) ? "checked" : ""} ${deOutro.has(n.id) ? "disabled" : ""}>
-        <span><b>${esc(n.nome)}</b>${deOutro.has(n.id) ? ` <span class="muted">(já é do agente ${esc(deOutro.get(n.id))})</span>` : ""}
-          ${n.principal ? `<br><span class="muted" style="font-size:13px">Este é o número da prospecção da FluxDeck. Com um agente, ele para de mandar mensagens para empresas novas, e os contatos novos que escreverem passam a ser atendidos pelo agente (as conversas da prospecção que já existem continuam com a IA da FluxDeck).</span>` : ""}</span></label>`).join("")
-        : `<p class="muted">Nenhum número da UAZap ainda. Conecte em <a href="#configuracoes">Configurações</a>.</p>`}
-      <span class="muted" style="font-size:13px">Todo contato novo que escrever para o número escolhido é atendido por este agente. Respostas saem em horário comercial, 1 a 2 minutos e meio depois da mensagem do cliente, em até 3 partes.</span>
-    </fieldset>
-    <div class="campo"><label for="ag-prompt">Prompt base (o treinamento do agente)</label>
-      <textarea id="ag-prompt" name="prompt" style="min-height:360px;font-size:13.5px" placeholder="Cole aqui o prompt do agente">${esc(a?.prompt ?? "")}</textarea>
-      <label class="btn sm" style="align-self:flex-start">${ic("file", "sm")}Abrir arquivo do prompt<input type="file" id="ag-prompt-arquivo" accept=".txt,.md,.markdown,text/*" hidden></label>
-      <span class="muted" style="font-size:12.5px">Se o prompt usar o comando DELEGAR, a palavra nunca vai para o cliente: a conversa passa para você e aparece como "precisa de você". Se o cliente perguntar diretamente se fala com uma pessoa, o agente responde com transparência.</span></div>
-    <div class="campo"><label for="ag-conhecimento">Base de conhecimento (preços, planos, cobertura, regras: o que for oficial)</label>
-      <textarea id="ag-conhecimento" name="conhecimento" style="min-height:200px;font-size:13.5px" placeholder="Cole aqui as informações oficiais. O agente só informa o que estiver na base.">${esc(a?.conhecimento ?? "")}</textarea></div>
-    <div class="campo"><span class="rotulo">Arquivos da base</span>
+    ${secao("Identidade", "Como a IA se chama no atendimento.")}
+    <div class="campo" style="max-width:420px"><label for="ag-nome">Nome do agente</label><input id="ag-nome" name="nome" maxlength="60" required value="${esc(a?.nome ?? "")}" placeholder="Ex.: Bruno"></div>
+    <div class="campo"><span class="rotulo">Foto de perfil da IA</span>
+      <input type="hidden" name="avatar" value="${esc(a?.avatar || "atendente")}">
+      <div class="ag-desenhos" role="group" aria-label="Escolha o desenho da IA">${Object.entries(AVATARES_IA).map(([k, v]) =>
+        `<button type="button" data-ag-desenho="${k}" aria-pressed="${k === (a?.avatar || "atendente")}" title="${esc(v.nome)}">${v.svg}<span>${esc(v.nome)}</span></button>`).join("")}</div></div>
+    ${secao("Treinamento", "O prompt base: quem a IA é, como fala, o passo a passo do atendimento e o que nunca pode fazer.")}
+    <div class="campo">
+      <textarea id="ag-prompt" name="prompt" style="min-height:360px;font-size:13.5px" placeholder="Cole aqui o treinamento do agente">${esc(a?.prompt ?? "")}</textarea>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><label class="btn sm">${ic("file", "sm")}Abrir arquivo do prompt<input type="file" id="ag-prompt-arquivo" accept=".txt,.md,.markdown,text/*" hidden></label>
+        <span class="muted" style="font-size:12.5px" id="ag-prompt-contador">${(a?.prompt ?? "").length.toLocaleString("pt-BR")} caracteres</span></div>
+      <div class="ag-regras">${ic("checkCircle", "sm")}<span>O sistema sempre garante: o comando DELEGAR nunca chega ao cliente, a IA é transparente quando perguntam se é uma pessoa e preços só saem da base de conhecimento.</span></div>
+    </div>
+    ${secao("Base de conhecimento", "Preços, planos, cobertura, regras: o que for oficial. O agente só informa o que estiver aqui.")}
+    <div class="campo">
+      <textarea id="ag-conhecimento" name="conhecimento" style="min-height:200px;font-size:13.5px" placeholder="Cole aqui as informações oficiais.">${esc(a?.conhecimento ?? "")}</textarea>
       ${a ? `<div id="ag-arquivos">${htmlArquivosAgente(a.arquivos)}</div>
         <label class="btn sm" style="align-self:flex-start">${ic("file", "sm")}Adicionar arquivo de texto<input type="file" id="ag-arquivo" accept=".txt,.md,.csv,.tsv,.json,.html,.xml,text/*" multiple hidden></label>
-        <span class="muted" style="font-size:12.5px">Arquivos de texto (.txt, .md, .csv). PDF ou Word: copie o texto e cole na base acima. Base grande: o agente usa os trechos que tratam do assunto da conversa.</span>`
-        : `<span class="muted" style="font-size:13px">Salve o agente para adicionar arquivos.</span>`}</div>
-    <div class="campo"><label for="ag-delegar">Quando o agente passar a conversa para você (DELEGAR)</label>
+        <span class="muted" style="font-size:12.5px">Arquivos de texto (.txt, .md, .csv). PDF ou Word: copie o texto e cole acima. Base grande: o agente usa os trechos que tratam do assunto da conversa.</span>`
+        : `<span class="muted" style="font-size:13px">Salve o agente para adicionar arquivos.</span>`}
+    </div>
+    ${secao("Quando passar a conversa para você (DELEGAR)", "")}
+    <div class="campo">
       <select id="ag-delegar" name="delegar_modo">${DELEGAR_MODOS.map(([v, t]) => `<option value="${v}" ${v === modo ? "selected" : ""}>${t}</option>`).join("")}</select>
       <textarea name="delegar_mensagem" id="ag-delegar-msg" style="min-height:80px" ${modo === "fixa" ? "" : "hidden"} placeholder="Ex.: Perfeito! Vou passar seus dados para o responsável pela contratação.">${esc(a?.delegar_mensagem ?? "")}</textarea>
-      <span class="muted" style="font-size:12.5px">Em todos os casos o agente para nesta conversa, ela aparece como "precisa de você" e você recebe um aviso por e-mail. Para ele voltar, clique em "IA continua" na conversa.</span></div>
-    <div class="campo" style="max-width:260px"><label for="ag-max">Máximo de respostas por conversa</label>
-      <input id="ag-max" name="max_respostas" type="number" min="1" max="200" value="${a?.max_respostas ?? 40}"></div>
-    <div class="campo"><label for="ag-pendencias">O que ainda falta (só aparece para você)</label>
-      <textarea id="ag-pendencias" name="pendencias" style="min-height:70px" placeholder="Ex.: receber a tabela oficial de preços">${esc(a?.pendencias ?? "")}</textarea></div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <button class="btn primario" type="submit">${ic("check")}Salvar agente</button>
-      ${a ? `<button class="btn perigo" type="button" data-ag-excluir="${a.id}">${ic("x")}Excluir</button>` : ""}
+      <span class="muted" style="font-size:12.5px">Em todos os casos o agente para nesta conversa, ela aparece como "precisa de você" e você recebe um aviso por e-mail. Para ele voltar, clique em "IA continua".</span>
     </div>
+    ${secao("Limites e anotações", "")}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+      <div class="campo"><label for="ag-max">Máximo de respostas por conversa</label><input id="ag-max" name="max_respostas" type="number" min="1" max="200" value="${a?.max_respostas ?? 40}"></div>
+      <div class="campo"><label for="ag-pendencias">O que ainda falta (só aparece para você)</label><textarea id="ag-pendencias" name="pendencias" style="min-height:70px" placeholder="Ex.: receber a tabela oficial de preços">${esc(a?.pendencias ?? "")}</textarea></div>
+    </div>
+    <div class="ag-salvar">
+      <button class="btn primario" type="submit">${ic("check")}${a ? "Salvar treinamento" : "Criar agente"}</button>
+      ${a ? `<button class="btn perigo" type="button" data-ag-excluir="${a.id}">${ic("x")}Excluir agente</button>` : ""}
+    </div>
+  </form>`;
+}
+
+/** O número de WhatsApp do agente (um só). O dono também pode criar o número no CRM dele. */
+function formularioNumero(a) {
+  const numeros = dadosAgentes?.numeros ?? [];
+  const deOutro = new Map((dadosAgentes?.agentes ?? []).filter((x) => x.id !== a.id).flatMap((x) => x.numeros.map((n) => [n, x.nome])));
+  const escolhido = a.numeros[0] ?? "";
+  const opcao = (valor, titulo, detalhe, desativado = false) => `<label class="ag-opcao ${valor === escolhido ? "marcada" : ""} ${desativado ? "desativada" : ""}">
+    <input type="radio" name="numero" value="${esc(valor)}" ${valor === escolhido ? "checked" : ""} ${desativado ? "disabled" : ""}><span><b>${titulo}</b>${detalhe ? `<small>${detalhe}</small>` : ""}</span></label>`;
+  return `<form class="cartao cartao-corpo" id="form-agente-numero" style="display:grid;gap:14px">
+    <div class="ag-secao"><h4>Número de WhatsApp</h4><p class="muted">Um número por agente. Todo contato novo que escrever para ele é atendido por este agente; as respostas saem em horário comercial, em até 3 partes.</p></div>
+    <div class="ag-opcoes">
+      ${opcao("", "Nenhum número", "O dono pode criar o número e ler o QR code no CRM externo.")}
+      ${numeros.map((n) => opcao(n.id, esc(n.nome),
+        deOutro.has(n.id) ? `Já é do agente ${esc(deOutro.get(n.id))}` : n.principal ? "Número da prospecção da FluxDeck: com um agente, ele para de mandar mensagens para empresas novas (as conversas da prospecção que já existem continuam com a IA da FluxDeck)." : "",
+        deOutro.has(n.id))).join("")}
+    </div>
+    ${dadosAgentes?.criarNumeros ? "" : `<div class="alerta atencao" style="margin:0">${ic("alert")}<div><b>O CRM do agente ainda não consegue criar o número sozinho.</b> Salve o admin token do servidor da UAZap em <a href="#configuracoes">Configurações → Números criados pelo CRM dos agentes</a>; depois o dono só clica em "Criar número" e lê o QR code.</div></div>`}
+    ${numeros.length ? "" : `<p class="muted" style="margin:0">Nenhum número da UAZap ainda. Conecte em <a href="#configuracoes">Configurações</a> ou deixe o dono criar pelo CRM.</p>`}
+    <div><button class="btn primario" type="submit">${ic("check")}Salvar número</button></div>
   </form>`;
 }
 
@@ -6172,9 +6285,14 @@ function htmlArquivosAgente(arquivos) {
 }
 
 $("#view-agentes").addEventListener("click", async (ev) => {
-  const el = ev.target.closest("[data-ag-novo],[data-ag-abrir],[data-ag-voltar],[data-ag-aba],[data-ag-filtro],[data-ag-fechou],[data-ag-excluir],[data-ag-tirar-arquivo],[data-abrir-conversa],[data-ag-copiar],[data-ag-gerar-senha],[data-ag-tirar-acesso]");
+  const el = ev.target.closest("[data-ag-desenho],[data-ag-novo],[data-ag-abrir],[data-ag-voltar],[data-ag-aba],[data-ag-filtro],[data-ag-fechou],[data-ag-excluir],[data-ag-tirar-arquivo],[data-abrir-conversa],[data-ag-copiar],[data-ag-gerar-senha],[data-ag-tirar-acesso]");
   if (!el) return;
   const d = el.dataset;
+  if (d.agDesenho) {
+    $("#form-agente").avatar.value = d.agDesenho;
+    $$("[data-ag-desenho]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.agDesenho === d.agDesenho)));
+    return;
+  }
   if (d.agNovo !== undefined) return abrirAgente("novo");
   if (d.agAbrir) { abaAgente = "acompanhar"; filtroAgente = "todas"; return abrirAgente(Number(d.agAbrir)); }
   if (d.agVoltar !== undefined) { agenteAberto = null; return carregarAgentes(); }
@@ -6232,14 +6350,38 @@ $("#view-agentes").addEventListener("click", async (ev) => {
   }
 });
 
+$("#view-agentes").addEventListener("input", (ev) => {
+  if (ev.target.id === "ag-prompt") $("#ag-prompt-contador").textContent = `${ev.target.value.length.toLocaleString("pt-BR")} caracteres`;
+});
+
 $("#view-agentes").addEventListener("change", async (ev) => {
   if (ev.target.id === "ag-delegar") $("#ag-delegar-msg").hidden = ev.target.value !== "fixa";
+  if (ev.target.name === "numero") $$(".ag-opcao").forEach((o) => o.classList.toggle("marcada", o.querySelector("input").checked));
+  // Liga e desliga pelo cabeçalho do agente.
+  if (ev.target.matches("[data-ag-ligar]")) {
+    const a = detalheAgente.agente;
+    const ligar = ev.target.checked;
+    const pergunta = ligar
+      ? `Ligar o agente ${a.nome}? Ele vai responder sozinho quem escrever para ${a.numerosNomes[0] ?? "o número dele"}.`
+      : `Desligar o agente ${a.nome}? As mensagens continuam chegando, mas quem responde passa a ser você.`;
+    if (!confirm(pergunta)) { ev.target.checked = !ligar; return; }
+    try {
+      await api(`/api/agentes/${a.id}`, { method: "PUT", body: JSON.stringify({ ligado: ligar }) });
+      avisar(ligar ? "Agente ligado: ele já responde as próximas mensagens" : "Agente desligado: agora quem responde é você", "ok");
+      dadosAgentes = await api("/api/agentes");
+      return abrirAgente(a.id);
+    } catch (e) {
+      ev.target.checked = !ligar;
+      return avisar(e.message, "perigo", 7000);
+    }
+  }
   if (ev.target.id === "ag-prompt-arquivo" && ev.target.files[0]) {
     const f = ev.target.files[0];
     ev.target.value = "";
     if (!ARQUIVO_TEXTO.test(f.name)) return avisar("Só arquivos de texto (.txt ou .md). Para PDF ou Word, copie o texto e cole no campo.", "perigo", 7000);
     $("#ag-prompt").value = await f.text();
-    return avisar(`Prompt de ${f.name} no campo. Clique em Salvar agente para guardar.`, "ok");
+    $("#ag-prompt-contador").textContent = `${$("#ag-prompt").value.length.toLocaleString("pt-BR")} caracteres`;
+    return avisar(`Treinamento de ${f.name} no campo. Clique em Salvar treinamento para guardar.`, "ok");
   }
   if (ev.target.id !== "ag-arquivo") return;
   const arquivos = [...ev.target.files];
@@ -6270,27 +6412,40 @@ $("#view-agentes").addEventListener("submit", async (ev) => {
     }
     return;
   }
+  if (ev.target.id === "form-agente-numero") {
+    ev.preventDefault();
+    const a = detalheAgente.agente;
+    const numero = ev.target.querySelector("input[name=numero]:checked")?.value ?? "";
+    const botao = ev.submitter;
+    botao.disabled = true;
+    try {
+      await api(`/api/agentes/${a.id}`, { method: "PUT", body: JSON.stringify({ numeros: numero ? [numero] : [] }) });
+      avisar(numero ? "Número salvo: os contatos novos dele passam a ser atendidos por este agente" : "O agente ficou sem número", "ok", 6000);
+      dadosAgentes = await api("/api/agentes");
+      await abrirAgente(a.id);
+    } catch (e) {
+      avisar(e.message, "perigo", 7000);
+    } finally {
+      botao.disabled = false;
+    }
+    return;
+  }
   if (ev.target.id !== "form-agente") return;
   ev.preventDefault();
   const f = ev.target;
   const dados = {
-    nome: f.nome.value, prompt: f.prompt.value, conhecimento: f.conhecimento.value, ligado: f.ligado.checked,
-    numeros: [...f.querySelectorAll("input[name=numeros]:checked")].map((x) => x.value).filter(Boolean),
+    nome: f.nome.value, avatar: f.avatar.value, prompt: f.prompt.value, conhecimento: f.conhecimento.value,
     delegar_modo: f.delegar_modo.value, delegar_mensagem: f.delegar_mensagem.value,
     max_respostas: Number(f.max_respostas.value), pendencias: f.pendencias.value,
   };
   const antes = detalheAgente?.agente;
-  if (dados.ligado && !antes?.ligado) {
-    const nomes = (dadosAgentes?.numeros ?? []).filter((n) => dados.numeros.includes(n.id)).map((n) => n.nome).join(", ");
-    if (!confirm(`Ligar o agente ${dados.nome}? Ele vai responder sozinho quem escrever para ${nomes || "o número escolhido"}.`)) return;
-  }
   const botao = f.querySelector("button[type=submit]");
   botao.disabled = true;
   try {
     const salvo = await api(antes ? `/api/agentes/${antes.id}` : "/api/agentes", { method: antes ? "PUT" : "POST", body: JSON.stringify(dados) });
-    avisar(antes ? "Agente salvo" : "Agente criado", "ok");
+    avisar(antes ? "Treinamento salvo: as próximas respostas já usam ele" : "Agente criado. Agora escolha o número e crie o login do CRM.", "ok", 6000);
     dadosAgentes = await api("/api/agentes");
-    abaAgente = antes ? abaAgente : "configurar";
+    abaAgente = antes ? abaAgente : "whatsapp";
     await abrirAgente(salvo.id);
   } catch (e) {
     avisar(e.message, "perigo", 7000);

@@ -6,6 +6,8 @@ import * as uazap from "../envio/uazap.js";
 // manda prospecção da FluxDeck para empresas novas, e contato novo nele vira conversa do agente.
 
 export const MODOS_DELEGAR = ["mensagem", "fixa", "silencio"];
+// Os desenhos da foto de perfil (os mesmos de public/avatares-ia.js).
+export const AVATARES = ["atendente", "atendente2", "robo", "rastreio", "balao", "estrela"];
 // A conversa que o agente passou para você fica parada com este motivo (e volta com "IA continua").
 export const PREFIXO_DELEGOU = "delegou para você: ";
 export const delegou = (pausa) => String(pausa ?? "").startsWith(PREFIXO_DELEGOU);
@@ -48,6 +50,7 @@ export async function salvarAgente(id, dados) {
     delegar_mensagem: texto(v.delegar_mensagem, 1000).trim() || null,
     pendencias: texto(v.pendencias, 2000).trim() || null,
     max_respostas: Math.min(200, Math.max(1, Math.round(Number(v.max_respostas) || 40))),
+    avatar: AVATARES.includes(v.avatar) ? v.avatar : "atendente",
   };
   if (!campos.nome) throw new Error("Dê um nome ao agente");
   if (campos.delegar_modo === "fixa" && !campos.delegar_mensagem) throw new Error("Escreva a mensagem que o cliente recebe ao passar para você");
@@ -119,20 +122,17 @@ export function andamentoDoAgente(c, agora = new Date()) {
 }
 
 /**
- * O número de WhatsApp do agente, criado pelo CRM dele: uma instância nova na UAZap (ou a que o dono informar pelo
- * token), com o webhook apontado para o sistema e já atribuída ao agente. Cada agente tem um número só.
+ * O número de WhatsApp do agente, criado pelo CRM dele: uma instância nova na UAZap (pelo admin token salvo em
+ * Configurações), com o webhook apontado para o sistema e já atribuída ao agente. Cada agente tem um número só.
  */
-export async function criarNumeroDoAgente(agenteId, { token = "" } = {}) {
+export async function criarNumeroDoAgente(agenteId) {
   const trava = `agente_numero:${agenteId}`;
   if (!(await db.travar(trava, 60_000))) throw new Error("O número já está sendo criado. Aguarde alguns segundos.");
   try {
     const agente = await db.buscarAgente(agenteId);
     if (!agente) throw new Error("Agente não encontrado");
     if (agente.numeros.length) throw new Error("Este agente já tem um número de WhatsApp. Cada agente usa um número só.");
-    const instancia = String(token).trim()
-      ? { url: (await uazap.lerAdmin()).url, token: String(token).trim() }
-      : await uazap.criarInstancia(`agente-${agente.id}-${agente.nome}`.normalize("NFD").replace(/[^\w-]+/g, "-").toLowerCase().slice(0, 40));
-    if (!instancia.url) throw new Error("A FluxDeck ainda não configurou o servidor da UAZap");
+    const instancia = await uazap.criarInstancia(`agente-${agente.id}-${agente.nome}`.normalize("NFD").replace(/[^\w-]+/g, "-").toLowerCase().slice(0, 40));
     const n = await uazap.salvarNumero({ nome: `${agente.nome} (agente)`, url: instancia.url, token: instancia.token });
     await uazap.configurarWebhook(n.id);
     await salvarAgente(agente.id, { numeros: [n.id] });
