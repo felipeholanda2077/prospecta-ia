@@ -5238,13 +5238,14 @@ async function carregarDirects() {
     directsCarregados = (await api("/api/instagram/directs")).conversas;
     desenharDirects();
     if (!directAberto && directsCarregados.length && window.matchMedia("(min-width: 1241px)").matches) directAberto = directsCarregados[0].id;
-    if (directAberto && directsCarregados.some((c) => c.id === directAberto)) await abrirDirect(directAberto, { atualizar: Boolean($("#directs-msgs")) });
+    if (directAberto && directsCarregados.some((c) => c.id === directAberto)) await abrirConversaDoDirect(directAberto, { atualizar: Boolean($("#directs-msgs")) });
   } catch (e) {
     $("#directs-conversas").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
 }
 
-async function abrirDirect(id, { atualizar = false } = {}) {
+/** Abre a conversa do direct na aba Direct (só leitura). Nome diferente de abrirDirect, que abre o Instagram pela fila. */
+async function abrirConversaDoDirect(id, { atualizar = false } = {}) {
   directAberto = Number(id);
   $$("[data-direct-id]").forEach((el) => el.setAttribute("aria-current", String(Number(el.dataset.directId) === directAberto)));
   $("#directs-chat")?.classList.add("com-conversa");
@@ -5275,7 +5276,7 @@ async function abrirDirect(id, { atualizar = false } = {}) {
 
 $("#directs-conversas").addEventListener("click", (ev) => {
   const item = ev.target.closest("[data-direct-id]");
-  if (item) return void abrirDirect(item.dataset.directId).catch((e) => avisar(e.message, "perigo"));
+  if (item) return void abrirConversaDoDirect(item.dataset.directId).catch((e) => avisar(e.message, "perigo"));
   if (ev.target.closest("[data-direct-voltar]")) {
     directAberto = null;
     $("#directs-chat").classList.remove("com-conversa");
