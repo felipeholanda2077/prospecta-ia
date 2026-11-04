@@ -530,3 +530,28 @@ test("só agradeceu depois do nosso obrigado: a IA não responde (sem vai e volt
   const { iaPausada } = await import("../src/respostas/processar.js");
   assert.ok(!(await iaPausada(lead.id)));
 });
+
+test("conversa já começada: a IA não diz bom dia de novo nem se apresenta outra vez", async () => {
+  const { semCumprimentoRepetido, jaConversou } = await import("../src/ia/resposta.js");
+  const historico = [{ autor: "nos", texto: "Oi, tudo bem? Aqui é o Felipe, da FluxDeck." }, { autor: "lead", texto: "Bom dia tudo bem ?" }];
+  assert.equal(jaConversou(historico), true);
+  assert.equal(semCumprimentoRepetido("Bom dia! Entendo a desconfiança, e vou ser direto.", historico), "Entendo a desconfiança, e vou ser direto.");
+  assert.equal(semCumprimentoRepetido("Boa tarde, Ana! Que bom saber.", historico), "Que bom saber.");
+  assert.equal(semCumprimentoRepetido("Olá! tudo certo por aí?", historico), "Tudo certo por aí?");
+  assert.equal(semCumprimentoRepetido("Bom saber que vocês já têm um CRM.", historico), "Bom saber que vocês já têm um CRM."); // não é cumprimento
+  assert.equal(semCumprimentoRepetido("Bom dia!", historico), "Bom dia!"); // a mensagem inteira: não some
+  // Primeira mensagem (sem nada nosso antes): o cumprimento fica.
+  assert.equal(semCumprimentoRepetido("Bom dia! Vi o seu pedido.", [{ autor: "lead", texto: "Oi" }]), "Bom dia! Vi o seu pedido.");
+
+  // Na conversa de verdade: a resposta sai sem o "Bom dia!" repetido.
+  const lead = await novoLead("Re9ve Teste", "re9ve@teste.com");
+  const m = await db.criarMensagem({ lead_id: lead.id, canal: "whatsapp", destino: "5511911112222", corpo: "Oi, tudo bem? Aqui é o Felipe, da FluxDeck." });
+  await db.atualizarMensagem(m, { status: "enviada", enviada_em: new Date().toISOString() });
+  const classificar = async () => ({ classificacao: "outro", resumo: "Perguntou se é venda", sugestao_resposta: "Bom dia! Entendo a desconfiança.",
+    precisa_humano: false, motivo_humano: "", indicou_contato: false, temperatura: "morna", proximo_passo: "", robo: false, encerrar: false });
+  const r = await registrarResposta({ lead, canal: "whatsapp", origem_id: "re9ve-1", de: "5511911112222", texto: "Me desculpa você quer me vender algo é isso?",
+    campanha: { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 5 } }, classificar });
+  assert.equal(r.sugestao_resposta, "Entendo a desconfiança.");
+  const [saindo] = await db.consultar("SELECT corpo FROM mensagens WHERE lead_id = $1 AND tipo = 'resposta' ORDER BY id DESC LIMIT 1", [lead.id]);
+  assert.equal(saindo.corpo, "Entendo a desconfiança.");
+});

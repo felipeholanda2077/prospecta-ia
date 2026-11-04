@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { classificarResposta, limparTextoResposta, escreverApresentacao } from "../ia/resposta.js";
+import { classificarResposta, limparTextoResposta, escreverApresentacao, semCumprimentoRepetido } from "../ia/resposta.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento } from "../agenda/calendly.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
@@ -158,6 +158,14 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
  * Em qualquer resposta humana, as etapas pendentes são canceladas e, com a resposta
  * automática ligada, a IA continua a conversa rumo ao agendamento.
  */
+/** A resposta sem um "Bom dia!" de novo no começo, se a conversa já começou (em todas as partes do agente também). */
+function semRepetirCumprimento(c, historico) {
+  if (!c) return c;
+  const partes = c.partes?.length ? c.partes.map((p, i) => (i === 0 ? semCumprimentoRepetido(p, historico) : p)) : c.partes;
+  const sugestao = c.partes?.length ? partes.join("\n\n") : semCumprimentoRepetido(c.sugestao_resposta, historico);
+  return { ...c, partes, sugestao_resposta: sugestao };
+}
+
 /**
  * Classifica a última mensagem e escreve a próxima. Na primeira demonstração de interesse,
  * a próxima mensagem é a apresentação (processo, planos, prazo) com o convite.
@@ -205,10 +213,11 @@ export async function registrarResposta({
 
   let c;
   let apresentou = false;
+  let historico = [];
   try {
     // Ex.: áudio que não deu para transcrever: a sequência para e você responde.
     if (forcarHumano) throw new Error(forcarHumano);
-    const historico = await db.historicoConversa(lead.id);
+    historico = await db.historicoConversa(lead.id);
     if (agente) {
       // O agente responde com o prompt e a base dele, sem a apresentação da FluxDeck.
       c = await responderAgente({ agente, fontes: await fontesDoAgente(agente), texto: limpo, lead, historico });
@@ -224,6 +233,7 @@ export async function registrarResposta({
     c = { classificacao: "outro", resumo: forcarHumano ? "Mandou um áudio." : `Não foi possível classificar automaticamente: ${e.message}`,
           sugestao_resposta: "", precisa_humano: true, motivo_humano: forcarHumano || "a IA não conseguiu ler esta resposta" };
   }
+  c = semRepetirCumprimento(c, historico);
 
   const id = await db.criarResposta({
     lead_id: lead.id,
@@ -335,7 +345,9 @@ export async function continuarComIA(respostaId, campanha, {
     linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, r.canal), apresentacao: await lerApresentacao(),
     nota: String(nota ?? "").trim().slice(0, 500),
   };
-  const { c, apresentou } = await pensarResposta(contexto, { classificar, apresentar });
+  const pensado = await pensarResposta(contexto, { classificar, apresentar });
+  const { apresentou } = pensado;
+  const c = semRepetirCumprimento(pensado.c, contexto.historico);
   if (!c.sugestao_resposta?.trim()) throw new Error("A IA não escreveu uma resposta para esta conversa");
   await db.atualizarResposta(r.id, {
     precisa_humano: null, classificacao: c.classificacao, resumo: c.resumo, sugestao: c.sugestao_resposta,
@@ -356,10 +368,11 @@ async function continuarComAgente(r, lead, { nota, responderAgente }) {
   const agente = await db.buscarAgente(lead.agente_id);
   if (!agente) throw new Error("O agente desta conversa foi excluído");
   if (!agente.ligado) throw new Error(`O agente ${agente.nome} está desligado: ligue em Agentes para ele voltar a responder`);
-  const c = await responderAgente({
-    agente, fontes: await fontesDoAgente(agente), texto: r.texto, lead, historico: await db.historicoConversa(lead.id),
+  const historico = await db.historicoConversa(lead.id);
+  const c = semRepetirCumprimento(await responderAgente({
+    agente, fontes: await fontesDoAgente(agente), texto: r.texto, lead, historico,
     nota: String(nota ?? "").trim().slice(0, 500),
-  });
+  }), historico);
   if (c.delegou) throw new Error(`O agente pediu de novo para você responder: ${c.motivo_humano}`);
   const partes = partesDa(c);
   if (!partes.length) throw new Error("O agente não escreveu uma resposta para esta conversa");

@@ -95,6 +95,23 @@ export function classificarPorRegra(texto, assunto = "") {
   return null;
 }
 
+/** Já mandamos alguma mensagem nesta conversa? (Então já cumprimentamos e já nos apresentamos.) */
+export const jaConversou = (historico) => (historico ?? []).some((h) => h.autor === "nos");
+
+// "Bom dia!", "Boa tarde, Ana!", "Olá, tudo bem?" no começo da mensagem.
+const CUMPRIMENTO_NO_INICIO = /^\s*(bom dia|boa tarde|boa noite|ol[aá])(\s*,?\s*[A-ZÀ-Ú][\wÀ-ú]*)?\s*[!.,]+\s*/i;
+
+/**
+ * Tira o cumprimento do começo da mensagem quando a conversa já começou: a IA não diz "Bom dia!" de novo
+ * a cada resposta. O resto da mensagem fica como está (com a primeira letra maiúscula).
+ */
+export function semCumprimentoRepetido(texto, historico) {
+  if (!texto || !jaConversou(historico)) return texto;
+  const sem = String(texto).replace(CUMPRIMENTO_NO_INICIO, "");
+  if (!sem.trim() || sem === texto) return texto;
+  return sem.charAt(0).toUpperCase() + sem.slice(1);
+}
+
 /** Texto da conversa até aqui, para a IA não repetir o que já foi dito. */
 export function formatarHistorico(historico) {
   if (!historico?.length) return "(nenhuma mensagem anterior registrada)";
@@ -156,6 +173,8 @@ ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com
       : " com duas opções de horário em dias úteis"}.
 - Se a pessoa já recebeu o link e disse que vai marcar, agradeça em uma frase, sem insistir.
 - Nunca repita frases ou informações que já aparecem no histórico. Não invente fatos, prazos ou descontos.
+- Se o histórico já tem mensagem sua, NÃO cumprimente de novo (nada de "Bom dia!", "Boa tarde!", "Olá!") e NÃO se
+  apresente de novo (seu nome e a empresa já foram ditos): vá direto ao assunto, como numa conversa que continua.
 - Nunca mencione assistente, robô, IA, sistema ou "equipe" respondendo por ${quem}.
 - Se a pessoa perguntar diretamente se está falando com um robô, uma IA ou uma mensagem automática, não responda essa
   pergunta: marque precisa_humano (motivo: "perguntou se é robô") e deixe a sugestão vazia, para o próprio ${quem} responder.
@@ -212,7 +231,9 @@ export async function escreverApresentacao({ texto, lead, historico, campanha, c
     system: `${contextoEmpresa(campanha, { semValores: true })}
 
 A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa (${NOME_DO_CANAL[canal] ?? "WhatsApp"}), como ${quem}, em primeira pessoa:
-1. Uma frase respondendo o que ela disse, pelo primeiro nome se ela disse, com o cumprimento certo (bom dia, boa tarde...).
+1. Uma frase respondendo o que ela disse, pelo primeiro nome se ela disse. ${jaConversou(historico)
+      ? "A conversa já começou: NÃO cumprimente (nada de bom dia, boa tarde ou olá) e NÃO se apresente de novo; seu nome e a empresa já foram ditos."
+      : "Comece com o cumprimento certo (bom dia, boa tarde...)."}
 2. Uma apresentação em tópicos curtos, com quebras de linha, tirada SÓ da apresentação abaixo:
    - como funciona (as etapas, resumidas);
    - os planos: SÓ os planos da apresentação, com o nome e os valores exatamente como estão escritos (não invente
