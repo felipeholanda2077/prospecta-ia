@@ -526,6 +526,7 @@ app.get("/api/crm/eu", rotaCrm(async (req) => {
   return {
     voce: acesso.nome, agente: a.nome, ligado: a.ligado, numeros: a.numeros.map((id) => nomes.get(id) ?? "número removido"),
     semBase: !a.conhecimento.trim() && !arquivos.length,
+    whatsappConectado: a.numeros.length ? await uazap.conectadoAgora(a.numeros[0]) : false,
   };
 }));
 
@@ -581,6 +582,36 @@ app.post("/api/crm/conversas/:leadId/fechou", rotaCrm(async (req) => {
   const lead = await crm.conversaDoAgente(req.crm.agente.id, req.params.leadId);
   await db.atualizarLead(lead.id, { status: req.body?.fechou === false ? "respondeu" : "fechado" });
   return { ok: true };
+}));
+
+// O WhatsApp do agente: o dono cria o número (uma instância só por agente), lê o QR code e ele já fica com a IA.
+const numeroDoCrm = (req) => req.crm.agente.numeros[0] ?? null;
+const statusDoNumero = async (id) => {
+  const n = await uazap.numero(id);
+  if (!n) return null;
+  const st = await uazap.status(id).catch((e) => ({ estado: e.message, conectado: false }));
+  return { nome: n.nome, estado: st.estado, conectado: st.conectado, qrcode: st.qrcode ?? null, paircode: st.paircode ?? null, perfil: st.perfil ?? null, telefone: st.numero ?? null };
+};
+app.get("/api/crm/whatsapp", rotaCrm(async (req) => {
+  const id = numeroDoCrm(req);
+  return { numero: id ? await statusDoNumero(id) : null, criarAutomatico: Boolean((await uazap.lerAdmin()).adminToken) };
+}));
+app.post("/api/crm/whatsapp", rotaCrm(async (req) => {
+  const n = await agentes.criarNumeroDoAgente(req.crm.agente.id, { token: req.body?.token });
+  const st = await uazap.conectar(n.id).catch(() => null);
+  return { numero: { ...(await statusDoNumero(n.id)), ...(st ? { qrcode: st.qrcode, paircode: st.paircode } : {}) } };
+}));
+app.post("/api/crm/whatsapp/conectar", rotaCrm(async (req) => {
+  const id = numeroDoCrm(req);
+  if (!id) throw new Error("Crie o número do agente primeiro");
+  const st = await uazap.conectar(id, req.body?.telefone);
+  return { numero: { ...(await statusDoNumero(id)), qrcode: st.qrcode, paircode: st.paircode } };
+}));
+app.post("/api/crm/whatsapp/desconectar", rotaCrm(async (req) => {
+  const id = numeroDoCrm(req);
+  if (!id) throw new Error("Este agente ainda não tem número");
+  await uazap.desconectar(id);
+  return { numero: await statusDoNumero(id) };
 }));
 
 // Liga e desliga o agente pelo CRM. O número de WhatsApp quem conecta é a FluxDeck, no painel.
@@ -1732,6 +1763,15 @@ app.delete("/api/uazap/numeros/:id", comErro(async (req) => {
   return { ok: true };
 }));
 
+// Admin token do servidor da UAZap: com ele, o CRM de cada agente cria o próprio número. O token não volta para o painel.
+app.get("/api/uazap/admin", comErro(async () => {
+  const a = await uazap.lerAdmin();
+  return { configurado: Boolean(a.adminToken), url: a.url };
+}));
+app.post("/api/uazap/admin", comErro(async (req) => {
+  await uazap.salvarAdmin({ url: req.body?.url, adminToken: req.body?.adminToken });
+  return { ok: true, configurado: true };
+}));
 app.get("/api/uazap/numeros/:id/status", comErro((req) => uazap.status(req.params.id)));
 app.post("/api/uazap/numeros/:id/conectar", comErro((req) => uazap.conectar(req.params.id, req.body?.telefone)));
 app.post("/api/uazap/numeros/:id/desconectar", comErro(async (req) => {

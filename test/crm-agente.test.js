@@ -111,3 +111,61 @@ test("crm do agente: login próprio, só as conversas do agente, e remover o log
     assert.equal((await chamar("/api/crm/eu", { cookie: ana })).status, 401);
   });
 });
+
+test("crm do agente: o dono cria o número do agente na UAZap, lê o QR code e o número fica com a IA; um número só por agente", async () => {
+  const carla = await db.criarAgente({ nome: "Carla", prompt: "p", conhecimento: "", numeros: [], ligado: false, delegar_modo: "mensagem", max_respostas: 40 });
+  const original = globalThis.fetch;
+  const chamadas = [];
+  // UAZap de mentira (o servidor de teste continua respondendo pelo fetch de verdade).
+  globalThis.fetch = async (url, opcoes = {}) => {
+    const u = new URL(String(url));
+    if (u.hostname === "127.0.0.1") return original(url, opcoes);
+    const rota = `${opcoes.method ?? "GET"} ${u.pathname}`;
+    chamadas.push({ rota, headers: opcoes.headers ?? {}, corpo: opcoes.body ? JSON.parse(opcoes.body) : null });
+    if (u.pathname === "/instance/all") return opcoes.headers?.admintoken === "ADM" ? Response.json([]) : Response.json({ error: "x" }, { status: 401 });
+    if (rota === "POST /instance/create") return Response.json({ token: "NOVO", instance: { name: "x" } });
+    if (rota === "GET /instance/status") return Response.json({ instance: { status: "disconnected" }, status: { connected: false } });
+    if (rota === "POST /webhook") return Response.json({ ok: true });
+    if (rota === "POST /instance/connect") return Response.json({ instance: { status: "connecting", qrcode: "data:image/png;base64,QR" } });
+    return Response.json({ error: "rota desconhecida" }, { status: 404 });
+  };
+  try {
+    await comServidor(async ({ chamar, entrar }) => {
+      const admin = await entrar("/api/login", "teste", "senha-de-teste");
+      await chamar(`/api/agentes/${carla}/acessos`, { cookie: admin, metodo: "POST", corpo: { nome: "Carla", usuario: "carla", senha: "senha-da-carla" } });
+      const dona = await entrar("/api/crm/login", "carla", "senha-da-carla");
+
+      // Sem o admin token, o CRM pede o token de uma instância.
+      assert.equal((await (await chamar("/api/crm/whatsapp", { cookie: dona })).json()).criarAutomatico, false);
+      // O admin salva o admin token (conferido na UAZap); token errado é recusado e nada volta para o painel.
+      assert.equal((await chamar("/api/uazap/admin", { cookie: admin, metodo: "POST", corpo: { url: "https://x.uazapi.com", adminToken: "errado" } })).status, 400);
+      assert.equal((await chamar("/api/uazap/admin", { cookie: admin, metodo: "POST", corpo: { url: "https://x.uazapi.com", adminToken: "ADM" } })).status, 200);
+      const cfg = await (await chamar("/api/uazap/admin", { cookie: admin })).json();
+      assert.deepEqual(cfg, { configurado: true, url: "https://x.uazapi.com" });
+      assert.equal((await chamar("/api/uazap/admin", { cookie: dona })).status, 401); // o CRM não mexe nisso
+
+      // A dona cria o número: instância nova, webhook apontado para o sistema, QR code na tela e o número com a IA.
+      const criado = await (await chamar("/api/crm/whatsapp", { cookie: dona, metodo: "POST" })).json();
+      assert.equal(criado.numero.qrcode, "data:image/png;base64,QR");
+      assert.equal(criado.numero.nome, "Carla (agente)");
+      assert.equal(JSON.stringify(criado).includes("NOVO"), false); // o token da instância não vai para o navegador
+      const criar = chamadas.find((c) => c.rota === "POST /instance/create");
+      assert.equal(criar.headers.admintoken, "ADM");
+      assert.match(criar.corpo.name, /^agente-\d+-carla$/);
+      assert.ok(chamadas.some((c) => c.rota === "POST /webhook" && c.headers.token === "NOVO" && /\/webhooks\/uazap\//.test(c.corpo.url)));
+      const agente = await db.buscarAgente(carla);
+      assert.equal(agente.numeros.length, 1);
+      assert.equal(agente.ligado, false); // conectar não liga a IA sozinho
+
+      // Um número só por agente: criar de novo é recusado, e o painel também não deixa dois números.
+      const outra = await chamar("/api/crm/whatsapp", { cookie: dona, metodo: "POST" });
+      assert.equal(outra.status, 400);
+      assert.match((await outra.json()).erro, /um número só/);
+      const doisNumeros = await chamar(`/api/agentes/${carla}`, { cookie: admin, metodo: "PUT", corpo: { numeros: [agente.numeros[0], "rastreio"] } });
+      assert.equal(doisNumeros.status, 400);
+      assert.equal(chamadas.filter((c) => c.rota === "POST /instance/create").length, 1);
+    });
+  } finally {
+    globalThis.fetch = original;
+  }
+});

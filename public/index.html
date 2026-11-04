@@ -1019,6 +1019,13 @@
               <button class="btn fantasma" type="button" id="uazap-cancelar" hidden><span data-ic="x"></span>Cancelar edição</button>
             </div>
           </form>
+          <form class="cartao-corpo config-grade" id="form-uazap-admin" style="border-top:1px solid var(--border)">
+            <h4 style="grid-column:1/-1;margin:0">Números criados pelo CRM dos agentes <span id="uazap-admin-status"></span></h4>
+            <p class="muted" style="grid-column:1/-1;margin:0;font-size:13.5px">Com o admin token do servidor da UAZap, o dono de cada agente cria o número dele no CRM externo, lê o QR code e o número já fica com a IA dele (um número por agente). O token fica só no sistema.</p>
+            <div class="campo"><label for="uazap-admin-url">Server URL</label><input id="uazap-admin-url" name="url" placeholder="https://suaempresa.uazapi.com" required></div>
+            <div class="campo"><label for="uazap-admin-token">Admin token do servidor</label><input id="uazap-admin-token" name="adminToken" type="password" autocomplete="off" placeholder="Cole o admin token da UAZap"></div>
+            <div style="grid-column:1/-1"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar admin token</button></div>
+          </form>
           <div class="cartao-corpo" style="border-top:1px solid var(--border)">
             <div class="alerta info"><span data-ic="alert"></span><div>A UAZap usa o WhatsApp Web, que não é a API oficial. Para reduzir o risco de bloqueio, cada número aquece aos poucos, o sistema envia com intervalo, só em horário comercial, e para de mandar mensagens para quem pede para sair.</div></div>
           </div>
@@ -3592,7 +3599,36 @@ $("#cartao-oficial").addEventListener("click", async (ev) => {
 let numerosUazap = [];
 
 /** Lista de números da UAZap, cada um com status, QR code e quanto já saiu hoje. */
+/** Se o admin token da UAZap está salvo (o token nunca volta para o painel). */
+async function carregarAdminUazap() {
+  try {
+    const a = await api("/api/uazap/admin");
+    $("#uazap-admin-url").value = a.url ?? "";
+    $("#uazap-admin-token").placeholder = a.configurado ? "•••••••• já salvo (preencha só para trocar)" : "Cole o admin token da UAZap";
+    $("#uazap-admin-status").innerHTML = `<span class="pilula ${a.configurado ? "ok" : ""}">${a.configurado ? "Configurado" : "Não configurado"}</span>`;
+  } catch (e) {
+    $("#uazap-admin-status").innerHTML = `<span class="pilula perigo">${esc(e.message)}</span>`;
+  }
+}
+
+$("#form-uazap-admin").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    await post("/api/uazap/admin", { url: $("#uazap-admin-url").value, adminToken: $("#uazap-admin-token").value });
+    $("#uazap-admin-token").value = "";
+    await carregarAdminUazap();
+    avisar("Admin token salvo: o CRM dos agentes já pode criar os números", "ok", 6000);
+  } catch (e) {
+    avisar(e.message, "perigo", 7000);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 async function carregarNumerosUazap() {
+  carregarAdminUazap();
   const alvo = $("#uazap-numeros");
   try {
     numerosUazap = await api("/api/uazap/numeros");
@@ -6045,9 +6081,10 @@ function formularioAgente(a) {
     <div class="campo"><label for="ag-nome">Nome do agente</label><input id="ag-nome" name="nome" maxlength="60" required value="${esc(a?.nome ?? "")}" placeholder="Ex.: Bruno"></div>
     <label class="chave"><input type="checkbox" name="ligado" ${a?.ligado ? "checked" : ""}><div><b>Agente ligado</b>
       <span>Responde sozinho quem escrever para o número escolhido. Desligado, as mensagens ficam registradas e quem responde é você.</span></div></label>
-    <fieldset class="campo" style="border:0;padding:0;margin:0"><legend class="rotulo" style="margin-bottom:6px">Número de WhatsApp que ele atende</legend>
+    <fieldset class="campo" style="border:0;padding:0;margin:0"><legend class="rotulo" style="margin-bottom:6px">Número de WhatsApp que ele atende (um por agente)</legend>
+      <label style="display:flex;gap:10px;align-items:flex-start;padding:6px 0"><input type="radio" name="numeros" value="" ${escolhidos.size ? "" : "checked"}><span><b>Nenhum número</b> <span class="muted">(o dono pode criar o número no CRM do agente)</span></span></label>
       ${numeros.length ? numeros.map((n) => `<label style="display:flex;gap:10px;align-items:flex-start;padding:6px 0">
-        <input type="checkbox" name="numeros" value="${esc(n.id)}" ${escolhidos.has(n.id) ? "checked" : ""} ${deOutro.has(n.id) ? "disabled" : ""}>
+        <input type="radio" name="numeros" value="${esc(n.id)}" ${escolhidos.has(n.id) ? "checked" : ""} ${deOutro.has(n.id) ? "disabled" : ""}>
         <span><b>${esc(n.nome)}</b>${deOutro.has(n.id) ? ` <span class="muted">(já é do agente ${esc(deOutro.get(n.id))})</span>` : ""}
           ${n.principal ? `<br><span class="muted" style="font-size:13px">Este é o número da prospecção da FluxDeck. Com um agente, ele para de mandar mensagens para empresas novas, e os contatos novos que escreverem passam a ser atendidos pelo agente (as conversas da prospecção que já existem continuam com a IA da FluxDeck).</span>` : ""}</span></label>`).join("")
         : `<p class="muted">Nenhum número da UAZap ainda. Conecte em <a href="#configuracoes">Configurações</a>.</p>`}
@@ -6221,7 +6258,7 @@ $("#view-agentes").addEventListener("submit", async (ev) => {
   const f = ev.target;
   const dados = {
     nome: f.nome.value, prompt: f.prompt.value, conhecimento: f.conhecimento.value, ligado: f.ligado.checked,
-    numeros: [...f.querySelectorAll("input[name=numeros]:checked")].map((x) => x.value),
+    numeros: [...f.querySelectorAll("input[name=numeros]:checked")].map((x) => x.value).filter(Boolean),
     delegar_modo: f.delegar_modo.value, delegar_mensagem: f.delegar_mensagem.value,
     max_respostas: Number(f.max_respostas.value), pendencias: f.pendencias.value,
   };

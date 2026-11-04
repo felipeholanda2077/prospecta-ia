@@ -85,6 +85,63 @@ export async function removerNumero(id) {
   conexoes.delete(id);
 }
 
+// ---------- Admin do servidor da UAZap: cria instâncias novas (o número de cada agente, pelo CRM dele) ----------
+
+const CHAVE_ADMIN = "uazap_admin";
+
+/** O servidor e o admintoken da UAZap. O token nunca sai do servidor (nem para o painel). */
+export async function lerAdmin() {
+  const salvo = (await db.lerConfig(CHAVE_ADMIN)) ?? {};
+  return {
+    url: (process.env.UAZAP_ADMIN_URL || salvo.url || (await numeros())[0]?.url || "").replace(/\/+$/, ""),
+    adminToken: process.env.UAZAP_ADMIN_TOKEN || salvo.adminToken || "",
+  };
+}
+
+async function chamarAdmin({ url, adminToken }, caminho, { method = "GET", corpo } = {}) {
+  let resp;
+  try {
+    resp = await fetch(`${url}${caminho}`, {
+      method,
+      headers: { admintoken: adminToken, Accept: "application/json", ...(corpo ? { "Content-Type": "application/json" } : {}) },
+      body: corpo ? JSON.stringify(corpo) : undefined,
+      signal: AbortSignal.timeout(25_000),
+    });
+  } catch {
+    throw new Error(`Não foi possível acessar a UAZap em ${url}. Confira a Server URL.`);
+  }
+  const dados = await resp.json().catch(() => ({}));
+  if (resp.status === 401) throw new Error("A UAZap recusou o admin token. Confira o token de administrador do servidor.");
+  return { ok: resp.ok, status: resp.status, dados };
+}
+
+/** Salva o admintoken (confere com a lista de instâncias do servidor antes). Sem token novo, mantém o salvo. */
+export async function salvarAdmin({ url, adminToken }) {
+  const atual = (await db.lerConfig(CHAVE_ADMIN)) ?? {};
+  const novo = {
+    url: String(url ?? atual.url ?? "").trim().replace(/\/+$/, ""),
+    adminToken: String(adminToken || atual.adminToken || "").trim(),
+  };
+  if (!/^https:\/\/[^\s/]+/.test(novo.url)) throw new Error("Informe a Server URL da UAZap (ex.: https://suaempresa.uazapi.com)");
+  if (!novo.adminToken) throw new Error("Informe o admin token do servidor da UAZap");
+  const r = await chamarAdmin(novo, "/instance/all");
+  if (!r.ok && r.status !== 404) throw new Error(`UAZap respondeu ${r.status}: ${r.dados.error ?? r.dados.message ?? "erro desconhecido"}`);
+  await db.gravarConfig(CHAVE_ADMIN, novo);
+}
+
+/** Cria uma instância nova no servidor da UAZap e devolve { url, token } dela. */
+export async function criarInstancia(nome) {
+  const admin = await lerAdmin();
+  if (!admin.url || !admin.adminToken) throw new Error("A criação de números ainda não está configurada na FluxDeck (falta o admin token da UAZap).");
+  let r = await chamarAdmin(admin, "/instance/create", { method: "POST", corpo: { name: nome } });
+  // Versões anteriores da UAZap criam a instância em /instance/init.
+  if (r.status === 404 || r.status === 405) r = await chamarAdmin(admin, "/instance/init", { method: "POST", corpo: { name: nome } });
+  if (!r.ok) throw new Error(`A UAZap não criou o número (${r.status}: ${r.dados.error ?? r.dados.message ?? "erro desconhecido"})`);
+  const token = r.dados.token ?? r.dados.instance?.token;
+  if (!token) throw new Error("A UAZap criou o número, mas não devolveu o token dele");
+  return { url: admin.url, token };
+}
+
 async function chamarCom({ url, token }, caminho, { method = "GET", corpo } = {}) {
   let resp;
   try {

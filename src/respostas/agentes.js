@@ -59,6 +59,7 @@ export async function salvarAgente(id, dados) {
     const repetido = campos.numeros.find((n) => outro.numeros.includes(n));
     if (repetido) throw new Error(`O número "${existentes.get(repetido).nome}" já é atendido pelo agente ${outro.nome}`);
   }
+  if (campos.numeros.length > 1) throw new Error("Cada agente atende um número de WhatsApp só");
   if (campos.ligado && !campos.prompt) throw new Error("Escreva o prompt do agente antes de ligar");
   if (campos.ligado && !campos.numeros.length) throw new Error("Escolha o número de WhatsApp do agente antes de ligar");
   if (atual) await db.atualizarAgente(atual.id, campos);
@@ -115,4 +116,28 @@ export function andamentoDoAgente(c, agora = new Date()) {
   else if (delegou(c.ia_pausada)) estado = "delegou";
   else if (c.ultima?.autor === "nos" && agora - new Date(c.ultima.quando) > HORAS_SEM_RESPOSTA * 3600_000) estado = "sem_resposta";
   return { estado, rotulo: ANDAMENTOS[estado] };
+}
+
+/**
+ * O número de WhatsApp do agente, criado pelo CRM dele: uma instância nova na UAZap (ou a que o dono informar pelo
+ * token), com o webhook apontado para o sistema e já atribuída ao agente. Cada agente tem um número só.
+ */
+export async function criarNumeroDoAgente(agenteId, { token = "" } = {}) {
+  const trava = `agente_numero:${agenteId}`;
+  if (!(await db.travar(trava, 60_000))) throw new Error("O número já está sendo criado. Aguarde alguns segundos.");
+  try {
+    const agente = await db.buscarAgente(agenteId);
+    if (!agente) throw new Error("Agente não encontrado");
+    if (agente.numeros.length) throw new Error("Este agente já tem um número de WhatsApp. Cada agente usa um número só.");
+    const instancia = String(token).trim()
+      ? { url: (await uazap.lerAdmin()).url, token: String(token).trim() }
+      : await uazap.criarInstancia(`agente-${agente.id}-${agente.nome}`.normalize("NFD").replace(/[^\w-]+/g, "-").toLowerCase().slice(0, 40));
+    if (!instancia.url) throw new Error("A FluxDeck ainda não configurou o servidor da UAZap");
+    const n = await uazap.salvarNumero({ nome: `${agente.nome} (agente)`, url: instancia.url, token: instancia.token });
+    await uazap.configurarWebhook(n.id);
+    await salvarAgente(agente.id, { numeros: [n.id] });
+    return n;
+  } finally {
+    await db.destravar(trava);
+  }
 }

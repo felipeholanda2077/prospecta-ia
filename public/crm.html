@@ -186,6 +186,17 @@
   .arquivo { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
   .arquivo span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+  .ponto-wa { margin-left: auto; width: 9px; height: 9px; border-radius: 50%; background: var(--subtle); }
+  .ponto-wa.ok { background: var(--ok); }
+  .wa { padding: 24px; display: grid; gap: 18px; max-width: 760px; }
+  .wa-cab { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .wa-cab .circulo { width: 52px; height: 52px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-soft); color: var(--ok); flex: none; }
+  .passos { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
+  .qr { display: grid; justify-items: center; gap: 10px; padding: 18px; border-radius: var(--radius); background: #fff; color: #14151f; justify-self: start; }
+  .qr img { width: 260px; height: 260px; image-rendering: pixelated; }
+  .codigo { font: 700 30px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; padding: 10px 16px; border-radius: var(--radius-sm); background: var(--surface-2); justify-self: start; }
+  .linha-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+  .linha-form .campo { flex: 1 1 220px; }
   .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--text); color: var(--surface); padding: 11px 18px; border-radius: 999px; font-size: 14px;
            z-index: 30; max-width: calc(100% - 32px); box-shadow: var(--shadow); }
   .toast.perigo { background: var(--danger); color: #fff; }
@@ -204,7 +215,7 @@
     .crm:not(.com-conversa) .painel { display: none; }
     .painel { min-height: 75vh; }
     .voltar { display: inline-flex; }
-    .nav-inferior { display: grid; grid-template-columns: repeat(3, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface);
+    .nav-inferior { display: grid; grid-template-columns: repeat(4, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--surface);
                     border-top: 1px solid var(--border); padding: 6px 6px calc(6px + env(safe-area-inset-bottom)); }
     .nav-inferior button { font: inherit; font-size: 11.5px; font-weight: 600; display: grid; justify-items: center; gap: 2px; padding: 6px; border: 0; background: none; color: var(--muted); cursor: pointer; position: relative; }
     .nav-inferior button[aria-current="page"] { color: var(--accent-text); }
@@ -231,6 +242,7 @@
       <div class="marca"><div class="avatar" id="avatar-lateral">?<span class="ponto"></span></div><div><b id="nome-lateral">Agente</b><small id="estado-lateral">Desligado</small></div></div>
       <nav class="menu" aria-label="Seções do CRM">
         <button type="button" data-ir="conversas" aria-current="page"><span data-ic="message"></span>Conversas<span class="badge" data-contador hidden></span></button>
+        <button type="button" data-ir="whatsapp"><span data-ic="phone"></span>WhatsApp<span class="ponto-wa" data-ponto-wa></span></button>
         <button type="button" data-ir="perfil"><span data-ic="spark"></span>Perfil da IA</button>
         <button type="button" data-ir="base"><span data-ic="file"></span>Base de conhecimento</button>
       </nav>
@@ -261,6 +273,11 @@
           </div>
           <section class="cartao painel" id="painel"></section>
         </div>
+      </section>
+
+      <!-- WhatsApp do agente -->
+      <section data-pagina="whatsapp" hidden>
+        <div class="cartao wa" id="wa"></div>
       </section>
 
       <!-- Perfil da IA -->
@@ -313,7 +330,8 @@
 
     <nav class="nav-inferior" aria-label="Seções do CRM">
       <button type="button" data-ir="conversas" aria-current="page"><span data-ic="message"></span>Conversas<span class="badge" data-contador hidden></span></button>
-      <button type="button" data-ir="perfil"><span data-ic="spark"></span>Perfil da IA</button>
+      <button type="button" data-ir="whatsapp"><span data-ic="phone"></span>WhatsApp</button>
+      <button type="button" data-ir="perfil"><span data-ic="spark"></span>Perfil</button>
       <button type="button" data-ir="base"><span data-ic="file"></span>Base</button>
     </nav>
   </div>
@@ -353,6 +371,7 @@ const ANDAMENTO = {
 };
 const PAGINAS = {
   conversas: ["Conversas", "Tudo o que a IA atendeu no WhatsApp, e o que precisa de você."],
+  whatsapp: ["WhatsApp", "O número em que a IA atende. Cada agente usa um número só."],
   perfil: ["Perfil da IA", "Quem é a IA, como ela atende e o que fazer quando ela passa a conversa para você."],
   base: ["Base de conhecimento", "As informações oficiais que a IA usa para responder."],
 };
@@ -420,14 +439,15 @@ function desenharIdentidade() {
   $("#nome-lateral").textContent = eu.agente;
   $("#estado-lateral").textContent = eu.ligado ? "Atendendo agora" : "Desligado";
   $("#voce").textContent = eu.voce;
+  $$("[data-ponto-wa]").forEach((p) => p.classList.toggle("ok", Boolean(eu.whatsappConectado)));
   $("#chave-ligado").checked = eu.ligado;
   $("#chave-titulo").textContent = eu.ligado ? "Agente ligado" : "Agente desligado";
   $("#chave-sub").textContent = eu.ligado
     ? `Respondendo sozinho${eu.numeros.length ? ` no ${eu.numeros.join(", ")}` : ""}`
-    : eu.numeros.length ? "Ligue para ele responder sozinho" : "Falta conectar o número de WhatsApp";
+    : eu.numeros.length ? "Ligue para ele responder sozinho" : "Falta conectar o WhatsApp";
   $("#avisos").innerHTML = [
     eu.semBase ? `<div class="alerta atencao">${ic("alert")}<div><b>Falta a base de conhecimento.</b> Sem ela, a IA não informa preços, planos nem condições: diz que vai confirmar e passa para você. <button class="link" type="button" data-ir="base">Preencher agora</button></div></div>` : "",
-    !eu.numeros.length ? `<div class="alerta info">${ic("phone")}<div><b>Ainda sem número de WhatsApp.</b> A FluxDeck conecta o número do agente; depois é só ligar aqui em cima.</div></div>` : "",
+    !eu.numeros.length ? `<div class="alerta info">${ic("phone")}<div><b>Ainda sem número de WhatsApp.</b> Crie o número do agente e leia o QR code com o celular; depois é só ligar aqui em cima. <button class="link" type="button" data-ir="whatsapp">Conectar WhatsApp</button></div></div>` : "",
   ].join("");
 }
 
@@ -438,6 +458,8 @@ function irPara(id) {
   $("#titulo-pagina").textContent = PAGINAS[id][0];
   $("#sub-pagina").textContent = PAGINAS[id][1];
   if (id === "perfil") carregarPerfil();
+  if (id === "whatsapp") carregarWhatsapp();
+  else pararAcompanhamento();
   if (id === "base") carregarBase();
   window.scrollTo({ top: 0 });
 }
@@ -563,6 +585,102 @@ function motivoDaPausa(pausa) {
   return pausa.startsWith(delegou) ? `A IA passou esta conversa para você: ${pausa.slice(delegou.length)}.` : `A IA está parada nesta conversa: ${pausa}.`;
 }
 
+// ---------- WhatsApp do agente ----------
+let acompanhamento = null;
+const pararAcompanhamento = () => { clearInterval(acompanhamento); acompanhamento = null; };
+
+async function carregarWhatsapp() {
+  try {
+    desenharWhatsapp(await api("/api/crm/whatsapp"));
+  } catch (e) {
+    $("#wa").innerHTML = `<div class="alerta atencao">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+function desenharWhatsapp({ numero, criarAutomatico }) {
+  $$("[data-ponto-wa]").forEach((p) => p.classList.toggle("ok", Boolean(numero?.conectado)));
+  if (!numero) {
+    pararAcompanhamento();
+    $("#wa").innerHTML = `
+      <div class="wa-cab"><span class="circulo">${ic("phone", "lg")}</span><div><h3>Conecte o WhatsApp do agente</h3><p class="dica">Um número por agente. Use um número só para o atendimento, não o seu pessoal.</p></div></div>
+      <ol class="passos">
+        <li>Clique em <b>${criarAutomatico ? "Criar número" : "Conectar"}</b>.</li>
+        <li>No celular, abra o WhatsApp → <b>Aparelhos conectados</b> → <b>Conectar um aparelho</b>.</li>
+        <li>Aponte a câmera para o QR code que vai aparecer aqui.</li>
+        <li>Conectado, o número já fica com a IA. Para ela responder, ligue o agente no botão do topo.</li>
+      </ol>
+      ${criarAutomatico
+        ? `<div><button class="btn primario" type="button" data-wa-criar>${ic("phone")}Criar número e mostrar QR code</button></div>`
+        : `<form class="linha-form" id="form-wa-token">
+            <div class="campo"><label for="wa-token">Token da instância na UAZap</label><input id="wa-token" name="token" type="password" autocomplete="off" required placeholder="Cole o token que a FluxDeck passou"></div>
+            <button class="btn primario" type="submit">${ic("phone")}Conectar</button>
+          </form>
+          <span class="dica">A criação automática do número ainda não foi ativada pela FluxDeck. Com o token de uma instância da UAZap, dá para conectar do mesmo jeito.</span>`}`;
+    return;
+  }
+  const conectado = numero.conectado;
+  const conexao = numero.qrcode
+    ? `<div class="qr"><img src="${esc(numero.qrcode)}" alt="QR code para conectar o WhatsApp"><small>Leia com o WhatsApp do celular. O QR code muda a cada poucos segundos.</small></div>`
+    : numero.paircode ? `<div class="codigo">${esc(numero.paircode)}</div><span class="dica">No WhatsApp: Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone, e digite este código.</span>` : "";
+  $("#wa").innerHTML = `
+    <div class="wa-cab"><span class="circulo" style="${conectado ? "" : "background:var(--surface-2);color:var(--muted)"}">${ic("phone", "lg")}</span>
+      <div style="flex:1;min-width:200px"><h3>${esc(numero.perfil || numero.nome)}</h3><p class="dica">${numero.telefone ? `+${esc(numero.telefone)}` : "Número do agente na UAZap"}</p></div>
+      <span class="pilula ${conectado ? "ok" : numero.qrcode || numero.paircode ? "atencao" : ""}">${conectado ? "Conectado" : numero.qrcode || numero.paircode ? "Aguardando leitura" : "Desconectado"}</span></div>
+    ${conectado
+      ? `<div class="alerta info">${ic("checkCircle")}<div>WhatsApp conectado e ligado à IA. ${eu.ligado ? "O agente está respondendo." : "Ligue o agente no botão do topo para ele começar a responder."}</div></div>
+         <div class="acoes"><button class="btn" type="button" data-wa-desconectar>${ic("x", "sm")}Desconectar</button></div>`
+      : `${conexao}
+         <div class="acoes"><button class="btn primario" type="button" data-wa-qr>${ic("phone", "sm")}${numero.qrcode ? "Gerar outro QR code" : "Mostrar QR code"}</button></div>
+         <form class="linha-form" id="form-wa-codigo">
+           <div class="campo"><label for="wa-telefone">Prefere código? Telefone do WhatsApp com DDD</label><input id="wa-telefone" name="telefone" inputmode="tel" placeholder="Ex.: 11 91234-5678"></div>
+           <button class="btn" type="submit">Conectar com código</button>
+         </form>`}`;
+  // Enquanto espera a leitura, confere sozinho a cada poucos segundos se já conectou.
+  if (!conectado && (numero.qrcode || numero.paircode)) acompanharConexao();
+  else pararAcompanhamento();
+}
+
+function acompanharConexao() {
+  if (acompanhamento) return;
+  let voltas = 0;
+  acompanhamento = setInterval(async () => {
+    if (pagina !== "whatsapp" || ++voltas > 60) return pararAcompanhamento();
+    const r = await api("/api/crm/whatsapp").catch(() => null);
+    if (!r?.numero?.conectado) return;
+    pararAcompanhamento();
+    avisar("WhatsApp conectado!");
+    eu = await api("/api/crm/eu").catch(() => eu);
+    desenharIdentidade();
+    desenharWhatsapp(r);
+  }, 4000);
+}
+
+async function acaoWhatsapp(fazer, botao) {
+  if (botao) botao.disabled = true;
+  try {
+    const r = await fazer();
+    const atual = await api("/api/crm/whatsapp");
+    desenharWhatsapp({ ...atual, numero: { ...atual.numero, ...(r.numero?.qrcode ? { qrcode: r.numero.qrcode } : {}), ...(r.numero?.paircode ? { paircode: r.numero.paircode } : {}) } });
+    eu = await api("/api/crm/eu").catch(() => eu);
+    desenharIdentidade();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    if (botao) botao.disabled = false;
+  }
+}
+
+document.addEventListener("submit", (ev) => {
+  if (ev.target.id === "form-wa-token") {
+    ev.preventDefault();
+    acaoWhatsapp(() => post("/api/crm/whatsapp", { token: ev.target.token.value }), ev.submitter);
+  }
+  if (ev.target.id === "form-wa-codigo") {
+    ev.preventDefault();
+    acaoWhatsapp(() => post("/api/crm/whatsapp/conectar", { telefone: ev.target.telefone.value }), ev.submitter);
+  }
+});
+
 // ---------- Perfil da IA ----------
 async function carregarPerfil() {
   try {
@@ -682,9 +800,15 @@ $("#arquivo").addEventListener("change", async (ev) => {
 
 // ---------- Cliques ----------
 document.addEventListener("click", async (ev) => {
-  const el = ev.target.closest("[data-ir],[data-sair],[data-filtro],[data-conversa],[data-voltar],[data-assumir],[data-continua],[data-fechou],[data-tirar-arquivo]");
+  const el = ev.target.closest("[data-ir],[data-sair],[data-filtro],[data-conversa],[data-voltar],[data-assumir],[data-continua],[data-fechou],[data-tirar-arquivo],[data-wa-criar],[data-wa-qr],[data-wa-desconectar]");
   if (!el) return;
   const d = el.dataset;
+  if (d.waCriar !== undefined) return acaoWhatsapp(() => post("/api/crm/whatsapp"), el);
+  if (d.waQr !== undefined) return acaoWhatsapp(() => post("/api/crm/whatsapp/conectar"), el);
+  if (d.waDesconectar !== undefined) {
+    if (!confirm("Desconectar o WhatsApp do agente? A IA para de receber e responder mensagens até você conectar de novo.")) return;
+    return acaoWhatsapp(() => post("/api/crm/whatsapp/desconectar"), el);
+  }
   if (d.ir) return irPara(d.ir);
   if (d.sair !== undefined) { await post("/api/crm/sair").catch(() => {}); return mostrarLogin(); }
   if (d.filtro) { filtro = d.filtro; return desenharLista(); }
