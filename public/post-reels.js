@@ -1393,7 +1393,205 @@ function chamadaDirect(c) {
   ctx.restore();
 }
 
-const CENAS = { capa: CAPAS, pergunta: PERGUNTAS, contraste: CONTRASTES, lista: LISTAS, impacto: IMPACTOS, texto: TEXTOS, cta: [chamadaComentario, chamadaDirect] };
+
+// ---------- Memes ----------
+// A reação vem no "destaque" da cena, em palavra: emoji de verdade não existe na fonte do servidor.
+const REACOES = ["neutro", "choque", "choro", "caveira", "palhaco", "rindo"];
+const reacaoDa = (tela) => REACOES.find((r) => semAcento(tela.destaque).includes(r)) ?? REACOES[String(tela.titulo).length % REACOES.length];
+const memeFonte = (t) => `900 ${t}px Inter`;
+
+/** Carinha de reação desenhada, que se mexe conforme a reação. */
+function carinha(ctx, x, y, r, tipo, local) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(tipo === "choque" ? Math.sin(local * 42) * 0.05 : tipo === "rindo" ? Math.sin(local * 16) * 0.09 : Math.sin(local * 2) * 0.03);
+  const tinta = "#0b1120";
+  ctx.fillStyle = tipo === "caveira" ? "#e8edf5" : "#ffd84d";
+  ctx.strokeStyle = tinta;
+  ctx.lineWidth = r * 0.06;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = tinta;
+  ctx.lineCap = "round";
+  const olho = (ox, raio) => { ctx.beginPath(); ctx.arc(ox, -r * 0.18, raio, 0, Math.PI * 2); ctx.fill(); };
+  const arco = (ox, y0, larg, cima) => { ctx.beginPath(); ctx.arc(ox, y0, larg, cima ? Math.PI : 0, cima ? Math.PI * 2 : Math.PI); ctx.stroke(); };
+  if (tipo === "neutro") {
+    olho(-r * 0.32, r * 0.09); olho(r * 0.32, r * 0.09);
+    ctx.beginPath(); ctx.moveTo(-r * 0.32, r * 0.38); ctx.lineTo(r * 0.32, r * 0.38); ctx.stroke();
+  } else if (tipo === "choque") {
+    for (const ox of [-r * 0.32, r * 0.32]) {
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(ox, -r * 0.16, r * 0.2, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = tinta; ctx.beginPath(); ctx.arc(ox, -r * 0.16, r * 0.07, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.beginPath(); ctx.ellipse(0, r * 0.42, r * 0.16, r * 0.22 * (0.85 + 0.15 * Math.sin(local * 30)), 0, 0, Math.PI * 2); ctx.fill();
+  } else if (tipo === "choro") {
+    arco(-r * 0.32, -r * 0.1, r * 0.13, false); arco(r * 0.32, -r * 0.1, r * 0.13, false);
+    arco(0, r * 0.62, r * 0.28, true);
+    ctx.fillStyle = "#4fc3ff";
+    for (const ox of [-r * 0.36, r * 0.36]) {
+      const q = (local * 1.6) % 1;
+      ctx.beginPath(); ctx.ellipse(ox, -r * 0.02 + q * r * 0.7, r * 0.06, r * 0.1, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  } else if (tipo === "caveira") {
+    ctx.beginPath(); ctx.ellipse(-r * 0.32, -r * 0.12, r * 0.2, r * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r * 0.32, -r * 0.12, r * 0.2, r * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(0, r * 0.12); ctx.lineTo(-r * 0.08, r * 0.28); ctx.lineTo(r * 0.08, r * 0.28); ctx.closePath(); ctx.fill();
+    ctx.lineWidth = r * 0.04;
+    for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.moveTo(k * r * 0.11, r * 0.44); ctx.lineTo(k * r * 0.11, r * 0.66); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(-r * 0.3, r * 0.55); ctx.lineTo(r * 0.3, r * 0.55); ctx.stroke();
+  } else if (tipo === "palhaco") {
+    olho(-r * 0.32, r * 0.08); olho(r * 0.32, r * 0.08);
+    arco(0, r * 0.18, r * 0.42, false);
+    ctx.fillStyle = "#ff4d6d"; ctx.beginPath(); ctx.arc(0, r * 0.1, r * 0.15 * (1 + 0.08 * Math.sin(local * 8)), 0, Math.PI * 2); ctx.fill();
+  } else {
+    arco(-r * 0.32, -r * 0.12, r * 0.14, true); arco(r * 0.32, -r * 0.12, r * 0.14, true);
+    ctx.beginPath(); ctx.arc(0, r * 0.18, r * 0.42, 0, Math.PI); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#4fc3ff";
+    for (const ox of [-r * 0.62, r * 0.62]) { ctx.beginPath(); ctx.ellipse(ox, -r * 0.05 + Math.sin(local * 16) * r * 0.04, r * 0.07, r * 0.12, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.restore();
+}
+
+/** Texto de meme: maiúsculo, branco, contorno escuro, centralizado. */
+function textoDeMeme(ctx, m, cx, y, escala = 1) {
+  ctx.save();
+  ctx.translate(cx, y);
+  ctx.scale(escala, escala);
+  ctx.font = memeFonte(m.tamanho);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = m.tamanho * 0.16;
+  ctx.strokeStyle = "#05070d";
+  ctx.fillStyle = "#ffffff";
+  m.linhas.forEach((l, k) => {
+    ctx.strokeText(l, 0, k * m.tamanho * m.entre);
+    ctx.fillText(l, 0, k * m.tamanho * m.entre);
+  });
+  ctx.restore();
+}
+
+const MEMES = [
+  // Meme clássico: a situação em cima, a carinha no meio e o desfecho embaixo, que chega com um tranco.
+  function memeClassico(c) {
+    const { ctx, area: a, local, tela } = c;
+    const altura = Math.min(a.base - a.topo, 1180);
+    const y0 = meioV(a, altura);
+    const larg = a.largura;
+    const cima = medir(ctx, tela.titulo.toUpperCase(), { largura: larg - 60, alturaMax: altura * 0.3, maior: 86, menor: 46, fonte: memeFonte, entre: 1.08 });
+    const baixo = medir(ctx, (tela.texto || tela.titulo).toUpperCase(), { largura: larg - 60, alturaMax: altura * 0.26, maior: 92, menor: 46, fonte: memeFonte, entre: 1.08 });
+    const tranco = local > 0.5 && local < 0.7 && !c.parado ? (sorteio(Math.floor(local * 60)) - 0.5) * 22 : 0;
+    ctx.save();
+    ctx.translate(tranco, tranco * 0.6);
+    const p = estalo(local / 0.22, 1.2);
+    ctx.globalAlpha *= lim(local / 0.08);
+    caixa(ctx, a.x, y0, larg, altura, 26, { cor: "#16213a", borda: "rgba(0,212,255,.35)", sombra: 40, largura: 3 });
+    const meio = y0 + 40 + cima.altura + (altura - 80 - cima.altura - baixo.altura) / 2;
+    const r = Math.min(larg * 0.24, (altura - cima.altura - baixo.altura) * 0.32);
+    carinha(ctx, a.x + larg / 2, meio, r * p, reacaoDa(tela), local);
+    textoDeMeme(ctx, cima, a.x + larg / 2, y0 + 40, 0.6 + 0.4 * estalo(local / 0.2));
+    const q = estalo((local - 0.5) / 0.2, 1.8);
+    if (q > 0) textoDeMeme(ctx, baixo, a.x + larg / 2, y0 + altura - 40 - baixo.altura, 1.4 - 0.4 * q);
+    ctx.restore();
+  },
+
+  // Conversa de WhatsApp: o cliente manda a situação, aparece "digitando..." e vem a resposta engraçada.
+  function memeConversa(c) {
+    const { ctx, area: a, local, tela } = c;
+    const larg = a.largura;
+    const balao = larg * 0.78;
+    const mC = medir(ctx, tela.titulo, { largura: balao - 64, alturaMax: 420, maior: 56, menor: 36, fonte: inter, entre: 1.25 });
+    const mV = medir(ctx, tela.texto || "…", { largura: balao - 64, alturaMax: 420, maior: 56, menor: 36, fonte: inter, entre: 1.25 });
+    const hC = mC.altura + 56;
+    const hV = mV.altura + 56;
+    const topo = 110;
+    const total = topo + hC + 40 + hV + 220;
+    const y0 = meioV(a, Math.min(total, a.base - a.topo));
+    caixa(ctx, a.x, y0, larg, Math.min(total, a.base - a.topo), 30, { cor: "#0f1a2b", borda: BORDA, sombra: 30 });
+    ctx.fillStyle = "#16233a";
+    ctx.beginPath(); ctx.roundRect(a.x, y0, larg, 96, [30, 30, 0, 0]); ctx.fill();
+    ctx.fillStyle = "#2c3a52"; ctx.beginPath(); ctx.arc(a.x + 64, y0 + 48, 28, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = CREME; ctx.font = inter(36, 700); ctx.textBaseline = "middle"; ctx.textAlign = "left";
+    ctx.fillText("Cliente", a.x + 110, y0 + 38);
+    ctx.fillStyle = CINZA; ctx.font = inter(26, 500);
+    ctx.fillText(local < 0.5 ? "online" : "visto agora", a.x + 110, y0 + 70);
+    const pC = estalo(local / 0.2);
+    const yC = y0 + topo + 20;
+    ctx.save();
+    ctx.globalAlpha *= lim(local / 0.1);
+    ctx.translate(0, (1 - pC) * 40);
+    caixa(ctx, a.x + 32, yC, Math.min(balao, Math.max(...mC.linhas.map((l) => { ctx.font = inter(mC.tamanho); return ctx.measureText(l).width; })) + 64), hC, 26, { cor: "#f1f5f9", borda: null, sombra: 16 });
+    ctx.fillStyle = TINTA; ctx.font = inter(mC.tamanho, 500); ctx.textBaseline = "top";
+    mC.linhas.forEach((l, k) => ctx.fillText(l, a.x + 64, yC + 28 + k * mC.tamanho * mC.entre));
+    ctx.restore();
+    const yV = yC + hC + 40;
+    if (local > 0.24 && local < 0.48) {
+      caixa(ctx, a.x + larg - 32 - 150, yV, 150, 76, 38, { cor: "#0e7490", borda: null });
+      for (let k = 0; k < 3; k++) {
+        ctx.fillStyle = `rgba(255,255,255,${0.35 + 0.65 * Math.max(0, Math.sin(local * 18 - k))})`;
+        ctx.beginPath(); ctx.arc(a.x + larg - 32 - 105 + k * 30, yV + 38, 9, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    const pV = estalo((local - 0.48) / 0.18, 1.6);
+    if (pV > 0) {
+      ctx.font = inter(mV.tamanho, 600);
+      const w = Math.min(balao, Math.max(...mV.linhas.map((l) => ctx.measureText(l).width)) + 64);
+      ctx.save();
+      ctx.translate(a.x + larg - 32 - w / 2, yV + hV / 2);
+      ctx.scale(pV, pV);
+      ctx.translate(-(a.x + larg - 32 - w / 2), -(yV + hV / 2));
+      caixa(ctx, a.x + larg - 32 - w, yV, w, hV, 26, { cor: ACENTO, borda: null, sombra: 20 });
+      ctx.fillStyle = "#04121c"; ctx.textBaseline = "top";
+      mV.linhas.forEach((l, k) => ctx.fillText(l, a.x + larg - w, yV + 28 + k * mV.tamanho * mV.entre));
+      ctx.restore();
+    }
+    const pR = estalo((local - 0.68) / 0.2, 2);
+    if (pR > 0) carinha(ctx, a.x + 130, yV + hV + 110, 82 * pR, reacaoDa(tela), local);
+  },
+
+  // Post de rede social: a frase como se fosse um post viral, com as curtidas subindo.
+  function memePost(c) {
+    const { ctx, area: a, local, tela, empresa } = c;
+    const larg = a.largura;
+    const pad = 52;
+    const mT = medir(ctx, tela.titulo, { largura: larg - pad * 2, alturaMax: 520, maior: 64, menor: 40, fonte: inter, entre: 1.22 });
+    const mX = tela.texto ? medir(ctx, tela.texto, { largura: larg - pad * 2, alturaMax: 360, maior: 54, menor: 36, fonte: inter, entre: 1.22 }) : null;
+    const h = 150 + mT.altura + (mX ? 36 + mX.altura : 0) + 130;
+    const y = meioV(a, h);
+    const p = estalo(local / 0.24, 1.3);
+    ctx.save();
+    ctx.translate(a.x + larg / 2, y + h / 2);
+    ctx.scale(0.86 + 0.14 * p, 0.86 + 0.14 * p);
+    ctx.rotate(((Math.sin(local * 1.1) - 0.5) * 0.8 * Math.PI) / 180);
+    ctx.translate(-a.x - larg / 2, -y - h / 2);
+    ctx.globalAlpha *= lim(local / 0.1);
+    caixa(ctx, a.x, y, larg, h, 32, { cor: "#ffffff", borda: null, sombra: 50 });
+    ctx.fillStyle = "#0b1120"; ctx.beginPath(); ctx.arc(a.x + pad + 34, y + 76, 34, 0, Math.PI * 2); ctx.fill();
+    simbolo(ctx, a.x + pad + 34, y + 76, 30);
+    ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    ctx.fillStyle = TINTA; ctx.font = inter(36, 700); ctx.fillText(empresa || "FluxDeck", a.x + pad + 86, y + 62);
+    ctx.fillStyle = "#6b7280"; ctx.font = inter(28, 500); ctx.fillText("@fluxdeck_ · agora", a.x + pad + 86, y + 98);
+    ctx.textBaseline = "top"; ctx.fillStyle = TINTA; ctx.font = inter(mT.tamanho, 600);
+    mT.linhas.forEach((l, k) => ctx.fillText(l, a.x + pad, y + 150 + k * mT.tamanho * mT.entre));
+    let yy = y + 150 + mT.altura;
+    if (mX) {
+      const q = lim((local - 0.45) / 0.15);
+      ctx.globalAlpha *= q || 0.001;
+      ctx.fillStyle = "#0077c8"; ctx.font = inter(mX.tamanho, 700);
+      mX.linhas.forEach((l, k) => ctx.fillText(l, a.x + pad, yy + 36 + (1 - q) * 20 + k * mX.tamanho * mX.entre));
+      ctx.globalAlpha = 1;
+      yy += 36 + mX.altura;
+    }
+    const n = Math.round(lim((local - 0.2) / 1.2) * (1200 + sorteio(c.id) * 8000));
+    coracao(ctx, a.x + pad + 20, yy + 66, 44, { cor: "#ff3b5c", cheio: local > 0.6 });
+    ctx.fillStyle = "#374151"; ctx.font = inter(32, 600); ctx.textBaseline = "middle";
+    ctx.fillText(n.toLocaleString("pt-BR"), a.x + pad + 60, yy + 66);
+    ctx.restore();
+    const pR = estalo((local - 0.7) / 0.2, 2);
+    if (pR > 0 && a.base - (y + h) > 200) carinha(ctx, a.x + larg - 120, y + h + 120, 80 * pR, reacaoDa(tela), local);
+  },
+];
+
+const CENAS = { capa: CAPAS, pergunta: PERGUNTAS, contraste: CONTRASTES, lista: LISTAS, impacto: IMPACTOS, texto: TEXTOS, meme: MEMES, cta: [chamadaComentario, chamadaDirect] };
 
 /** Qual encenação a cena usa: gira de post para post, e o mesmo tipo não se repete dentro do vídeo. */
 function encenacao(post, telas, i) {

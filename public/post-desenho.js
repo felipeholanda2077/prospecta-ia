@@ -585,7 +585,7 @@ function pilula(ctx, texto, cx, y, tema, { escala = 1, tamanho = 40 } = {}) {
 // Emojis ficam de fora das telas: a fonte da marca não tem, e no servidor sairiam como quadradinhos.
 const semEmoji = (t) => String(t ?? "").replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}]/gu, "").replace(/[→←]/g, "»").replace(/\s{2,}/g, " ").trim();
 
-const VISUAIS = new Set(["capa", "impacto", "lista", "contraste", "pergunta", "texto", "cta"]);
+const VISUAIS = new Set(["capa", "impacto", "lista", "contraste", "pergunta", "texto", "meme", "cta"]);
 
 // No contraste o cartão já tem o rótulo (ANTES, MITO...): tira o mesmo rótulo do começo do texto.
 const semRotulo = (t) => t.replace(/^(antes|depois|mito|verdade|errado|certo|sim|n[aã]o)\s*[:\-–]\s*/i, "").replace(/^\p{Ll}/u, (l) => l.toUpperCase());
@@ -862,6 +862,8 @@ export function duracoesDasCenas(post) {
     if (tela.visual === "cta") return 3.6;
     if (tela.visual === "impacto") return lim(1.8 + palavras * 0.15, 2, 2.8);
     if (tela.visual === "contraste") return lim(2.6 + palavras * 0.2, 3.4, 5.4);
+    // O meme precisa de tempo para a piada: a situação, a pausa e o desfecho.
+    if (tela.visual === "meme") return lim(2.8 + palavras * 0.18, 3.6, 5.2);
     return lim(1.6 + palavras * 0.2, 2.4, 4.4);
   });
 }

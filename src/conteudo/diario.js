@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { gerarPost, PILARES, ESTRUTURAS, PUBLICOS, TONS, PILAR_BLACK_FRIDAY, valoresNasTelas, tirarValoresDasTelas } from "../ia/conteudo.js";
+import { gerarPost, PILARES, ESTRUTURAS, ESTRUTURAS_MEME, PUBLICOS, TONS, PILAR_BLACK_FRIDAY, valoresNasTelas, tirarValoresDasTelas } from "../ia/conteudo.js";
 import { FUNDOS } from "../../public/post-desenho.js";
 import { FIM_DA_PROMOCAO } from "../vendas/campanha.js";
 import { colocarFotos } from "./fotos.js";
@@ -22,6 +22,7 @@ const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { ti
 export const CONTEUDO_PADRAO = { ativo: true, horarios: [12, 18], postarSozinho: true, apresentador: true, horariosPelaIA: true };
 // O agendador do banco passa a cada 15 minutos; o post é criado na passagem logo antes do horário.
 const ANTECEDENCIA_MIN = 15;
+const CHANCE_DE_MEME = 0.6;
 // Se o sistema estava parado no horário, o post ainda é criado até 2 horas depois; mais que isso, pula.
 const ATRASO_MAXIMO_MIN = 120;
 
@@ -97,11 +98,15 @@ export async function criarPostDeHoje(campanha, { formato, pilar: pilarFixo = nu
   const conf = await lerConfigConteudo(agora);
   // Com o apresentador ligado, todo post é um Reels com o Felipe. Sem ele, volta a alternar com o carrossel.
   const escolhido = formato ?? (conf.apresentador === false ? escolha.formato : "reels");
-  const { estrutura } = escolha;
+  // O alcance caiu com os vídeos parecidos: os memes descontraídos ganham mais da metade dos posts por enquanto, sem repetir o último.
+  const ultimaEstrutura = recentes[0]?.conteudo?.estrutura;
+  const memes = ESTRUTURAS_MEME.filter((m) => m !== ultimaEstrutura);
+  const estrutura = !pilarFixo && sorteio() < CHANCE_DE_MEME ? memes[Math.floor(sorteio() * memes.length) % memes.length] : escolha.estrutura;
   const promocao = dia <= FIM_DA_PROMOCAO && !deHoje.some((p) => p.pilar === PILAR_BLACK_FRIDAY && p.status !== "descartado");
   const pilar = pilarFixo ?? (promocao ? PILAR_BLACK_FRIDAY : escolha.pilar);
   const base = await lerBaseDeConteudo();
   const variedade = escolherVariedade(recentes, { formato: escolhido, apresentador: conf.apresentador, sorteio });
+  if (ESTRUTURAS_MEME.includes(estrutura)) variedade.tom = "meme";
   const pedido = {
     campanha, formato: escolhido, pilar, estrutura, base, aprendizados: escolha.aprendizados, ...variedade,
     recentes: recentes.slice(0, 20).map((p) => ({ tema: p.tema, gancho: p.conteudo?.gancho ?? "" })),
@@ -119,7 +124,7 @@ export async function criarPostDeHoje(campanha, { formato, pilar: pilarFixo = nu
     escrito = await escrever({ ...pedido, aviso: "você citou valor nas falas ou nas telas. Reescreva sem nenhum valor, que fica só na legenda." });
     if (valoresNasTelas(escrito).length) escrito = tirarValoresDasTelas(escrito);
   }
-  const conteudo = await clipes(await fotos({ ...escrito, ...variedade, capaSemFelipe: conf.apresentador === false }, { formato: escolhido, dia }), { formato: escolhido });
+  const conteudo = await clipes(await fotos({ ...escrito, ...variedade, estrutura, capaSemFelipe: conf.apresentador === false }, { formato: escolhido, dia }), { formato: escolhido });
   // Os estilos de foto sem nenhuma foto achada virariam fundo escuro: troca por um que não depende dela.
   if (conteudo.arte === "dividido" && !conteudo.slides?.some((s) => s.foto)) conteudo.arte = sorteio() < 0.5 ? "cor" : "claro";
   const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo, horario });

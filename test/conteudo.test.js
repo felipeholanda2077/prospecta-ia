@@ -160,3 +160,20 @@ test("post: o fundo não repete os últimos vídeos", async () => {
   assert.equal(fundoDoPost({ conteudo: { fundo: "areia" } }).nome, "areia");
   assert.ok(fundoDoPost({ id: 13, conteudo: {} }).nome); // post antigo, sem fundo escolhido
 });
+
+test("post do dia: os memes descontraídos ganham a maior parte dos posts, com tom de meme e sem repetir o último", async () => {
+  await db.gravarConfig("conteudo", { ativo: true, horarios: [12, 18] });
+  await db.consultar("DELETE FROM posts");
+  const pedidos = [];
+  const escreverAnotando = async (p) => { pedidos.push(p); return escrever(p); };
+  const criar = (data, sorteio) => diario.criarPostDeHoje(campanha, { agora: new Date(data), escrever: escreverAnotando, fotos: async (c) => c, clipes: async (c) => c, sorteio });
+  await criar("2026-12-10T14:45:00Z", () => 0.1);
+  await criar("2026-12-10T20:45:00Z", () => 0.1);
+  const [um, dois] = pedidos;
+  assert.ok(um.estrutura.startsWith("meme_") && dois.estrutura.startsWith("meme_"));
+  assert.notEqual(um.estrutura, dois.estrutura);
+  assert.deepEqual([um.tom, dois.tom], ["meme", "meme"]);
+  await criar("2026-12-11T14:45:00Z", () => 0.9);
+  assert.ok(!pedidos[2].estrutura.startsWith("meme_"));
+  assert.notEqual(pedidos[2].tom, "meme");
+});

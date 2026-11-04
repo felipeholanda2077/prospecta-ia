@@ -34,7 +34,15 @@ export const ESTRUTURAS = {
   passo_a_passo: "PASSO A PASSO: como resolver um problema em 3 a 5 passos simples e práticos. Telas dos passos com visual \"lista\".",
   segredo: "O QUE NINGUÉM TE CONTA: uma verdade inesperada sobre o assunto, revelada em partes, com uma tela \"impacto\" na revelação.",
   comparacao: "X vs Y: compara duas escolhas (ex.: só Instagram x site próprio, planilha x sistema). Visual \"contraste\" e um veredito honesto no fim.",
+  meme_ninguem: "MEME \"NINGUÉM: / EU:\": cada cena é uma piada no formato \"Ninguém: ... / Dono de empresa às 23h: ...\" sobre o dia a dia de quem atende cliente. Cenas com visual \"meme\": titulo = a situação, texto = o desfecho exagerado.",
+  meme_expectativa: "MEME EXPECTATIVA x REALIDADE: a expectativa de quem abre um negócio e a realidade que ninguém conta, com humor. Cenas com visual \"meme\" (titulo = expectativa, texto = realidade), e a virada mostra como a tecnologia ajuda.",
+  meme_tipos: "MEME TIPOS DE CLIENTE: \"Tipos de cliente no WhatsApp\" (o do \"oi\" sem mais nada, o do áudio de 5 minutos, o do \"tá caro\"...). Uma cena com visual \"meme\" por tipo, sem ofender ninguém; no fim, como não perder nenhum deles.",
+  meme_conversa: "MEME CONVERSA: conversas engraçadas e reconhecíveis entre cliente e dono da empresa (\"Tá aberto?\" às 2h da manhã). Cenas com visual \"meme\": titulo = o que o cliente manda, texto = a resposta ou a reação do dono.",
+  meme_quando: "MEME QUANDO...: \"Quando o cliente pergunta o preço e some\", \"Quando a agenda fura de novo\": uma situação por cena, com a reação exagerada. Cenas com visual \"meme\".",
 };
+
+// Estruturas de meme: vídeos descontraídos, que ganham mais chance enquanto o alcance estiver baixo (veja criarPostDeHoje).
+export const ESTRUTURAS_MEME = Object.keys(ESTRUTURAS).filter((k) => k.startsWith("meme_"));
 
 // Para quem o post fala: muda o exemplo, a cena e as fotos, e um post não parece o outro.
 export const PUBLICOS = {
@@ -61,6 +69,7 @@ export const TONS = {
   conta: "conta simples: mostra uma conta de cabeça com números hipotéticos, deixando claro que é um exemplo",
   bastidor: "bastidor em primeira pessoa: como eu, Felipe, penso e resolvo isso nos projetos",
   direto: "direto ao ponto: frases curtíssimas, sem rodeio, como um conselho de amigo",
+  meme: "meme brasileiro de internet: descontraído, exagero cômico, expressões como \"socorro\", \"real oficial\", \"quem nunca\"; sem palavrão, sem zoar o cliente nem pessoas reais",
 };
 
 export const ELEMENTOS_VISUAIS = ["celular", "navegador", "grafico", "calendario", "estrelas", "notificacao", "nenhum"];
@@ -71,7 +80,7 @@ export const FORMATOS = {
 };
 
 // Como cada tela aparece: o desenho e a animação mudam conforme o tipo.
-export const VISUAIS = ["capa", "impacto", "lista", "contraste", "pergunta", "texto", "cta"];
+export const VISUAIS = ["capa", "impacto", "lista", "contraste", "pergunta", "texto", "meme", "cta"];
 // O clima da trilha do Reels.
 export const TRILHAS = ["energica", "tensa", "inspiradora", "groove"];
 
@@ -101,7 +110,7 @@ const POST_JSON_SCHEMA = {
       items: {
         type: "object",
         properties: {
-          visual: { type: "string", enum: VISUAIS, description: "capa (só a 1ª tela), impacto (frase curta e forte, 2 a 5 palavras, letras gigantes), lista (item numerado), contraste (titulo = errado/antes/mito, texto = certo/depois/verdade, sem escrever \"Antes:\" ou \"Mito:\": o rótulo já aparece no cartão), pergunta, texto (frase + explicação), cta (só a última tela). Misture tipos: no máximo 3 telas seguidas do mesmo tipo" },
+          visual: { type: "string", enum: VISUAIS, description: "meme (piada visual: titulo = a situação, texto = o desfecho curto e engraçado, destaque = UMA destas reações: neutro, choque, choro, caveira, palhaco, rindo), capa (só a 1ª tela), impacto (frase curta e forte, 2 a 5 palavras, letras gigantes), lista (item numerado), contraste (titulo = errado/antes/mito, texto = certo/depois/verdade, sem escrever \"Antes:\" ou \"Mito:\": o rótulo já aparece no cartão), pergunta, texto (frase + explicação), cta (só a última tela). Misture tipos: no máximo 3 telas seguidas do mesmo tipo" },
           titulo: { type: "string", description: "frase grande da tela, no máximo 9 palavras (impacto: até 5)" },
           texto: { type: "string", description: "complemento curto, no máximo 20 palavras (pode ficar vazio na capa e no impacto)" },
           destaque: { type: "string", description: "uma ou duas palavras do título que aparecem coloridas (copiadas exatamente do título)" },
@@ -157,6 +166,7 @@ Roteiro:
 - Nunca invente clientes, depoimentos, resultados, estatísticas ou números de pesquisa que não estejam na base. Não cite preços.
 - Não use telefone, site ou e-mail no post: a chamada é sempre para o direct, os comentários ou o link na bio.
 - Sem emojis nas telas (a legenda pode ter poucos).
+- Memes: só com texto e situações do dia a dia de quem tem empresa. Nunca use imagem, nome ou bordão de pessoa real ou famosa, nem meme de marca.
 
 Reels: as falas são a narração da voz. Juntas, contam a história em 20 a 35 segundos, com energia de criador de conteúdo,
 frases faladas naturais (não leia a tela) e a primeira fala tão forte quanto o gancho.
