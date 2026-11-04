@@ -1060,8 +1060,24 @@ export async function funilDeConversas() {
   // Não responderam: empresas contatadas sem nenhuma resposta de verdade (a automática do
   // WhatsApp Business não conta). "Na sequência" = ainda têm etapas para receber.
   // As conversas dos agentes de atendimento não são da prospecção e ficam fora do funil.
-  return um(
+  // "agora": onde cada empresa contatada está neste momento, numa etapa só (sem contar duas vezes).
+  const f = await um(
     `WITH com_agente AS (SELECT id FROM leads WHERE agente_id IS NOT NULL),
+     etapas AS (
+       SELECT CASE
+           WHEN l.status = 'fechado' THEN 'fecharam'
+           WHEN l.status = 'agendado' THEN 'agendaram'
+           WHEN l.status IN ('sem_interesse', 'descadastrado') THEN 'recusaram'
+           WHEN l.status = 'descartado' THEN 'descartadas'
+           WHEN NOT EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IS DISTINCT FROM 'automatica') THEN
+             CASE WHEN EXISTS (SELECT 1 FROM mensagens p WHERE p.lead_id = l.id AND p.status = 'aprovada' AND p.tipo <> 'resposta')
+                  THEN 'recebendo_etapas' ELSE 'sem_resposta' END
+           WHEN EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IN ('interessado', 'quer_informacoes')) THEN 'interessadas'
+           ELSE 'em_conversa' END AS etapa
+         FROM leads l
+        WHERE l.agente_id IS NULL
+          AND EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada' AND m.tipo <> 'resposta')
+     ),
      sem_resposta AS (
        SELECT DISTINCT m.lead_id FROM mensagens m
         WHERE m.status = 'enviada' AND m.tipo <> 'resposta'
@@ -1074,9 +1090,16 @@ export async function funilDeConversas() {
           SELECT 1 FROM mensagens p WHERE p.lead_id = s.lead_id AND p.status = 'aprovada' AND p.tipo <> 'resposta'))::int AS nao_responderam_na_sequencia,
        (SELECT count(DISTINCT lead_id) FROM respostas WHERE classificacao IS DISTINCT FROM 'automatica' AND lead_id NOT IN (SELECT id FROM com_agente))::int AS responderam,
        (SELECT count(DISTINCT lead_id) FROM respostas WHERE classificacao IN ('interessado', 'quer_informacoes') AND lead_id NOT IN (SELECT id FROM com_agente))::int AS interessadas,
-       (SELECT count(*) FROM leads WHERE status = 'agendado')::int AS agendadas`
+       (SELECT count(*) FROM leads WHERE status = 'agendado')::int AS agendadas,
+       (SELECT count(*) FROM etapas WHERE etapa = 'recusaram')::int AS recusaram,
+       (SELECT json_object_agg(etapa, n) FROM (SELECT etapa, count(*)::int AS n FROM etapas GROUP BY etapa) x) AS agora`
   );
+  const agora = typeof f.agora === "string" ? JSON.parse(f.agora) : f.agora ?? {};
+  return { ...f, agora: Object.fromEntries(ETAPAS_DO_FUNIL.map((e) => [e, Number(agora[e]) || 0])) };
 }
+
+/** As etapas do "funil agora", na ordem em que aparecem no painel. */
+export const ETAPAS_DO_FUNIL = ["recebendo_etapas", "sem_resposta", "em_conversa", "interessadas", "agendaram", "fecharam", "recusaram", "descartadas"];
 
 /** Mensagens que ainda vão sair nesta conversa (respostas da IA e etapas agendadas). */
 export async function agendadasDaConversa(leadId) {

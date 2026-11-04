@@ -657,3 +657,31 @@ test("descoberta antes da call: sem entender a dor, nada de apresentação nem c
   assert.equal(apresentou, 1);
   assert.match(rb.sugestao_resposta, /bate-papo/);
 });
+
+test("funil: conta quem recusou e onde cada empresa contatada está agora (uma etapa por empresa)", async () => {
+  const { indicadoresDasConversas } = await import("../src/respostas/andamento.js");
+  const antes = await db.funilDeConversas();
+  const recusou = await novoLead("Funil Recusou", "recusou@funil.com");
+  await enviada(recusou, 2);
+  await db.criarResposta({ lead_id: recusou.id, canal: "email", origem_id: "fn-1", de: "recusou@funil.com", texto: "Não temos interesse", classificacao: "sem_interesse", resumo: "x" });
+  await db.atualizarLead(recusou.id, { status: "sem_interesse" });
+  const interessada = await novoLead("Funil Interessada", "interessada@funil.com");
+  await enviada(interessada, 2);
+  await db.criarResposta({ lead_id: interessada.id, canal: "email", origem_id: "fn-2", de: "interessada@funil.com", texto: "Quero saber mais", classificacao: "interessado", resumo: "x" });
+  await db.atualizarLead(interessada.id, { status: "respondeu" });
+  const calada = await novoLead("Funil Calada", "calada@funil.com");
+  await enviada(calada, 2);
+  const etapa2 = await db.criarMensagem({ lead_id: calada.id, canal: "email", destino: "calada@funil.com", assunto: "x", corpo: "etapa 2", etapa: 2, tipo: "sequencia" });
+  await db.atualizarMensagem(etapa2, { status: "aprovada" });
+
+  const depois = await db.funilDeConversas();
+  assert.equal(depois.recusaram - antes.recusaram, 1);
+  assert.equal(depois.agora.recusaram - antes.agora.recusaram, 1);
+  assert.equal(depois.agora.interessadas - antes.agora.interessadas, 1);
+  assert.equal(depois.agora.recebendo_etapas - antes.agora.recebendo_etapas, 1);
+  // Cada empresa contatada está numa etapa só.
+  assert.equal(Object.values(depois.agora).reduce((a, b) => a + b, 0), depois.contatadas);
+  const ind = indicadoresDasConversas([], depois);
+  assert.equal(ind.recusaram, depois.recusaram);
+  assert.equal(ind.taxaRecusa, Math.round((depois.recusaram / depois.responderam) * 100));
+});

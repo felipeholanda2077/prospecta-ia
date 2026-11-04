@@ -358,7 +358,18 @@
   .dash-servico small { display: block; color: var(--subtle); font-size: 11.5px; }
   .dash-servico .pilula { flex: none; max-width: 55%; white-space: normal; text-align: right; }
   .funil { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 16px;
-           display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+           display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .funil-etapa.recusa .funil-barra i { background: var(--danger); }
+  .funil-agora { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin: -4px 0 16px; display: grid; gap: 12px; }
+  .fa-cab { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; font-size: 14px; }
+  .fa-cab .muted { font-size: 13px; }
+  .fa-barra { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--surface-3); gap: 2px; }
+  .fa-barra i { display: block; height: 100%; }
+  .fa-etapas { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 14px; }
+  .fa-etapa { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; }
+  .fa-etapa b { font-size: 17px; font-variant-numeric: tabular-nums; }
+  .fa-etapa span:last-child { display: block; color: var(--muted); }
+  .fa-cor { width: 10px; height: 10px; border-radius: 3px; flex: none; margin-top: 6px; }
   .funil-etapa small { font-size: 12px; color: var(--subtle); line-height: 1.35; }
   .funil-etapa.sem-resposta .funil-barra i { background: var(--warn); }
   .funil-etapa { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
@@ -2794,7 +2805,37 @@ function htmlIndicadores(ind) {
         <small>${ind.naoResponderamNaSequencia} ainda recebendo as etapas · ${ind.naoResponderamSequenciaEncerrada} já receberam todas</small></div>
       <div class="funil-etapa"><span>Mostraram interesse · ${ind.taxaInteresse}%</span><b>${f.interessadas}</b>${barra(f.interessadas)}</div>
       <div class="funil-etapa"><span>Agendaram · ${ind.taxaAgendamento}%</span><b>${f.agendadas}</b>${barra(f.agendadas)}</div>
-    </div>`;
+      <div class="funil-etapa recusa"><span>Recusaram · ${ind.taxaRecusa ?? 0}%</span><b>${ind.recusaram ?? 0}</b>${barra(ind.recusaram ?? 0)}
+        <small>disseram não ou pediram para sair, de quem respondeu</small></div>
+    </div>
+    ${htmlFunilAgora(f)}`;
+}
+
+// Onde cada empresa contatada está agora (uma etapa por empresa), com a cor de cada etapa.
+const ETAPAS_FUNIL = [
+  ["recebendo_etapas", "Recebendo as etapas", "var(--accent)", "ainda não responderam; a sequência continua"],
+  ["sem_resposta", "Sem resposta", "var(--warn)", "receberam todas as etapas e não responderam"],
+  ["em_conversa", "Em conversa", "var(--cyan)", "responderam; a IA ainda está entendendo a dor"],
+  ["interessadas", "Interessadas", "#14b8a6", "mostraram interesse; falta agendar"],
+  ["agendaram", "Agendaram", "#3b82f6", "reunião marcada"],
+  ["fecharam", "Fecharam", "var(--ok)", "viraram clientes"],
+  ["recusaram", "Recusaram", "var(--danger)", "disseram não ou pediram para sair"],
+  ["descartadas", "Descartadas por você", "var(--subtle)", "tiradas do funil no painel"],
+];
+
+function htmlFunilAgora(f) {
+  const agora = f.agora ?? {};
+  const total = ETAPAS_FUNIL.reduce((t, [k]) => t + (agora[k] ?? 0), 0);
+  if (!total) return "";
+  const pct = (n) => Math.round((n / total) * 100);
+  const etapas = ETAPAS_FUNIL.filter(([k]) => k !== "descartadas" || agora[k]);
+  return `<div class="funil-agora" aria-label="Funil agora">
+    <div class="fa-cab"><b>Funil agora</b><span class="muted">Onde cada uma das ${total} empresas contatadas está neste momento</span></div>
+    <div class="fa-barra">${etapas.filter(([k]) => agora[k]).map(([k, nome, cor]) =>
+      `<i style="width:${Math.max(1, (agora[k] / total) * 100)}%;background:${cor}" title="${esc(nome)}: ${agora[k]} (${pct(agora[k])}%)"></i>`).join("")}</div>
+    <div class="fa-etapas">${etapas.map(([k, nome, cor, dica]) => `<div class="fa-etapa" title="${esc(dica)}">
+      <span class="fa-cor" style="background:${cor}"></span><div><b>${agora[k] ?? 0}</b> <span class="muted">· ${pct(agora[k] ?? 0)}%</span><span>${esc(nome)}</span></div></div>`).join("")}</div>
+  </div>`;
 }
 
 function horaCurta(quando) {

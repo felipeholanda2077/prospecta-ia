@@ -76,5 +76,8 @@ export function indicadoresDasConversas(lista, funil) {
     taxaResposta: pct(funil.responderam, funil.contatadas),
     taxaInteresse: pct(funil.interessadas, funil.responderam),
     taxaAgendamento: pct(funil.agendadas, funil.interessadas),
+    // De quem respondeu, quantos disseram não (ou pediram para sair).
+    recusaram: funil.recusaram ?? 0,
+    taxaRecusa: pct(funil.recusaram ?? 0, funil.responderam),
   };
 }
