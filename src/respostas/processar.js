@@ -36,6 +36,11 @@ const chavePausa = (leadId) => `ia_pausada:${leadId}`;
 
 /** A IA não responde mais esta conversa (robô do outro lado, ou você parou). Volta com "IA continua". */
 export const pausarIA = (leadId, motivo) => db.gravarEstado(chavePausa(leadId), motivo);
+const MOTIVO_ROBO = "parece um atendimento automático";
+/** A conversa foi parada porque do outro lado parecia um robô (e não por você, nem por um agente que delegou). */
+export const pausadaPorRobo = (pausa) => String(pausa ?? "").startsWith(MOTIVO_ROBO);
+const RELEITURAS_DE_ROBO = 2;
+const chaveReleituras = (leadId) => `robo_releituras:${leadId}`;
 export const iaPausada = (leadId) => db.lerEstado(chavePausa(leadId));
 const retomarIA = (leadId) => db.gravarEstado(chavePausa(leadId), "");
 
@@ -189,7 +194,19 @@ export async function registrarResposta({
   const limpo = limparTextoResposta(texto) || String(texto ?? "").slice(0, 2000);
 
   // Robô do outro lado (ou conversa parada por você): registra sem gastar IA e sem responder.
-  const pausada = await iaPausada(lead.id);
+  let pausada = await iaPausada(lead.id);
+  // Parada por robô, mas chegou uma mensagem nova (diferente das que o robô já mandou): pode ser a pessoa
+  // escrevendo depois da mensagem automática. A IA lê de novo; se for robô outra vez, a conversa para de novo.
+  // (No máximo RELEITURAS_DE_ROBO vezes por conversa: robô que varia o texto não gasta IA para sempre.)
+  if (pausadaPorRobo(pausada) && !(await db.textoJaRecebido(lead.id, limpo))) {
+    const releituras = Number(await db.lerEstado(chaveReleituras(lead.id))) || 0;
+    if (releituras < RELEITURAS_DE_ROBO) {
+      await db.gravarEstado(chaveReleituras(lead.id), String(releituras + 1));
+      await retomarIA(lead.id);
+      pausada = "";
+      log(`🔁 ${lead.nome} escreveu algo novo numa conversa parada por robô: a IA lê de novo`);
+    }
+  }
   // No agente quem chamou foi o cliente, e gente responde rápido no WhatsApp: lá só a IA decide se é robô.
   const robo = pausada || agente ? null : roboPelaVelocidade(await db.historicoConversa(lead.id));
   if (pausada || robo) {
@@ -260,6 +277,9 @@ export async function registrarResposta({
   }
 
   // Robô do outro lado, ou nada a responder (só agradeceu/despediu): não responde e não gasta mais IA.
+  // Mensagem automática do WhatsApp Business ("agradecemos o contato, responderemos em breve") não para a conversa:
+  // a pessoa costuma escrever logo depois. Só para quando a IA vê um robô respondendo de verdade.
+  if (c.classificacao === "automatica") c = { ...c, robo: false };
   if (c.robo || c.encerrar) {
     await db.atualizarResposta(id, { lida: true });
     if (c.robo) await pararPorRobo(lead, "parece um atendimento automático (robô)");

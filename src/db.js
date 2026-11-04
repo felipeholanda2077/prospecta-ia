@@ -963,6 +963,14 @@ export async function buscarResposta(id) {
   return um(`SELECT r.*, l.nome AS empresa, l.token, l.email, l.whatsapp FROM respostas r JOIN leads l ON l.id = r.lead_id WHERE r.id = $1`, [id]);
 }
 
+/** Esta empresa já mandou exatamente este texto antes? (Robô repete a mesma mensagem.) */
+export async function textoJaRecebido(leadId, texto) {
+  return Boolean(await um(
+    "SELECT 1 AS x FROM respostas WHERE lead_id = $1 AND lower(btrim(texto)) = lower(btrim($2)) LIMIT 1",
+    [leadId, String(texto ?? "")]
+  ));
+}
+
 export async function respostaJaRegistrada(origemId) {
   return Boolean(await um("SELECT 1 AS x FROM respostas WHERE origem_id = $1", [origemId]));
 }

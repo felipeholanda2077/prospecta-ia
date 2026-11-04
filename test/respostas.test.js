@@ -512,9 +512,15 @@ test("robô do outro lado: respondeu 3 vezes em segundos, a IA para e não gasta
   };
   await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB1", de: "5511911112222", texto: "Obrigado! 😊", campanha: camp, classificar: robo });
   assert.equal((await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id).length, 0);
-  const r = await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB2", de: "5511911112222", texto: "Até mais!", campanha: camp, classificar: robo });
+  // Mensagem nova (diferente) numa conversa parada por robô: a IA relê (pode ser a pessoa), e o robô para de novo.
+  await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB2", de: "5511911112222", texto: "Até mais!", campanha: camp, classificar: robo });
+  assert.equal(chamadas, 2);
+  // Repetida, nem passa pela IA; e depois de 2 releituras, nada mais passa.
+  assert.equal((await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB3", de: "5511911112222", texto: "Até mais!", campanha: camp, classificar: robo })).pausada, true);
+  await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB4", de: "5511911112222", texto: "Volte sempre!", campanha: camp, classificar: robo });
+  const r = await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB5", de: "5511911112222", texto: "Obrigado pela preferência", campanha: camp, classificar: robo });
   assert.equal(r.pausada, true);
-  assert.equal(chamadas, 1); // a segunda mensagem nem passou pela IA
+  assert.equal(chamadas, 3);
 });
 
 test("só agradeceu depois do nosso obrigado: a IA não responde (sem vai e volta)", async () => {
@@ -554,4 +560,36 @@ test("conversa já começada: a IA não diz bom dia de novo nem se apresenta out
   assert.equal(r.sugestao_resposta, "Entendo a desconfiança.");
   const [saindo] = await db.consultar("SELECT corpo FROM mensagens WHERE lead_id = $1 AND tipo = 'resposta' ORDER BY id DESC LIMIT 1", [lead.id]);
   assert.equal(saindo.corpo, "Entendo a desconfiança.");
+});
+
+test("mensagem automática do WhatsApp Business não para a conversa, e pessoa escrevendo depois do robô é respondida", async () => {
+  const { iaPausada, pausarIA } = await import("../src/respostas/processar.js");
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 5 } };
+  const lead = await novoLead("Chaves Teste", "chaves@teste.com");
+  const m = await db.criarMensagem({ lead_id: lead.id, canal: "whatsapp", destino: "5511999433761", corpo: "Oi, tudo bem? Aqui é o Felipe, da FluxDeck." });
+  await db.atualizarMensagem(m, { status: "enviada", enviada_em: new Date().toISOString() });
+  const resposta = (extra) => async () => ({ resumo: "x", sugestao_resposta: "", precisa_humano: false, motivo_humano: "", indicou_contato: false,
+    temperatura: "fria", proximo_passo: "", encerrar: false, ...extra });
+
+  // 1) A saudação automática (a IA às vezes marca também como robô): não para a conversa.
+  await registrarResposta({ lead, canal: "whatsapp", origem_id: "ch-1", de: "5511999433761", campanha: camp,
+    texto: "Chaves Multimarcas agradece o contato, responderemos o mais breve possível.",
+    classificar: resposta({ classificacao: "automatica", robo: true }) });
+  assert.equal(await iaPausada(lead.id), null);
+
+  // 2) Parada por robô (como estava em produção) e a pessoa escreve algo novo: a IA lê de novo e responde.
+  await pausarIA(lead.id, "parece um atendimento automático (robô)");
+  let leu = 0;
+  const r = await registrarResposta({ lead, canal: "whatsapp", origem_id: "ch-2", de: "5511999433761", campanha: camp, texto: "Bom dia.\nSobre o que seria ?",
+    classificar: async (...a) => { leu++; return resposta({ classificacao: "outro", robo: false, sugestao_resposta: "A gente faz sites e sistemas. Vocês já têm site?" })(...a); } });
+  assert.equal(leu, 1);
+  assert.equal(await iaPausada(lead.id), "");
+  assert.equal(r.sugestao_resposta, "A gente faz sites e sistemas. Vocês já têm site?");
+
+  // 3) Robô repetindo a mesma mensagem: continua parado, sem gastar IA.
+  await pausarIA(lead.id, "parece um atendimento automático (robô)");
+  await registrarResposta({ lead, canal: "whatsapp", origem_id: "ch-3", de: "5511999433761", campanha: camp,
+    texto: "Chaves Multimarcas agradece o contato, responderemos o mais breve possível.",
+    classificar: async () => { throw new Error("não deveria gastar IA"); } });
+  assert.match(await iaPausada(lead.id), /atendimento automático/);
 });
