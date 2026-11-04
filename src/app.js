@@ -55,6 +55,7 @@ import { dashboardDoPainel } from "./dashboard.js";
 import * as agentes from "./respostas/agentes.js";
 import * as crm from "./respostas/crmAgente.js";
 import { previsaoDoFollowup, registrosDeFollowup } from "./respostas/followup.js";
+import { fotoDoLead } from "./respostas/fotos.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -579,6 +580,16 @@ app.post("/api/crm/conversas/:leadId/agente-continua", rotaCrm(async (req) => {
   return { ok: true, sugestao: feito.sugestao };
 }));
 
+// Foto de perfil do cliente, só das conversas deste agente.
+app.get("/api/crm/foto/:leadId", async (req, res) => {
+  try {
+    await crm.conversaDoAgente(req.crm.agente.id, req.params.leadId);
+  } catch {
+    return res.sendStatus(404);
+  }
+  return enviarFoto(req.params.leadId, res);
+});
+
 app.post("/api/crm/conversas/:leadId/fechou", rotaCrm(async (req) => {
   const lead = await crm.conversaDoAgente(req.crm.agente.id, req.params.leadId);
   await db.atualizarLead(lead.id, { status: req.body?.fechou === false ? "respondeu" : "fechado" });
@@ -1099,6 +1110,16 @@ app.get("/api/conversas", async (req, res) => {
   const conversas = (await conversasAvaliadas()).map((c) => ({ ...c, followup: followupDaConversa(c, registros) }));
   res.json({ indicadores: indicadoresDasConversas(conversas, await db.funilDeConversas()), conversas });
 });
+
+/** Manda a foto de perfil da empresa (ou 204, sem foto: o painel mostra a inicial). */
+async function enviarFoto(leadId, res) {
+  const foto = await fotoDoLead(Number(leadId)).catch(() => null);
+  if (!foto) return res.set("Cache-Control", "private, max-age=3600").sendStatus(204);
+  res.set({ "Content-Type": foto.tipo, "Cache-Control": "private, max-age=86400" }).send(foto.dados);
+}
+
+// Foto de perfil da empresa (do WhatsApp, ou do Instagram), para os avatares.
+app.get("/api/foto/:leadId", (req, res) => enviarFoto(req.params.leadId, res));
 
 // As empresas de uma ou mais etapas do funil (clicar numa etapa da tela Respostas mostra quem são).
 app.get("/api/funil/empresas", async (req, res) => {

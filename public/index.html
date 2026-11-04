@@ -418,6 +418,8 @@
   .chat-item:hover { background: var(--surface-2); }
   .chat-item[aria-current="true"] { background: var(--accent-soft); }
   .chat-item .avatar { width: 40px; height: 40px; border-radius: 50%; font-size: 15px; }
+  .avatar { position: relative; overflow: hidden; }
+  .avatar .foto-perfil { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: var(--surface-2); }
   .chat-item .meio { min-width: 0; display: grid; gap: 3px; }
   .chat-item .nome { font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .chat-item .previa { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2461,7 +2463,7 @@ function quandoSai(m) {
 
 function cabecalhoMensagem(m) {
   return `<div class="cartao-cab">
-    <span class="avatar">${inicial(m.empresa)}</span>
+    <span class="avatar">${inicial(m.empresa)}${fotoLead(m.lead_id)}</span>
     <div class="titulos">
       <h3>${esc(m.empresa)}
         <span class="pilula ${m.canal === "email" ? "acc" : "wa"}">${ic(icCanal(m.canal), "sm")}${CANAL[m.canal]}</span>
@@ -2615,7 +2617,7 @@ function cardFilaEmpresa(ms) {
     ? `<div class="oportunidades">${m.oportunidades.map((o) => `<span class="pilula acc">${ic("spark", "sm")}${esc(o.motivo)}</span>`).join("")}</div>` : "";
   return `<article class="cartao" data-lead="${m.lead_id}">
     <div class="cartao-cab">
-      <span class="avatar">${inicial(m.empresa)}</span>
+      <span class="avatar">${inicial(m.empresa)}${fotoLead(m.lead_id)}</span>
       <div class="titulos">
         <h3>${esc(m.empresa)}</h3>
         <div class="meta">
@@ -2778,7 +2780,7 @@ function cardResposta(r) {
   const [rotulo, cor, icone] = ROTULOS_RESPOSTA[r.classificacao] ?? ["Sem classificação", "", "message"];
   return `<article class="cartao" data-resposta="${r.id}" data-canal="${r.canal}" ${r.lida ? "" : 'style="border-left:4px solid var(--accent)"'}>
     <div class="cartao-cab">
-      <span class="avatar">${inicial(r.empresa)}</span>
+      <span class="avatar">${inicial(r.empresa)}${fotoLead(r.lead_id)}</span>
       <div class="titulos">
         <h3>${esc(r.empresa)} <span class="pilula ${cor}">${ic(icone, "sm")}${rotulo}</span>${r.lida ? "" : `<span class="pilula acc">Nova</span>`}
           ${r.mensagem_id ? `<span class="pilula acc">${ic("spark", "sm")}Respondida pela IA</span>` : ""}
@@ -2941,7 +2943,7 @@ async function abrirEmpresasDoFunil(etapas, titulo) {
     const nomeDaEtapa = Object.fromEntries(FAIXAS_FUNIL.flatMap((fx) => fx.pararam));
     $("#fe-lista", janela).innerHTML = empresas.length ? `<p class="muted" style="margin:0 0 10px">${empresas.length} ${empresas.length === 1 ? "empresa" : "empresas"}</p>` +
       empresas.map((e) => `<article class="fe-linha">
-        <span class="avatar">${inicial(e.nome)}</span>
+        <span class="avatar">${inicial(e.nome)}${fotoLead(e.id)}</span>
         <div class="fe-info"><b>${esc(e.nome)}</b>
           <small class="muted">${[e.nicho, e.cidade].filter(Boolean).map(esc).join(" · ")}${etapas.includes(",") ? ` · <span class="pilula">${esc(nomeDaEtapa[e.etapa] ?? e.etapa)}</span>` : ""}</small>
           <small class="muted">${[e.whatsapp && `${ic("message", "sm")}${esc(e.whatsapp)}`, e.email && `${ic("mail", "sm")}${esc(e.email)}`, e.instagram && `${ic("camera", "sm")}@${esc(e.instagram)}`].filter(Boolean).join(" ")}</small>
@@ -2981,8 +2983,11 @@ function horaCurta(quando) {
 }
 
 /** Avatar da empresa; quem demonstrou interesse ganha a coroa. */
-function avatarConversa(nome, interessado) {
-  const avatar = `<span class="avatar">${inicial(nome)}</span>`;
+/** A foto de perfil da empresa por cima da inicial (some sozinha quando a empresa não tem foto). */
+const fotoLead = (id) => (id ? `<img class="foto-perfil" src="/api/foto/${id}" alt="" loading="lazy" decoding="async" onerror="this.remove()">` : "");
+
+function avatarConversa(nome, interessado, id = null) {
+  const avatar = `<span class="avatar">${inicial(nome)}${fotoLead(id)}</span>`;
   return interessado ? `<span class="avatar-coroa" title="Demonstrou interesse">${avatar}<span class="coroa">${ic("crown", "sm")}</span></span>` : avatar;
 }
 
@@ -2992,7 +2997,7 @@ function itemConversa(c) {
   const u = c.ultima;
   const previa = u ? `${u.autor === "nos" ? "Você: " : ""}${u.texto.replace(/\s+/g, " ")}` : "";
   return `<button class="chat-item${c.interessado ? " interessado" : ""}" data-conversa-id="${c.id}" aria-current="${c.id === conversaAberta}">
-    ${avatarConversa(c.nome, c.interessado)}
+    ${avatarConversa(c.nome, c.interessado, c.id)}
     <span class="meio"><span class="nome">${esc(c.nome)}</span>
       <span class="previa">${u ? ic(icCanal(u.canal), "sm") : ""} ${esc(previa)}</span>
       <span>${c.followup?.quando ? `<span class="pilula" title="${esc(textoDoFollowup(c.followup))}">${ic("bell", "sm")}follow-up ${emQuantoTempo(c.followup.quando)}</span> ` : ""}${c.agente_nome ? `<span class="pilula">${ic("users", "sm")}${esc(c.agente_nome)}</span> ` : ""}${c.interessado ? `${pilulaInteresse()} ` : ""}${pilulaChance(c.andamento)}${c.andamento.precisaDeVoce ? ` <span class="pilula perigo">${ic("alert", "sm")}Você</span>` : ""}</span></span>
@@ -3100,7 +3105,7 @@ async function abrirConversa(id, { atualizar = false } = {}) {
   painel.innerHTML = `
     <div class="chat-topo">
       <button class="btn fantasma sm so-celular" data-voltar-lista aria-label="Voltar para as conversas">${ic("arrowLeft", "sm")}</button>
-      ${avatarConversa(d.lead.nome, d.interessado)}
+      ${avatarConversa(d.lead.nome, d.interessado, d.lead.id)}
       <div class="titulos"><h3>${esc(d.lead.nome)}${d.interessado ? ` ${pilulaInteresse()}` : ""}</h3>
         <div class="meta">${d.agente ? `<a href="#agentes">${ic("users", "sm")}Agente ${esc(d.agente)}</a>` : ""}${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}${d.lead.instagram ? `<a href="https://www.instagram.com/${esc(d.lead.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(d.lead.instagram)}</a>` : ""}</div></div>
       ${a ? pilulaChance(a) : ""}
@@ -3244,7 +3249,7 @@ function cardLead(l) {
   const [rotulo, cor] = STATUS_LEAD[l.status] ?? [l.status, ""];
   return `<article class="cartao" data-lead="${l.id}">
     <div class="cartao-cab" style="border-bottom:0">
-      <span class="avatar">${inicial(l.nome)}</span>
+      <span class="avatar">${inicial(l.nome)}${fotoLead(l.id)}</span>
       <div class="titulos">
         <h3>${esc(l.nome)}</h3>
         <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}${l.origem === "instagram" ? `<span class="pilula">${ic("camera", "sm")}Instagram</span>` : ""}${l.origem === "instagram_direct" ? `<span class="pilula">${ic("camera", "sm")}Chamou no direct</span>` : ""}${l.origem === "cnpj" ? `<span class="pilula">${ic("building", "sm")}CNPJ</span>` : ""}${l.origem === "formulario" ? `<span class="pilula ok">${ic("inbox", "sm")}Formulário do site</span>` : ""}</div>
@@ -5402,7 +5407,7 @@ function itemDoDirect(c) {
   const u = c.ultima;
   const [cor, texto] = situacaoDoDirect(c);
   return `<button type="button" class="chat-item${c.interessado ? " interessado" : ""}" data-direct-id="${c.id}" aria-current="${c.id === directAberto}">
-    ${avatarConversa(c.nome, c.interessado)}
+    ${avatarConversa(c.nome, c.interessado, c.id)}
     <span class="meio"><span class="nome">${esc(c.nome)}</span>
       <span class="previa">${u ? esc(`${u.autor === "nos" ? "IA: " : ""}${u.texto.replace(/\s+/g, " ")}`) : ""}</span>
       <span><span class="pilula ${cor}">${texto}</span> ${pilulaChance(c.andamento)}</span></span>
@@ -5456,7 +5461,7 @@ async function abrirConversaDoDirect(id, { atualizar = false } = {}) {
   $("#directs-painel").innerHTML = `
     <div class="chat-topo">
       <button type="button" class="btn fantasma sm so-celular" data-direct-voltar aria-label="Voltar para as conversas">${ic("arrowLeft", "sm")}</button>
-      ${avatarConversa(d.lead.nome, d.interessado)}
+      ${avatarConversa(d.lead.nome, d.interessado, d.lead.id)}
       <div class="titulos"><h3>${esc(d.lead.nome)}</h3>
         <div class="meta">${d.lead.instagram ? `<a href="https://www.instagram.com/${esc(d.lead.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(d.lead.instagram)}</a>` : ""}</div></div>
       ${d.andamento ? pilulaChance(d.andamento) : ""}
@@ -6365,7 +6370,7 @@ function htmlAcompanhamento() {
       const [rotulo, cor] = ANDAMENTO_AGENTE[c.agente.estado];
       const u = c.ultima;
       return `<article class="cartao"><div class="ct-linha" style="cursor:default;flex-wrap:wrap">
-        <span class="avatar">${inicial(c.nome)}</span>
+        <span class="avatar">${inicial(c.nome)}${fotoLead(c.id)}</span>
         <span class="ct-linha-texto" style="flex:1 1 240px"><b>${esc(c.nome)}${c.whatsapp ? ` <span class="muted" style="font-weight:400">+${esc(c.whatsapp)}</span>` : ""}</b>
           ${u ? `<span class="muted">${u.autor === "nos" ? "Agente: " : ""}${esc(u.texto.replace(/\s+/g, " ").slice(0, 160))}</span>` : ""}
           <span class="muted" style="font-size:12.5px">${ic("clock", "sm")} ${u ? dataHora(u.quando) : ""} · ${esc(c.andamento.proximoPasso)}</span></span>

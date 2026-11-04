@@ -76,6 +76,7 @@ test("crm do agente: login próprio, só as conversas do agente, e remover o log
     const aberta = await (await chamar(`/api/crm/conversas/${doBruno}`, { cookie: ana })).json();
     assert.equal(aberta.mensagens[0].texto, "Oi, sou Carlos");
     assert.equal(aberta.lead.token, undefined);
+    assert.equal((await chamar(`/api/crm/foto/${doOutro}`, { cookie: ana })).status, 404); // foto de cliente de outro agente: não
 
     // Assumir para o agente; marcar como fechada; cuidar da base.
     assert.equal((await chamar(`/api/crm/conversas/${doBruno}/assumir`, { cookie: ana, metodo: "POST" })).status, 200);

@@ -217,6 +217,12 @@ export async function apagarMidiasAntigas(prefixo, dias) {
   await q("DELETE FROM midias WHERE chave LIKE $1 AND criada_em < now() - make_interval(days => $2)", [`${prefixo}%`, dias]);
 }
 
+/** A mídia com a data em que foi gravada (para saber se já venceu). */
+export async function lerMidiaComData(chave) {
+  const m = await um("SELECT tipo, dados, criada_em FROM midias WHERE chave = $1", [chave]);
+  return m && { tipo: m.tipo, dados: Buffer.from(m.dados, "base64"), criadaEm: new Date(m.criada_em) };
+}
+
 export async function lerMidia(chave) {
   const m = await um("SELECT tipo, dados FROM midias WHERE chave = $1", [chave]);
   return m && { tipo: m.tipo, dados: Buffer.from(m.dados, "base64") };
@@ -225,7 +231,8 @@ export async function lerMidia(chave) {
 /** Apaga as mídias de um post, menos a chave em `menos` (e as esquecidas há mais de 3 dias). */
 export async function apagarMidias(prefixo, { menos = null } = {}) {
   // As fotos dos produtos ficam: elas são o cadastro, não um arquivo temporário de post.
-  await q("DELETE FROM midias WHERE (starts_with(chave, $1) AND chave IS DISTINCT FROM $2::text) OR (criada_em < now() - interval '3 days' AND NOT starts_with(chave, 'produto-') AND NOT starts_with(chave, 'relatorio-'))", [prefixo, menos]);
+  // As fotos de perfil das empresas também: elas vencem sozinhas (respostas/fotos.js renova a cada 7 dias).
+  await q("DELETE FROM midias WHERE (starts_with(chave, $1) AND chave IS DISTINCT FROM $2::text) OR (criada_em < now() - interval '3 days' AND NOT starts_with(chave, 'produto-') AND NOT starts_with(chave, 'relatorio-') AND NOT starts_with(chave, 'foto-lead-'))", [prefixo, menos]);
 }
 
 // ---------- Fornecedores de dropshipping ----------

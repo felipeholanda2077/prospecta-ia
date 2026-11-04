@@ -351,6 +351,12 @@ export async function enviarAudio(destino, audio, { numeroId } = {}) {
   return dados.messageid ?? dados.id ?? null;
 }
 
+/** O link (temporário) da foto de perfil do contato no WhatsApp, pelo número `numeroId`; "" quando não tem foto. */
+export async function fotoDoContato(destino, { numeroId } = {}) {
+  const dados = await chamar(numeroId, "/chat/avatar", { method: "POST", corpo: { number: paraUazap(destino), preview: true } });
+  return String(dados?.url ?? "");
+}
+
 /**
  * Pergunta à UAZap quais números estão no WhatsApp (funciona também com fixo,
  * já que muita empresa usa WhatsApp Business no número fixo).

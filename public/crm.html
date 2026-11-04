@@ -77,6 +77,8 @@
   .avatar { width: 40px; height: 40px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 700; font-size: 15px; color: #fff;
             background: linear-gradient(135deg, #1677ff, #06b6d4); position: relative; }
   .avatar.grande { width: 72px; height: 72px; font-size: 28px; }
+  .avatar:not(.desenho) { overflow: hidden; }
+  .avatar .foto-perfil { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
   .avatar.desenho { background: none; }
   .avatar.desenho svg { width: 100%; height: 100%; display: block; }
   .avatar.enorme { width: 108px; height: 108px; }
@@ -478,6 +480,8 @@ const hora = (d) => new Date(d).toLocaleTimeString("pt-BR", { hour: "2-digit", m
 const dataHora = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "");
 const quandoCurto = (d) => (!d ? "" : new Date(d).toDateString() === new Date().toDateString() ? hora(d) : new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }));
 const inicial = (n) => esc((String(n ?? "?").trim()[0] ?? "?").toUpperCase());
+/** A foto de perfil do cliente no WhatsApp por cima da inicial (some sozinha quando ele não tem foto). */
+const fotoCliente = (id) => `<img class="foto-perfil" src="/api/crm/foto/${id}" alt="" loading="lazy" decoding="async" onerror="this.remove()">`;
 const ICONES = {
   message: '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
@@ -730,7 +734,7 @@ function desenharLista() {
     const [rotulo, cor] = ANDAMENTO[c.agente.estado];
     const u = c.ultima;
     return `<button class="item" type="button" data-conversa="${c.id}" aria-current="${c.id === aberta}">
-      <span class="avatar">${inicial(c.nome)}</span>
+      <span class="avatar">${inicial(c.nome)}${fotoCliente(c.id)}</span>
       <span class="meio">
         <span class="linha"><b>${esc(c.nome)}</b><small>${quandoCurto(u?.quando)}</small></span>
         <span class="previa">${u ? `${u.autor === "nos" ? "✓ " : ""}${esc(u.texto.replace(/\s+/g, " "))}` : ""}</span>
@@ -770,7 +774,7 @@ async function abrir(id, { atualizar = false } = {}) {
   $("#painel").innerHTML = `
     <div class="painel-topo">
       <button class="btn fantasma sm voltar" type="button" data-voltar>${ic("arrowLeft", "sm")}</button>
-      <span class="avatar">${inicial(d.lead.nome)}</span>
+      <span class="avatar">${inicial(d.lead.nome)}${fotoCliente(d.lead.id)}</span>
       <div class="nome"><b>${esc(d.lead.nome)}</b><br><small>${d.lead.whatsapp ? `+${esc(d.lead.whatsapp)}` : ""}</small></div>
       <span class="pilula ${cor}">${rotulo}</span>
       ${d.iaPausada
