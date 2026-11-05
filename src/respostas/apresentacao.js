@@ -1,7 +1,7 @@
 import * as db from "../db.js";
 
 // O que a IA conta para quem demonstra interesse: como funciona, os planos e o prazo, tirado do
-// site https://fluxdeck.vercel.app. Fica editável em Automação no painel; mude lá quando os planos mudarem.
+// site https://fluxdeck.com.br. Fica editável em Automação no painel; mude lá quando os planos mudarem.
 export const APRESENTACAO_PADRAO = `Como funciona:
 1) Reunião inicial gratuita de 30 minutos, online pelo Meet, para entender o que a empresa precisa.
 2) Definição do escopo e do cronograma.

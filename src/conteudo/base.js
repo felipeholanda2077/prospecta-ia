@@ -1,11 +1,11 @@
 import * as db from "../db.js";
 
 // O que a IA sabe sobre a FluxDeck para criar os posts: o conteúdo do site
-// https://fluxdeck.vercel.app (o site é montado no navegador, então o servidor não consegue
+// https://fluxdeck.com.br (o site é montado no navegador, então o servidor não consegue
 // lê-lo sozinho). Fica editável na página Conteúdo do painel; mude lá quando o site mudar.
 // Os depoimentos do site ficaram de fora (parecem exemplos de modelo); preços também.
 export const BASE_PADRAO = `FluxDeck — Desenvolvimento de software sob medida com inteligência artificial. "Transforme ideias em software."
-Site: fluxdeck.vercel.app · Alphaville, Barueri - SP
+Site: fluxdeck.com.br · Alphaville, Barueri - SP
 
 O que a FluxDeck faz:
 - Desenvolvimento web: sites e sistemas sob medida, com design responsivo, SEO e hospedagem.
