@@ -19,6 +19,11 @@
     --ok: #12a150; --ok-soft: #e2f6ea; --danger: #d92d4a; --danger-soft: #fde8ec; --warn: #b7791f; --warn-soft: #fdf3dc;
     --chat: #efe7dd; --bolha: #d9fdd3; --radius: 16px; --radius-sm: 10px;
     --shadow: 0 1px 2px rgba(20, 21, 40, .05), 0 10px 30px -14px rgba(20, 21, 40, .2);
+
+    --marca-bg: radial-gradient(900px 500px at 0% 0%, rgba(22, 119, 255, .20), transparent 60%), radial-gradient(700px 500px at 100% 100%, rgba(6, 182, 212, .18), transparent 60%), #eef3ff;
+    --marca-texto: #0d1430; --marca-suave: rgba(13, 20, 48, .68); --marca-fraco: rgba(13, 20, 48, .5); --marca-ponto: rgba(13, 20, 48, .08);
+    --marca-bola: rgba(22, 119, 255, .10); --marca-bola-ic: #1677ff; --marca-orbe1: #7fb3ff; --marca-orbe2: #67e8f9; --marca-orbe3: #c4b5fd;
+    --marca-cartao: rgba(255, 255, 255, .78); --marca-borda: rgba(13, 20, 48, .08); --msg-cli: #ffffff; --msg-ia: #d9fdd3; --msg-texto: #14151f;
     color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
@@ -27,6 +32,11 @@
       --accent: #3d8bff; --accent-hover: #5a9dff; --accent-soft: #0f2442; --accent-text: #7fb3ff;
       --ok: #34c574; --ok-soft: #10291c; --danger: #ff6b81; --danger-soft: #3a1720; --warn: #e0a43a; --warn-soft: #33260e;
       --chat: #0e1a14; --bolha: #144d37; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .7);
+
+      --marca-bg: radial-gradient(900px 500px at 0% 0%, rgba(22, 119, 255, .55), transparent 60%), radial-gradient(700px 500px at 100% 100%, rgba(6, 182, 212, .35), transparent 60%), #05070f;
+      --marca-texto: #ffffff; --marca-suave: rgba(255, 255, 255, .75); --marca-fraco: rgba(255, 255, 255, .5); --marca-ponto: rgba(255, 255, 255, .07);
+      --marca-bola: rgba(255, 255, 255, .10); --marca-bola-ic: #7fb3ff; --marca-orbe1: #1677ff; --marca-orbe2: #06b6d4; --marca-orbe3: #7c3aed;
+      --marca-cartao: rgba(20, 22, 37, .72); --marca-borda: rgba(255, 255, 255, .10); --msg-cli: #23273e; --msg-ia: #144d37; --msg-texto: #eceef8;
       color-scheme: dark;
     }
   }
@@ -35,6 +45,11 @@
     --accent: #3d8bff; --accent-hover: #5a9dff; --accent-soft: #0f2442; --accent-text: #7fb3ff;
     --ok: #34c574; --ok-soft: #10291c; --danger: #ff6b81; --danger-soft: #3a1720; --warn: #e0a43a; --warn-soft: #33260e;
     --chat: #0e1a14; --bolha: #144d37; --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px -14px rgba(0, 0, 0, .7);
+
+    --marca-bg: radial-gradient(900px 500px at 0% 0%, rgba(22, 119, 255, .55), transparent 60%), radial-gradient(700px 500px at 100% 100%, rgba(6, 182, 212, .35), transparent 60%), #05070f;
+    --marca-texto: #ffffff; --marca-suave: rgba(255, 255, 255, .75); --marca-fraco: rgba(255, 255, 255, .5); --marca-ponto: rgba(255, 255, 255, .07);
+    --marca-bola: rgba(255, 255, 255, .10); --marca-bola-ic: #7fb3ff; --marca-orbe1: #1677ff; --marca-orbe2: #06b6d4; --marca-orbe3: #7c3aed;
+    --marca-cartao: rgba(20, 22, 37, .72); --marca-borda: rgba(255, 255, 255, .10); --msg-cli: #23273e; --msg-ia: #144d37; --msg-texto: #eceef8;
     color-scheme: dark;
   }
   * { box-sizing: border-box; }
@@ -94,23 +109,23 @@
 
   /* Login */
   .login { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); background: var(--bg); }
-  .login-marca { position: relative; overflow: hidden; color: #fff; padding: 40px 48px; display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
-                 background: radial-gradient(900px 500px at 0% 0%, rgba(22, 119, 255, .55), transparent 60%), radial-gradient(700px 500px at 100% 100%, rgba(6, 182, 212, .35), transparent 60%), #05070f; }
-  .login-marca::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.07) 1px, transparent 1px); background-size: 22px 22px; pointer-events: none; }
+  .login-marca { position: relative; overflow: hidden; color: var(--marca-texto); padding: 40px 48px; display: flex; flex-direction: column; justify-content: space-between; gap: 28px;
+                 background: var(--marca-bg); }
+  .login-marca::after { content: ""; position: absolute; inset: 0; background-image: radial-gradient(var(--marca-ponto) 1px, transparent 1px); background-size: 22px 22px; pointer-events: none; animation: pontos 60s linear infinite; }
   .login-marca > * { position: relative; z-index: 1; }
   .logo-linha { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 20px; letter-spacing: -.01em; }
   .logo { width: 44px; height: 44px; border-radius: 12px; display: block; background: #000; box-shadow: 0 0 0 1px rgba(255,255,255,.12); }
   .logo.grande { width: 56px; height: 56px; border-radius: 16px; }
   .login-texto { max-width: 480px; display: grid; gap: 18px; }
   .login-texto h1 { font-size: clamp(28px, 3.2vw, 40px); line-height: 1.15; letter-spacing: -.02em; }
-  .login-texto p { color: rgba(255,255,255,.75); font-size: 16px; }
+  .login-texto p { color: var(--marca-suave); font-size: 16px; }
   .beneficios { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 14px; }
-  .beneficios li { display: flex; gap: 12px; align-items: flex-start; color: rgba(255,255,255,.9); }
-  .beneficios .bola { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; background: rgba(255,255,255,.1); color: #7fb3ff; }
-  .beneficios b { display: block; color: #fff; }
-  .beneficios small { color: rgba(255,255,255,.65); font-size: 13.5px; }
-  .login-rodape { color: rgba(255,255,255,.5); font-size: 13px; }
-  .login-form-lado { display: grid; place-items: center; padding: 32px 20px; position: relative; }
+  .beneficios li { display: flex; gap: 12px; align-items: flex-start; color: var(--marca-texto); }
+  .beneficios .bola { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex: none; background: var(--marca-bola); color: var(--marca-bola-ic); animation: brilho 6s ease-in-out infinite; animation-delay: calc(var(--i, 0) * 2s); }
+  .beneficios b { display: block; color: var(--marca-texto); }
+  .beneficios small { color: var(--marca-suave); font-size: 13.5px; }
+  .login-rodape { color: var(--marca-fraco); font-size: 13px; }
+  .login-form-lado { display: grid; place-items: center; padding: 72px 20px 32px; position: relative; overflow: hidden; }
   .login-cartao { width: min(400px, 100%); display: grid; gap: 16px; }
   .login-cartao h2 { font-size: 26px; letter-spacing: -.01em; }
   .login-cartao .sub { color: var(--muted); margin-top: 4px; }
@@ -138,6 +153,80 @@
   .seguro { display: flex; gap: 8px; align-items: center; justify-content: center; color: var(--subtle); font-size: 12.5px; }
   .ajuda { font-size: 13.5px; color: var(--muted); background: var(--surface-2); padding: 10px 12px; border-radius: var(--radius-sm); }
   .tema { position: absolute; top: 16px; right: 16px; }
+  /* Login: troca de tema bem visível */
+  .troca-tema { position: absolute; top: 16px; right: 16px; z-index: 3; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 4px; border-radius: 999px;
+                background: var(--surface-2); border: 1px solid var(--border); }
+  .troca-tema button { position: relative; z-index: 1; font: inherit; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+                       min-width: 92px; padding: 7px 12px; border: 0; border-radius: 999px; background: none; color: var(--muted); cursor: pointer; transition: color .25s; }
+  .troca-tema button:hover { color: var(--text); }
+  .troca-tema button[aria-pressed="true"] { color: var(--text); }
+  .troca-tema button[aria-pressed="true"] .ic { animation: girar-ic .6s cubic-bezier(.3, 1.4, .5, 1); color: var(--accent-text); }
+  .troca-tema .ic { width: 15px; height: 15px; }
+  .troca-tema-bola { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 10px) / 2); border-radius: 999px; background: var(--surface);
+                     box-shadow: var(--shadow); transition: transform .4s cubic-bezier(.3, 1.3, .5, 1); }
+  .troca-tema[data-escuro="1"] .troca-tema-bola { transform: translateX(calc(100% + 2px)); }
+  @keyframes girar-ic { from { transform: rotate(-120deg) scale(.6); } to { transform: none; } }
+  .login, .login-form-lado, .login-cartao input, .olho, .troca-tema, .ajuda { transition: background-color .35s ease, color .35s ease, border-color .35s ease; }
+
+  /* Login: luzes que se movem no fundo */
+  .login-marca > .orbes { position: absolute; inset: 0; z-index: 0; pointer-events: none; filter: blur(60px); }
+  .orbes i { position: absolute; border-radius: 50%; opacity: .45; animation: flutuar 18s ease-in-out infinite alternate; }
+  .orbes i:nth-child(1) { width: 420px; height: 420px; left: -120px; top: -120px; background: var(--marca-orbe1); }
+  .orbes i:nth-child(2) { width: 360px; height: 360px; right: -120px; bottom: -100px; background: var(--marca-orbe2); animation-duration: 22s; animation-delay: -6s; }
+  .orbes i:nth-child(3) { width: 260px; height: 260px; left: 45%; top: 40%; background: var(--marca-orbe3); opacity: .3; animation-duration: 26s; animation-delay: -12s; }
+  @keyframes flutuar { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(70px, 40px) scale(1.12); } 100% { transform: translate(-40px, 80px) scale(.94); } }
+  @keyframes pontos { to { background-position: 220px 110px; } }
+  @keyframes brilho { 0%, 70%, 100% { box-shadow: 0 0 0 0 transparent; } 80% { box-shadow: 0 0 0 6px var(--marca-bola); } }
+  .login-form-lado::before { content: ""; position: absolute; width: 520px; height: 520px; left: 50%; top: 50%; translate: -50% -50%; border-radius: 50%; pointer-events: none;
+                             background: radial-gradient(circle, var(--accent-soft), transparent 65%); animation: respirar-luz 8s ease-in-out infinite; }
+  @keyframes respirar-luz { 0%, 100% { opacity: .55; scale: .9; } 50% { opacity: 1; scale: 1.08; } }
+  .login-cartao { position: relative; z-index: 1; }
+  .login-marca .logo { animation: logo-flutua 5s ease-in-out infinite; }
+  @keyframes logo-flutua { 0%, 100% { transform: translateY(0); box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 0 0 0 rgba(22,119,255,0); }
+                           50% { transform: translateY(-3px); box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 8px 24px -6px rgba(22,119,255,.6); } }
+
+  /* Login: entrada em sequência */
+  @keyframes subir { from { opacity: 0; translate: 0 16px; } to { opacity: 1; translate: none; } }
+  .login .anima { animation: subir .65s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(var(--i, 0) * 80ms + 120ms); }
+
+  /* Login: botão com brilho passando */
+  #entrar { position: relative; overflow: hidden; border: 0; background: linear-gradient(135deg, var(--accent), #06b6d4); transition: transform .2s, box-shadow .2s, filter .2s; }
+  #entrar:hover { transform: translateY(-1px); filter: brightness(1.05); box-shadow: 0 12px 26px -10px var(--accent); }
+  #entrar:active { transform: translateY(0) scale(.99); }
+  #entrar::after { content: ""; position: absolute; inset: 0; background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,.35) 50%, transparent 70%);
+                   transform: translateX(-100%); animation: passar-brilho 4s ease-in-out infinite 1.6s; pointer-events: none; }
+  @keyframes passar-brilho { 0%, 65% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
+    .campo-ic:focus-within > .ic { color: var(--accent-text); transform: translateY(-50%) scale(1.1); transition: transform .2s, color .2s; }
+
+  /* Login: conversa de exemplo animada */
+  .demo-chat { max-width: 400px; border-radius: 18px; background: var(--marca-cartao); border: 1px solid var(--marca-borda); backdrop-filter: blur(14px);
+               box-shadow: 0 24px 50px -24px rgba(0, 0, 0, .45); overflow: hidden; animation: subir .65s cubic-bezier(.2, .7, .2, 1) both .7s, balancar 7s ease-in-out infinite 1.4s; }
+  @keyframes balancar { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  .demo-topo { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--marca-borda); }
+  .demo-topo b { display: block; font-size: 14px; color: var(--marca-texto); }
+  .demo-topo small { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--marca-suave); }
+  .demo-av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #1677ff, #06b6d4); }
+  .pulso { width: 8px; height: 8px; border-radius: 50%; background: #34c574; box-shadow: 0 0 0 0 rgba(52, 197, 116, .6); animation: pulsar 1.8s ease-out infinite; }
+  @keyframes pulsar { to { box-shadow: 0 0 0 8px rgba(52, 197, 116, 0); } }
+  .demo-msgs { display: flex; flex-direction: column; gap: 8px; padding: 14px; min-height: 196px; justify-content: flex-end; }
+  .demo-msgs .msg { max-width: 82%; padding: 8px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.45; color: var(--msg-texto); box-shadow: 0 1px 1px rgba(0,0,0,.08);
+                    opacity: 0; transform: translateY(8px) scale(.96); transition: opacity .35s ease, transform .35s cubic-bezier(.3, 1.3, .5, 1); }
+  .demo-msgs .msg.ver { opacity: 1; transform: none; }
+  .demo-msgs .msg[hidden] { display: none !important; }
+  .demo-msgs .cli { align-self: flex-start; background: var(--msg-cli); border-bottom-left-radius: 4px; }
+  .demo-msgs .ia { align-self: flex-end; background: var(--msg-ia); border-bottom-right-radius: 4px; }
+  .demo-msgs .ia small { display: block; font-size: 11px; opacity: .65; margin-top: 2px; text-align: right; }
+  .demo-msgs .digitando { align-self: flex-end; background: var(--msg-ia); display: inline-flex; gap: 4px; padding: 12px 14px; }
+  .digitando i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .5; animation: pular 1s ease-in-out infinite; }
+  .digitando i:nth-child(2) { animation-delay: .15s; } .digitando i:nth-child(3) { animation-delay: .3s; }
+  @keyframes pular { 0%, 60%, 100% { transform: translateY(0); opacity: .4; } 30% { transform: translateY(-4px); opacity: 1; } }
+  .demo-msgs .aviso { align-self: center; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px; background: var(--marca-bola); color: var(--marca-bola-ic); box-shadow: none; }
+  @media (max-height: 820px) { .demo-chat { display: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .login *, .login *::before, .login *::after { animation: none !important; transition: none !important; }
+    .demo-msgs .msg { opacity: 1; transform: none; }
+  }
+
   .so-celular { display: none; }
   @media (max-width: 900px) {
     .login { grid-template-columns: 1fr; }
@@ -325,43 +414,59 @@
 <body>
   <section class="login" id="tela-login" hidden>
     <div class="login-marca">
-      <div class="logo-linha"><img class="logo" src="/fluxdeck-logo.jpg" alt="">FluxDeck</div>
+      <div class="orbes" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="logo-linha anima" style="--i:0"><img class="logo" src="/fluxdeck-logo.jpg" alt="">FluxDeck</div>
       <div class="login-texto">
-        <h1>Seu atendimento com IA no WhatsApp, num lugar só.</h1>
-        <p>Acompanhe cada conversa, assuma quando quiser e ajuste a IA do jeito do seu negócio.</p>
+        <h1 class="anima" style="--i:1">Seu atendimento com IA no WhatsApp, num lugar só.</h1>
+        <p class="anima" style="--i:2">Acompanhe cada conversa, assuma quando quiser e ajuste a IA do jeito do seu negócio.</p>
         <ul class="beneficios">
-          <li><span class="bola"><span data-ic="message"></span></span><div><b>Conversas em tempo real</b><small>Tudo o que a IA respondeu, e o que precisa de você.</small></div></li>
-          <li><span class="bola"><span data-ic="spark"></span></span><div><b>IA treinada com as suas regras</b><small>Preços, planos e o jeito de atender que você definir.</small></div></li>
-          <li><span class="bola"><span data-ic="users"></span></span><div><b>Você assume com um clique</b><small>A IA para na hora e a conversa segue com você.</small></div></li>
+          <li class="anima" style="--i:3"><span class="bola" style="--i:0"><span data-ic="message"></span></span><div><b>Conversas em tempo real</b><small>Tudo o que a IA respondeu, e o que precisa de você.</small></div></li>
+          <li class="anima" style="--i:4"><span class="bola" style="--i:1"><span data-ic="spark"></span></span><div><b>IA treinada com as suas regras</b><small>Preços, planos e o jeito de atender que você definir.</small></div></li>
+          <li class="anima" style="--i:5"><span class="bola" style="--i:2"><span data-ic="users"></span></span><div><b>Você assume com um clique</b><small>A IA para na hora e a conversa segue com você.</small></div></li>
         </ul>
+        <div class="demo-chat" aria-hidden="true">
+          <div class="demo-topo"><span class="demo-av">IA</span><div><b>Atendimento FluxDeck</b><small><i class="pulso"></i>online agora</small></div></div>
+          <div class="demo-msgs" id="demo-msgs">
+            <p class="msg cli">Oi! Vocês atendem hoje?</p>
+            <p class="msg digitando"><i></i><i></i><i></i></p>
+            <p class="msg ia">Atendemos sim! Me conta o que você precisa que eu já te ajudo.<small>IA · agora</small></p>
+            <p class="msg cli">Quero falar com uma pessoa.</p>
+            <p class="msg aviso">Você assumiu a conversa</p>
+            <p class="msg ia">Oi, aqui é da equipe! Pode falar.<small>Você · agora</small></p>
+          </div>
+        </div>
       </div>
-      <div class="login-rodape">© FluxDeck · CRM de agentes de atendimento</div>
+      <div class="login-rodape anima" style="--i:6">© FluxDeck · CRM de agentes de atendimento</div>
     </div>
     <div class="login-form-lado">
-      <button class="btn fantasma sm tema" type="button" data-tema title="Alternar tema claro e escuro" aria-label="Alternar tema claro e escuro"><span data-ic="moon"></span></button>
+      <div class="troca-tema" role="group" aria-label="Tema da tela">
+        <span class="troca-tema-bola" aria-hidden="true"></span>
+        <button type="button" data-tema-escolha="light" aria-pressed="false"><span data-ic="sun"></span>Claro</button>
+        <button type="button" data-tema-escolha="dark" aria-pressed="false"><span data-ic="moon"></span>Escuro</button>
+      </div>
       <form class="login-cartao" id="form-login" novalidate>
-        <img class="logo grande so-celular" src="/fluxdeck-logo.jpg" alt="FluxDeck">
-        <div><h2>Entrar no CRM</h2><p class="sub">Use o usuário e a senha que você recebeu da FluxDeck.</p></div>
+        <img class="logo grande so-celular anima" style="--i:0" src="/fluxdeck-logo.jpg" alt="FluxDeck">
+        <div class="anima" style="--i:1"><h2>Entrar no CRM</h2><p class="sub">Use o usuário e a senha que você recebeu da FluxDeck.</p></div>
         <div class="alerta perigo" id="erro-login" role="alert" hidden></div>
-        <div class="campo" id="campo-usuario">
+        <div class="campo anima" style="--i:2" id="campo-usuario">
           <label for="usuario">Usuário</label>
           <div class="campo-ic"><span data-ic="users"></span><input id="usuario" name="usuario" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="seu.usuario"></div>
           <span class="erro-campo" hidden>Informe o seu usuário.</span>
         </div>
-        <div class="campo" id="campo-senha">
+        <div class="campo anima" style="--i:3" id="campo-senha">
           <label for="senha">Senha</label>
           <div class="campo-ic"><span data-ic="lock"></span><input id="senha" name="senha" type="password" class="com-olho" autocomplete="current-password" placeholder="Sua senha">
             <button class="olho" type="button" id="ver-senha" aria-label="Mostrar senha" aria-pressed="false"><span data-ic="eye"></span><span>Mostrar</span></button></div>
           <span class="erro-campo" hidden>Informe a sua senha.</span>
           <span class="aviso-caps" id="caps" hidden><span data-ic="alert"></span>Caps Lock está ligado</span>
         </div>
-        <div class="linha-entre">
+        <div class="linha-entre anima" style="--i:4">
           <label class="check"><input type="checkbox" id="lembrar">Lembrar meu usuário</label>
           <button class="link" type="button" id="esqueci" aria-expanded="false" aria-controls="ajuda-senha">Esqueci a senha</button>
         </div>
         <p class="ajuda" id="ajuda-senha" hidden>Fale com a FluxDeck: ela remove o login antigo e cria uma senha nova para você em poucos minutos.</p>
-        <button class="btn primario grande" type="submit" id="entrar"><span class="spinner" hidden></span><span>Entrar</span></button>
-        <div class="seguro"><span data-ic="lock"></span>Conexão segura · a sessão fica ativa por 7 dias neste aparelho</div>
+        <button class="btn primario grande anima" style="--i:5" type="submit" id="entrar"><span class="spinner" hidden></span><span>Entrar</span></button>
+        <div class="seguro anima" style="--i:6"><span data-ic="lock"></span>Conexão segura · a sessão fica ativa por 7 dias neste aparelho</div>
       </form>
     </div>
   </section>
@@ -560,7 +665,39 @@ function aplicarTema(tema) {
   if (tema) document.documentElement.dataset.theme = tema;
   const escuro = tema ? tema === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
   $$("[data-tema]").forEach((b) => { b.innerHTML = ic(escuro ? "sun" : "moon"); });
+  $$(".troca-tema").forEach((g) => {
+    g.dataset.escuro = escuro ? "1" : "0";
+    g.querySelectorAll("[data-tema-escolha]").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.temaEscolha === "dark") === escuro)));
+  });
 }
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-tema-escolha]");
+  if (!b) return;
+  guardado.gravar("crm_tema", b.dataset.temaEscolha);
+  aplicarTema(b.dataset.temaEscolha);
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => { if (!guardado.ler("crm_tema")) aplicarTema(null); });
+
+// Conversa de exemplo do login: as mensagens aparecem uma a uma e recomeçam (paradas para quem pede menos movimento).
+(function conversaDeExemplo() {
+  const caixa = document.getElementById("demo-msgs");
+  if (!caixa) return;
+  const msgs = [...caixa.children];
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { msgs.forEach((m) => m.classList.toggle("ver", !m.classList.contains("digitando"))); caixa.querySelector(".digitando").hidden = true; return; }
+  const passos = [[0, 900], ["digitando", 1500], [2, 1800], [3, 1400], [4, 1100], [5, 3600]];
+  let i = 0;
+  const reiniciar = () => { msgs.forEach((m) => { m.classList.remove("ver"); m.hidden = false; }); msgs[1].hidden = true; };
+  reiniciar();
+  const tique = () => {
+    if (document.getElementById("tela-login").hidden) return setTimeout(tique, 1500);
+    if (i >= passos.length) { i = 0; msgs.forEach((m) => m.classList.remove("ver")); return setTimeout(() => { reiniciar(); tique(); }, 500); }
+    const [alvo, espera] = passos[i++];
+    if (alvo === "digitando") { msgs[1].hidden = false; requestAnimationFrame(() => msgs[1].classList.add("ver")); }
+    else { if (alvo === 2) { msgs[1].hidden = true; msgs[1].classList.remove("ver"); } requestAnimationFrame(() => msgs[alvo].classList.add("ver")); }
+    setTimeout(tique, espera);
+  };
+  setTimeout(tique, 1200);
+})();
 aplicarTema(guardado.ler("crm_tema"));
 
 function erroDeLogin(texto) {
