@@ -9,12 +9,30 @@ import * as db from "../db.js";
 
 export const TAXA_VOZ = 24000;
 
-const INSTRUCOES =
-  "Locutor brasileiro de Reels de negócios: português do Brasil, sotaque neutro, energia alta, ritmo rápido e " +
-  "confiante, frases curtas com pausas curtas e ênfase nas palavras de impacto. Natural, como um criador de " +
+const instrucoes = (voz) =>
+  `${voz === "feminina" ? "Locutora brasileira" : "Locutor brasileiro"} de Reels de negócios: português do Brasil, sotaque neutro, energia alta, ritmo rápido e ` +
+  "confiante, frases curtas com pausas curtas e ênfase nas palavras de impacto. Natural, como quem cria " +
   "conteúdo falando com o dono de uma empresa, nunca como locução de propaganda de rádio.";
 
-const ESTILO_GEMINI = "locutor brasileiro de Reels, energia alta, ritmo rápido e confiante";
+const estiloGemini = (voz) => `${voz === "feminina" ? "locutora brasileira" : "locutor brasileiro"} de Reels, energia alta, ritmo rápido e confiante`;
+
+// A voz de cada serviço: a masculina é a do Felipe (o avatar usa a narração); a feminina narra os Reels sem ele.
+// Edge: a Thalita é a voz feminina mais natural das grátis; a Francisca fica de reserva.
+export const VOZES = {
+  masculina: { openai: "ash", gemini: "Puck", edge: ["pt-BR-AntonioNeural"] },
+  feminina: { openai: "coral", gemini: "Kore", edge: ["pt-BR-ThalitaMultilingualNeural", "pt-BR-FranciscaNeural"] },
+};
+
+/**
+ * Feminina ou masculina. Vale a que o post escolheu; nos posts de antes dessa escolha, a masculina
+ * quando o Felipe aparece e, sem ele, alternando pelo número do post.
+ */
+export function vozDoPost(post) {
+  const c = post?.conteudo ?? {};
+  if (c.voz in VOZES) return c.voz;
+  if (c.comFelipe) return "masculina";
+  return Math.abs(Number(post?.id) || 0) % 2 ? "feminina" : "masculina";
+}
 
 // O Gemini manda o áudio em base64 dentro do JSON; se vier como WAV, tira o cabeçalho.
 async function pcmDoGemini(r) {
@@ -31,15 +49,14 @@ const PROVEDORES = [
   {
     nome: "OpenAI",
     chave: "OPENAI_API_KEY",
-    // Uma voz masculina e uma feminina, alternando de um post para o outro.
     falar: (texto, post) => fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: process.env.OPENAI_TTS_MODEL || "gpt-4o-mini-tts",
-        voice: ["ash", "coral"][Math.abs(Number(post.id) || 0) % 2],
+        voice: VOZES[vozDoPost(post)].openai,
         input: texto,
-        instructions: INSTRUCOES,
+        instructions: instrucoes(vozDoPost(post)),
         response_format: "pcm",
       }),
       signal: AbortSignal.timeout(45_000),
@@ -48,7 +65,8 @@ const PROVEDORES = [
   {
     nome: "ElevenLabs",
     chave: "ELEVENLABS_API_KEY",
-    falar: (texto) => fetch(`https://api.elevenlabs.io/v1/text-to-speech/${process.env.ELEVENLABS_VOICE_ID || "pNInz6obpgDQGcFmaJgB"}?output_format=pcm_24000`, {
+    // A voz feminina pode ser trocada em ELEVENLABS_VOICE_ID_FEMININA (a padrão é uma das prontas da ElevenLabs).
+    falar: (texto, post) => fetch(`https://api.elevenlabs.io/v1/text-to-speech/${vozDoPost(post) === "feminina" ? process.env.ELEVENLABS_VOICE_ID_FEMININA || "EXAVITQu4vr4xnSDxMaL" : process.env.ELEVENLABS_VOICE_ID || "pNInz6obpgDQGcFmaJgB"}?output_format=pcm_24000`, {
       method: "POST",
       headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({ text: texto, model_id: "eleven_multilingual_v2", voice_settings: { stability: 0.35, similarity_boost: 0.8, style: 0.55 } }),
@@ -65,9 +83,9 @@ const PROVEDORES = [
       headers: { "x-goog-api-key": process.env.GEMINI_API_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: process.env.GEMINI_TTS_MODEL || "gemini-3.8-flash-tts",
-        input: [{ type: "user_input", content: [{ type: "text", text: texto, annotations: [{ type: "speech_metadata", style: ESTILO_GEMINI }] }] }],
+        input: [{ type: "user_input", content: [{ type: "text", text: texto, annotations: [{ type: "speech_metadata", style: estiloGemini(vozDoPost(post)) }] }] }],
         response_format: { type: "audio", mime_type: "audio/l16", sample_rate: TAXA_VOZ },
-        generation_config: { speech_config: [{ voice: ["Puck", "Kore"][Math.abs(Number(post.id) || 0) % 2] }] },
+        generation_config: { speech_config: [{ voice: VOZES[vozDoPost(post)].gemini }] },
       }),
       signal: AbortSignal.timeout(60_000),
     }),
@@ -98,12 +116,26 @@ function converterAudio(entradas, audio) {
 const pcmDoMp3 = (mp3) => converterAudio(["-i", "pipe:0", "-f", "s16le", "-ac", "1", "-ar", String(TAXA_VOZ), "pipe:1"], mp3);
 
 async function mp3DoEdge(texto, post) {
+  let erro;
+  for (const voz of VOZES[vozDoPost(post)].edge) {
+    try {
+      const mp3 = await mp3DaVozDoEdge(voz, texto, post);
+      if (mp3.length) return mp3;
+      erro = new Error(`${voz} não devolveu áudio`);
+    } catch (e) {
+      erro = e;
+    }
+  }
+  throw erro;
+}
+
+async function mp3DaVozDoEdge(voz, texto, post) {
   const { MsEdgeTTS, OUTPUT_FORMAT } = await import("msedge-tts");
   const tts = new MsEdgeTTS();
   let limite;
   try {
     const gerar = (async () => {
-      await tts.setMetadata(["pt-BR-AntonioNeural", "pt-BR-FranciscaNeural"][Math.abs(Number(post.id) || 0) % 2], OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+      await tts.setMetadata(voz, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
       const partes = [];
       for await (const parte of tts.toStream(texto, { rate: post.ritmo ?? "+8%" }).audioStream) partes.push(parte);
       return Buffer.concat(partes);
@@ -142,6 +174,7 @@ async function mp3DoGoogle(texto) {
 }
 
 // Nenhuma pede chave ou conta. São serviços não oficiais, por isso são duas e vêm depois dos serviços com chave.
+// A do Google só tem voz feminina.
 const VOZES_GRATIS = [
   { nome: "Edge", umaPorVez: true, gerarPcm: async (texto, post) => pcmDoMp3(await mp3DoEdge(texto, post)) },
   { nome: "Google", umaPorVez: true, gerarPcm: async (texto) => pcmDoMp3(await mp3DoGoogle(texto)) },

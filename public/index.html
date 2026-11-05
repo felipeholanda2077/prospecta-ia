@@ -1608,7 +1608,7 @@
             <label class="chave"><input type="checkbox" name="postarSozinho"><div><b>Postar sozinho no Instagram</b>
               <span>Em cada horário abaixo, um post é publicado no perfil conectado. Um post criado pelos botões entra no próximo horário vago do dia.</span></div></label>
             <label class="chave"><input type="checkbox" name="apresentador"><div><b>Felipe nos vídeos</b>
-              <span>Em um Reels sim, um não, a sua foto aparece no vídeo com o nome, e as falas são escritas em primeira pessoa.</span></div></label>
+              <span>Em um Reels sim, um não, você aparece no vídeo (avatar ou foto) e as falas são suas, em primeira pessoa, com voz masculina. Nos outros, o vídeo é só motion graphics, narrado por uma voz feminina de IA grátis. Desligado, nenhum Reels tem você.</span></div></label>
             <label class="chave"><input type="checkbox" name="horariosPelaIA"><div><b>A IA decide os horários e a quantidade de posts</b>
               <span>Uma vez por dia, ela olha os resultados do perfil e escolhe de 1 a 4 posts por dia. A mudança vale a partir do dia seguinte. Desligado, valem os horários escolhidos abaixo.</span></div></label>
             <div id="conteudo-plano"></div>
@@ -5169,7 +5169,7 @@ async function carregarConteudo() {
     if (!f.base.matches(":focus")) f.base.value = r.base;
     $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">${r.plano && r.config.horariosPelaIA !== false ? "A IA decide: " : "Todo dia às "}${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
     $("#conteudo-voz").innerHTML = r.narracao
-      ? `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha, efeitos sonoros e <b>voz narrando</b> (${esc(r.narracao)}).</div></div>`
+      ? `<div class="alerta info">${ic("video")}<div>Os Reels saem com trilha, efeitos sonoros e <b>voz narrando</b> (${esc(r.narracao)}): masculina nos vídeos com você, feminina nos vídeos sem você.</div></div>`
       : `<div class="alerta info">${ic("video")}<div><b>Sem voz cadastrada:</b> vídeo sem narração não é publicado. Só saem os Reels em que o avatar fala todas as cenas. Para os outros, cole a chave do Gemini aqui embaixo.</div></div>`;
     postsCarregados = r.posts;
     feedInstagram = await api("/api/conteudo/feed").catch((e) => ({ conta: null, midias: [], erro: e.message }));

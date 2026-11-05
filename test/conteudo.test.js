@@ -81,7 +81,7 @@ test("post do dia: a IA recebe a base de conteúdo do site (editável no painel)
   await gravarBaseDeConteudo("");
 });
 
-test("post do dia: com o apresentador, todo post é Reels com o Felipe; a Black Friday sai uma vez por dia até 30/11", async () => {
+test("post do dia: com o apresentador, todo post é Reels, com o Felipe em um sim, um não; a Black Friday sai uma vez por dia até 30/11", async () => {
   await db.gravarConfig("conteudo", { ativo: true, horarios: [12, 18] });
   await db.consultar("DELETE FROM posts");
   const pedidos = [];
@@ -91,7 +91,11 @@ test("post do dia: com o apresentador, todo post é Reels com o Felipe; a Black 
   const primeiro = await criar("2026-11-15T14:45:00Z");
   const segundo = await criar("2026-11-15T20:45:00Z");
   assert.deepEqual([primeiro.formato, segundo.formato], ["reels", "reels"]);
-  assert.deepEqual(pedidos.map((p) => p.comFelipe), [true, true]);
+  assert.deepEqual(pedidos.map((p) => p.comFelipe), [true, false]);
+  assert.deepEqual(pedidos.map((p) => p.voz), ["masculina", "feminina"]);
+  // O Reels sem o Felipe não mostra a foto dele na capa, e a voz escolhida fica salva no post.
+  assert.deepEqual([primeiro.conteudo.capaSemFelipe, segundo.conteudo.capaSemFelipe], [false, true]);
+  assert.equal(segundo.conteudo.voz, "feminina");
   assert.equal(primeiro.pilar, "black_friday");
   assert.notEqual(segundo.pilar, "black_friday");
 

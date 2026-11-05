@@ -15,7 +15,7 @@ desenho.usarCanvas((w, h) => createCanvas(w, h));
 
 const post = (arte, extra = {}) => ({ conteudo: { arte, gancho: arte, ...extra } });
 
-test("variedade: público, tom e arte não repetem os últimos posts; o Felipe está em todos os Reels", () => {
+test("variedade: público, tom e arte não repetem os últimos posts; o Felipe aparece em um Reels sim, um não", () => {
   const recentes = [
     { formato: "reels", conteudo: { publico: "clinica", tom: "humor", arte: "cor", comFelipe: true } },
     { formato: "carrossel", conteudo: { publico: "loja", tom: "direto", arte: "claro" } },
@@ -28,9 +28,21 @@ test("variedade: público, tom e arte não repetem os últimos posts; o Felipe e
     assert.equal(v.arte, "dividido");
     assert.equal(v.comFelipe, false); // só nos vídeos
   }
-  assert.equal(diario.escolherVariedade(recentes, { formato: "reels" }).comFelipe, true);
-  assert.equal(diario.escolherVariedade(recentes.slice(1), { formato: "reels" }).comFelipe, true);
-  assert.equal(diario.escolherVariedade(recentes.slice(1), { formato: "reels", apresentador: false }).comFelipe, false);
+  // O último Reels teve o Felipe: este sai sem ele, com a voz feminina.
+  const semEle = diario.escolherVariedade(recentes, { formato: "reels" });
+  assert.equal(semEle.comFelipe, false);
+  assert.equal(semEle.voz, "feminina");
+  // O último Reels foi sem ele: este tem o Felipe, com a voz masculina (a do avatar).
+  const comEle = diario.escolherVariedade(recentes.slice(1), { formato: "reels" });
+  assert.equal(comEle.comFelipe, true);
+  assert.equal(comEle.voz, "masculina");
+  assert.equal(diario.escolherVariedade([], { formato: "reels" }).comFelipe, true);
+  const desligado = diario.escolherVariedade(recentes.slice(1), { formato: "reels", apresentador: false });
+  assert.equal(desligado.comFelipe, false);
+  assert.equal(desligado.voz, "feminina");
+  assert.equal(diario.escolherVariedade(recentes, { formato: "carrossel" }).voz, undefined);
+  // Sem o Felipe, o tom de bastidores em primeira pessoa dele não sai.
+  for (let i = 0; i < 50; i++) assert.notEqual(diario.escolherVariedade([], { formato: "reels", apresentador: false, sorteio: () => i / 50 }).tom, "bastidor");
   // Sem opção livre, ainda escolhe alguma.
   const todas = desenho.ARTES.map((arte) => ({ formato: "carrossel", conteudo: { arte } }));
   assert.ok(desenho.ARTES.includes(diario.escolherVariedade(todas.slice(0, 3), { formato: "carrossel" }).arte));

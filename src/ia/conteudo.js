@@ -171,6 +171,20 @@ Roteiro:
 Reels: as falas são a narração da voz. Juntas, contam a história em 20 a 35 segundos, com energia de criador de conteúdo,
 frases faladas naturais (não leia a tela) e a primeira fala tão forte quanto o gancho.
 
+Harmonia e ritmo do Reels (é isto que faz o vídeo parecer profissional e prender até o fim):
+- Arco claro: gancho (1ª cena) → tensão ou problema → virada → solução ou revelação → chamada. Cada cena empurra para a próxima.
+- Ritmo que respira: alterne cenas rápidas (impacto, capa, meme: fala curta) com cenas que explicam (texto, lista, contraste:
+  fala média). Nunca duas falas longas seguidas. A cena logo depois da capa é rápida, para segurar quem chegou.
+- Hierarquia do texto: o título é a ideia em poucas palavras fortes (o ideal são 3 a 6), o texto só completa o que o
+  título não disse e nunca o repete. O destaque é a palavra que carrega a emoção ou a virada (dor, dinheiro, tempo,
+  cliente), não um artigo ou palavra fraca. Uma ideia por cena; se precisa de duas linhas para entender, corte.
+- Fala e tela andam juntas: a fala diz a mesma ideia da tela, com outras palavras e na mesma ordem, para o olho e o
+  ouvido chegarem juntos. A fala da capa repete a força do gancho; a da chamada é calorosa e direta.
+- Variedade visual dentro do vídeo: use pelo menos 3 tipos de visual diferentes e nunca 3 cenas seguidas do mesmo tipo.
+  Varie também os elementos animados (não repita o mesmo elemento em cenas seguidas).
+- A trilha combina com o clima do roteiro: alerta e erro pedem "tensa", virada e conquista pedem "inspiradora" ou "energica",
+  dica leve e meme pedem "groove".
+
 Hashtags: as de mais alcance no Brasil para o tema, misturando 2 bem amplas (ex.: empreendedorismo, marketingdigital),
 2 do nicho do assunto e a da marca (${empresa.nome.toLowerCase().replace(/\W/g, "")}). Sem acentos, sem espaços, sem o #.`;
 }
@@ -232,7 +246,7 @@ Legenda no Instagram:
 ${legenda}
 
 Adapte para o LinkedIn.`;
-  const r = await gerarJson({ system, pedido, jsonSchema: LINKEDIN_JSON_SCHEMA, zodSchema: LinkedinSchema, modelo: config.conteudo.model });
+  const r = await escreverComReserva({ system, pedido, jsonSchema: LINKEDIN_JSON_SCHEMA, zodSchema: LinkedinSchema });
   const hashtags = [...new Set(r.hashtags.map((t) => String(t).replace(/^#+/, "").replace(/[^\p{L}\p{N}]/gu, "")).filter(Boolean))].slice(0, 5);
   return {
     texto: r.texto.trim(), hashtags, tituloDocumento: r.titulo_documento.slice(0, 100),
@@ -264,6 +278,21 @@ export const tituloSemNumero = (titulo) => String(titulo).replace(/^\s*\d+\s*[.)
  * Escreve o post: tema, gancho, telas (do carrossel ou cenas do Reels, com a fala de cada uma),
  * clima da trilha, legenda e hashtags. `recentes` são os posts dos últimos dias, para não repetir.
  */
+// Nos Reels sem o Felipe, quem narra é uma locutora (voz feminina de IA): só motion graphics e a voz dela.
+const NARRADORA = "Neste Reels o Felipe NÃO aparece: o vídeo é só motion graphics com a narração de uma locutora (voz feminina). As falas são dela, falando com o dono de empresa em nome da empresa; nada de \"eu, Felipe\" nem de primeira pessoa do Felipe. Se ela falar de si, use o feminino. Aproveite que não há rosto na tela: o visual conta a história, com cenas variadas e ritmo rápido.\n";
+
+// O roteiro sai do modelo mais capaz. Se ele falhar ou passar do tempo, o modelo de reserva escreve no
+// lugar: a Vercel corta a função em 5 minutos e o horário do post não pode ficar vazio.
+export async function escreverComReserva(opcoes, { gerar = gerarJson, conf = config.conteudo } = {}) {
+  try {
+    return await gerar({ ...opcoes, modelo: conf.model, effort: conf.effort, maxTokens: 20000, limiteMs: 150_000, tentativas: 0 });
+  } catch (e) {
+    if (!conf.reserva || conf.reserva === conf.model) throw e;
+    console.log(new Date().toISOString(), `⚠️  Conteúdo: ${conf.model} falhou (${e.message}); o post é escrito pelo ${conf.reserva}.`);
+    return gerar({ ...opcoes, modelo: conf.reserva, effort: "medium", limiteMs: 90_000, tentativas: 1 });
+  }
+}
+
 export async function gerarPost({ campanha, formato, pilar, estrutura = "lista", base, recentes = [], aprendizados = null, publico = null, tom = null, comFelipe = false, aviso = "" }) {
   const usados = recentes.map((r) => (typeof r === "string" ? { tema: r } : r));
   const primeiras = [...new Set(usados.slice(0, 12).map((p) => String(p.gancho ?? "").split(/\s+/)[0]).filter(Boolean))];
@@ -275,11 +304,9 @@ ${aprendizados.ganchosQueFuncionaram?.length ? `Ganchos dos posts que mais deram
   const pedido = `${doPerfil}Formato: ${FORMATOS[formato]}
 Assunto de hoje (linha editorial): ${pilar === PILAR_BLACK_FRIDAY ? TEXTO_BLACK_FRIDAY : PILARES[pilar]}
 Estrutura do roteiro: ${ESTRUTURAS[estrutura] ?? ESTRUTURAS.lista}
-${publico ? `Público deste post: ${PUBLICOS[publico] ?? publico}. Os exemplos, as cenas e as fotos são desse tipo de negócio.\n` : ""}${tom ? `Tom deste post: ${TONS[tom] ?? tom}.\n` : ""}${comFelipe ? "Neste Reels o Felipe aparece na tela como apresentador: as falas são dele, em primeira pessoa, como quem conversa com a câmera. Use no máximo 6 cenas, contando a capa e a chamada, porque ele fala em todas.\n" : ""}${usados.length ? `Posts dos últimos dias. Este post tem que parecer de outro assunto e de outro jeito: não repita o tema, o jeito do gancho, a chamada final nem as mesmas frases:\n${usados.map((p) => `- ${p.tema}${p.gancho ? ` | gancho: "${p.gancho}"` : ""}`).join("\n")}\n` : ""}${primeiras.length ? `O gancho não pode começar com: ${primeiras.join(", ")}.\n` : ""}${aviso ? `Atenção: ${aviso}\n` : ""}
+${publico ? `Público deste post: ${PUBLICOS[publico] ?? publico}. Os exemplos, as cenas e as fotos são desse tipo de negócio.\n` : ""}${tom ? `Tom deste post: ${TONS[tom] ?? tom}.\n` : ""}${formato !== "reels" ? "" : comFelipe ? "Neste Reels o Felipe aparece na tela como apresentador: as falas são dele, em primeira pessoa, como quem conversa com a câmera. Use no máximo 6 cenas, contando a capa e a chamada, porque ele fala em todas.\n" : NARRADORA}${usados.length ? `Posts dos últimos dias. Este post tem que parecer de outro assunto e de outro jeito: não repita o tema, o jeito do gancho, a chamada final nem as mesmas frases:\n${usados.map((p) => `- ${p.tema}${p.gancho ? ` | gancho: "${p.gancho}"` : ""}`).join("\n")}\n` : ""}${primeiras.length ? `O gancho não pode começar com: ${primeiras.join(", ")}.\n` : ""}${aviso ? `Atenção: ${aviso}\n` : ""}
 Crie o post.`;
-  const r = await gerarJson({
-    system: montarSistema(campanha, base), pedido, jsonSchema: POST_JSON_SCHEMA, zodSchema: PostSchema, modelo: config.conteudo.model,
-  });
+  const r = await escreverComReserva({ system: montarSistema(campanha, base), pedido, jsonSchema: POST_JSON_SCHEMA, zodSchema: PostSchema });
   const tag = (t) => String(t).replace(/^#+/, "").replace(/[^\p{L}\p{N}_]/gu, "").toLowerCase();
   const unicas = (lista) => [...new Set(lista.map(tag).filter(Boolean))];
   const hashtags = unicas(r.hashtags).slice(0, 5);

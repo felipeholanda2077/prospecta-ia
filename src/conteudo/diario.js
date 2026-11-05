@@ -96,7 +96,7 @@ export async function criarPostDeHoje(campanha, { formato, pilar: pilarFixo = nu
   const deHoje = await db.postsDoDia(dia);
   const escolha = await escolhaPeloDesempenho({ dia, n: deHoje.length, recentes, agora, sorteio });
   const conf = await lerConfigConteudo(agora);
-  // Com o apresentador ligado, todo post é um Reels com o Felipe. Sem ele, volta a alternar com o carrossel.
+  // Com o apresentador ligado, todo post é um Reels (com o Felipe em um sim, um não). Sem ele, volta a alternar com o carrossel.
   const escolhido = formato ?? (conf.apresentador === false ? escolha.formato : "reels");
   // O alcance caiu com os vídeos parecidos: os memes descontraídos ganham mais da metade dos posts por enquanto, sem repetir o último.
   const ultimaEstrutura = recentes[0]?.conteudo?.estrutura;
@@ -124,11 +124,13 @@ export async function criarPostDeHoje(campanha, { formato, pilar: pilarFixo = nu
     escrito = await escrever({ ...pedido, aviso: "você citou valor nas falas ou nas telas. Reescreva sem nenhum valor, que fica só na legenda." });
     if (valoresNasTelas(escrito).length) escrito = tirarValoresDasTelas(escrito);
   }
-  const conteudo = await clipes(await fotos({ ...escrito, ...variedade, estrutura, capaSemFelipe: conf.apresentador === false }, { formato: escolhido, dia }), { formato: escolhido });
+  // Reels sem o Felipe não mostra a foto dele na capa: é só motion graphics com a locutora.
+  const capaSemFelipe = conf.apresentador === false || (escolhido === "reels" && !variedade.comFelipe);
+  const conteudo = await clipes(await fotos({ ...escrito, ...variedade, estrutura, capaSemFelipe }, { formato: escolhido, dia }), { formato: escolhido });
   // Os estilos de foto sem nenhuma foto achada virariam fundo escuro: troca por um que não depende dela.
   if (conteudo.arte === "dividido" && !conteudo.slides?.some((s) => s.foto)) conteudo.arte = sorteio() < 0.5 ? "cor" : "claro";
   const id = await db.criarPost({ dia, formato: escolhido, pilar, tema: conteudo.tema, conteudo, horario });
-  log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}, ${estrutura}, ${variedade.publico}, ${variedade.tom}, arte ${variedade.arte}${variedade.comFelipe ? ", com Felipe" : ""}${escolha.peloDesempenho ? ", pelos insights" : ""}): ${conteudo.tema}`);
+  log(`🎬 Post criado${horario ? ` para as ${horario}h` : ""} (${escolhido}, ${pilar}, ${estrutura}, ${variedade.publico}, ${variedade.tom}, arte ${variedade.arte}${variedade.comFelipe ? ", com Felipe" : variedade.voz ? `, sem Felipe, voz ${variedade.voz}` : ""}${escolha.peloDesempenho ? ", pelos insights" : ""}): ${conteudo.tema}`);
   const post = await db.buscarPost(id);
   // Com o LinkedIn conectado, o texto dele já fica pronto para aparecer no painel. Se a IA falhar aqui, é escrito ao publicar.
   if ((await lerConexaoLinkedin()).organizacao) await textoDoPost(post, campanha, { escrever: escreverLinkedin }).catch((e) => log(`⚠️  Texto do LinkedIn fica para a hora de publicar: ${e.message}`));
@@ -144,18 +146,27 @@ function sortearSemRepetir(opcoes, usados, sorteio) {
   return lista[Math.floor(sorteio() * lista.length) % lista.length];
 }
 
+// O tom em que o Felipe conta os bastidores em primeira pessoa só cabe quando ele aparece.
+const TONS_DO_FELIPE = ["bastidor"];
+
 /**
  * Para quem o post fala, o tom e o estilo visual: cada um fora dos últimos posts, para o feed não repetir.
- * O Felipe aparece em todos os Reels, a não ser com o apresentador desligado.
+ * O Felipe aparece em um Reels sim, um não (nunca com o apresentador desligado). Nos Reels sem ele,
+ * narra a voz feminina; com ele, a masculina, que é a que o avatar usa.
  */
 export function escolherVariedade(recentes, { formato, apresentador = true, sorteio = Math.random } = {}) {
   const de = (campo, n) => recentes.slice(0, n).map((p) => p.conteudo?.[campo]).filter(Boolean);
+  const reels = formato === "reels";
+  const ultimoReels = recentes.find((p) => p.formato === "reels");
+  const comFelipe = reels && apresentador !== false && !ultimoReels?.conteudo?.comFelipe;
+  const tons = Object.keys(TONS).filter((t) => comFelipe || !TONS_DO_FELIPE.includes(t));
   return {
     publico: sortearSemRepetir(Object.keys(PUBLICOS), de("publico", 8), sorteio),
-    tom: sortearSemRepetir(Object.keys(TONS), de("tom", 4), sorteio),
+    tom: sortearSemRepetir(tons, de("tom", 4), sorteio),
     arte: sortearSemRepetir(ARTES_DOS_POSTS, de("arte", 3), sorteio),
     fundo: sortearSemRepetir(FUNDOS.map((f) => f.nome), de("fundo", 5), sorteio),
-    comFelipe: formato === "reels" && apresentador !== false,
+    comFelipe,
+    ...(reels ? { voz: comFelipe ? "masculina" : "feminina" } : {}),
   };
 }
 

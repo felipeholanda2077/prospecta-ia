@@ -12,7 +12,7 @@ const temReserva = (modelo) => !/haiku/i.test(modelo);
  * Chama o Claude pedindo uma resposta em JSON no formato de `jsonSchema`
  * e valida o resultado com o schema Zod `zodSchema`.
  */
-export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort = "medium", modelo = config.claude.model }) {
+export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort = "medium", modelo = config.claude.model, maxTokens = 16000, limiteMs, tentativas }) {
   if (!client && config.naVercel && !process.env.ANTHROPIC_API_KEY) {
     throw new Error("ANTHROPIC_API_KEY não configurada nas variáveis de ambiente da Vercel");
   }
@@ -23,7 +23,7 @@ export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort 
   }
   const resposta = await client.beta.messages.create({
     model: modelo,
-    max_tokens: 16000,
+    max_tokens: maxTokens,
     // Se a solicitação for recusada pelos filtros do modelo, a API tenta de novo
     // automaticamente no modelo de reserva recomendado.
     ...(temReserva(modelo) ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" } : {}),
@@ -33,6 +33,10 @@ export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort 
     },
     system,
     messages: [{ role: "user", content: pedido }],
+  }, {
+    // Quem chama pode limitar o tempo (a Vercel corta a função em 5 minutos) e as novas tentativas.
+    ...(limiteMs ? { timeout: limiteMs } : {}),
+    ...(tentativas !== undefined ? { maxRetries: tentativas } : {}),
   });
 
   if (resposta.stop_reason === "refusal") {
