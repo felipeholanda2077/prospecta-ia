@@ -405,6 +405,10 @@
   .fv-ramos { width: 100%; border-collapse: collapse; font-size: 13px; }
   .fv-ramos th { text-align: left; font-weight: 600; color: var(--subtle); font-size: 12px; padding: 4px 6px 4px 0; }
   .fv-ramos td { padding: 4px 6px 4px 0; border-top: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+  .fv-ramos .pilula { font-size: 11px; margin-left: 4px; }
+  .rt-lista { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 8px; }
+  .rt-lista li { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 13px; }
+  .rt-lista small { color: var(--subtle); }
   .fv-ramos th:not(:first-child), .fv-ramos td:not(:first-child) { text-align: right; }
   @media (max-width: 900px) { .funil-visual { grid-template-columns: 1fr; } }
   .funil-etapa small { font-size: 12px; color: var(--subtle); line-height: 1.35; }
@@ -967,6 +971,8 @@
               <span>Com o Instagram conectado em Conteúdo, a busca automática procura o mesmo segmento e cidade pela hashtag (ex.: #petshopfortaleza) e pega os perfis comerciais com WhatsApp ou e-mail na bio.</span></div></label>
             <label class="chave"><input type="checkbox" name="buscarPorCnpj"><div><b>Buscar empresas também pelo CNPJ</b>
               <span>Pelos dados abertos da Receita Federal: empresas ativas do mesmo segmento e cidade, sem MEI, com o telefone e o e-mail do cadastro (sem os do contador). Grátis.</span></div></label>
+            <label class="chave"><input type="checkbox" name="testarRamos"><div><b>A IA testa ramos novos</b>
+              <span>Uma vez por dia a IA escolhe ramos que combinam com os seus serviços (2 por vez), busca nas mesmas cidades e compara com os seus. Fica com os que respondem bem (20% ou mais em 20 contatadas) e pausa os outros. O resultado aparece em Respostas.</span></div></label>
             <label class="chave"><input type="checkbox" name="respostaAutomatica"><div><b>IA responde as conversas sozinha</b>
               <span>Responde em alguns minutos, em tom humano, uma informação por vez, até a pessoa marcar no Calendly. Passa para você se pedirem ligação, negociarem ou reclamarem.</span></div></label>
             <div class="config-grade">
@@ -2923,11 +2929,35 @@ function htmlFunilVisual(f) {
         <small class="muted">Para quem mostrou interesse e ficou 1 dia sem responder; até 2 seguidos.</small></div></div>
       ${(f.por_ramo ?? []).length ? `<div class="fv-bloco"><b>Resposta por ramo</b><span class="muted">qual ramo responde mais à primeira abordagem</span>
         <table class="fv-ramos"><thead><tr><th>Ramo</th><th>Contatadas</th><th>Responderam</th><th>Interessadas</th></tr></thead><tbody>
-        ${f.por_ramo.map((r) => `<tr><td>${esc(r.ramo.charAt(0).toUpperCase() + r.ramo.slice(1))}</td><td>${r.contatadas}</td>
+        ${f.por_ramo.map((r) => `<tr><td>${esc(r.ramo.charAt(0).toUpperCase() + r.ramo.slice(1))}${pilulaDoRamo(f.ramos_teste, r.ramo)}</td><td>${r.contatadas}</td>
           <td><b>${pctDe(r.responderam, r.contatadas)}%</b> <span class="muted">(${r.responderam})</span></td><td>${r.interessadas}</td></tr>`).join("")}
         </tbody></table></div>` : ""}
+      ${htmlRamosEmTeste(f.ramos_teste)}
     </div>
   </div>`;
+}
+
+const ESTADO_DO_RAMO = { testando: ["Em teste", "acc"], aprovado: ["Aprovado pela IA", "ok"], pausado: ["Pausado", ""] };
+const nomeDoRamo = (n) => String(n ?? "").trim().toLowerCase();
+function pilulaDoRamo(ramos, nicho) {
+  const r = (ramos ?? []).find((x) => nomeDoRamo(x.nicho) === nomeDoRamo(nicho));
+  return r ? ` <span class="pilula ${ESTADO_DO_RAMO[r.status]?.[1] ?? ""}">${ESTADO_DO_RAMO[r.status]?.[0] ?? esc(r.status)}</span>` : "";
+}
+
+/** Ramos que a IA escolheu para testar na captação, com o motivo e o resultado até agora. */
+function htmlRamosEmTeste(ramos) {
+  if (!ramos?.length) return "";
+  const ordem = { testando: 0, aprovado: 1, pausado: 2 };
+  const itens = [...ramos].sort((a, b) => ordem[a.status] - ordem[b.status] || String(b.desde).localeCompare(String(a.desde))).slice(0, 8);
+  return `<div class="fv-bloco fv-followup">${ic("spark")}<div><b>Ramos que a IA está testando</b>
+    <span class="muted">A IA escolhe ramos que combinam com os serviços, testa na captação e fica com os que respondem bem (20% ou mais em 20 contatadas).</span>
+    <ul class="rt-lista">${itens.map((r) => {
+      const res = r.resultado ?? {};
+      const [rotulo, cor] = ESTADO_DO_RAMO[r.status] ?? [r.status, ""];
+      return `<li><span><b>${esc(r.nicho.charAt(0).toUpperCase() + r.nicho.slice(1))}</b> <span class="pilula ${cor}">${esc(rotulo)}</span></span>
+        <small>${esc(r.status === "testando" ? r.motivo : r.decisao || r.motivo)}${r.servico ? ` · ${esc(r.servico)}` : ""}</small>
+        <small>${res.capturadas ?? 0} capturadas · ${res.contatadas ?? 0} contatadas · ${res.contatadas ? pctDe(res.responderam, res.contatadas) : 0}% responderam · desde ${new Date(r.desde).toLocaleDateString("pt-BR")}</small></li>`;
+    }).join("")}</ul></div></div>`;
 }
 
 /** Abre a lista das empresas de uma etapa (ou de uma faixa) do funil, com o botão para ver a conversa de cada uma. */
@@ -6824,6 +6854,7 @@ async function carregarAutomacao() {
     f.respostaAutomatica.checked = a.respostaAutomatica;
     f.buscarNoInstagram.checked = a.buscarNoInstagram !== false;
     f.buscarPorCnpj.checked = a.buscarPorCnpj !== false;
+    f.testarRamos.checked = a.testarRamos !== false;
     f.intervaloEmpresasMin.value = a.intervaloEmpresasMin;
     f.intervaloEmpresasMax.value = a.intervaloEmpresasMax;
     f.metaEmail.value = a.metaDiaria.email;
@@ -6855,6 +6886,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
       ativo: f.ativo.checked, respostaAutomatica: f.respostaAutomatica.checked,
       buscarNoInstagram: f.buscarNoInstagram.checked,
       buscarPorCnpj: f.buscarPorCnpj.checked,
+      testarRamos: f.testarRamos.checked,
       metaEmail: f.metaEmail.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,
       calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value,

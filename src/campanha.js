@@ -18,6 +18,7 @@ export const AUTOMACAO_PADRAO = {
   buscarNoInstagram: true, // com o Instagram conectado pela página do Facebook, busca lá também
   buscarPorCnpj: true, // busca também pelos dados abertos do CNPJ (Receita Federal)
   buscas: null, // null = usa as do campanha.json
+  testarRamos: true, // a IA escolhe ramos novos, testa na captação e fica com os que respondem bem
 };
 
 export async function lerAutomacao() {
@@ -31,6 +32,9 @@ export async function carregarCampanhaCompleta() {
   const automacao = await lerAutomacao();
   if (Array.isArray(automacao.buscas) && automacao.buscas.length) campanha.buscas = automacao.buscas;
   campanha.automacao = automacao;
+  // Ramos que a IA está testando (ou já aprovou): entram na rotação da busca, nas mesmas cidades.
+  campanha.ramosExtras = automacao.testarRamos === false ? []
+    : ((await db.lerConfig("ramos_teste"))?.ramos ?? []).filter((r) => ["testando", "aprovado"].includes(r.status)).map((r) => r.nicho);
   const salvo = (await db.lerConfig("empresa")) ?? {};
   const empresa = { ...campanha.empresa };
   for (const campo of CAMPOS_EMPRESA) {

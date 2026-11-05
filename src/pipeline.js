@@ -24,6 +24,7 @@ import { numerosComAgente } from "./respostas/agentes.js";
 import { followupsDeInteressados } from "./respostas/followup.js";
 import { rodadaDeReativacao } from "./respostas/reativacao.js";
 import { salvarFotosDasEmpresas } from "./respostas/fotos.js";
+import { rodadaDeRamos } from "./descoberta/ramos.js";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
@@ -293,7 +294,13 @@ export async function descobrir(campanha, { ate = prazoPadrao() } = {}) {
 
 /** Todas as combinações segmento × cidade da campanha, na ordem da rotação. */
 export function combinacoesDeBusca(campanha) {
-  return campanha.buscas.flatMap(({ nicho, cidades }) => cidades.map((cidade) => ({ nicho, cidade })));
+  const fixas = campanha.buscas.flatMap(({ nicho, cidades }) => cidades.map((cidade) => ({ nicho, cidade })));
+  // Os ramos que a IA está testando entram nas mesmas cidades (sem repetir um ramo que já é fixo).
+  const jaTem = new Set(campanha.buscas.map((b) => b.nicho.trim().toLowerCase()));
+  const cidades = [...new Set(campanha.buscas.flatMap((b) => b.cidades))];
+  const extras = (campanha.ramosExtras ?? []).filter((n) => !jaTem.has(n.trim().toLowerCase()))
+    .flatMap((nicho) => cidades.map((cidade) => ({ nicho, cidade })));
+  return [...fixas, ...extras];
 }
 
 /**
@@ -1286,6 +1293,13 @@ async function rodada(campanha) {
   }
   if (!campanha.automacao?.ativo) return resultado;
 
+  // Uma vez por dia: a IA avalia os ramos em teste (fica com os que respondem bem) e escolhe ramos novos.
+  if (!semTempo(ate)) {
+    resultado.ramos = await rodadaDeRamos(campanha).catch((e) => {
+      log(`⚠️  Falha ao escolher ramos novos: ${e.message}`);
+      return { erro: e.message };
+    });
+  }
   const reserva = (await db.contarLeadsPorStatus("novo")) + (await db.contarLeadsPorStatus("analisado"));
   if (reserva < RESERVA_DE_EMPRESAS && !semTempo(ate)) resultado.descoberta = await descobrirProxima(campanha);
   if (!semTempo(ate)) resultado.analise = await analisar({ ate, limite: 10 });

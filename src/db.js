@@ -1176,11 +1176,29 @@ export async function funilDeConversas() {
           SELECT ramo, count(*)::int AS contatadas,
                  count(*) FILTER (WHERE etapa NOT IN ('recebendo_etapas', 'sem_resposta', 'descartadas'))::int AS responderam,
                  count(*) FILTER (WHERE etapa IN ('interessadas', 'agendaram', 'fecharam'))::int AS interessadas
-            FROM etapas GROUP BY ramo ORDER BY count(*) DESC, ramo LIMIT 8) x) AS por_ramo`
+            FROM etapas GROUP BY ramo ORDER BY count(*) DESC, ramo LIMIT 12) x) AS por_ramo`
   );
   const agora = typeof f.agora === "string" ? JSON.parse(f.agora) : f.agora ?? {};
   const porRamo = typeof f.por_ramo === "string" ? JSON.parse(f.por_ramo) : f.por_ramo ?? [];
   return { ...f, por_ramo: porRamo, agora: Object.fromEntries(ETAPAS_DO_FUNIL.map((e) => [e, Number(agora[e]) || 0])) };
+}
+
+/** Resultado de cada ramo (todos): contatadas, responderam, interessadas e quantas empresas foram capturadas. */
+export async function resultadoPorRamo() {
+  return q(
+    `WITH etapas AS (${SQL_ETAPAS}),
+     resultado AS (
+       SELECT ramo, count(*)::int AS contatadas,
+              count(*) FILTER (WHERE etapa NOT IN ('recebendo_etapas', 'sem_resposta', 'descartadas'))::int AS responderam,
+              count(*) FILTER (WHERE etapa IN ('interessadas', 'agendaram', 'fecharam'))::int AS interessadas
+         FROM etapas GROUP BY ramo),
+     capturadas AS (
+       SELECT lower(btrim(nicho)) AS ramo, count(*)::int AS capturadas FROM leads
+        WHERE agente_id IS NULL AND nullif(btrim(nicho), '') IS NOT NULL GROUP BY 1)
+     SELECT coalesce(r.ramo, c.ramo) AS ramo, coalesce(r.contatadas, 0) AS contatadas, coalesce(r.responderam, 0) AS responderam,
+            coalesce(r.interessadas, 0) AS interessadas, coalesce(c.capturadas, 0) AS capturadas
+       FROM resultado r FULL JOIN capturadas c ON c.ramo = r.ramo`
+  );
 }
 
 /** As empresas que estão agora nestas etapas do funil, com a última mensagem nossa e a última delas. */

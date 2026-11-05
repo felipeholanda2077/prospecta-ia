@@ -57,6 +57,7 @@ import * as crm from "./respostas/crmAgente.js";
 import { previsaoDoFollowup, registrosDeFollowup } from "./respostas/followup.js";
 import { fotoDoLead } from "./respostas/fotos.js";
 import { enviarParaNumero, rascunhoParaNumero } from "./respostas/conversarComNumero.js";
+import { lerRamos } from "./descoberta/ramos.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -1109,7 +1110,8 @@ const followupDaConversa = (c, registros) => previsaoDoFollowup({
 app.get("/api/conversas", async (req, res) => {
   const registros = await registrosDeFollowup();
   const conversas = (await conversasAvaliadas()).map((c) => ({ ...c, followup: followupDaConversa(c, registros) }));
-  res.json({ indicadores: indicadoresDasConversas(conversas, await db.funilDeConversas()), conversas });
+  const funil = { ...(await db.funilDeConversas()), ramos_teste: await lerRamos() };
+  res.json({ indicadores: indicadoresDasConversas(conversas, funil), conversas });
 });
 
 /** Manda a foto de perfil da empresa (ou 204, sem foto: o painel mostra a inicial). */
@@ -1292,6 +1294,7 @@ app.put("/api/config/automacao", async (req, res) => {
     calendly: calendlyLink,
     buscarNoInstagram: b.buscarNoInstagram !== false,
     buscarPorCnpj: b.buscarPorCnpj !== false,
+    testarRamos: b.testarRamos !== false,
     buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,
   };
   await db.gravarConfig("automacao", novo);
