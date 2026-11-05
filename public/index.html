@@ -2926,15 +2926,34 @@ function htmlFunilVisual(f) {
       <div class="fv-bloco"><b>Onde estão agora</b><span class="muted">as ${total} empresas, cada uma onde parou; a cor é a da faixa do funil. Clique para ver quem são.</span><ul class="fv-lista">${legenda}</ul></div>
       <div class="fv-bloco fv-followup">${ic("bell")}<div><b>Follow-up da IA</b>
         <span><b>${receberam}</b> ${receberam === 1 ? "empresa recebeu" : "empresas receberam"} follow-up · <b>${voltaram}</b> ${voltaram === 1 ? "voltou" : "voltaram"} a responder${receberam ? ` (${pctDe(voltaram, receberam)}%)` : ""}</span>
-        <small class="muted">Para quem mostrou interesse e ficou 1 dia sem responder; até 2 seguidos.</small></div></div>
+        <small class="muted">Para quem mostrou interesse, ou ficou de ver ou de repassar, e passou 1 dia sem responder; até 2 seguidos.</small></div></div>
       ${(f.por_ramo ?? []).length ? `<div class="fv-bloco"><b>Resposta por ramo</b><span class="muted">qual ramo responde mais à primeira abordagem</span>
         <table class="fv-ramos"><thead><tr><th>Ramo</th><th>Contatadas</th><th>Responderam</th><th>Interessadas</th></tr></thead><tbody>
         ${f.por_ramo.map((r) => `<tr><td>${esc(r.ramo.charAt(0).toUpperCase() + r.ramo.slice(1))}${pilulaDoRamo(f.ramos_teste, r.ramo)}</td><td>${r.contatadas}</td>
           <td><b>${pctDe(r.responderam, r.contatadas)}%</b> <span class="muted">(${r.responderam})</span></td><td>${r.interessadas}</td></tr>`).join("")}
         </tbody></table></div>` : ""}
       ${htmlRamosEmTeste(f.ramos_teste)}
+      ${htmlTesteDeAbordagem(f.por_abordagem)}
     </div>
   </div>`;
+}
+
+// Teste A/B da primeira mensagem do WhatsApp (ver src/ia/abordagens.js).
+const NOMES_DAS_ABORDAGENS = { elogio: "Elogio e pergunta", pergunta: "Pergunta direta", responsavel: "Pergunta pelo responsável" };
+const MIN_POR_ABORDAGEM = 30;
+function htmlTesteDeAbordagem(linhas = []) {
+  if (!linhas?.length) return "";
+  const taxa = (r) => (r.contatadas ? r.interessadas / r.contatadas : 0);
+  const todasMedidas = Object.keys(NOMES_DAS_ABORDAGENS).every((k) => (linhas.find((r) => r.abordagem === k)?.contatadas ?? 0) >= MIN_POR_ABORDAGEM);
+  const melhor = todasMedidas ? [...linhas].sort((a, b) => taxa(b) - taxa(a))[0]?.abordagem : null;
+  return `<div class="fv-bloco"><b>Primeira mensagem (teste A/B)</b><span class="muted">${todasMedidas
+    ? "a IA usa mais a que gera mais interesse, e de vez em quando as outras"
+    : `cada jeito de abrir a conversa vai para ${MIN_POR_ABORDAGEM} empresas antes de a IA escolher`}</span>
+    <table class="fv-ramos"><thead><tr><th>Abordagem</th><th>Contatadas</th><th>Responderam</th><th>Interessadas</th></tr></thead><tbody>
+    ${linhas.map((r) => `<tr><td>${esc(NOMES_DAS_ABORDAGENS[r.abordagem] ?? r.abordagem)}${r.abordagem === melhor ? ' <span class="pilula ok">Na frente</span>' : ""}</td><td>${r.contatadas}</td>
+      <td><b>${pctDe(r.responderam, r.contatadas)}%</b> <span class="muted">(${r.responderam})</span></td>
+      <td><b>${pctDe(r.interessadas, r.contatadas)}%</b> <span class="muted">(${r.interessadas})</span></td></tr>`).join("")}
+    </tbody></table></div>`;
 }
 
 const ESTADO_DO_RAMO = { testando: ["Em teste", "acc"], aprovado: ["Aprovado pela IA", "ok"], pausado: ["Pausado", ""] };

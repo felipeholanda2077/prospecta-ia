@@ -10,13 +10,13 @@ const campanha = { empresa: { nome: "FluxDeck", responsavel: "Felipe" }, servico
 const horasAtras = (h) => new Date(Date.now() - h * 3600_000).toISOString();
 
 /** Empresa que mostrou interesse: nossa mensagem, a resposta dela e a nossa resposta, `h` horas atrás. */
-async function conversa(nome, { classificacao = "quer_informacoes", h = 30 } = {}) {
+async function conversa(nome, { classificacao = "quer_informacoes", h = 30, temperatura = null } = {}) {
   await db.inserirLead({ place_id: nome, nome, nicho: "loja", cidade: "SP" });
   const [lead] = await db.consultar("SELECT * FROM leads WHERE place_id = $1", [nome]);
   await db.atualizarLead(lead.id, { whatsapp: "5511900000000", status: "respondeu" });
   const m1 = await db.criarMensagem({ lead_id: lead.id, canal: "whatsapp", destino: "5511900000000", corpo: "Oi, aqui é o Felipe." });
   await db.atualizarMensagem(m1, { status: "enviada", enviada_em: horasAtras(h + 2) });
-  await db.criarResposta({ lead_id: lead.id, canal: "whatsapp", origem_id: `${nome}-r1`, de: "5511900000000", texto: "Vem de indicação e web.", classificacao, resumo: "x" });
+  await db.criarResposta({ lead_id: lead.id, canal: "whatsapp", origem_id: `${nome}-r1`, de: "5511900000000", texto: "Vem de indicação e web.", classificacao, resumo: "x", temperatura });
   await db.consultar("UPDATE respostas SET recebida_em = $2 WHERE lead_id = $1", [lead.id, horasAtras(h + 1)]);
   const m2 = await db.criarMensagem({ lead_id: lead.id, canal: "whatsapp", destino: "5511900000000", corpo: "Onde vocês sentem mais aperto hoje?", tipo: "resposta", etapa: 0 });
   await db.atualizarMensagem(m2, { status: "enviada", enviada_em: horasAtras(h) });
@@ -110,4 +110,13 @@ test("follow-up no painel: a mensagem fica marcada e a previsão diz quando sai 
   const depois = await db.funilDeConversas();
   assert.ok(depois.followup_receberam >= 1);
   assert.equal(depois.followup_responderam - antes.followup_responderam, 1);
+});
+
+test("follow-up: conversa morna sem interesse declarado (ex.: ficou de repassar) também recebe; fria não", async () => {
+  const repassou = await conversa("Clinica Repassou", { classificacao: "outro", temperatura: "morna" });
+  const fria = await conversa("Clinica Fria", { classificacao: "outro", temperatura: "fria" });
+  const escrever = async () => ({ opcao: "responsavel", mensagem: "Oi! Conseguiu falar com o responsável? Se preferir, me passa o contato dele que eu explico rapidinho." });
+  await followupsDeInteressados(campanha, { escrever, limite: 10 });
+  assert.match((await pendentes(repassou.id))[0]?.corpo ?? "", /responsável/);
+  assert.equal((await pendentes(fria.id)).length, 0);
 });

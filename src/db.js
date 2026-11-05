@@ -403,21 +403,21 @@ export async function descadastrar(contato, motivo = "pedido do contato") {
 const COLUNAS_LEAD = new Set([
   "nome", "nicho", "cidade", "endereco", "telefone", "whatsapp", "whatsapp_status", "email", "site", "maps_url",
   "avaliacao", "total_avaliacoes", "analise", "oportunidades", "status", "observacao", "instagram", "instagram_dados",
-  "numero_wa", "agente_id", "agente_delegou_em",
+  "numero_wa", "agente_id", "agente_delegou_em", "responsavel", "abordagem",
 ]);
 
 /** Insere a empresa se ainda não existir. Retorna true se for nova. */
 export async function inserirLead(lead) {
   const linhas = await q(
     `INSERT INTO leads (place_id, nome, nicho, cidade, endereco, telefone, site, maps_url,
-                        avaliacao, total_avaliacoes, origem, token, email, instagram, instagram_dados)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                        avaliacao, total_avaliacoes, origem, token, email, instagram, instagram_dados, responsavel)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
      ON CONFLICT (place_id) DO NOTHING RETURNING id`,
     [
       lead.place_id, lead.nome, lead.nicho, lead.cidade, lead.endereco, lead.telefone, lead.site,
       lead.maps_url, lead.avaliacao, lead.total_avaliacoes, lead.origem ?? "campanha",
       crypto.randomBytes(16).toString("hex"), lead.email ?? null, lead.instagram ?? null,
-      lead.instagram_dados ? JSON.stringify(lead.instagram_dados) : null,
+      lead.instagram_dados ? JSON.stringify(lead.instagram_dados) : null, lead.responsavel ?? null,
     ]
   );
   return linhas.length > 0;
@@ -1008,7 +1008,10 @@ export async function interessadosParaFollowup(agoraIso = new Date().toISOString
   return q(
     `SELECT l.* FROM leads l
       WHERE l.agente_id IS NULL AND l.status = 'respondeu'
-        AND EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IN ('interessado', 'quer_informacoes'))
+        AND (EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IN ('interessado', 'quer_informacoes'))
+             -- conversa morna ou quente (ex.: ficou de ver, ou de repassar para o responsável), pela avaliação mais recente
+             OR (SELECT r.temperatura FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IS DISTINCT FROM 'automatica'
+                  ORDER BY r.recebida_em DESC LIMIT 1) IN ('morna', 'quente'))
         AND NOT EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status IN ('rascunho', 'aprovada', 'enviando'))
         AND (SELECT max(m.enviada_em) FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada') < $1::timestamptz - interval '1 day'
       ORDER BY l.id DESC LIMIT $2`,
@@ -1191,7 +1194,7 @@ export async function funilDeConversas() {
   );
   const agora = typeof f.agora === "string" ? JSON.parse(f.agora) : f.agora ?? {};
   const porRamo = typeof f.por_ramo === "string" ? JSON.parse(f.por_ramo) : f.por_ramo ?? [];
-  return { ...f, por_ramo: porRamo, agora: Object.fromEntries(ETAPAS_DO_FUNIL.map((e) => [e, Number(agora[e]) || 0])) };
+  return { ...f, por_ramo: porRamo, por_abordagem: await resultadoPorAbordagem(), agora: Object.fromEntries(ETAPAS_DO_FUNIL.map((e) => [e, Number(agora[e]) || 0])) };
 }
 
 /** Resultado de cada ramo (todos): contatadas, responderam, interessadas e quantas empresas foram capturadas. */
@@ -1209,6 +1212,19 @@ export async function resultadoPorRamo() {
      SELECT coalesce(r.ramo, c.ramo) AS ramo, coalesce(r.contatadas, 0) AS contatadas, coalesce(r.responderam, 0) AS responderam,
             coalesce(r.interessadas, 0) AS interessadas, coalesce(c.capturadas, 0) AS capturadas
        FROM resultado r FULL JOIN capturadas c ON c.ramo = r.ramo`
+  );
+}
+
+/** Teste A/B da primeira mensagem: por abordagem, quantas foram contatadas, responderam e se interessaram. */
+export async function resultadoPorAbordagem() {
+  return q(
+    `WITH etapas AS (${SQL_ETAPAS})
+     SELECT l.abordagem, count(*)::int AS contatadas,
+            count(*) FILTER (WHERE e.etapa NOT IN ('recebendo_etapas', 'sem_resposta', 'descartadas'))::int AS responderam,
+            count(*) FILTER (WHERE e.etapa IN ('interessadas', 'agendaram', 'fecharam'))::int AS interessadas
+       FROM etapas e JOIN leads l ON l.id = e.id
+      WHERE l.abordagem IS NOT NULL
+      GROUP BY l.abordagem ORDER BY l.abordagem`
   );
 }
 

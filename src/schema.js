@@ -343,6 +343,10 @@ CREATE TABLE IF NOT EXISTS agente_arquivos (
 ALTER TABLE agentes ADD COLUMN IF NOT EXISTS avatar text;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS agente_id integer;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS agente_delegou_em timestamptz;
+-- Nome do sócio que administra a empresa (do cadastro do CNPJ), para a primeira mensagem perguntar por ele.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS responsavel text;
+-- Abordagem da primeira mensagem (teste A/B): elogio, pergunta ou responsavel.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS abordagem text;
 CREATE INDEX IF NOT EXISTS idx_leads_agente ON leads(agente_id) WHERE agente_id IS NOT NULL;
 -- Logins do CRM externo de cada agente (/crm): quem entra vê só as conversas desse agente.
 CREATE TABLE IF NOT EXISTS agente_acessos (

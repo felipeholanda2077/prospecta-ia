@@ -203,7 +203,17 @@ const NOME_DO_CANAL = { email: "e-mail", whatsapp: "WhatsApp", instagram: "direc
  * Classifica a resposta de um lead e sugere o próximo passo da conversa.
  * A sugestão avança aos poucos: responde o que foi perguntado e entrega uma informação nova por vez.
  */
-export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email", linkAgendamento = "", apresentacao = "", nota = "" }) {
+/** Como convidar: com horários livres do Calendly, oferece dois e o link para confirmar; sem eles, só o link. */
+function comoConvidar(linkAgendamento, horarios = [], ela = "a pessoa") {
+  if (!linkAgendamento) return " (ofereça duas opções de horário em dias úteis)";
+  if (horarios.length >= 2) {
+    return ` oferecendo estes dois horários livres: ${horarios[0]} ou ${horarios[1]} (escreva assim, por extenso), e diga que, se
+  um deles servir ou se ${ela} preferir outro, é só escolher e confirmar neste link: ${linkAgendamento}`;
+  }
+  return ` e mande exatamente este link para ${ela} escolher o horário: ${linkAgendamento}`;
+}
+
+export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email", linkAgendamento = "", horarios = [], apresentacao = "", nota = "" }) {
   const porRegra = classificarPorRegra(String(texto ?? "").replace(/^\[áudio\]\s*/, ""), assunto);
   if (porRegra) return porRegra;
   const podeValores = pediuValor(texto, historico);
@@ -241,9 +251,7 @@ ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, co
 `}- Só convide para o bate-papo quando dor_entendida for true (você já sabe exatamente o que ela precisa e por quê) e
   ela mostrar interesse, OU quando ela mesma pedir (ligação, reunião, call, orçamento, "como funciona"). Fora isso, NÃO
   fale de bate-papo, call, reunião nem agenda: continue descobrindo.
-- Na hora de convidar: convide para o bate-papo${linkAgendamento
-      ? ` e mande exatamente este link para a pessoa escolher o horário: ${linkAgendamento}`
-      : " com duas opções de horário em dias úteis"}.
+- Na hora de convidar: convide para o bate-papo${comoConvidar(linkAgendamento, horarios)}.
 - Se a pessoa já recebeu o link e disse que vai marcar, agradeça em uma frase, sem insistir.
 - Nunca repita frases ou informações que já aparecem no histórico. Não invente fatos, prazos ou descontos.
 - Se o histórico já tem mensagem sua, NÃO cumprimente de novo (nada de "Bom dia!", "Boa tarde!", "Olá!") e NÃO se
@@ -260,8 +268,12 @@ ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, co
   marcam pelo telefone ou WhatsApp e veio "98%" = 98% pelo WhatsApp), siga a conversa e avance um passo. Se não der
   mesmo para entender, faça uma pergunta leve, sem parecer que não entendeu nada.
 - Nunca pergunte de novo algo que a pessoa já respondeu no histórico.
-- Saiba parar: se a pessoa só agradeceu ou se despediu e você já tinha agradecido, ou disse que vai repassar para a
-  equipe e você já agradeceu, marque encerrar e deixe a sugestão vazia. Não entre em vai e volta de "obrigado".
+- Recepção ou atendente que diz que vai repassar para o dono, o responsável, o gestor ou a equipe (e ainda não deu o
+  nome nem o contato dessa pessoa): agradeça em meia frase e pergunte, com leveza, o primeiro nome do responsável e o
+  melhor contato ou horário para falar com ele, oferecendo explicar direto para não tomar o tempo dela (ex.: "Combinado,
+  obrigado! Qual o nome dele? Se preferir, me passa o contato que eu explico direto, rapidinho."). Só uma vez.
+- Saiba parar: se a pessoa só agradeceu ou se despediu e você já tinha agradecido, ou disse que vai repassar e você já
+  agradeceu e perguntou pelo responsável, marque encerrar e deixe a sugestão vazia. Não entre em vai e volta de "obrigado".
 - Se quem responde parece um atendimento automático ou outra IA (não responde o que você perguntou, repete
   cumprimentos, "em que posso ajudar?", menus, agradece e se despede toda vez), marque robo e, na sugestão, escreva
   UMA mensagem curta (até 2 frases) para chegar numa pessoa: responda em poucas palavras o que o robô perguntou (ex.:
@@ -307,7 +319,7 @@ const APRESENTACAO_JSON_SCHEMA = {
  * Primeira resposta a quem demonstrou interesse: como funciona, os planos e o prazo (da apresentação
  * editável no painel) e o convite para o bate-papo, se a pessoa quiser saber mais.
  */
-export async function escreverApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", apresentacao, linkAgendamento = "" }) {
+export async function escreverApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", apresentacao, linkAgendamento = "", horarios = [] }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const podeValores = pediuValor(texto, historico);
   const r = await gerarJson({
@@ -326,9 +338,7 @@ A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa (${NOME_D
      não perguntou de preço); no fim, uma frase dizendo que você passa os valores se ela quiser;`}
    - em quanto tempo fica pronto.
 3. Se ela pediu algo que não está na apresentação, uma frase sincera dizendo que isso vocês veem juntos no bate-papo.
-4. Feche dizendo que, se ela quiser saber mais, vocês marcam um bate-papo${linkAgendamento
-      ? ` e mande exatamente este link para ela escolher o horário: ${linkAgendamento}`
-      : " (ofereça duas opções de horário em dias úteis)"}.
+4. Feche dizendo que, se ela quiser saber mais, vocês marcam um bate-papo${comoConvidar(linkAgendamento, horarios, "ela")}.
 Promoção com data (ex.: só em novembro): hoje é ${hoje()}. Se ainda não começou, conte como novidade que vem aí; se
 já acabou, não cite.
 Até ~1.200 caracteres. Português do Brasil, simples e direto, no máximo 1 emoji.${FORMATO_DO_CANAL[canal] ?? FORMATO_DO_CANAL.whatsapp}
@@ -355,7 +365,7 @@ const FollowupSchema = z.object({ opcao: z.enum(["retomar", "material"]), mensag
 const FOLLOWUP_JSON_SCHEMA = {
   type: "object",
   properties: {
-    opcao: { type: "string", enum: ["retomar", "material"], description: "retomar = retoma de onde pararam; material = oferece o guia gratuito" },
+    opcao: { type: "string", enum: ["retomar", "material", "responsavel"], description: "retomar = retoma de onde pararam; material = oferece o guia gratuito; responsavel = pergunta se conseguiu falar com o responsável" },
     mensagem: { type: "string", description: "a mensagem de follow-up, pronta para enviar" },
   },
   required: ["opcao", "mensagem"],
@@ -374,14 +384,16 @@ export async function escreverFollowup({ lead, historico, campanha, canal = "wha
   const r = await gerarJson({
     system: `${contextoEmpresa(campanha, { semValores: true })}
 
-Você é ${quem}. Esta empresa mostrou interesse na conversa, mas não responde há 1 dia ou mais. Escreva um follow-up
-(${NOME_DO_CANAL[canal] ?? "WhatsApp"}; é o ${numero}º seguido sem resposta), escolhendo UMA destas opções:
+Você é ${quem}. Esta empresa conversou com você (mostrou interesse, ficou de ver ou de repassar), mas não responde há
+1 dia ou mais. Escreva um follow-up (${NOME_DO_CANAL[canal] ?? "WhatsApp"}; é o ${numero}º seguido sem resposta), escolhendo UMA destas opções:
 - retomar: continue exatamente de onde a conversa parou, citando o último assunto (o que ela contou, a pergunta que
   ficou sem resposta), de um jeito leve e útil, com UMA pergunta simples no fim.
 - material: ofereça de presente um material gratuito: um guia prático em PDF, feito para a ${lead.nome}, com passos
   simples para atrair mais clientes pelo site, pelo Google e pelo WhatsApp. Mande exatamente este link: ${linkMaterial}
   Diga em uma frase por que ele ajuda no que ela contou, e termine com uma pergunta leve.
-${evitar ? `O follow-up anterior foi "${evitar}": agora use a OUTRA opção.` : "Escolha a que fizer mais sentido para esta conversa."}
+- responsavel: SÓ se a pessoa disse que ia passar para o dono, o responsável ou a equipe: pergunte com leveza se ela
+  conseguiu falar com ele, ou peça o primeiro nome e o melhor contato dele para você mesmo explicar, rapidinho.
+${evitar ? `O follow-up anterior foi "${evitar}": agora use outra opção.` : "Escolha a que fizer mais sentido para esta conversa (se ela ficou de repassar, comece por responsavel)."}
 Regras:
 - Nada de cobrança ("não sei se viu", "só passando para lembrar", "fico no aguardo"), nada de pressão.
 - Não cumprimente com "bom dia/boa tarde" nem se apresente de novo: vocês já conversaram. Um "Oi, [nome]!" leve pode.

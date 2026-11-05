@@ -2,7 +2,7 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import { classificarResposta, limparTextoResposta, escreverApresentacao, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo } from "../ia/resposta.js";
 import { enviarNotificacao } from "../envio/email.js";
-import { linkAgendamento } from "../agenda/calendly.js";
+import { linkAgendamento, horariosLivres } from "../agenda/calendly.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
 import { lerApresentacao } from "./apresentacao.js";
 import { responderComoAgente } from "../ia/agente.js";
@@ -279,6 +279,7 @@ export async function registrarResposta({
       const contexto = {
         texto: limpo, assunto, lead, historico, campanha, canal,
         linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal),
+        horarios: await horariosLivres(campanha.automacao?.calendly),
         apresentacao: await lerApresentacao(),
       };
       ({ c, apresentou } = await pensarResposta(contexto, { classificar, apresentar }));
@@ -419,7 +420,8 @@ export async function continuarComIA(respostaId, campanha, {
   await retomarIA(lead.id); // você mandou a IA continuar: sai da pausa
   const contexto = {
     texto: r.texto, assunto: r.assunto, lead, historico: await db.historicoConversa(lead.id), campanha, canal: r.canal,
-    linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, r.canal), apresentacao: await lerApresentacao(),
+    linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, r.canal), horarios: await horariosLivres(campanha.automacao?.calendly),
+    apresentacao: await lerApresentacao(),
     nota: String(nota ?? "").trim().slice(0, 500),
   };
   const pensado = await pensarResposta(contexto, { classificar, apresentar });

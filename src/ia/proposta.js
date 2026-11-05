@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { gerarJson } from "./cliente.js";
 import { MARCADOR_LINK } from "../agenda/calendly.js";
+import { ABORDAGENS, ABORDAGEM_PADRAO } from "./abordagens.js";
 
 const Etapas = z.object({ etapa1: z.string(), etapa2: z.string(), etapa3: z.string() });
 
@@ -66,7 +67,8 @@ ${semValores
 Nunca invente nomes, telefones, sites, clientes, números ou resultados que não estejam aqui.`;
 }
 
-function montarSistema(campanha) {
+function montarSistema(campanha, abordagem = ABORDAGEM_PADRAO) {
+  if (!ABORDAGENS[abordagem]) abordagem = ABORDAGEM_PADRAO;
   return `${contextoEmpresa(campanha)}
 
 Sua tarefa: escrever uma SEQUÊNCIA de 3 mensagens para iniciar contato com uma empresa que ainda não conhece vocês.
@@ -74,8 +76,8 @@ A abordagem é gradual, como uma pessoa de verdade puxando conversa: a informaç
 Cada etapa só é enviada se a anterior não teve resposta; quando a empresa responder, a sequência para.
 
 Etapa 1 — primeiro contato (curtíssima e leve):
-- Cumprimente, diga quem é em poucas palavras e cite UMA coisa positiva e concreta observada sobre a empresa (ex.: as avaliações no Google).
-- Termine com UMA pergunta simples e aberta sobre como eles trabalham hoje, ligada à oportunidade observada (ex.: como os pacientes costumam encontrar vocês).
+- WhatsApp, abordagem "${ABORDAGENS[abordagem].nome}": ${ABORDAGENS[abordagem].instrucao}
+- E-mail: ${ABORDAGENS[ABORDAGEM_PADRAO].instrucao}
 - PROIBIDO na etapa 1: preço, prazo, lista de serviços, link, pedido de reunião, dizer que "falta" algo à empresa.
 - WhatsApp: no máximo 2 frases curtas (até ~240 caracteres). E-mail: 40 a 70 palavras.
 
@@ -83,6 +85,10 @@ No WhatsApp as 3 etapas saem no MESMO DIA, com cerca de 2 horas entre elas: escr
 algumas horas depois (nada de "semana passada" ou "dias atrás").
 No e-mail cada etapa sai em outro dia (a 2 um dia útil depois da 1, a 3 dois dias úteis depois da 2): escreva como
 quem dá sequência ao e-mail anterior, sem citar o dia exato (nada de "ontem" ou "semana passada").
+
+Se os dados trazem o sócio que administra a empresa: use o PRIMEIRO nome dele, com a grafia certa em português (ex.:
+JOSE CARLOS DA SILVA → José). Na abordagem "${ABORDAGENS.responsavel.nome}", pergunte por ele ("Falo com o José?"); nas
+outras e no e-mail, cumprimente pelo nome ("Oi, José, tudo bem?"). Não diga de onde tirou o nome.
 
 Etapa 2 — se não houver resposta (WhatsApp: ~2 horas depois; e-mail: 1 dia útil depois):
 - Volte com naturalidade, sem cobrar resposta.
@@ -129,7 +135,8 @@ function montarPedido(lead, oportunidades) {
 - Segmento: ${lead.nicho ?? "não informado"}
 - Cidade: ${lead.cidade ?? "não informada"}
 - Site: ${lead.site ?? SEM_SITE_CONHECIDO(lead)}
-- Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "sem dados"}${linhaDoInstagram(lead)}
+- Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "sem dados"}${linhaDoInstagram(lead)}${lead.responsavel ? `
+- Sócio que administra (cadastro do CNPJ, em maiúsculas e sem acento): ${lead.responsavel}` : ""}
 
 Oportunidades encontradas na análise (da mais para a menos relevante):
 ${oportunidades.map((o) => `- [${o.servico}] ${o.motivo}`).join("\n")}
@@ -141,9 +148,9 @@ Escreva a sequência.`;
  * Gera as 3 etapas (e-mail e WhatsApp) da abordagem gradual para um lead.
  * Retorna `email` e `whatsapp` como listas na ordem das etapas.
  */
-export async function gerarSequencia(lead, oportunidades, campanha) {
+export async function gerarSequencia(lead, oportunidades, campanha, { abordagem = ABORDAGEM_PADRAO } = {}) {
   const r = await gerarJson({
-    system: montarSistema(campanha),
+    system: montarSistema(campanha, abordagem),
     pedido: montarPedido(lead, oportunidades),
     jsonSchema: SEQUENCIA_JSON_SCHEMA,
     zodSchema: SequenciaSchema,

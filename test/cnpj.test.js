@@ -131,3 +131,15 @@ test("cnpj: na análise, a empresa sem contato espera a vez da consulta de reser
     fontes.restaurar();
   }
 });
+
+test("sócio que decide: o administrador entre os sócios que são pessoas", async () => {
+  const { socioQueDecide } = await import("../src/descoberta/cnpj.js");
+  assert.equal(socioQueDecide([
+    { nome: "ALFA PARTICIPACOES LTDA", papel: "Sócio-Administrador" },
+    { nome: "MARIA DE SA", papel: "Sócio" },
+    { nome: "JOSE CARLOS DA SILVA", papel: "Sócio-Administrador" },
+  ]), "JOSE CARLOS DA SILVA");
+  assert.equal(socioQueDecide([{ nome: "MARIA DE SA", papel: "Sócio" }]), "MARIA DE SA"); // "Sá" é sobrenome, não S/A
+  assert.equal(socioQueDecide([{ nome: "ESPOLIO DE JOAO", papel: "Sócio" }, { nome: "BETA S/A", papel: "Sócio" }]), null);
+  assert.equal(socioQueDecide([]), null);
+});

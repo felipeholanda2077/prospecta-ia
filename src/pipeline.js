@@ -4,6 +4,7 @@ import * as db from "./db.js";
 import { buscarEmpresas } from "./descoberta/googlePlaces.js";
 import { buscaNoInstagram, buscarEmpresasNoInstagram, instagramDaEmpresa } from "./descoberta/instagram.js";
 import { buscarEmpresasPorCnpj, contatoDoCnpj, emailDeContador } from "./descoberta/cnpj.js";
+import { escolherAbordagem } from "./ia/abordagens.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
@@ -390,6 +391,7 @@ export async function capturarDoCnpj(empresas, nicho, cidade) {
       nicho,
       cidade,
       origem: "cnpj",
+      responsavel: e.socio ? String(e.socio).slice(0, 80) : null,
     };
     if (await db.inserirLead(lead)) novas++;
   }
@@ -559,8 +561,9 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
       const email = dados?.email && !emailDeContador(dados.email) ? dados.email : null;
       const telefone = dados?.telefones?.[0] ?? null;
       const doContador = telefone && (await db.telefoneDeOutroCnpj(telefone, lead.place_id));
-      Object.assign(lead, { email, telefone: doContador ? null : telefone, endereco: lead.endereco ?? dados?.endereco ?? null });
-      await db.atualizarLead(lead.id, { email: lead.email, telefone: lead.telefone, endereco: lead.endereco });
+      Object.assign(lead, { email, telefone: doContador ? null : telefone, endereco: lead.endereco ?? dados?.endereco ?? null,
+        responsavel: lead.responsavel ?? dados?.socio ?? null });
+      await db.atualizarLead(lead.id, { email: lead.email, telefone: lead.telefone, endereco: lead.endereco, responsavel: lead.responsavel });
     }
     // Do CNPJ não vem o site; um e-mail de domínio próprio (não Gmail, Hotmail...) costuma ser o do site.
     if (lead.origem === "cnpj" && !lead.site && lead.email) {
@@ -650,6 +653,8 @@ export async function propor(campanha, { ate = prazoPadrao(), limite = campanha.
   let geradas = 0;
   let ultimoErro = null;
   const prontas = [];
+  // Teste A/B da primeira mensagem: a contagem de cada abordagem, atualizada a cada empresa desta rodada.
+  const contagem = leads.length ? Object.fromEntries((await db.resultadoPorAbordagem()).map((r) => [r.abordagem, r])) : {};
 
   for (const lead of leads) {
     if (semTempo(ate)) break;
@@ -689,7 +694,9 @@ export async function propor(campanha, { ate = prazoPadrao(), limite = campanha.
         log(`✍️  Direct para @${lead.instagram} (${d.servico_principal}); você envia pelo Instagram`);
         continue;
       }
-      const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades), campanha);
+      // A abordagem só é sorteada (e conta no teste) quando a sequência vai pelo WhatsApp.
+      const abordagem = destinosLivres.some(([c]) => c === "whatsapp") ? escolherAbordagem(contagem) : null;
+      const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades), campanha, abordagem ? { abordagem } : {});
       for (const [canal, destino] of destinosLivres) {
         const textos = canal === "email" ? s.email : s.whatsapp;
         for (const [i, corpo] of textos.entries()) {
@@ -706,7 +713,7 @@ export async function propor(campanha, { ate = prazoPadrao(), limite = campanha.
           });
         }
       }
-      await db.atualizarLead(lead.id, { status: "proposta_gerada", observacao: s.resumo_interno });
+      await db.atualizarLead(lead.id, { status: "proposta_gerada", observacao: s.resumo_interno, ...(abordagem ? { abordagem } : {}) });
       geradas++;
       prontas.push({ nome: lead.nome, canais: destinosLivres.map(([c]) => c), whatsappStatus: lead.whatsapp_status });
       log(`✍️  Sequência para ${lead.nome} (${s.servico_principal})`);
@@ -1317,7 +1324,7 @@ export async function reescreverSequenciasComPreco(campanha, { ate = prazoPadrao
     if (semTempo(ate)) break;
     const lead = await db.buscarLead(leadId);
     try {
-      const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades || "[]"), campanha);
+      const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades || "[]"), campanha, lead.abordagem ? { abordagem: lead.abordagem } : {});
       for (const m of await db.etapasPendentes(leadId)) {
         const corpo = (m.canal === "email" ? s.email : s.whatsapp)[m.etapa - 1];
         if (!corpo) continue;

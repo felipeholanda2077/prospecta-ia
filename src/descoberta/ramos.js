@@ -4,8 +4,9 @@ import * as db from "../db.js";
 import { gerarJson } from "../ia/cliente.js";
 
 // Ramos em teste: a IA escolhe ramos novos que fazem sentido para os serviços da FluxDeck, eles entram na
-// rotação da busca (nas mesmas cidades) e, com empresas suficientes contatadas, a IA fica com os que respondem
-// bem e pausa os que não respondem. Uma vez por dia; no máximo 2 ramos em teste ao mesmo tempo.
+// rotação da busca (nas mesmas cidades) e, com empresas suficientes contatadas, a IA fica com os que geram
+// INTERESSE (não só resposta: há ramo que responde muito e quase nunca quer nada) e pausa os outros.
+// Uma vez por dia; no máximo 2 ramos em teste ao mesmo tempo.
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
@@ -15,6 +16,8 @@ const DIA_MS = 24 * 3600_000;
 export const EM_TESTE_AO_MESMO_TEMPO = 2;
 export const MIN_CONTATADAS = 20; // com isso já dá para comparar com os outros ramos
 export const TAXA_BOA = 0.2; // responde 20% ou mais à primeira abordagem
+export const TAXA_INTERESSE = 0.05; // 5% das contatadas se interessam (ex.: 1 em 20)
+export const MAX_CONTATADAS_SEM_INTERESSE = 40; // responde bem, mas sem interesse: espera até aqui antes de pausar
 export const DIAS_MAXIMOS = 30; // depois disso decide com o que tiver
 
 const normal = (n) => String(n ?? "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
@@ -23,7 +26,13 @@ export async function lerRamos() {
   return (await db.lerConfig(CHAVE))?.ramos ?? [];
 }
 
-/** O que fazer com um ramo em teste, pelo resultado dele: segue testando, aprovado (fica) ou pausado (sai). */
+/** Interessadas suficientes para aprovar: 5% das contatadas, e pelo menos 2. */
+const interesseSuficiente = (contatadas, interessadas) => interessadas >= Math.max(2, Math.ceil(contatadas * TAXA_INTERESSE));
+
+/**
+ * O que fazer com um ramo em teste, pelo resultado dele: segue testando, aprovado (fica) ou pausado (sai).
+ * Quem decide é o interesse; a resposta só dá mais tempo a um ramo que responde bem e ainda não gerou interesse.
+ */
 export function avaliarRamo(ramo, resultado = {}, agora = new Date()) {
   const contatadas = resultado.contatadas ?? 0;
   const responderam = resultado.responderam ?? 0;
@@ -31,14 +40,18 @@ export function avaliarRamo(ramo, resultado = {}, agora = new Date()) {
   const taxa = contatadas ? responderam / contatadas : 0;
   const pct = `${Math.round(taxa * 100)}%`;
   const dias = (agora - new Date(ramo.desde)) / DIA_MS;
+  const resumo = `${interessadas} se interessaram e ${pct} responderam em ${contatadas} contatadas`;
   if (contatadas >= MIN_CONTATADAS) {
-    if (taxa >= TAXA_BOA || interessadas >= 2) return { status: "aprovado", motivo: `${pct} responderam e ${interessadas} se interessaram em ${contatadas} contatadas` };
-    return { status: "pausado", motivo: `só ${pct} responderam em ${contatadas} contatadas` };
+    if (interesseSuficiente(contatadas, interessadas)) return { status: "aprovado", motivo: resumo };
+    if (taxa >= TAXA_BOA && contatadas < MAX_CONTATADAS_SEM_INTERESSE && dias < DIAS_MAXIMOS) {
+      return { status: "testando", motivo: `responde bem (${pct}), esperando interesse` };
+    }
+    return { status: "pausado", motivo: taxa >= TAXA_BOA ? `responde (${pct}), mas quase ninguém se interessa: ${resumo}` : `pouca resposta: ${resumo}` };
   }
   if (dias < DIAS_MAXIMOS) return { status: "testando", motivo: ramo.motivo };
-  if (contatadas >= 8 && (taxa >= TAXA_BOA || interessadas >= 1)) return { status: "aprovado", motivo: `${pct} responderam em ${contatadas} contatadas (${DIAS_MAXIMOS} dias de teste)` };
+  if (contatadas >= 8 && interessadas >= 1) return { status: "aprovado", motivo: `${resumo} (${DIAS_MAXIMOS} dias de teste)` };
   if ((resultado.capturadas ?? 0) < MIN_CONTATADAS) return { status: "pausado", motivo: `a busca achou poucas empresas (${resultado.capturadas ?? 0}) em ${DIAS_MAXIMOS} dias` };
-  return { status: "pausado", motivo: `só ${pct} responderam em ${contatadas} contatadas (${DIAS_MAXIMOS} dias de teste)` };
+  return { status: "pausado", motivo: `${resumo} (${DIAS_MAXIMOS} dias de teste)` };
 }
 
 const SugestaoSchema = z.object({ ramos: z.array(z.object({ nicho: z.string(), servico: z.string(), motivo: z.string() })) });
@@ -67,7 +80,7 @@ const SUGESTAO_JSON_SCHEMA = {
 export async function sugerirRamos({ campanha, quantos, resultados, evitar }) {
   const servicos = (campanha.servicos ?? []).map((s) => `- ${s.nome}: ${s.descricao}`).join("\n");
   const tabela = resultados.length
-    ? resultados.map((r) => `- ${r.ramo}: ${r.contatadas} contatadas, ${r.contatadas ? Math.round((r.responderam / r.contatadas) * 100) : 0}% responderam, ${r.interessadas} interessadas`).join("\n")
+    ? resultados.map((r) => `- ${r.ramo}: ${r.contatadas} contatadas, ${r.contatadas ? Math.round((r.responderam / r.contatadas) * 100) : 0}% responderam, ${r.interessadas} interessadas (${r.contatadas ? Math.round((r.interessadas / r.contatadas) * 100) : 0}% de interesse)`).join("\n")
     : "(ainda sem resultados)";
   const cidades = [...new Set((campanha.buscas ?? []).flatMap((b) => b.cidades))].join(", ");
   const r = await gerarJson({
@@ -80,7 +93,8 @@ Proponha ${quantos} ramos NOVOS para testar. Cada ramo deve:
 - Ter uma dor clara que um dos serviços resolve (ex.: agenda cheia de faltas → agendamento online; vende pelo Instagram → loja virtual).
 - Ter dono acessível e dinheiro para investir (evite órgãos públicos, franquias grandes e redes nacionais).
 - Ser diferente dos ramos já usados ou já testados (nem sinônimo, nem variação do mesmo ramo).
-Use a tabela de resultados: prefira ramos parecidos com os que mais responderam e fuja do perfil dos que responderam pouco.`,
+Use a tabela de resultados: o que importa é o INTERESSE (empresas que quiseram saber mais), não só a resposta. Prefira ramos
+parecidos com os de maior % de interesse e fuja do perfil dos que respondem muito mas quase nunca se interessam.`,
     pedido: `Resultado por ramo até agora:
 ${tabela}
 

@@ -27,15 +27,23 @@ async function contatadas(nicho, n, responderam = 0, interessadas = 0) {
   }
 }
 
-test("ramos: a avaliação fica com quem responde bem e pausa quem não responde", () => {
+test("ramos: a avaliação fica com quem gera interesse, e não só com quem responde", () => {
   const desde = new Date().toISOString();
-  assert.equal(avaliarRamo({ desde }, { contatadas: 5, responderam: 3 }).status, "testando"); // ainda pouco para decidir
-  assert.equal(avaliarRamo({ desde }, { contatadas: MIN_CONTATADAS, responderam: 5 }).status, "aprovado"); // 25%
-  assert.equal(avaliarRamo({ desde }, { contatadas: MIN_CONTATADAS, responderam: 1, interessadas: 2 }).status, "aprovado"); // pouco, mas 2 interessadas
-  assert.equal(avaliarRamo({ desde }, { contatadas: MIN_CONTATADAS, responderam: 2 }).status, "pausado"); // 10%
+  assert.equal(avaliarRamo({ desde }, { contatadas: 5, responderam: 3, interessadas: 1 }).status, "testando"); // ainda pouco para decidir
+  assert.equal(avaliarRamo({ desde }, { contatadas: MIN_CONTATADAS, responderam: 1, interessadas: 2 }).status, "aprovado"); // pouca resposta, mas 2 interessadas
+  assert.equal(avaliarRamo({ desde }, { contatadas: MIN_CONTATADAS, responderam: 2 }).status, "pausado"); // 10% e ninguém interessado
+  // Responde bem (25%) e ninguém se interessou ainda: espera mais um pouco...
+  assert.equal(avaliarRamo({ desde }, { contatadas: MIN_CONTATADAS, responderam: 5 }).status, "testando");
+  // ...mas, como a clínica odontológica (35% de resposta, 3 interessadas em 85), sai.
+  const odonto = avaliarRamo({ desde }, { contatadas: 85, responderam: 30, interessadas: 3 });
+  assert.equal(odonto.status, "pausado");
+  assert.match(odonto.motivo, /quase ninguém se interessa/);
+  // Concessionária: 28% de resposta e 3 interessadas em 43 (7%): fica.
+  assert.equal(avaliarRamo({ desde }, { contatadas: 43, responderam: 12, interessadas: 3 }).status, "aprovado");
   const velho = new Date(Date.now() - 31 * DIA).toISOString();
   assert.match(avaliarRamo({ desde: velho }, { contatadas: 2, capturadas: 4 }).motivo, /poucas empresas/);
-  assert.equal(avaliarRamo({ desde: velho }, { contatadas: 10, responderam: 3 }).status, "aprovado");
+  assert.equal(avaliarRamo({ desde: velho }, { contatadas: 10, responderam: 3, interessadas: 1 }).status, "aprovado");
+  assert.equal(avaliarRamo({ desde: velho }, { contatadas: 25, responderam: 6, capturadas: 30 }).status, "pausado");
 });
 
 test("ramos: a IA propõe ramos novos (sem repetir), eles entram na busca e saem quando não respondem", async () => {
@@ -67,7 +75,7 @@ test("ramos: a IA propõe ramos novos (sem repetir), eles entram na busca e saem
   assert.equal(combinacoes.length, 6);
   assert.deepEqual(combinacoes.at(-1), { nicho: "salão de beleza", cidade: "São Paulo - SP" });
 
-  // Depois de 20 contatadas: estética respondeu bem (fica), salão respondeu pouco (sai) e entra outro no lugar.
+  // Depois de 20 contatadas: estética gerou interesse (fica), salão respondeu pouco (sai) e entra outro no lugar.
   await contatadas("clínica de estética", MIN_CONTATADAS, 6, 2);
   await contatadas("salão de beleza", MIN_CONTATADAS, 1);
   const r2 = await rodadaDeRamos(campanha, { sugerir: async () => [{ nicho: "academia", servico: "CRM", motivo: "matrícula pelo WhatsApp" }], agora: new Date(agora.getTime() + DIA) });

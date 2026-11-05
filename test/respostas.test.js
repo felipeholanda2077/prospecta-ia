@@ -799,3 +799,39 @@ test("funil, legenda e cartão do topo usam a mesma conta de empresas interessad
   const a = f.agora;
   assert.equal(a.em_conversa + a.interessadas + a.agendaram + a.fecharam + a.recusaram + a.recebendo_etapas + a.sem_resposta + a.descartadas, f.contatadas);
 });
+
+test("convite com horários livres do Calendly: dois horários em dias diferentes, por extenso, e só com a conta conectada", async () => {
+  const { horariosLivres, escolherHorarios, horarioPorExtenso } = await import("../src/agenda/calendly.js");
+  const agora = new Date("2026-11-10T12:00:00Z"); // terça, 9h em São Paulo
+  assert.equal(horarioPorExtenso("2026-11-11T13:00:00Z", "America/Sao_Paulo"), "quarta (11/11) às 10h");
+  assert.equal(horarioPorExtenso("2026-11-12T17:30:00Z", "America/Sao_Paulo"), "quinta (12/11) às 14h30");
+  const livres = ["2026-11-10T13:00:00Z", "2026-11-10T18:00:00Z", "2026-11-10T19:00:00Z", "2026-11-11T13:00:00Z", "2026-11-12T13:00:00Z"];
+  // Daqui a 1 hora é cedo demais; depois, um por dia.
+  assert.deepEqual(escolherHorarios(livres, { agora, fuso: "America/Sao_Paulo" }), ["2026-11-10T18:00:00Z", "2026-11-11T13:00:00Z"]);
+
+  const base = "https://calendly.com/felipe/30min";
+  assert.deepEqual(await horariosLivres(base, { agora }), []); // sem o Calendly conectado: só o link, como antes
+  await db.gravarConfig("calendly", { token: "tok", usuario: "https://api.calendly.com/users/U1" });
+  const original = globalThis.fetch;
+  let chamadas = 0;
+  globalThis.fetch = async (url) => {
+    chamadas++;
+    const u = String(url);
+    if (u.includes("/event_types?")) return Response.json({ collection: [{ uri: "ET2", scheduling_url: "https://calendly.com/felipe/60min" }, { uri: "ET1", scheduling_url: "https://calendly.com/felipe/30min" }] });
+    if (u.includes("/event_type_available_times?")) {
+      assert.match(u, /event_type=ET1/);
+      return Response.json({ collection: livres.map((start_time) => ({ status: "available", start_time })) });
+    }
+    return new Response("{}", { status: 404 });
+  };
+  try {
+    const h = await horariosLivres(`${base}?utm_source=x`, { agora });
+    assert.equal(h.length, 2);
+    assert.match(h[1], /^quarta \(11\/11\) às/);
+    await horariosLivres(base, { agora: new Date(agora.getTime() + 10 * 60_000) }); // guardado por 30 min: não consulta de novo
+    assert.equal(chamadas, 2);
+  } finally {
+    globalThis.fetch = original;
+    await db.gravarConfig("calendly", {});
+  }
+});

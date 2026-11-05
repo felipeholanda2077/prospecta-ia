@@ -5,8 +5,9 @@ import { enderecoDoGuia } from "../vendas/campanha.js";
 import { lerApresentacao } from "./apresentacao.js";
 import { iaPausada } from "./processar.js";
 
-// Follow-up da IA para quem mostrou interesse e parou de responder: 1 dia depois da nossa última mensagem,
-// a IA retoma de onde pararam ou oferece um material de graça (o guia em PDF da empresa). No máximo
+// Follow-up da IA para quem mostrou interesse, ou está numa conversa morna ou quente (ex.: ficou de ver, ou de
+// repassar para o responsável), e parou de responder: 1 dia depois da nossa última mensagem, a IA retoma de onde
+// pararam, oferece um material de graça (o guia em PDF da empresa) ou pergunta se conseguiu falar com o responsável. No máximo
 // MAX_SEGUIDOS seguidos sem resposta; quando a pessoa responde, a conversa volta ao normal e a conta zera.
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
@@ -84,7 +85,7 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
         n: plano.numero, desde: new Date().toISOString(), opcoes: [...((registro && plano.numero > 1 ? registro.opcoes : []) ?? []), r.opcao],
       }));
       criados++;
-      log(`🔔 Follow-up ${plano.numero} de ${MAX_SEGUIDOS} para ${lead.nome} (${r.opcao === "material" ? "com o guia gratuito" : "retomando a conversa"})`);
+      log(`🔔 Follow-up ${plano.numero} de ${MAX_SEGUIDOS} para ${lead.nome} (${{ material: "com o guia gratuito", responsavel: "perguntando pelo responsável" }[r.opcao] ?? "retomando a conversa"})`);
     } catch (e) {
       log(`⚠️  Follow-up de ${lead.nome} não saiu: ${e.message}`);
     }

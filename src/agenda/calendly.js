@@ -101,6 +101,66 @@ export async function conectar(token) {
   return { conta, agendamento: eu.scheduling_url ?? "", modo: "webhook" };
 }
 
+// Horários livres para o convite: a IA oferece dois (em dias diferentes) e o link para confirmar. Lidos do Calendly
+// no máximo a cada 30 minutos (o resultado fica guardado), e só com a conta conectada.
+const CHAVE_HORARIOS = "calendly_horarios";
+const HORARIOS_VALEM_MS = 30 * 60_000;
+const ANTECEDENCIA_MS = 3 * 3600_000; // nada para daqui a menos de 3 horas
+const JANELA_HORARIOS_MS = 7 * 24 * 3600_000 - 60_000; // a API aceita até 7 dias por consulta
+
+const semBarra = (u) => String(u ?? "").split("?")[0].replace(/\/+$/, "").toLowerCase();
+
+/** "terça (11/11) às 10h" / "quarta (12/11) às 14h30", no fuso da campanha. */
+export function horarioPorExtenso(iso, fuso = config.timezone) {
+  const d = new Date(iso);
+  const p = Object.fromEntries(new Intl.DateTimeFormat("pt-BR", { timeZone: fuso, weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+    .formatToParts(d).map((x) => [x.type, x.value]));
+  const dia = p.weekday.replace("-feira", "");
+  return `${dia} (${p.day}/${p.month}) às ${Number(p.hour)}h${p.minute === "00" ? "" : p.minute}`;
+}
+
+/** Até `quantos` horários, o mais cedo possível e cada um num dia diferente. `livres` = ISO em ordem. */
+export function escolherHorarios(livres, { quantos = 2, agora = new Date(), fuso = config.timezone } = {}) {
+  const diaDe = (iso) => new Date(iso).toLocaleDateString("pt-BR", { timeZone: fuso });
+  const escolhidos = [];
+  for (const iso of [...livres].sort()) {
+    if (new Date(iso) - agora < ANTECEDENCIA_MS) continue;
+    if (escolhidos.some((e) => diaDe(e) === diaDe(iso))) continue;
+    escolhidos.push(iso);
+    if (escolhidos.length >= quantos) break;
+  }
+  return escolhidos;
+}
+
+/**
+ * Dois horários livres do evento do link de agendamento (`base`), por extenso, para a IA oferecer.
+ * Sem o Calendly conectado (ou se a consulta falhar), retorna [] e a IA manda só o link, como antes.
+ */
+export async function horariosLivres(base, { agora = new Date(), quantos = 2 } = {}) {
+  try {
+    const c = await db.lerConfig(CHAVE);
+    if (!c?.token || !base) return [];
+    let guardado = null;
+    try { guardado = JSON.parse((await db.lerEstado(CHAVE_HORARIOS)) || "null"); } catch {}
+    let livres = guardado && guardado.base === semBarra(base) && agora - new Date(guardado.em) < HORARIOS_VALEM_MS ? guardado.livres : null;
+    if (!livres) {
+      const usuario = c.usuario ?? (await chamar(c.token, "/users/me")).resource?.uri;
+      const tipos = (await chamar(c.token, `/event_types?${new URLSearchParams({ user: usuario, active: "true", count: "100" })}`)).collection ?? [];
+      const tipo = tipos.find((t) => semBarra(t.scheduling_url) === semBarra(base)) ?? (tipos.length === 1 ? tipos[0] : null);
+      if (!tipo) return [];
+      const inicio = new Date(agora.getTime() + 5 * 60_000);
+      const busca = new URLSearchParams({ event_type: tipo.uri, start_time: inicio.toISOString(), end_time: new Date(inicio.getTime() + JANELA_HORARIOS_MS).toISOString() });
+      livres = ((await chamar(c.token, `/event_type_available_times?${busca}`)).collection ?? [])
+        .filter((h) => h.status === "available" && h.start_time).map((h) => h.start_time);
+      await db.gravarEstado(CHAVE_HORARIOS, JSON.stringify({ base: semBarra(base), em: agora.toISOString(), livres }));
+    }
+    return escolherHorarios(livres, { quantos, agora }).map((iso) => horarioPorExtenso(iso));
+  } catch (e) {
+    console.error("Horários livres do Calendly:", e.message);
+    return [];
+  }
+}
+
 export async function status() {
   const c = await db.lerConfig(CHAVE);
   return { conectado: Boolean(c?.token), modo: c?.signingKey ? "webhook" : "consulta", conta: c?.conta ?? "" };

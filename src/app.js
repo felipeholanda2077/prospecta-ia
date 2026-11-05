@@ -1103,7 +1103,7 @@ async function conversasAvaliadas() {
 
 /** O próximo follow-up automático de uma conversa da lista (ver respostas/followup.js). */
 const followupDaConversa = (c, registros) => previsaoDoFollowup({
-  interessado: c.mostrou_interesse, status: c.status, agenteId: c.agente_id, ultima: c.ultima, ultimaDela: c.ultima_resposta,
+  interessado: c.mostrou_interesse || ["morna", "quente"].includes(c.avaliacao?.temperatura), status: c.status, agenteId: c.agente_id, ultima: c.ultima, ultimaDela: c.ultima_resposta,
   pausada: c.ia_pausada, temFila: Boolean(c.proxima), registro: registros.get(c.id),
 });
 
@@ -1216,6 +1216,7 @@ app.post("/api/respostas/:id/apresentacao", async (req, res) => {
   const texto = await escreverApresentacao({
     texto: r.texto, lead, historico: await db.historicoConversa(lead.id), campanha, canal: r.canal,
     apresentacao: await lerApresentacao(), linkAgendamento: calendly.linkAgendamento(campanha.automacao?.calendly, lead, r.canal),
+    horarios: await calendly.horariosLivres(campanha.automacao?.calendly),
   });
   await marcarApresentacaoEnviada(lead.id);
   res.json({ texto });

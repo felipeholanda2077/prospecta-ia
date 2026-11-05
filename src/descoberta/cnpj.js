@@ -142,6 +142,20 @@ async function pesquisar({ cnaes, municipio, uf, incluirMei, abertasHaDias, excl
   return { total: d.total ?? 0, cnpjs: d.cnpjs ?? [] };
 }
 
+// Sócio que é empresa ou espólio não é a pessoa com quem falar.
+const NAO_E_PESSOA = /\b(ltda|eireli|epp|holding|participa[çc][õo]es|esp[óo]lio|investimentos)\b|\bs\/a\b|\bs\.a\./i;
+const QUEM_DECIDE = /administrador|titular|presidente|diretor|empres[áa]rio/i;
+
+/**
+ * O sócio com quem falar: o administrador (ou titular) entre os sócios que são pessoas; se nenhum tiver esse papel,
+ * o primeiro. `socios` = [{ nome, papel }]. Retorna o nome como está no cadastro (maiúsculas, sem acento) ou null.
+ */
+export function socioQueDecide(socios = []) {
+  const pessoas = socios.filter((s) => s?.nome && !NAO_E_PESSOA.test(s.nome) && String(s.nome).trim().split(/\s+/).length >= 2);
+  const escolhido = pessoas.find((s) => QUEM_DECIDE.test(s.papel ?? "")) ?? pessoas[0];
+  return escolhido ? String(escolhido.nome).trim().replace(/\s+/g, " ").slice(0, 80) : null;
+}
+
 /**
  * O cadastro completo de um CNPJ (telefone, e-mail, endereço, abertura), pela Minha Receita; se ela
  * recusar o acesso (não o "não encontrado"), pela BrasilAPI.
@@ -163,6 +177,7 @@ export async function dadosDoCnpj(cnpj) {
     abertura: d.data_inicio_atividade ?? null,
     porte: d.porte ?? null,
     mei: Boolean(d.opcao_pelo_mei),
+    socio: socioQueDecide((d.qsa ?? []).map((q) => ({ nome: q.nome_socio, papel: q.qualificacao_socio }))),
   };
 }
 
@@ -188,6 +203,7 @@ export async function dadosDoCnpjNaReserva(cnpj) {
     abertura: d.founded ?? null,
     porte: d.company?.size?.text ?? null,
     mei: Boolean(d.company?.simei?.optant),
+    socio: socioQueDecide((d.company?.members ?? []).map((m) => ({ nome: m.person?.name, papel: m.role?.text }))),
   };
 }
 
@@ -202,7 +218,7 @@ export async function contatoDoCnpj(cnpj, { consultar = dadosDoCnpj, reserva = d
   if (dados?.telefones.length) return dados;
   const daReserva = await reserva(cnpj).catch(falhou);
   if (daReserva?.semVez) return { ...(dados ?? { telefones: [] }), incompleto: true, erros };
-  if (daReserva?.telefones?.length || daReserva?.email) return { ...dados, ...daReserva };
+  if (daReserva?.telefones?.length || daReserva?.email) return { ...dados, ...daReserva, socio: daReserva.socio ?? dados?.socio ?? null };
   return { ...(dados ?? { telefones: [] }), erros };
 }
 
@@ -251,6 +267,7 @@ export async function buscarEmpresasPorCnpj({
       abertura: dados?.abertura ?? null,
       porte: dados?.porte ?? null,
       mei: dados?.mei ?? false,
+      socio: dados?.socio ?? null,
       // A CNPJá não deu a vez: o contato é buscado de novo na análise.
       contatoPendente: Boolean(dados?.incompleto),
     });
