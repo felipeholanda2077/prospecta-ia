@@ -31,6 +31,13 @@ async function enviada(lead, diasAtras) {
   return id;
 }
 
+/** Joga a conversa 10 minutos para trás (a próxima mensagem chega "depois de uma pausa", como uma pessoa). */
+async function envelhecer(leadId, ms = 10 * 60_000) {
+  const antes = new Date(Date.now() - ms).toISOString();
+  await db.consultar("UPDATE respostas SET recebida_em = $2 WHERE lead_id = $1", [leadId, antes]);
+  await db.consultar("UPDATE mensagens SET enviada_em = $2 WHERE lead_id = $1 AND status = 'enviada'", [leadId, antes]);
+}
+
 test("limparTextoResposta remove o histórico citado", () => {
   const texto = "Tenho interesse, pode ligar?\n\nEm seg., 26 de out. de 2026, Fulano escreveu:\n> Olá, tudo bem?\n> Proposta...";
   assert.equal(limparTextoResposta(texto), "Tenho interesse, pode ligar?");
@@ -504,6 +511,7 @@ test("robô do outro lado: respondeu 3 vezes em segundos, a IA para e não gasta
   // Só a primeira mensagem (inicial) respondida rápido não conta.
   assert.equal(roboPelaVelocidade([{ autor: "nos", tipo: "inicial", quando: t(0) }], new Date(t(5))), null);
 
+  const { PEDIDO_PESSOA_PADRAO } = await import("../src/respostas/processar.js");
   const lead = await novoLead("Clinica Robo", "robo@clinica.com");
   await enviada(lead, 1);
   const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6 } };
@@ -513,17 +521,97 @@ test("robô do outro lado: respondeu 3 vezes em segundos, a IA para e não gasta
     return { classificacao: "outro", resumo: "agradeceu de novo", sugestao_resposta: "", precisa_humano: false, motivo_humano: "",
       indicou_contato: false, temperatura: "fria", proximo_passo: "", robo: true, encerrar: false };
   };
+  const naFila = async () => (await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id);
   await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB1", de: "5511911112222", texto: "Obrigado! 😊", campanha: camp, classificar: robo });
-  assert.equal((await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id).length, 0);
-  // Mensagem nova (diferente) numa conversa parada por robô: a IA relê (pode ser a pessoa), e o robô para de novo.
+  // Robô: a IA pede UMA vez para falar com uma pessoa (a IA não escreveu o pedido, então vai o padrão).
+  assert.deepEqual((await naFila()).map((m) => m.corpo), [PEDIDO_PESSOA_PADRAO]);
+  // Rajada do robô, segundos depois: nem passa pela IA, e o pedido continua na fila.
+  assert.equal((await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB1b", de: "5511911112222", texto: "Posso ajudar em algo mais?", campanha: camp, classificar: robo })).pausada, true);
+  assert.equal(chamadas, 1);
+  assert.equal((await naFila()).length, 1);
+  // Mensagem nova (diferente) depois de uma pausa: a IA relê (pode ser a pessoa); robô de novo, para de novo, sem pedir outra vez.
+  await envelhecer(lead.id);
   await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB2", de: "5511911112222", texto: "Até mais!", campanha: camp, classificar: robo });
   assert.equal(chamadas, 2);
+  assert.equal((await naFila()).length, 1);
   // Repetida, nem passa pela IA; e depois de 2 releituras, nada mais passa.
   assert.equal((await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB3", de: "5511911112222", texto: "Até mais!", campanha: camp, classificar: robo })).pausada, true);
+  await envelhecer(lead.id);
   await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB4", de: "5511911112222", texto: "Volte sempre!", campanha: camp, classificar: robo });
+  await envelhecer(lead.id);
   const r = await registrarResposta({ lead, canal: "whatsapp", origem_id: "RB5", de: "5511911112222", texto: "Obrigado pela preferência", campanha: camp, classificar: robo });
   assert.equal(r.pausada, true);
   assert.equal(chamadas, 3);
+});
+
+test("robô de verdade: o pedido para falar com uma pessoa é o da IA, e só com a resposta automática ligada", async () => {
+  const { iaPausada } = await import("../src/respostas/processar.js");
+  const robo = async () => ({ classificacao: "outro", resumo: "assistente virtual", precisa_humano: false, motivo_humano: "", indicou_contato: false,
+    temperatura: "fria", proximo_passo: "", robo: true, encerrar: false, sugestao_resposta: "Sou o Felipe! Consegue me passar para o responsável pela loja?" });
+  const lead = await novoLead("Loja Assistente", "assistente@loja.com");
+  await enviada(lead, 1);
+  const r = await registrarResposta({ lead, canal: "whatsapp", origem_id: "AV1", de: "5511922223333", texto: "Olá! Aqui é o Zé, assistente virtual da loja 😊",
+    campanha: { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6 } }, classificar: robo });
+  assert.ok(r.pediuPessoa);
+  assert.match(await iaPausada(lead.id), /atendimento automático/);
+  const [pedido] = (await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id);
+  assert.equal(pedido.corpo, "Sou o Felipe! Consegue me passar para o responsável pela loja?");
+  assert.equal(pedido.tipo, "resposta");
+
+  const outro = await novoLead("Loja Sem Auto", "semauto@loja.com");
+  await enviada(outro, 1);
+  await registrarResposta({ lead: outro, canal: "whatsapp", origem_id: "AV2", de: "5511922224444", texto: "Olá! Sou a assistente virtual",
+    campanha: { ...campanha, automacao: { respostaAutomatica: false } }, classificar: robo });
+  assert.equal((await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === outro.id).length, 0);
+});
+
+test("revisão das conversas paradas por robô: diz o que fazer sem enviar, e aplica só as escolhidas", async () => {
+  const { pausarIA, iaPausada, revisarParadasPorRobo, aplicarRevisaoDeRobos } = await import("../src/respostas/processar.js");
+  const camp = { ...campanha, automacao: { respostaAutomatica: true, maxRespostasIA: 6 } };
+  const parada = async (nome, texto) => {
+    const lead = await novoLead(nome, `${nome.replace(/\W/g, "").toLowerCase()}@rev.com`);
+    await enviada(lead, 1);
+    await pausarIA(lead.id, "parece um atendimento automático (robô)");
+    // Como ficou em produção: a mensagem registrada com a conversa já parada, sem a IA ler.
+    await db.criarResposta({ lead_id: lead.id, canal: "whatsapp", origem_id: `rev-${nome}`, de: "55119" + String(lead.id).padStart(8, "0"), assunto: null,
+      texto, classificacao: "outro", resumo: "A IA não responde esta conversa: parece um atendimento automático (robô).", sugestao: null });
+    return lead;
+  };
+  const pessoa = await parada("Rev Pessoa", "Bom dia. Sobre o que seria ?");
+  const saudacao = await parada("Rev Saudacao", "Seja bem-vindo à clínica! Em breve retornaremos.");
+  const robo = await parada("Rev Robo", "Olá! Aqui é a Sofia, assistente virtual. Em que posso ajudar?");
+  const naoQuer = await parada("Rev NaoQuer", "No momento não temos interesse, obrigado");
+  const mudou = await parada("Rev Mudou", "Quem fala?");
+  const base = { precisa_humano: false, motivo_humano: "", indicou_contato: false, temperatura: "morna", proximo_passo: "", encerrar: false, robo: false };
+  const respostas = {
+    [pessoa.id]: { ...base, classificacao: "outro", resumo: "perguntou o assunto", sugestao_resposta: "É sobre como vocês atraem clientes pela internet. Hoje eles chegam mais pelo Google ou por indicação?" },
+    [saudacao.id]: { ...base, classificacao: "automatica", resumo: "boas-vindas", sugestao_resposta: "" },
+    [robo.id]: { ...base, classificacao: "outro", resumo: "assistente virtual", robo: true, sugestao_resposta: "Sou o Felipe! Consegue me passar para o responsável?" },
+    [naoQuer.id]: { ...base, classificacao: "sem_interesse", resumo: "sem interesse", sugestao_resposta: "Imagina!" },
+    [mudou.id]: { ...base, classificacao: "outro", resumo: "perguntou quem é", sugestao_resposta: "Aqui é o Felipe, da X." },
+  };
+  const ids = Object.keys(respostas).map(Number);
+  const itens = await revisarParadasPorRobo(camp, { leadIds: ids, classificar: async ({ lead, historico, texto }) => {
+    assert.ok(historico.every((h) => h.autor === "nos")); // o histórico vai até a nossa última mensagem
+    assert.ok(texto);
+    return respostas[lead.id];
+  } });
+  const decisao = Object.fromEntries(itens.map((i) => [i.leadId, i.decisao]));
+  assert.deepEqual(decisao, { [pessoa.id]: "responder", [saudacao.id]: "liberar", [robo.id]: "pedir_pessoa", [naoQuer.id]: "sem_interesse", [mudou.id]: "responder" });
+  const filaDe = async (lead) => (await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id);
+  for (const l of [pessoa, saudacao, robo, naoQuer, mudou]) assert.equal((await filaDe(l)).length, 0); // revisar não envia nada
+
+  await pausarIA(mudou.id, "você parou a IA nesta conversa"); // mudou depois da revisão
+  const feitos = await aplicarRevisaoDeRobos([pessoa.id, robo.id, naoQuer.id, mudou.id]);
+  assert.match(feitos.find((f) => f.leadId === mudou.id).feito, /pulada/);
+  assert.equal(await iaPausada(pessoa.id), "");
+  assert.deepEqual((await filaDe(pessoa)).map((m) => m.corpo), [respostas[pessoa.id].sugestao_resposta]);
+  assert.match(await iaPausada(robo.id), /atendimento automático/);
+  assert.deepEqual((await filaDe(robo)).map((m) => m.corpo), ["Sou o Felipe! Consegue me passar para o responsável?"]);
+  assert.equal((await db.buscarLead(naoQuer.id)).status, "sem_interesse");
+  assert.equal((await filaDe(naoQuer)).length, 0);
+  assert.match(await iaPausada(saudacao.id), /atendimento automático/); // não foi escolhida: continua como estava
+  assert.equal((await filaDe(mudou)).length, 0);
 });
 
 test("só agradeceu depois do nosso obrigado: a IA não responde (sem vai e volta)", async () => {
@@ -582,6 +670,7 @@ test("mensagem automática do WhatsApp Business não para a conversa, e pessoa e
 
   // 2) Parada por robô (como estava em produção) e a pessoa escreve algo novo: a IA lê de novo e responde.
   await pausarIA(lead.id, "parece um atendimento automático (robô)");
+  await envelhecer(lead.id);
   let leu = 0;
   const r = await registrarResposta({ lead, canal: "whatsapp", origem_id: "ch-2", de: "5511999433761", campanha: camp, texto: "Bom dia.\nSobre o que seria ?",
     classificar: async (...a) => { leu++; return resposta({ classificacao: "outro", robo: false, sugestao_resposta: "A gente faz sites e sistemas. Vocês já têm site?" })(...a); } });

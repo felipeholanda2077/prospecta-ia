@@ -57,7 +57,8 @@ const CLASSIFICACAO_JSON_SCHEMA = {
       type: "boolean",
       description: "true quando quem responde é um atendimento automático ou outra IA, e não uma pessoa: respostas genéricas " +
         "que não respondem o que você perguntou, sempre agradecendo e se despedindo, \"em que posso ajudar?\" repetido, menus, " +
-        "o mesmo texto de novo, ou uma troca de gentilezas que não sai do lugar",
+        "o mesmo texto de novo, ou uma troca de gentilezas que não sai do lugar. NÃO é robo: a saudação automática de " +
+        "boas-vindas do WhatsApp Business (é automatica) e uma pergunta curta de pessoa como \"sobre o que seria?\"",
     },
     encerrar: {
       type: "boolean",
@@ -75,7 +76,8 @@ const CLASSIFICACAO_JSON_SCHEMA = {
     },
     sugestao_resposta: {
       type: "string",
-      description: "próxima mensagem da conversa; vazio se robo ou encerrar; em sem_interesse, um agradecimento curto; vazio se for descadastro ou automatica",
+      description: "próxima mensagem da conversa; vazio se encerrar; se robo, a mensagem curta para chegar numa pessoa (vazio se já pediu); " +
+        "em sem_interesse, um agradecimento curto; vazio se for descadastro ou automatica",
     },
   },
   required: ["classificacao", "resumo", "sugestao_resposta", "precisa_humano", "motivo_humano", "indicou_contato", "temperatura", "proximo_passo", "robo", "encerrar", "dor_entendida", "pediu_conversa"],
@@ -261,7 +263,16 @@ ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, co
 - Saiba parar: se a pessoa só agradeceu ou se despediu e você já tinha agradecido, ou disse que vai repassar para a
   equipe e você já agradeceu, marque encerrar e deixe a sugestão vazia. Não entre em vai e volta de "obrigado".
 - Se quem responde parece um atendimento automático ou outra IA (não responde o que você perguntou, repete
-  cumprimentos, "em que posso ajudar?", menus, agradece e se despede toda vez), marque robo e deixe a sugestão vazia.
+  cumprimentos, "em que posso ajudar?", menus, agradece e se despede toda vez), marque robo e, na sugestão, escreva
+  UMA mensagem curta (até 2 frases) para chegar numa pessoa: responda em poucas palavras o que o robô perguntou (ex.:
+  seu nome), diga em meia frase o assunto (como eles atraem e atendem clientes; sem vender, sem preço, sem link, sem
+  pedir reunião) e peça para falar com o dono ou o responsável, ou o contato dele. Só uma vez: se no histórico você
+  já pediu para falar com uma pessoa, deixe a sugestão vazia.
+- NÃO é robô: a saudação automática do WhatsApp Business que chega logo depois da sua mensagem (boas-vindas, "agradece
+  seu contato", "em breve retornaremos", horários, informações da empresa ou perguntas prontas como "qual seu nome?"):
+  isso é classificacao automatica, robo false e sugestão vazia, porque uma pessoa costuma ler e responder depois.
+  Também NÃO é robô uma pergunta curta de pessoa sobre o assunto ("sobre o que seria?", "quem fala?", "pois não?",
+  "do que se trata?"): responda normalmente.
 - Marque precisa_humano só quando: pedirem ligação, negociarem preço ou condições, reclamarem, ou o assunto não tiver
   nada a ver com o seu trabalho (ex.: currículo, cobrança, fornecedor). Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar. Pedir um serviço que
   não está na lista não é motivo para isso: responda e leve para o bate-papo.

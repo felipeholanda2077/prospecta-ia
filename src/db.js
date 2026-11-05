@@ -543,10 +543,21 @@ export async function atualizarMensagem(id, campos) {
 }
 
 /** Cancela mensagens ainda não enviadas do lead (ex.: ele respondeu antes do follow-up sair). */
-export async function cancelarPendentes(leadId, motivo) {
+/** Cancela o que ainda ia sair para a empresa; `exceto` = uma mensagem que deve continuar na fila. */
+export async function cancelarPendentes(leadId, motivo, exceto = null) {
   await q(
-    "UPDATE mensagens SET status = 'rejeitada', erro = $2 WHERE lead_id = $1 AND status IN ('rascunho', 'aprovada')",
-    [leadId, motivo]
+    `UPDATE mensagens SET status = 'rejeitada', erro = $2 WHERE lead_id = $1 AND status IN ('rascunho', 'aprovada')${exceto ? " AND id <> $3" : ""}`,
+    exceto ? [leadId, motivo, Number(exceto)] : [leadId, motivo]
+  );
+}
+
+/** Conversas que a IA parou porque do outro lado parecia um robô (fora as de agentes e as encerradas). */
+export async function leadsParadosPorRobo() {
+  return q(
+    `SELECT l.* FROM leads l JOIN estado e ON e.chave = 'ia_pausada:' || l.id
+      WHERE e.valor LIKE 'parece um atendimento automático%' AND l.agente_id IS NULL
+        AND l.status NOT IN ('sem_interesse', 'descadastrado', 'fechado')
+      ORDER BY l.id`
   );
 }
 

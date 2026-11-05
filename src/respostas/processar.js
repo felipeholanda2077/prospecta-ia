@@ -44,6 +44,28 @@ const chaveReleituras = (leadId) => `robo_releituras:${leadId}`;
 export const iaPausada = (leadId) => db.lerEstado(chavePausa(leadId));
 const retomarIA = (leadId) => db.gravarEstado(chavePausa(leadId), "");
 
+// Robô do outro lado: em vez de desistir, a IA manda UMA mensagem pedindo para falar com uma pessoa (o dono ou o
+// responsável). Depois a conversa fica parada, e quem escrever algo novo depois de uma pausa é lido de novo.
+const chavePediuPessoa = (leadId) => `robo_pediu_pessoa:${leadId}`;
+export const PEDIDO_PESSOA_PADRAO = "Obrigado! Na verdade eu queria trocar uma ideia rápida com o responsável por aí, sobre como vocês atraem e atendem clientes pela internet. Consegue me passar para ele, ou me dizer o melhor contato?";
+// Robô responde em segundos (e em rajadas); pessoa escreve depois de um tempo. Mensagem que chega antes disso,
+// numa conversa parada por robô, não gasta IA nem as releituras.
+export const PAUSA_DE_PESSOA_MS = 90_000;
+
+async function lerPedidoDePessoa(leadId) {
+  try {
+    return JSON.parse((await db.lerEstado(chavePediuPessoa(leadId))) || "null");
+  } catch {
+    return null;
+  }
+}
+
+/** A última mensagem da conversa (nossa ou dela) foi há mais de PAUSA_DE_PESSOA_MS? */
+export function depoisDeUmaPausa(historico, agora = new Date()) {
+  const ultima = Math.max(0, ...historico.map((h) => new Date(h.quando).getTime() || 0));
+  return !ultima || agora.getTime() - ultima >= PAUSA_DE_PESSOA_MS;
+}
+
 /**
  * Do outro lado é um robô? Olha as últimas respostas da IA: se cada uma foi respondida em segundos,
  * sem pausa para ler, é atendimento automático. Retorna o motivo, ou null.
@@ -213,7 +235,7 @@ export async function registrarResposta({
   // Parada por robô, mas chegou uma mensagem nova (diferente das que o robô já mandou): pode ser a pessoa
   // escrevendo depois da mensagem automática. A IA lê de novo; se for robô outra vez, a conversa para de novo.
   // (No máximo RELEITURAS_DE_ROBO vezes por conversa: robô que varia o texto não gasta IA para sempre.)
-  if (pausadaPorRobo(pausada) && !(await db.textoJaRecebido(lead.id, limpo))) {
+  if (pausadaPorRobo(pausada) && !(await db.textoJaRecebido(lead.id, limpo)) && depoisDeUmaPausa(await db.historicoConversa(lead.id))) {
     const releituras = Number(await db.lerEstado(chaveReleituras(lead.id))) || 0;
     if (releituras < RELEITURAS_DE_ROBO) {
       await db.gravarEstado(chaveReleituras(lead.id), String(releituras + 1));
@@ -297,10 +319,13 @@ export async function registrarResposta({
   if (c.classificacao === "automatica") c = { ...c, robo: false };
   if (c.robo || c.encerrar) {
     await db.atualizarResposta(id, { lida: true });
-    if (c.robo) await pararPorRobo(lead, "parece um atendimento automático (robô)");
-    else await db.cancelarPendentes(lead.id, "conversa encerrada");
-    log(`🤫 ${lead.nome}: ${c.robo ? "é um robô, a IA parou" : "nada a responder, a IA não responde"}`);
-    return { id, ...c };
+    let pediuPessoa = null;
+    if (c.robo) {
+      await pararPorRobo(lead, "parece um atendimento automático (robô)");
+      pediuPessoa = await pedirUmaPessoa({ respostaId: id, lead, canal, de, assunto, origem_id, texto: c.sugestao_resposta, campanha, agente });
+    } else await db.cancelarPendentes(lead.id, "conversa encerrada");
+    log(`🤫 ${lead.nome}: ${c.robo ? `é um robô, a IA parou${pediuPessoa ? " (pediu uma vez para falar com uma pessoa)" : ""}` : "nada a responder, a IA não responde"}`);
+    return { id, ...c, ...(pediuPessoa ? { pediuPessoa } : {}) };
   }
 
   switch (c.classificacao) {
@@ -359,8 +384,25 @@ export async function registrarResposta({
 /** Do outro lado é um robô: para a conversa (nada mais sai) e a IA não lê as próximas mensagens. */
 async function pararPorRobo(lead, motivo) {
   await pausarIA(lead.id, motivo);
-  await db.cancelarPendentes(lead.id, motivo);
+  // O pedido para falar com uma pessoa continua na fila (o robô costuma mandar várias mensagens seguidas).
+  await db.cancelarPendentes(lead.id, motivo, (await lerPedidoDePessoa(lead.id))?.mensagemId ?? null);
   await db.atualizarLead(lead.id, { observacao: `IA parou: ${motivo}` });
+}
+
+/**
+ * Robô do outro lado: manda UMA vez a mensagem pedindo para falar com o dono ou o responsável (a da IA, ou a padrão).
+ * Não vale para agentes (lá quem chamou foi o cliente) nem com a resposta automática desligada. Retorna o id da mensagem.
+ */
+async function pedirUmaPessoa({ respostaId, lead, canal, de, assunto, origem_id, texto, campanha, agente }) {
+  if (agente || !campanha.automacao?.respostaAutomatica) return null;
+  if (await lerPedidoDePessoa(lead.id)) return null;
+  const corpo = String(texto ?? "").trim() || PEDIDO_PESSOA_PADRAO;
+  const { mensagemId } = await agendarResposta({ respostaId, lead, canal, de, assunto, origem_id, corpo });
+  await db.gravarEstado(chavePediuPessoa(lead.id), JSON.stringify({ em: new Date().toISOString(), mensagemId }));
+  // A resposta da pessoa ainda vai ser lida: as releituras começam do zero.
+  await db.gravarEstado(chaveReleituras(lead.id), "0");
+  log(`🙋 ${lead.nome}: robô do outro lado, a IA pediu para falar com uma pessoa`);
+  return mensagemId;
 }
 
 /**
@@ -422,4 +464,112 @@ async function continuarComAgente(r, lead, { nota, responderAgente }) {
   });
   log(`🤖 Agente ${agente.nome} voltou a conversar com ${lead.nome}`);
   return { mensagemId, sugestao: c.sugestao_resposta, classificacao: c.classificacao };
+}
+
+// ---------- Revisão das conversas paradas por robô ----------
+// Antes de a saudação automática deixar de parar a conversa (e de a IA pedir uma pessoa ao robô), muitas conversas
+// ficaram paradas como "robô" sem ser: boas-vindas do WhatsApp Business, e até pessoas. A revisão relê cada uma e
+// diz o que fazer, SEM enviar nada; depois você aplica só as que aprovar, com exatamente o texto revisado.
+
+const CHAVE_REVISAO = "robos_revisao";
+export const DECISOES_DA_REVISAO = {
+  responder: "é uma pessoa: a IA responde e a conversa volta ao normal",
+  pedir_pessoa: "é robô: a IA pede uma vez para falar com o dono ou o responsável",
+  liberar: "nada a responder agora: a IA volta a ler o que chegar",
+  sem_interesse: "disse que não tem interesse: a conversa é encerrada, sem mensagem",
+  descadastro: "pediu para não receber mais mensagens",
+  manter: "é robô e a IA já pediu uma pessoa: continua parada",
+};
+
+/** Relê as conversas paradas por robô e devolve o que fazer com cada uma (nada é enviado). */
+export async function revisarParadasPorRobo(campanha, { classificar = classificarResposta, leadIds = null } = {}) {
+  const itens = [];
+  const apresentacao = await lerApresentacao();
+  for (const lead of await db.leadsParadosPorRobo()) {
+    if (leadIds && !leadIds.includes(lead.id)) continue;
+    const historico = await db.historicoConversa(lead.id);
+    const iNos = historico.findLastIndex((h) => h.autor === "nos");
+    const dela = historico.slice(iNos + 1).filter((h) => h.autor === "lead");
+    const base = { leadId: lead.id, nome: lead.nome };
+    if (!dela.length) {
+      itens.push({ ...base, decisao: "liberar", ultima: "", resumo: "A última mensagem da conversa é nossa.", texto: "" });
+      continue;
+    }
+    const texto = dela.map((h) => h.texto).join("\n");
+    const antes = historico.slice(0, iNos + 1);
+    const canal = dela.at(-1).canal;
+    let c;
+    try {
+      c = await classificar({ texto, lead, historico: antes, campanha, canal, apresentacao,
+        linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal) });
+    } catch (e) {
+      itens.push({ ...base, decisao: "erro", ultima: texto.slice(0, 300), resumo: `A IA não conseguiu ler: ${e.message}`, texto: "" });
+      continue;
+    }
+    c = ajustarResposta(c, antes, texto);
+    const sugestao = String(c.sugestao_resposta ?? "").trim();
+    let decisao = "responder";
+    if (c.classificacao === "descadastro") decisao = "descadastro";
+    else if (c.classificacao === "sem_interesse") decisao = "sem_interesse";
+    else if (c.classificacao === "automatica") decisao = "liberar";
+    else if (c.robo) decisao = (await lerPedidoDePessoa(lead.id)) ? "manter" : "pedir_pessoa";
+    else if (c.encerrar || !sugestao) decisao = "liberar";
+    const envia = decisao === "responder" || decisao === "pedir_pessoa";
+    itens.push({ ...base, decisao, ultima: texto.slice(0, 300), resumo: c.resumo,
+      texto: envia ? sugestao || PEDIDO_PESSOA_PADRAO : "", temperatura: c.temperatura ?? null, proximo_passo: c.proximo_passo || null });
+  }
+  await db.gravarEstado(CHAVE_REVISAO, JSON.stringify({ em: new Date().toISOString(), itens }));
+  return itens;
+}
+
+/** Aplica a última revisão nas conversas escolhidas. Conversa que mudou desde a revisão fica de fora. */
+export async function aplicarRevisaoDeRobos(leadIds) {
+  let salvo = null;
+  try {
+    salvo = JSON.parse((await db.lerEstado(CHAVE_REVISAO)) || "null");
+  } catch {}
+  if (!salvo?.itens?.length) throw new Error("Nenhuma revisão salva: revise as conversas primeiro");
+  const ids = new Set((leadIds ?? []).map(Number));
+  const feitos = [];
+  for (const it of salvo.itens.filter((i) => ids.has(i.leadId))) {
+    const lead = await db.buscarLead(it.leadId);
+    const r = lead && (await db.ultimaRespostaDaConversa(lead.id));
+    const mudou = !lead || !r || !pausadaPorRobo(await iaPausada(lead.id)) || new Date(r.recebida_em) > new Date(salvo.em);
+    if (mudou) {
+      feitos.push({ leadId: it.leadId, nome: it.nome, feito: "pulada: a conversa mudou depois da revisão" });
+      continue;
+    }
+    const enviar = (esperaMinMs = 60_000, esperaMaxMs = 3 * 60_000) => agendarResposta({ respostaId: r.id, lead, canal: r.canal, de: r.de,
+      assunto: r.assunto, origem_id: r.origem_id, corpo: it.texto, esperaMinMs, esperaMaxMs });
+    switch (it.decisao) {
+      case "responder":
+        await retomarIA(lead.id);
+        await enviar();
+        await db.atualizarResposta(r.id, { resumo: it.resumo, temperatura: it.temperatura, proximo_passo: it.proximo_passo });
+        if (!["agendado", "fechado"].includes(lead.status)) await db.atualizarLead(lead.id, { status: "respondeu", observacao: null });
+        break;
+      case "pedir_pessoa": {
+        const { mensagemId } = await enviar();
+        await db.gravarEstado(chavePediuPessoa(lead.id), JSON.stringify({ em: new Date().toISOString(), mensagemId }));
+        await db.gravarEstado(chaveReleituras(lead.id), "0");
+        break;
+      }
+      case "liberar":
+        await retomarIA(lead.id);
+        break;
+      case "sem_interesse":
+        await db.cancelarPendentes(lead.id, "lead sem interesse");
+        await db.atualizarLead(lead.id, { status: "sem_interesse", observacao: `Sem interesse no momento (respondeu por ${r.canal})` });
+        break;
+      case "descadastro":
+        await db.descadastrarLead(lead, `pediu por ${r.canal}`);
+        break;
+      default:
+        feitos.push({ leadId: it.leadId, nome: it.nome, feito: "nada a fazer" });
+        continue;
+    }
+    feitos.push({ leadId: it.leadId, nome: it.nome, feito: DECISOES_DA_REVISAO[it.decisao] });
+    log(`🔧 Revisão de robô: ${lead.nome} → ${it.decisao}`);
+  }
+  return feitos;
 }

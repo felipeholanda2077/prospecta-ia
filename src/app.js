@@ -50,7 +50,7 @@ import { PILAR_BLACK_FRIDAY } from "./ia/conteudo.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
-import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada } from "./respostas/processar.js";
+import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada, revisarParadasPorRobo, aplicarRevisaoDeRobos } from "./respostas/processar.js";
 import { dashboardDoPainel } from "./dashboard.js";
 import * as agentes from "./respostas/agentes.js";
 import * as crm from "./respostas/crmAgente.js";
@@ -1190,6 +1190,19 @@ app.post("/api/leads/:id/pausar-ia", async (req, res) => {
 // Conversa que a IA passou para você: ela retoma e responde sozinha.
 app.post("/api/respostas/:id/ia-continua", async (req, res) => {
   res.json(await continuarComIA(req.params.id, await carregarCampanhaCompleta(), { nota: req.body?.nota }));
+});
+
+// Conversas paradas por robô: a IA relê cada uma e diz o que fazer, sem enviar nada (o resultado fica salvo).
+app.post("/api/robos/revisar", async (req, res) => {
+  const leadIds = Array.isArray(req.body?.leadIds) ? req.body.leadIds.map(Number) : null;
+  res.json({ itens: await revisarParadasPorRobo(await carregarCampanhaCompleta(), { leadIds }) });
+});
+
+// Aplica a última revisão só nas conversas escolhidas, com exatamente o texto revisado.
+app.post("/api/robos/aplicar", async (req, res) => {
+  const leadIds = Array.isArray(req.body?.leadIds) ? req.body.leadIds.map(Number) : [];
+  if (!leadIds.length) return res.status(400).json({ erro: "Escolha as conversas" });
+  res.json({ feitos: await aplicarRevisaoDeRobos(leadIds) });
 });
 
 // Escreve a apresentação (processo, planos, prazo e convite) para esta conversa, sem enviar: você revisa e envia
