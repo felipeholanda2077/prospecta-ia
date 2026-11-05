@@ -602,12 +602,12 @@ test("revisão das conversas paradas por robô: diz o que fazer sem enviar, e ap
   for (const l of [pessoa, saudacao, robo, naoQuer, mudou]) assert.equal((await filaDe(l)).length, 0); // revisar não envia nada
 
   await pausarIA(mudou.id, "você parou a IA nesta conversa"); // mudou depois da revisão
-  const feitos = await aplicarRevisaoDeRobos([pessoa.id, robo.id, naoQuer.id, mudou.id]);
+  const feitos = await aplicarRevisaoDeRobos([pessoa.id, robo.id, naoQuer.id, mudou.id], { textos: { [robo.id]: "Obrigado! Consegue me passar o contato do dono?" } });
   assert.match(feitos.find((f) => f.leadId === mudou.id).feito, /pulada/);
   assert.equal(await iaPausada(pessoa.id), "");
   assert.deepEqual((await filaDe(pessoa)).map((m) => m.corpo), [respostas[pessoa.id].sugestao_resposta]);
   assert.match(await iaPausada(robo.id), /atendimento automático/);
-  assert.deepEqual((await filaDe(robo)).map((m) => m.corpo), ["Sou o Felipe! Consegue me passar para o responsável?"]);
+  assert.deepEqual((await filaDe(robo)).map((m) => m.corpo), ["Obrigado! Consegue me passar o contato do dono?"]); // o texto que você aprovou
   assert.equal((await db.buscarLead(naoQuer.id)).status, "sem_interesse");
   assert.equal((await filaDe(naoQuer)).length, 0);
   assert.match(await iaPausada(saudacao.id), /atendimento automático/); // não foi escolhida: continua como estava
@@ -635,6 +635,8 @@ test("conversa já começada: a IA não diz bom dia de novo nem se apresenta out
   assert.equal(semCumprimentoRepetido("Bom dia! Entendo a desconfiança, e vou ser direto.", historico), "Entendo a desconfiança, e vou ser direto.");
   assert.equal(semCumprimentoRepetido("Boa tarde, Ana! Que bom saber.", historico), "Que bom saber.");
   assert.equal(semCumprimentoRepetido("Olá! tudo certo por aí?", historico), "Tudo certo por aí?");
+  assert.equal(semCumprimentoRepetido("Oi, bom dia! Desculpa a demora.", historico), "Desculpa a demora.");
+  assert.equal(semCumprimentoRepetido("Oi, Clara! Sou o Felipe.", historico), "Oi, Clara! Sou o Felipe."); // "Oi" sozinho fica
   assert.equal(semCumprimentoRepetido("Bom saber que vocês já têm um CRM.", historico), "Bom saber que vocês já têm um CRM."); // não é cumprimento
   assert.equal(semCumprimentoRepetido("Bom dia!", historico), "Bom dia!"); // a mensagem inteira: não some
   // Primeira mensagem (sem nada nosso antes): o cumprimento fica.

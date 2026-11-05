@@ -112,7 +112,7 @@ export function classificarPorRegra(texto, assunto = "") {
 export const jaConversou = (historico) => (historico ?? []).some((h) => h.autor === "nos");
 
 // "Bom dia!", "Boa tarde, Ana!", "Olá, tudo bem?" no começo da mensagem.
-const CUMPRIMENTO_NO_INICIO = /^\s*(bom dia|boa tarde|boa noite|ol[aá])(\s*,?\s*[A-ZÀ-Ú][\wÀ-ú]*)?\s*[!.,]+\s*/i;
+const CUMPRIMENTO_NO_INICIO = /^\s*(?:oi\s*[,!.]?\s*)?(bom dia|boa tarde|boa noite|ol[aá])(\s*,?\s*[A-ZÀ-Ú][\wÀ-ú]*)?\s*[!.,]+\s*/i;
 
 /**
  * Tira o cumprimento do começo da mensagem quando a conversa já começou: a IA não diz "Bom dia!" de novo

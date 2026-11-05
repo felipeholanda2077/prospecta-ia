@@ -522,8 +522,11 @@ export async function revisarParadasPorRobo(campanha, { classificar = classifica
   return itens;
 }
 
-/** Aplica a última revisão nas conversas escolhidas. Conversa que mudou desde a revisão fica de fora. */
-export async function aplicarRevisaoDeRobos(leadIds) {
+/**
+ * Aplica a última revisão nas conversas escolhidas. Conversa que mudou desde a revisão fica de fora.
+ * `textos` = { leadId: texto } para trocar o rascunho pelo texto que você aprovou.
+ */
+export async function aplicarRevisaoDeRobos(leadIds, { textos = {} } = {}) {
   let salvo = null;
   try {
     salvo = JSON.parse((await db.lerEstado(CHAVE_REVISAO)) || "null");
@@ -539,8 +542,13 @@ export async function aplicarRevisaoDeRobos(leadIds) {
       feitos.push({ leadId: it.leadId, nome: it.nome, feito: "pulada: a conversa mudou depois da revisão" });
       continue;
     }
+    const corpo = String(textos[it.leadId] ?? it.texto ?? "").trim();
+    if (["responder", "pedir_pessoa"].includes(it.decisao) && !corpo) {
+      feitos.push({ leadId: it.leadId, nome: it.nome, feito: "pulada: sem texto para enviar" });
+      continue;
+    }
     const enviar = (esperaMinMs = 60_000, esperaMaxMs = 3 * 60_000) => agendarResposta({ respostaId: r.id, lead, canal: r.canal, de: r.de,
-      assunto: r.assunto, origem_id: r.origem_id, corpo: it.texto, esperaMinMs, esperaMaxMs });
+      assunto: r.assunto, origem_id: r.origem_id, corpo, esperaMinMs, esperaMaxMs });
     switch (it.decisao) {
       case "responder":
         await retomarIA(lead.id);

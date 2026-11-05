@@ -1202,7 +1202,8 @@ app.post("/api/robos/revisar", async (req, res) => {
 app.post("/api/robos/aplicar", async (req, res) => {
   const leadIds = Array.isArray(req.body?.leadIds) ? req.body.leadIds.map(Number) : [];
   if (!leadIds.length) return res.status(400).json({ erro: "Escolha as conversas" });
-  res.json({ feitos: await aplicarRevisaoDeRobos(leadIds) });
+  const textos = req.body?.textos && typeof req.body.textos === "object" ? req.body.textos : {};
+  res.json({ feitos: await aplicarRevisaoDeRobos(leadIds, { textos }) });
 });
 
 // Escreve a apresentação (processo, planos, prazo e convite) para esta conversa, sem enviar: você revisa e envia
