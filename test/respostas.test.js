@@ -582,6 +582,9 @@ test("revisão das conversas paradas por robô: diz o que fazer sem enviar, e ap
   const robo = await parada("Rev Robo", "Olá! Aqui é a Sofia, assistente virtual. Em que posso ajudar?");
   const naoQuer = await parada("Rev NaoQuer", "No momento não temos interesse, obrigado");
   const mudou = await parada("Rev Mudou", "Quem fala?");
+  const soBoasVindas = await novoLead("Rev SoBoasVindas", "soboasvindas@rev.com"); // só a saudação automática, fora do histórico
+  await enviada(soBoasVindas, 1);
+  await pausarIA(soBoasVindas.id, "parece um atendimento automático (robô)");
   const base = { precisa_humano: false, motivo_humano: "", indicou_contato: false, temperatura: "morna", proximo_passo: "", encerrar: false, robo: false };
   const respostas = {
     [pessoa.id]: { ...base, classificacao: "outro", resumo: "perguntou o assunto", sugestao_resposta: "É sobre como vocês atraem clientes pela internet. Hoje eles chegam mais pelo Google ou por indicação?" },
@@ -590,21 +593,22 @@ test("revisão das conversas paradas por robô: diz o que fazer sem enviar, e ap
     [naoQuer.id]: { ...base, classificacao: "sem_interesse", resumo: "sem interesse", sugestao_resposta: "Imagina!" },
     [mudou.id]: { ...base, classificacao: "outro", resumo: "perguntou quem é", sugestao_resposta: "Aqui é o Felipe, da X." },
   };
-  const ids = Object.keys(respostas).map(Number);
+  const ids = [...Object.keys(respostas).map(Number), soBoasVindas.id];
   const itens = await revisarParadasPorRobo(camp, { leadIds: ids, classificar: async ({ lead, historico, texto }) => {
     assert.ok(historico.every((h) => h.autor === "nos")); // o histórico vai até a nossa última mensagem
     assert.ok(texto);
     return respostas[lead.id];
   } });
   const decisao = Object.fromEntries(itens.map((i) => [i.leadId, i.decisao]));
-  assert.deepEqual(decisao, { [pessoa.id]: "responder", [saudacao.id]: "liberar", [robo.id]: "pedir_pessoa", [naoQuer.id]: "sem_interesse", [mudou.id]: "responder" });
+  assert.deepEqual(decisao, { [soBoasVindas.id]: "liberar", [pessoa.id]: "responder", [saudacao.id]: "liberar", [robo.id]: "pedir_pessoa", [naoQuer.id]: "sem_interesse", [mudou.id]: "responder" });
   const filaDe = async (lead) => (await db.mensagensPorStatus("aprovada")).filter((m) => m.lead_id === lead.id);
   for (const l of [pessoa, saudacao, robo, naoQuer, mudou]) assert.equal((await filaDe(l)).length, 0); // revisar não envia nada
 
   await pausarIA(mudou.id, "você parou a IA nesta conversa"); // mudou depois da revisão
-  const feitos = await aplicarRevisaoDeRobos([pessoa.id, robo.id, naoQuer.id, mudou.id], { textos: { [robo.id]: "Obrigado! Consegue me passar o contato do dono?" } });
+  const feitos = await aplicarRevisaoDeRobos([pessoa.id, robo.id, naoQuer.id, mudou.id, soBoasVindas.id], { textos: { [robo.id]: "Obrigado! Consegue me passar o contato do dono?" } });
   assert.match(feitos.find((f) => f.leadId === mudou.id).feito, /pulada/);
   assert.equal(await iaPausada(pessoa.id), "");
+  assert.equal(await iaPausada(soBoasVindas.id), "");
   assert.deepEqual((await filaDe(pessoa)).map((m) => m.corpo), [respostas[pessoa.id].sugestao_resposta]);
   assert.match(await iaPausada(robo.id), /atendimento automático/);
   assert.deepEqual((await filaDe(robo)).map((m) => m.corpo), ["Obrigado! Consegue me passar o contato do dono?"]); // o texto que você aprovou

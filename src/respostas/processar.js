@@ -537,7 +537,10 @@ export async function aplicarRevisaoDeRobos(leadIds, { textos = {} } = {}) {
   for (const it of salvo.itens.filter((i) => ids.has(i.leadId))) {
     const lead = await db.buscarLead(it.leadId);
     const r = lead && (await db.ultimaRespostaDaConversa(lead.id));
-    const mudou = !lead || !r || !pausadaPorRobo(await iaPausada(lead.id)) || new Date(r.recebida_em) > new Date(salvo.em);
+    // Só com boas-vindas automáticas (que não ficam no histórico) não há resposta da conversa: liberar não precisa dela.
+    const precisaDaResposta = it.decisao !== "liberar";
+    const mudou = !lead || !pausadaPorRobo(await iaPausada(lead.id)) || (precisaDaResposta && !r)
+      || (r && new Date(r.recebida_em) > new Date(salvo.em));
     if (mudou) {
       feitos.push({ leadId: it.leadId, nome: it.nome, feito: "pulada: a conversa mudou depois da revisão" });
       continue;
