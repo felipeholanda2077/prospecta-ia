@@ -393,6 +393,11 @@
   .fe-corpo { max-width: 760px; padding: 18px; }
   .fe-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
   .fe-cab h3 { margin: 0; }
+  .cn-corpo { max-width: 560px; }
+  .cn-form { display: grid; gap: 12px; }
+  .cn-form textarea { min-height: 92px; resize: vertical; }
+  .cn-acoes { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .resp-topo { display: flex; justify-content: flex-end; margin-bottom: 12px; }
   .fe-linha { display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); }
   .fe-info { flex: 1; min-width: 0; display: grid; gap: 2px; }
   .fe-info small { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; overflow-wrap: anywhere; }
@@ -3022,12 +3027,89 @@ function desenharListaConversas() {
 }
 
 /** Monta a página (indicadores + lista + chat). Com `manterChat`, só atualiza o que mudou. */
+/** "Conversar com um número": a IA escreve a primeira mensagem; você revisa e envia. Quando a pessoa responder, a IA continua. */
+function abrirConversarComNumero() {
+  $("#conversar-numero")?.remove();
+  const janela = document.createElement("div");
+  janela.className = "feed-modal";
+  janela.id = "conversar-numero";
+  janela.setAttribute("role", "dialog");
+  janela.setAttribute("aria-modal", "true");
+  janela.setAttribute("aria-label", "Conversar com um número");
+  janela.innerHTML = `<div class="feed-modal-corpo fe-corpo cn-corpo cartao"><div class="fe-cab"><h3>Conversar com um número</h3>
+    <button type="button" class="btn sm" data-fechar-cn>${ic("x", "sm")}Fechar</button></div>
+    <p class="muted" style="margin:0 0 12px">A IA escreve a primeira mensagem, você revisa e envia. Quando a pessoa responder, a IA continua a conversa como nas outras.</p>
+    <form class="cn-form" id="cn-form">
+      <div class="campo"><label for="cn-numero">WhatsApp</label><input id="cn-numero" name="numero" inputmode="tel" placeholder="(11) 94342-7726" required></div>
+      <div class="campo"><label for="cn-nome">Nome da pessoa <span class="muted">(opcional)</span></label><input id="cn-nome" name="nome" maxlength="80"></div>
+      <div class="campo"><label for="cn-empresa">Empresa <span class="muted">(opcional)</span></label><input id="cn-empresa" name="empresa" maxlength="120"></div>
+      <div class="campo"><label for="cn-contexto">O que a IA deve saber <span class="muted">(opcional)</span></label>
+        <textarea id="cn-contexto" name="contexto" maxlength="1000" placeholder="Ex.: dono de uma clínica, conheci no evento, quer vender mais pelo Instagram"></textarea></div>
+      <div class="cn-acoes"><button class="btn primario" type="submit" id="cn-escrever">${ic("spark", "sm")}Escrever mensagem com a IA</button></div>
+    </form>
+    <div id="cn-rascunho" hidden></div></div>`;
+  document.body.append(janela);
+  $("#cn-numero", janela).focus();
+}
+
+async function escreverParaNumero(form) {
+  const botao = $("#cn-escrever");
+  const dados = Object.fromEntries(new FormData(form));
+  botao.disabled = true;
+  botao.textContent = "A IA está escrevendo...";
+  try {
+    const r = await post("/api/conversar/rascunho", dados);
+    const caixa = $("#cn-rascunho");
+    caixa.hidden = false;
+    caixa.innerHTML = `<div class="campo" style="margin-top:14px"><label for="cn-texto">Mensagem para ${esc(r.nome)} (${esc(r.whatsapp)})${r.jaConversou ? " · vocês já conversaram, ela retoma de onde parou" : ""}</label>
+      <textarea id="cn-texto" rows="6">${esc(r.texto)}</textarea></div>
+      <div class="cn-acoes" style="margin-top:10px">
+        <button type="button" class="btn" data-cn-refazer>${ic("refresh", "sm")}Escrever de novo</button>
+        <button type="button" class="btn primario" data-cn-enviar="${r.leadId}">${ic("send", "sm")}Enviar</button></div>`;
+    $("#cn-texto").focus();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    botao.disabled = false;
+    botao.innerHTML = `${ic("spark", "sm")}Escrever mensagem com a IA`;
+  }
+}
+
+document.addEventListener("submit", (ev) => {
+  if (ev.target.id !== "cn-form") return;
+  ev.preventDefault();
+  escreverParaNumero(ev.target);
+});
+document.addEventListener("click", async (ev) => {
+  if (ev.target.closest("[data-conversar-numero]")) return abrirConversarComNumero();
+  const janela = $("#conversar-numero");
+  if (!janela) return;
+  if (ev.target.closest("[data-fechar-cn]") || ev.target === janela) return janela.remove();
+  if (ev.target.closest("[data-cn-refazer]")) return escreverParaNumero($("#cn-form"));
+  const enviar = ev.target.closest("[data-cn-enviar]");
+  if (!enviar) return;
+  enviar.disabled = true;
+  try {
+    const r = await post("/api/conversar/enviar", { leadId: Number(enviar.dataset.cnEnviar), texto: $("#cn-texto").value });
+    if (r.manual && r.linkWhatsapp) window.open(r.linkWhatsapp, "_blank", "noopener");
+    avisar(r.enviada ? "Mensagem enviada. Quando a pessoa responder, a conversa aparece aqui e a IA continua."
+      : r.naFila ? `Mensagem na fila: ${r.motivo}.` : r.motivo || "Mensagem registrada.", r.enviada || r.naFila || r.manual ? "ok" : "perigo", 8000);
+    janela.remove();
+  } catch (e) {
+    avisar(e.message, "perigo");
+    enviar.disabled = false;
+  }
+});
+document.addEventListener("keydown", (ev) => { if (ev.key === "Escape") $("#conversar-numero")?.remove(); });
+
+const BOTAO_CONVERSAR = `<div class="resp-topo"><button type="button" class="btn primario" data-conversar-numero>${ic("message", "sm")}Conversar com um número</button></div>`;
+
 async function carregarRespostas(alvo, { manterChat = false } = {}) {
   dadosConversas = await api("/api/conversas");
   if (viewAtual !== "respostas") return;
   const { indicadores, conversas } = dadosConversas;
   if (!conversas.length) {
-    alvo.innerHTML = htmlIndicadores(indicadores) + vazio(...VAZIOS.respostas);
+    alvo.innerHTML = BOTAO_CONVERSAR + htmlIndicadores(indicadores) + vazio(...VAZIOS.respostas);
     return;
   }
   if (manterChat && $("#chat-app")) {
@@ -3036,7 +3118,7 @@ async function carregarRespostas(alvo, { manterChat = false } = {}) {
     if (conversaAberta) await abrirConversa(conversaAberta, { atualizar: true });
     return;
   }
-  alvo.innerHTML = `<div id="chat-indicadores">${htmlIndicadores(indicadores)}</div>
+  alvo.innerHTML = `${BOTAO_CONVERSAR}<div id="chat-indicadores">${htmlIndicadores(indicadores)}</div>
     <div class="chat-app" id="chat-app">
       <aside class="chat-lista" aria-label="Conversas"><div class="filtros" id="chat-filtros"></div><div class="chat-itens" id="chat-itens"></div></aside>
       <section class="chat-painel" id="chat-painel"><div class="chat-vazio">${ic("message")}<p>Escolha uma conversa para ver tudo o que foi falado.</p></div></section>

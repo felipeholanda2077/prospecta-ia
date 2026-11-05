@@ -489,6 +489,44 @@ ${formatarHistorico(historico)}`,
   }).then((r) => ({ assunto: r.assunto.trim(), mensagem: r.mensagem.trim() }));
 }
 
+const PrimeiroContatoSchema = z.object({ mensagem: z.string() });
+const PRIMEIRO_CONTATO_JSON_SCHEMA = {
+  type: "object",
+  properties: { mensagem: { type: "string", description: "a mensagem de WhatsApp, pronta para enviar" } },
+  required: ["mensagem"],
+  additionalProperties: false,
+};
+
+/**
+ * Primeira mensagem para um número que você passou no painel ("Conversar com um número"). Se já houve conversa,
+ * retoma de onde parou, sem se apresentar de novo. Puxa a conversa para a dor do contato: sem preço, sem call.
+ */
+export async function escreverPrimeiroContato({ lead, nome = "", empresa = "", contexto = "", historico = [], campanha }) {
+  const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
+  const jaConversou = historico.length > 0;
+  const r = await gerarJson({
+    system: `${contextoEmpresa(campanha, { semValores: true })}
+
+Você é ${quem}. ${jaConversou
+    ? "Você já conversou com este contato (histórico abaixo). Escreva a PRÓXIMA mensagem de WhatsApp retomando a conversa de onde parou: não se apresente de novo, não cumprimente como se fosse a primeira vez e não repita o que já foi dito."
+    : "Escreva a PRIMEIRA mensagem de WhatsApp para este contato, que ainda não conhece você."}
+Regras:
+- Cumprimente pelo nome da pessoa se souber (nunca use nome de empresa ou de setor como se fosse o nome dela).
+${jaConversou ? "" : "- Diga quem você é e o que faz em uma frase simples.\n"}- Use o que você sabe do contato (abaixo). Não invente nada: se não sabe o ramo ou o site da empresa, não diga que viu o site nem cite problemas dela.
+- O objetivo é entender a dor do contato: termine com UMA pergunta aberta e fácil de responder sobre como eles atraem ou atendem clientes hoje (ou sobre o ponto do contexto).
+- Sem preço, sem planos, sem convite para call ou reunião, sem link.
+- No máximo 3 frases curtas (até ~350 caracteres). Português do Brasil, tom humano, primeira pessoa, no máximo 1 emoji.${FORMATO_DO_CANAL.whatsapp}
+- Nunca mencione assistente, robô, IA, sistema ou "equipe" respondendo por ${quem}.`,
+    pedido: `Contato: ${nome || "(nome da pessoa não informado)"}${empresa ? ` · empresa: ${empresa}` : ""}${lead?.nicho ? ` · ramo: ${lead.nicho}` : ""}${lead?.cidade ? ` · ${lead.cidade}` : ""}
+O que você sabe dele: ${contexto || "nada além do número"}
+${jaConversou ? `\nConversa até aqui (mais antigas primeiro):\n${formatarHistorico(historico)}` : ""}`,
+    jsonSchema: PRIMEIRO_CONTATO_JSON_SCHEMA,
+    zodSchema: PrimeiroContatoSchema,
+    effort: "low",
+  });
+  return r.mensagem.trim();
+}
+
 export const TIPOS_DE_CONTATO = ["cliente", "pessoal", "incerto"];
 
 const ContatoNovoSchema = z.object({

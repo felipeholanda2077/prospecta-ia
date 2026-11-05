@@ -56,6 +56,7 @@ import * as agentes from "./respostas/agentes.js";
 import * as crm from "./respostas/crmAgente.js";
 import { previsaoDoFollowup, registrosDeFollowup } from "./respostas/followup.js";
 import { fotoDoLead } from "./respostas/fotos.js";
+import { enviarParaNumero, rascunhoParaNumero } from "./respostas/conversarComNumero.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -1787,6 +1788,10 @@ const comErro = (fn) => async (req, res) => {
     res.status(400).json({ erro: e.message });
   }
 };
+
+// "Conversar com um número" (tela Respostas): a IA escreve a primeira mensagem; você revisa e envia.
+app.post("/api/conversar/rascunho", comErro(async (req) => rascunhoParaNumero(req.body, await carregarCampanhaCompleta())));
+app.post("/api/conversar/enviar", comErro(async (req) => enviarParaNumero(req.body?.leadId, req.body?.texto, await carregarCampanhaCompleta())));
 
 // Todos os números com status, empresas novas de hoje e limite de cada um.
 app.get("/api/uazap/numeros", comErro(async () => {
