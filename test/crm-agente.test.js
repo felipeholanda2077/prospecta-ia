@@ -183,3 +183,14 @@ test("crm do agente: o dono cria o número do agente na UAZap, lê o QR code e o
     globalThis.fetch = original;
   }
 });
+
+test("foto: /api/foto/<número> é a foto de perfil e /api/foto/foto-… continua sendo a foto do post", async () => {
+  await db.gravarMidia("foto-2026-11-04-teste.jpg", "image/jpeg", Buffer.from([1, 2, 3]));
+  await comServidor(async ({ chamar, entrar }) => {
+    const admin = await entrar("/api/login", "teste", "senha-de-teste");
+    const post = await chamar("/api/foto/foto-2026-11-04-teste.jpg", { cookie: admin });
+    assert.equal(post.status, 200);
+    assert.deepEqual([...Buffer.from(await post.arrayBuffer())], [1, 2, 3]);
+    assert.equal((await chamar("/api/foto/999999", { cookie: admin })).status, 204);
+  });
+});

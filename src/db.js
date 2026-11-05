@@ -212,9 +212,27 @@ export async function gravarMidia(chave, tipo, dados) {
   );
 }
 
-/** Apaga as mídias com esse começo de nome mais velhas que `dias`. */
+/** Apaga as mídias com esse começo de nome mais velhas que `dias` (nunca as fotos de perfil das empresas, que ficam salvas). */
 export async function apagarMidiasAntigas(prefixo, dias) {
-  await q("DELETE FROM midias WHERE chave LIKE $1 AND criada_em < now() - make_interval(days => $2)", [`${prefixo}%`, dias]);
+  await q("DELETE FROM midias WHERE chave LIKE $1 AND criada_em < now() - make_interval(days => $2) AND NOT starts_with(chave, 'foto-lead-')", [`${prefixo}%`, dias]);
+}
+
+/**
+ * Empresas cuja foto de perfil precisa ser salva ou renovada: as que aparecem nas conversas (mensagem enviada,
+ * resposta ou agente) e as que já têm foto salva. Sem foto salva primeiro, depois as mais antigas.
+ */
+export async function leadsParaFoto({ fotoAntesDe, semFotoAntesDe, limite }) {
+  const linhas = await q(
+    `SELECT l.id FROM leads l LEFT JOIN midias m ON m.chave = 'foto-lead-' || l.id
+     WHERE (l.whatsapp IS NOT NULL OR l.instagram_dados IS NOT NULL)
+       AND (m.chave IS NOT NULL OR l.agente_id IS NOT NULL
+            OR EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id)
+            OR EXISTS (SELECT 1 FROM mensagens g WHERE g.lead_id = l.id AND g.status = 'enviada'))
+       AND (m.chave IS NULL OR (m.tipo = 'sem' AND m.criada_em < $2) OR (m.tipo <> 'sem' AND m.criada_em < $1))
+     ORDER BY m.criada_em NULLS FIRST, l.id DESC LIMIT $3`,
+    [fotoAntesDe, semFotoAntesDe, limite]
+  );
+  return linhas.map((l) => l.id);
 }
 
 /** A mídia com a data em que foi gravada (para saber se já venceu). */
@@ -231,7 +249,7 @@ export async function lerMidia(chave) {
 /** Apaga as mídias de um post, menos a chave em `menos` (e as esquecidas há mais de 3 dias). */
 export async function apagarMidias(prefixo, { menos = null } = {}) {
   // As fotos dos produtos ficam: elas são o cadastro, não um arquivo temporário de post.
-  // As fotos de perfil das empresas também: elas vencem sozinhas (respostas/fotos.js renova a cada 7 dias).
+  // As fotos de perfil das empresas também: ficam salvas (respostas/fotos.js renova a cada 7 dias).
   await q("DELETE FROM midias WHERE (starts_with(chave, $1) AND chave IS DISTINCT FROM $2::text) OR (criada_em < now() - interval '3 days' AND NOT starts_with(chave, 'produto-') AND NOT starts_with(chave, 'relatorio-') AND NOT starts_with(chave, 'foto-lead-'))", [prefixo, menos]);
 }
 

@@ -23,6 +23,7 @@ import { verificarRespostasEmail } from "./respostas/email.js";
 import { numerosComAgente } from "./respostas/agentes.js";
 import { followupsDeInteressados } from "./respostas/followup.js";
 import { rodadaDeReativacao } from "./respostas/reativacao.js";
+import { salvarFotosDasEmpresas } from "./respostas/fotos.js";
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
@@ -1276,6 +1277,13 @@ async function rodada(campanha) {
     });
   }
   resultado.envio = await enviar(campanha, { ate, distribuir: Boolean(campanha.automacao?.ativo) });
+  // Fotos de perfil das empresas das conversas: salva as que faltam e renova as de 7 dias, poucas por rodada.
+  if (!semTempo(ate)) {
+    resultado.fotos = await salvarFotosDasEmpresas().catch((e) => {
+      log(`⚠️  Falha ao salvar as fotos de perfil: ${e.message}`);
+      return { erro: e.message };
+    });
+  }
   if (!campanha.automacao?.ativo) return resultado;
 
   const reserva = (await db.contarLeadsPorStatus("novo")) + (await db.contarLeadsPorStatus("analisado"));

@@ -1119,7 +1119,8 @@ async function enviarFoto(leadId, res) {
 }
 
 // Foto de perfil da empresa (do WhatsApp, ou do Instagram), para os avatares.
-app.get("/api/foto/:leadId", (req, res) => enviarFoto(req.params.leadId, res));
+// Só número: "/api/foto/foto-…" são as fotos dos posts (rota mais abaixo).
+app.get("/api/foto/:leadId", (req, res, next) => (/^\d+$/.test(req.params.leadId) ? enviarFoto(req.params.leadId, res) : next()));
 
 // As empresas de uma ou mais etapas do funil (clicar numa etapa da tela Respostas mostra quem são).
 app.get("/api/funil/empresas", async (req, res) => {
