@@ -38,9 +38,38 @@ export async function obterConfig() {
     apiVersion: env.apiVersion,
     verifyToken: env.verifyToken || salvo.verifyToken || "",
     appSecret: env.appSecret || salvo.appSecret || "",
+    extras: Array.isArray(salvo.extras) ? salvo.extras : [],
   };
   cacheAte = Date.now() + 30_000;
   return cache;
+}
+
+/** Id de um número oficial no sistema (o mesmo campo `numero_wa` das conversas da UAZap, com prefixo para não colidir). */
+export const idDoNumeroOficial = (phoneNumberId) => `meta-${String(phoneNumberId ?? "").replace(/\D/g, "")}`;
+export const ehNumeroOficial = (id) => String(id ?? "").startsWith("meta-");
+
+/**
+ * Os números da API oficial: o principal (o da conexão) e os que foram adicionados depois. Cada um pode
+ * ter token e template próprios (número de outra conta do WhatsApp Business); sem eles, usa os da conexão.
+ * `ativos: true` devolve só os que enviam (os extras podem ser desligados um a um).
+ */
+export async function numerosOficiais({ ativos = false } = {}) {
+  const c = await obterConfig();
+  const lista = [];
+  if (c.phoneNumberId) lista.push({ id: idDoNumeroOficial(c.phoneNumberId), nome: "Principal", principal: true, phoneNumberId: c.phoneNumberId, ativo: true, tokenProprio: false });
+  for (const e of c.extras) {
+    if (!e?.phoneNumberId || lista.some((n) => n.phoneNumberId === e.phoneNumberId)) continue;
+    lista.push({ id: idDoNumeroOficial(e.phoneNumberId), nome: e.nome || "Número", principal: false, phoneNumberId: e.phoneNumberId, ativo: e.ativo !== false, tokenProprio: Boolean(e.token), template: e.template || "", idioma: e.idioma || "" });
+  }
+  return ativos ? lista.filter((n) => n.ativo) : lista;
+}
+
+/** Token, número e template de um envio: os do número escolhido, ou os da conexão quando ele não tem próprios. */
+async function dadosDoNumero(numeroId) {
+  const c = await obterConfig();
+  const extra = numeroId ? c.extras.find((e) => idDoNumeroOficial(e.phoneNumberId) === numeroId && e.ativo !== false) : null;
+  if (!extra) return { ...c, numeroId: c.phoneNumberId ? idDoNumeroOficial(c.phoneNumberId) : null };
+  return { ...c, token: extra.token || c.token, phoneNumberId: extra.phoneNumberId, template: extra.template || c.template, idioma: extra.idioma || c.idioma, numeroId };
 }
 
 /** A API oficial está ligada e com token e número: o WhatsApp sai por ela. */
@@ -70,8 +99,8 @@ async function graph(c, caminho, token = c.token) {
 }
 
 /** Dados do número na Meta (nome verificado, número e qualidade), para o painel. */
-export async function statusOficial() {
-  const c = await obterConfig();
+export async function statusOficial(numeroId = null) {
+  const c = numeroId ? await dadosDoNumero(numeroId) : await obterConfig();
   if (!c.token || !c.phoneNumberId) return { configurada: false, ativo: c.ativo };
   const n = await graph(c, `${c.phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`);
   return {
@@ -120,8 +149,8 @@ const ERROS_DO_REGISTRO = {
 };
 
 /** Registra o número na API oficial, passo que a Meta só aceita pela API. O PIN não é guardado. */
-export async function registrarNumero(pin) {
-  const c = await obterConfig();
+export async function registrarNumero(pin, numeroId = null) {
+  const c = numeroId ? await dadosDoNumero(numeroId) : await obterConfig();
   if (!c.token || !c.phoneNumberId) throw new Error("Salve o token e o número da Meta antes de registrar");
   const limpo = String(pin ?? "").trim();
   if (!/^\d{6}$/.test(limpo)) throw new Error("O PIN precisa ter 6 números");
@@ -180,6 +209,7 @@ export async function salvarConfig({ token, phoneNumberId, template, idioma, app
     appSecret: limpo(appSecret) || atual.appSecret || "",
     verifyToken: atual.verifyToken || crypto.randomBytes(16).toString("hex"),
     ativo: ativo === undefined ? Boolean(atual.ativo) : Boolean(ativo),
+    extras: Array.isArray(atual.extras) ? atual.extras.filter((e) => e.phoneNumberId !== (limpo(phoneNumberId) || atual.phoneNumberId || "").replace(/\D/g, "")) : [],
   };
   if (!novo.token) throw new Error("Informe o token de acesso da Meta");
   if (!novo.phoneNumberId) throw new Error("Informe o ID do número de telefone (só números)");
@@ -188,6 +218,48 @@ export async function salvarConfig({ token, phoneNumberId, template, idioma, app
   await db.gravarConfig(CHAVE, novo);
   cacheAte = 0;
   return novo;
+}
+
+/**
+ * Adiciona outro número da API oficial, depois de confirmar com a Meta que ele existe. Sem token próprio,
+ * usa o da conexão (número da mesma conta do WhatsApp Business); com token, pode ser de outra conta.
+ */
+export async function adicionarNumero({ nome, phoneNumberId, token, template, idioma }) {
+  const atual = (await db.lerConfig(CHAVE)) ?? {};
+  const limpo = (v) => String(v ?? "").trim();
+  const pid = limpo(phoneNumberId).replace(/\D/g, "");
+  if (!(atual.token || config.whatsapp.token)) throw new Error("Salve a conexão principal (token e número) antes de adicionar outros números");
+  if (!pid) throw new Error("Informe o ID do número de telefone (só números)");
+  const extras = Array.isArray(atual.extras) ? atual.extras : [];
+  if (pid === String(atual.phoneNumberId ?? config.whatsapp.phoneNumberId ?? "") || extras.some((e) => e.phoneNumberId === pid)) throw new Error("Esse número já está no sistema");
+  const tpl = limpo(template);
+  if (tpl && !/^[a-z0-9_]+$/.test(tpl)) throw new Error("O nome do template usa só letras minúsculas, números e _ (como está na Meta)");
+  const tk = limpo(token);
+  const n = await graph({ apiVersion: config.whatsapp.apiVersion }, `${pid}?fields=display_phone_number,verified_name`, tk || atual.token || config.whatsapp.token);
+  const novo = { nome: limpo(nome).slice(0, 40) || n.verified_name || n.display_phone_number || "Número", phoneNumberId: pid, token: tk, template: tpl, idioma: limpo(idioma), ativo: true, criadoEm: new Date().toISOString() };
+  await db.gravarConfig(CHAVE, { ...atual, extras: [...extras, novo] });
+  cacheAte = 0;
+  return { id: idDoNumeroOficial(pid), nome: novo.nome, numero: n.display_phone_number ?? null };
+}
+
+/** Liga ou desliga um número extra (o principal liga e desliga com a API oficial inteira). */
+export async function definirNumeroAtivo(numeroId, ativo) {
+  const atual = (await db.lerConfig(CHAVE)) ?? {};
+  const extras = Array.isArray(atual.extras) ? atual.extras : [];
+  const alvo = extras.find((e) => idDoNumeroOficial(e.phoneNumberId) === numeroId);
+  if (!alvo) throw new Error("Número não encontrado");
+  alvo.ativo = Boolean(ativo);
+  await db.gravarConfig(CHAVE, { ...atual, extras });
+  cacheAte = 0;
+}
+
+/** Tira um número extra do sistema. As conversas dele passam a sair pelo número que mandou menos no dia. */
+export async function removerNumero(numeroId) {
+  const atual = (await db.lerConfig(CHAVE)) ?? {};
+  const extras = Array.isArray(atual.extras) ? atual.extras : [];
+  if (!extras.some((e) => idDoNumeroOficial(e.phoneNumberId) === numeroId)) throw new Error("Número não encontrado");
+  await db.gravarConfig(CHAVE, { ...atual, extras: extras.filter((e) => idDoNumeroOficial(e.phoneNumberId) !== numeroId) });
+  cacheAte = 0;
 }
 
 /** Liga ou desliga o envio pela API oficial sem mexer no resto. */
@@ -208,8 +280,8 @@ export async function definirAtivo(ativo) {
  * Bibliotecas não oficiais (open-wa, whatsapp-web.js, Baileys) violam os termos do
  * WhatsApp para disparos em massa e levam ao banimento do número — por isso não são usadas aqui.
  */
-export async function enviarWhatsapp({ para, empresa, corpo }) {
-  const { ativo, token, phoneNumberId, template, idioma, apiVersion } = await obterConfig();
+export async function enviarWhatsapp({ para, empresa, corpo, numeroId = null }) {
+  const { ativo, token, phoneNumberId, template, idioma, apiVersion } = await dadosDoNumero(numeroId);
   if (!ativo) throw new Error("API oficial do WhatsApp desligada (ligue em Configurações)");
   if (!token || !phoneNumberId) throw new Error("API oficial do WhatsApp sem token ou ID do número (preencha em Configurações)");
 
@@ -251,8 +323,8 @@ export async function enviarWhatsapp({ para, empresa, corpo }) {
  * Texto livre pela API oficial. Só é aceito dentro das 24 h seguintes a uma mensagem
  * do contato, então serve para responder conversas, não para o primeiro contato.
  */
-export async function enviarTextoWhatsappOficial({ para, corpo }) {
-  const { token, phoneNumberId, apiVersion } = await obterConfig();
+export async function enviarTextoWhatsappOficial({ para, corpo, numeroId = null }) {
+  const { token, phoneNumberId, apiVersion } = await dadosDoNumero(numeroId);
   if (config.modoTeste.whatsapp) para = config.modoTeste.whatsapp;
   const resp = await fetch(`https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`, {
     method: "POST",

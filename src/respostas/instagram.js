@@ -57,11 +57,13 @@ export function extrairEventosInstagram(payload, { meuId = null, meuUsuario = nu
  * O lead de quem escreveu: o que já está ligado a essa pessoa, a empresa prospectada com o mesmo @
  * ou um lead novo, já em conversa.
  */
-async function leadDaPessoa({ id, usuario = "", nome = "", observacao }) {
+async function leadDaPessoa({ id, usuario = "", nome = "", observacao, conta = null }) {
+  // O perfil em que a pessoa falou: as respostas saem por ele.
+  if (id && conta) await instagram.lembrarPerfilDoContato(id, conta);
   const ligado = id ? await leadDoContato(id) : null;
   if (ligado) return ligado;
   let perfil = null;
-  if (id && (!usuario || !nome)) perfil = await instagram.perfilDoContato(id);
+  if (id && (!usuario || !nome)) perfil = await instagram.perfilDoContato(id, conta);
   usuario ||= perfil?.usuario ?? "";
   nome ||= perfil?.nome ?? "";
   const lead = (await db.leadPeloInstagram(usuario))
@@ -80,7 +82,7 @@ const campanhaDoDirect = (campanha, respostas) => ({ ...campanha, automacao: { .
 
 /** Uma mensagem do direct: entra na conversa da pessoa e a IA responde como em qualquer conversa. */
 async function registrarDirect(m, campanha, cfg, { classificar, apresentar } = {}) {
-  const lead = await leadDaPessoa({ id: m.de, observacao: "Chamou no direct do Instagram" });
+  const lead = await leadDaPessoa({ id: m.de, observacao: "Chamou no direct do Instagram", conta: m.conta });
   let forcarHumano = null;
   if (m.audio) ({ texto: m.texto, forcarHumano } = await textoDoAudio(m, () => instagram.baixarAnexo(m.url)));
   if (m.story) m.texto = `[respondeu um story] ${m.texto}`;
@@ -113,7 +115,7 @@ export async function registrarComentario(cm, campanha, { esperar = ESPERA_COMEN
     log(`💬 @${cm.usuario} comentou no Instagram ("${cm.texto.slice(0, 60)}"); sem direct: ${d.resumo}`);
     return { respondido: false };
   }
-  const lead = await leadDaPessoa({ id: cm.de, usuario: cm.usuario, observacao: `Comentou num post do Instagram: ${d.resumo}` });
+  const lead = await leadDaPessoa({ id: cm.de, usuario: cm.usuario, observacao: `Comentou num post do Instagram: ${d.resumo}`, conta: cm.conta });
   const onde = post ? ` no post "${post.tema}"` : " num post";
   const respostaId = await db.criarResposta({
     lead_id: lead.id, canal: "instagram", origem_id: cm.id, de: cm.de, assunto: null,
@@ -134,7 +136,7 @@ export async function registrarComentario(cm, campanha, { esperar = ESPERA_COMEN
   const recusado = !envio.enviada && (await db.buscarMensagem(mensagemId))?.status === "erro";
   const publica = recusado ? RESPOSTA_SEM_DIRECT : envio.enviada ? d.resposta_publica : null;
   if (publica) {
-    await instagram.responderComentario(cm.id, publica)
+    await instagram.responderComentario(cm.id, publica, cm.conta)
       .catch((e) => log(`⚠️  Não foi possível responder o comentário de @${cm.usuario} em público: ${e.message}`));
   }
   log(`📩 @${cm.usuario} comentou${onde}: ${envio.enviada ? "direct enviado" : `direct não saiu (${envio.motivo})`}`);
@@ -150,10 +152,16 @@ const COMENTARIOS_POR_RODADA = 5;
  * Cada comentário é avaliado uma vez só: quem já foi lido não gasta IA de novo.
  */
 export async function rodadaDeComentarios(campanha, { ler = instagram.comentariosRecentes, agora = Date.now(), ...opcoes } = {}) {
-  const [cfg, conexao] = await Promise.all([instagram.configDoDirect(), instagram.lerConexao()]);
-  if (!cfg.comentarios || !conexao?.token) return { comentarios: "desligado" };
-  const proprio = (c) => c.de === String(conexao.igId) || (conexao.usuario && c.usuario.toLowerCase() === conexao.usuario.toLowerCase());
-  const lidos = (await ler()).filter((c) => !c.resposta && c.texto && c.de && !proprio(c) && agora - Date.parse(c.quando) < COMENTARIO_NOVO_MS);
+  const [cfg, conexoes] = await Promise.all([instagram.configDoDirect(), instagram.todasAsConexoes()]);
+  if (!cfg.comentarios || !conexoes.length) return { comentarios: "desligado" };
+  // Os comentários de todos os perfis; os dos próprios perfis (inclusive um respondendo o outro) ficam de fora.
+  const proprio = (c) => conexoes.some((x) => c.de === String(x.igId) || (x.usuario && c.usuario.toLowerCase() === x.usuario.toLowerCase()));
+  const todos = [];
+  for (const conexao of conexoes) {
+    const deste = await ler({ conta: String(conexao.igId) }).catch((e) => (log(`⚠️  Comentários de @${conexao.usuario}: ${e.message}`), []));
+    todos.push(...deste.map((c) => ({ conta: String(conexao.igId), ...c })));
+  }
+  const lidos = todos.filter((c) => !c.resposta && c.texto && c.de && !proprio(c) && agora - Date.parse(c.quando) < COMENTARIO_NOVO_MS);
   let novos = 0;
   let respondidos = 0;
   for (const c of lidos) {
@@ -173,10 +181,19 @@ export async function rodadaDeComentarios(campanha, { ler = instagram.comentario
  * `opcoes` troca a IA e a espera (nos testes).
  */
 export async function processarWebhookInstagram(payload, campanha, opcoes = {}) {
-  const [cfg, conexao] = await Promise.all([instagram.configDoDirect(), instagram.lerConexao()]);
-  if (!conexao?.token) return 0;
+  const [cfg, conexoes] = await Promise.all([instagram.configDoDirect(), instagram.todasAsConexoes()]);
+  if (!conexoes.length) return 0;
   await db.gravarEstado("instagram_webhook_ultimo", new Date().toISOString());
-  const { mensagens, comentarios } = extrairEventosInstagram(payload, { meuId: conexao.igId, meuUsuario: conexao.usuario });
+  // Cada entrada do aviso é de um perfil (o id dela); entrada de perfil desconhecido vai para o principal.
+  const mensagens = [];
+  const comentarios = [];
+  for (const entrada of payload?.entry ?? []) {
+    const conexao = conexoes.find((c) => String(c.igId) === String(entrada.id)) ?? conexoes[0];
+    const ev = extrairEventosInstagram({ ...payload, entry: [entrada] }, { meuId: conexao.igId, meuUsuario: conexao.usuario });
+    const outroPerfil = (id, usuario) => conexoes.some((c) => String(c.igId) === String(id) || (usuario && c.usuario && usuario.toLowerCase() === c.usuario.toLowerCase()));
+    mensagens.push(...ev.mensagens.filter((m) => !outroPerfil(m.de)).map((m) => ({ ...m, conta: String(conexao.igId) })));
+    comentarios.push(...ev.comentarios.filter((c) => !outroPerfil(c.de, c.usuario)).map((c) => ({ ...c, conta: String(conexao.igId) })));
+  }
   let registrados = 0;
   for (const m of mensagens) {
     registrados += await registrarDirect(m, campanha, cfg, opcoes).catch((e) => (log(`⚠️  Direct do Instagram: ${e.message}`), 0));

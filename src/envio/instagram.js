@@ -9,16 +9,42 @@ import { obterConfig as lerConfigDoWhatsapp } from "./whatsapp.js";
 // (página do Facebook ligada à conta profissional do Instagram, também em graph.facebook.com).
 const VERSAO = config.instagram.apiVersion;
 
-/** Conta conectada (com o token) ou null. O token nunca sai do servidor. */
-export const lerConexao = () => db.lerConfig("instagram");
+// Vários perfis: o principal fica em "instagram" (posts, insights, plano e busca de empresas usam ele) e os
+// outros em "instagram_contas". Os outros recebem os mesmos posts (quando marcados) e têm direct e comentários.
+const CHAVE_OUTRAS = "instagram_contas";
+const outrasContas = async () => ((await db.lerConfig(CHAVE_OUTRAS))?.contas ?? []).filter((c) => c?.token && c?.igId);
+const gravarOutras = (contas) => db.gravarConfig(CHAVE_OUTRAS, { contas });
+// A pessoa tem um id diferente em cada perfil que ela fala: guardar o perfil pelo id dela basta para responder pelo certo.
+const chaveDoPerfilDoContato = (pessoaId) => `contato_ig_conta:${pessoaId}`;
+export const lembrarPerfilDoContato = (pessoaId, igId) => (pessoaId && igId ? db.gravarEstado(chaveDoPerfilDoContato(pessoaId), String(igId)) : null);
 
-/** O que o painel pode ver da conexão. */
+/**
+ * Conta conectada (com o token) ou null. Sem `igId`, a principal; com ele, o perfil com esse id (principal ou outro).
+ * O token nunca sai do servidor.
+ */
+export async function lerConexao(igId = null) {
+  const principal = await db.lerConfig("instagram");
+  if (!igId || String(principal?.igId ?? "") === String(igId)) return principal;
+  return (await outrasContas()).find((c) => String(c.igId) === String(igId)) ?? null;
+}
+
+/** Todos os perfis conectados: o principal primeiro. */
+export async function todasAsConexoes() {
+  const principal = await db.lerConfig("instagram");
+  return [...(principal?.token ? [{ ...principal, principal: true }] : []), ...(await outrasContas()).map((c) => ({ ...c, principal: false }))];
+}
+
+/** Os outros perfis que recebem os posts do dia (o principal sempre recebe). */
+export const contasParaPublicar = async () => (await outrasContas()).filter((c) => c.publicar !== false);
+
+/** O que o painel pode ver da conexão (sem os tokens). */
 export async function statusDaConexao() {
-  const c = await lerConexao();
+  const c = await db.lerConfig("instagram");
+  const outras = (await outrasContas()).map((o) => ({ igId: String(o.igId), usuario: o.usuario, conectadoEm: o.conectadoEm, expiraEm: o.expiraEm ?? null, publicar: o.publicar !== false }));
   // A busca de empresas (hashtags e perfis de outras contas) só existe no token do Facebook.
   return c?.token
-    ? { conectado: true, usuario: c.usuario, conectadoEm: c.conectadoEm, expiraEm: c.expiraEm ?? null, buscaEmpresas: c.host === "graph.facebook.com" }
-    : { conectado: false };
+    ? { conectado: true, usuario: c.usuario, igId: String(c.igId ?? ""), conectadoEm: c.conectadoEm, expiraEm: c.expiraEm ?? null, buscaEmpresas: c.host === "graph.facebook.com", outras }
+    : { conectado: false, outras };
 }
 
 async function chamar({ host, token }, metodo, caminho, params = {}) {
@@ -121,7 +147,7 @@ const PELO_ID = (id) => ["graph.facebook.com", "graph.instagram.com"].map((host)
 }));
 
 /** Confere o token, descobre a conta do Instagram e guarda a conexão. */
-export async function conectarInstagram(token, igId = "") {
+export async function conectarInstagram(token, igId = "", { outra = false } = {}) {
   token = String(token ?? "").replace(/\s+/g, "");
   igId = String(igId ?? "").replace(/\D/g, "");
   if (!token) throw new Error("Cole o token de acesso gerado no painel da Meta.");
@@ -139,7 +165,18 @@ export async function conectarInstagram(token, igId = "") {
     const doFacebook = jeito.host === "graph.facebook.com";
     const usado = conta.token || (doFacebook && (await tokenDaPagina({ host: jeito.host, token }, conta.id))) || token;
     const expiraEm = await validadeDoToken({ host: jeito.host, token: usado });
-    await db.gravarConfig("instagram", { token: usado, host: jeito.host, igId: String(conta.id), usuario: conta.usuario, conectadoEm: agora, renovadoEm: agora, expiraEm });
+    const conexao = { token: usado, host: jeito.host, igId: String(conta.id), usuario: conta.usuario, conectadoEm: agora, renovadoEm: agora, expiraEm };
+    const principal = await db.lerConfig("instagram");
+    if (outra && principal?.token && String(principal.igId) !== conexao.igId) {
+      // Outro perfil: entra (ou é reconectado) na lista, recebendo os posts do dia.
+      const lista = await outrasContas();
+      const antes = lista.find((c) => String(c.igId) === conexao.igId);
+      await gravarOutras([...lista.filter((c) => String(c.igId) !== conexao.igId), { ...conexao, publicar: antes ? antes.publicar !== false : true }]);
+    } else {
+      await db.gravarConfig("instagram", conexao);
+      // O perfil que virou principal não fica repetido na lista dos outros.
+      await gravarOutras((await outrasContas()).filter((c) => String(c.igId) !== conexao.igId));
+    }
     const curto = doFacebook && expiraEm && new Date(expiraEm) - Date.now() < DURACAO_CURTA_MS;
     return {
       conectado: true,
@@ -152,14 +189,57 @@ export async function conectarInstagram(token, igId = "") {
   throw new Error(`Esse token não deu acesso a nenhuma conta profissional do Instagram. ${erros.length ? `Respostas da Meta: ${erros.join(" | ")}` : "Confira se a conta foi adicionada no app da Meta."}`);
 }
 
-export const desconectarInstagram = () => db.gravarConfig("instagram", {});
+/** Desconecta o principal. Se houver outros perfis, o primeiro deles passa a ser o principal. */
+export async function desconectarInstagram() {
+  const [proximo, ...resto] = await outrasContas();
+  await db.gravarConfig("instagram", proximo ? (({ publicar, ...c }) => c)(proximo) : {});
+  if (proximo) await gravarOutras(resto);
+}
+
+/** Tira um dos outros perfis do sistema. */
+export async function desconectarOutraConta(igId) {
+  const lista = await outrasContas();
+  if (!lista.some((c) => String(c.igId) === String(igId))) throw new Error("Perfil não encontrado");
+  await gravarOutras(lista.filter((c) => String(c.igId) !== String(igId)));
+}
+
+/** Liga ou desliga os posts do dia num dos outros perfis. */
+export async function definirPublicarNaConta(igId, publicar) {
+  const lista = await outrasContas();
+  const alvo = lista.find((c) => String(c.igId) === String(igId));
+  if (!alvo) throw new Error("Perfil não encontrado");
+  alvo.publicar = Boolean(publicar);
+  await gravarOutras(lista);
+}
+
+/** Troca o principal (o dos insights, do plano de horários e da busca de empresas) por um dos outros perfis. */
+export async function tornarPrincipal(igId) {
+  const lista = await outrasContas();
+  const novo = lista.find((c) => String(c.igId) === String(igId));
+  if (!novo) throw new Error("Perfil não encontrado");
+  const atual = await db.lerConfig("instagram");
+  const { publicar, ...conexao } = novo;
+  await db.gravarConfig("instagram", conexao);
+  await gravarOutras([...lista.filter((c) => String(c.igId) !== String(igId)), ...(atual?.token ? [{ ...atual, publicar: true }] : [])]);
+}
 
 /**
  * O token do Instagram Login vale 60 dias e pode ser renovado depois de 24h:
  * renova uma vez por semana para nunca vencer. (O de página do Facebook não vence.)
  */
 export async function renovarTokenSePreciso(agora = new Date()) {
-  const c = await lerConexao();
+  let renovou = false;
+  const principal = await db.lerConfig("instagram");
+  if (principal?.token) renovou = (await renovarToken(principal, agora, (novo) => db.gravarConfig("instagram", novo))) || renovou;
+  for (const c of await outrasContas()) {
+    const ok = await renovarToken(c, agora, async (novo) => gravarOutras((await outrasContas()).map((x) => (String(x.igId) === String(c.igId) ? novo : x))))
+      .catch((e) => { console.error(`Instagram @${c.usuario}: ${e.message}`); return false; });
+    renovou = ok || renovou;
+  }
+  return renovou;
+}
+
+async function renovarToken(c, agora, gravar) {
   if (!c?.token || c.host !== "graph.instagram.com") return false;
   if (agora - new Date(c.renovadoEm) < 7 * 24 * 3600_000) return false;
   const url = new URL("https://graph.instagram.com/refresh_access_token");
@@ -168,7 +248,7 @@ export async function renovarTokenSePreciso(agora = new Date()) {
   const r = await fetch(url);
   const corpo = await r.json().catch(() => ({}));
   if (!r.ok || !corpo.access_token) throw new Error(`Instagram: não foi possível renovar o token (${corpo.error?.message ?? r.status})`);
-  await db.gravarConfig("instagram", { ...c, token: corpo.access_token, renovadoEm: agora.toISOString() });
+  await gravar({ ...c, token: corpo.access_token, renovadoEm: agora.toISOString() });
   return true;
 }
 
@@ -284,8 +364,8 @@ function explicarErroDoDirect(e) {
  * Manda um direct. Com `comentarioId` vai como mensagem privada ao comentário (só uma é permitida,
  * então texto longo vai só a primeira parte). Retorna o id da primeira mensagem.
  */
-export async function enviarDirect({ para, comentarioId = null, texto }) {
-  const c = await lerConexao();
+export async function enviarDirect({ para, comentarioId = null, texto, conta = null }) {
+  const c = await lerConexao(conta ?? (await db.lerEstado(chaveDoPerfilDoContato(para))));
   if (!c?.token) throw new Error("Instagram desconectado: conecte a conta em Conteúdo");
   const partes = partesDoDirect(texto);
   if (!partes.length) throw new Error("Mensagem vazia");
@@ -301,16 +381,16 @@ export async function enviarDirect({ para, comentarioId = null, texto }) {
 }
 
 /** Nome e @ de quem escreveu no direct (a Meta só mostra de quem já falou com a conta). */
-export async function perfilDoContato(id) {
-  const c = await lerConexao();
+export async function perfilDoContato(id, conta = null) {
+  const c = await lerConexao(conta);
   if (!c?.token) return null;
   const p = await chamar(c, "GET", id, { fields: "name,username" }).catch(() => null);
   return p && { nome: p.name ?? "", usuario: p.username ?? "" };
 }
 
 /** Resposta pública ao comentário (ex.: "Te mandei no direct!"). */
-export async function responderComentario(comentarioId, texto) {
-  const c = await lerConexao();
+export async function responderComentario(comentarioId, texto, conta = null) {
+  const c = await lerConexao(conta);
   if (!c?.token) throw new Error("Instagram desconectado");
   return (await chamar(c, "POST", `${comentarioId}/replies`, { message: texto })).id;
 }
@@ -319,15 +399,15 @@ export async function responderComentario(comentarioId, texto) {
  * Os comentários recentes nos posts da conta, lidos direto da API. Serve enquanto a Meta não entrega
  * os comentários pelo webhook, o que exige a empresa verificada e a aprovação do app.
  */
-export async function comentariosRecentes({ posts = 12 } = {}) {
-  const c = await lerConexao();
+export async function comentariosRecentes({ posts = 12, conta = null } = {}) {
+  const c = await lerConexao(conta);
   if (!c?.token) return [];
   const { data: midias = [] } = await chamar(c, "GET", `${c.igId}/media`, {
     fields: "id,comments_count,comments{id,text,username,timestamp,from,parent_id}", limit: posts,
   });
   return midias.flatMap((m) => (m.comments?.data ?? []).map((x) => ({
     id: String(x.id), de: String(x.from?.id ?? ""), usuario: x.from?.username ?? x.username ?? "", texto: x.text ?? "",
-    midiaId: String(m.id), resposta: Boolean(x.parent_id), quando: x.timestamp,
+    midiaId: String(m.id), resposta: Boolean(x.parent_id), quando: x.timestamp, conta: String(c.igId),
   })));
 }
 
@@ -371,8 +451,14 @@ export async function assinarWebhookDoApp(callbackUrl) {
 }
 
 export async function assinarWebhookDoDirect() {
-  const c = await lerConexao();
-  if (!c?.token) throw new Error("Instagram desconectado");
+  const [principal, ...outras] = await todasAsConexoes();
+  if (!principal) throw new Error("Instagram desconectado");
+  // Os outros perfis tentam também; um que falhe não impede o principal.
+  for (const c of outras) await assinarUmPerfil(c).catch((e) => console.error(`Instagram @${c.usuario}: ${e.message}`));
+  return assinarUmPerfil(principal);
+}
+
+async function assinarUmPerfil(c) {
   const campos = c.host === "graph.instagram.com" ? ["messages,comments"] : ["messages", "feed"];
   let ultimoErro;
   for (const subscribed_fields of campos) {

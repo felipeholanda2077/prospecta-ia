@@ -10,7 +10,7 @@ import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/op
 import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
 import { gerarSequencia, escreverDirectDeProspeccao } from "./ia/proposta.js";
 import { enviarEmail, explicarErroEmail, enviarNotificacao } from "./envio/email.js";
-import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
+import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, numerosOficiais, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import { enviarDirect } from "./envio/instagram.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
@@ -202,6 +202,21 @@ export async function numeroParaEnviar(m) {
   // Empresa nova vai para o número que mandou menos hoje, para dividir o volume entre eles.
   const enviadas = await Promise.all(ativos.map((n) => db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id })));
   return { numero: ativos[enviadas.indexOf(Math.min(...enviadas))] };
+}
+
+/**
+ * Número da API oficial para uma mensagem: a conversa continua no número em que começou; conversa antiga
+ * (de antes de existirem vários números) fica no principal; empresa nova vai para o número que mandou menos hoje.
+ */
+export async function numeroOficialParaEnviar(m) {
+  const ativos = await numerosOficiais({ ativos: true });
+  if (!ativos.length) return null;
+  const doLead = m.numero_wa_lead !== undefined ? m.numero_wa_lead : (await db.buscarLead(m.lead_id))?.numero_wa;
+  const dono = ativos.find((n) => n.id === doLead);
+  if (dono) return dono;
+  if (ativos.length === 1 || m.tipo === "resposta" || m.etapa > 1) return ativos[0];
+  const enviadas = await Promise.all(ativos.map((n) => db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id })));
+  return ativos[enviadas.indexOf(Math.min(...enviadas))];
 }
 
 /** Minutos que faltam para o fim do horário comercial de hoje (negativo depois dele). */
@@ -809,6 +824,8 @@ export async function enviarMensagem(m, campanha) {
     const escolha = await numeroParaEnviar(m);
     if (!escolha.numero) return { enviada: false, naFila: true, motivo: escolha.motivo };
     numeroId = escolha.numero.id;
+  } else if (m.canal === "whatsapp" && modo === "oficial") {
+    numeroId = (await numeroOficialParaEnviar(m))?.id ?? null;
   }
 
   // Outra execução (os dois agendadores, ou um clique no painel) pode já estar enviando esta mensagem.
@@ -851,9 +868,9 @@ export async function enviarMensagem(m, campanha) {
         messageId = await enviarPara(telefone);
       }
     } else if (m.tipo === "resposta") {
-      messageId = await enviarTextoWhatsappOficial({ para: m.destino, corpo: m.corpo });
+      messageId = await enviarTextoWhatsappOficial({ para: m.destino, corpo: m.corpo, numeroId });
     } else {
-      messageId = await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo });
+      messageId = await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo, numeroId });
     }
     await registrarEnvio(m, campanha, messageId, numeroId);
     log(`📨 ${m.canal} (etapa ${m.etapa}) enviado para ${m.empresa} <${m.destino}>${numeroId ? ` pelo número ${numeroId}` : ""}`);

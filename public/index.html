@@ -1112,6 +1112,20 @@
               </div>
             </form>
             <div id="oficial-webhook"></div>
+            <div id="oficial-numeros-bloco" style="display:grid;gap:10px" hidden>
+              <div><b>Números oficiais</b><div class="muted" style="font-size:13px">A IA usa todos os números ligados. Cada empresa fica sempre no mesmo número; as novas vão para o que mandou menos no dia. O mesmo webhook recebe as respostas de todos.</div></div>
+              <div id="oficial-numeros" style="display:grid;gap:8px"></div>
+              <details id="oficial-novo-det"><summary class="btn" style="width:max-content;list-style:none"><span data-ic="plus"></span>Adicionar outro número</summary>
+                <form id="form-oficial-novo" class="config-grade" style="margin-top:12px">
+                  <div class="campo"><label for="oficial-novo-nome">Nome (para você reconhecer)</label><input id="oficial-novo-nome" name="nome" maxlength="40" placeholder="Ex.: Vendas 2"></div>
+                  <div class="campo"><label for="oficial-novo-id">ID do número de telefone</label><input id="oficial-novo-id" name="phoneNumberId" inputmode="numeric" placeholder="Ex.: 123456789012345" required></div>
+                  <div class="campo" style="grid-column:1/-1"><label for="oficial-novo-token">Token de acesso (só se o número for de outra conta da Meta)</label><input id="oficial-novo-token" name="token" type="password" autocomplete="off" placeholder="Deixe vazio para usar o token da conexão principal"></div>
+                  <div class="campo"><label for="oficial-novo-template">Template (opcional)</label><input id="oficial-novo-template" name="template" placeholder="Vazio: o mesmo da conexão"></div>
+                  <div class="campo"><label for="oficial-novo-idioma">Idioma do template (opcional)</label><input id="oficial-novo-idioma" name="idioma" placeholder="pt_BR"></div>
+                  <div style="grid-column:1/-1"><button class="btn primario" type="submit"><span data-ic="plus"></span>Conferir com a Meta e adicionar</button></div>
+                </form>
+              </details>
+            </div>
             <details><summary class="muted" style="cursor:pointer;font-size:13px">Onde pegar cada dado na Meta</summary>
               <ol class="muted" style="font-size:13px;margin:8px 0 0;padding-left:18px;display:grid;gap:6px">
                 <li><b>ID do número</b>: developers.facebook.com → seu app → WhatsApp → <b>Configuração da API</b> → "Identificação do número de telefone".</li>
@@ -1545,6 +1559,18 @@
               <div><b>Foto de perfil:</b> ela só muda pelo próprio Instagram. Baixe a logo nova e, no perfil, toque em <b>Editar perfil → Editar foto</b>. A logo já vem com margem para caber no círculo.
                 <div style="margin-top:8px"><a class="btn" href="/fluxdeck-perfil.jpg" download="fluxdeck-logo-perfil.jpg"><span data-ic="download"></span>Baixar logo para o perfil</a></div></div></div></div>
         </form>
+        <div class="cartao" id="cartao-ig-outras" hidden>
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="camera"></span><div class="titulos"><h3>Outros perfis do Instagram</h3>
+            <div class="meta">Os posts do dia saem no perfil principal e também nos perfis marcados aqui, com a mesma legenda. A IA responde o direct e os comentários de todos, cada um pelo próprio perfil. Insights e horários seguem o perfil principal.</div></div></div>
+          <div class="cartao-corpo" style="display:grid;gap:8px" id="ig-outras-lista"></div>
+          <form class="cartao-corpo config-grade" id="form-ig-outra" style="border-top:1px solid var(--border)">
+            <div class="campo" style="grid-column:1/-1"><label for="ig-outra-token">Token de acesso do outro perfil</label>
+              <input id="ig-outra-token" name="token" type="password" autocomplete="off" required placeholder="Gere do mesmo jeito do perfil principal, escolhendo o outro perfil"></div>
+            <div class="campo"><label for="ig-outra-id">ID da conta do Instagram (opcional)</label>
+              <input id="ig-outra-id" name="igId" inputmode="numeric" autocomplete="off" placeholder="17841…"></div>
+            <div style="grid-column:1/-1"><button class="btn primario" type="submit"><span data-ic="plus"></span>Conectar outro perfil</button></div>
+          </form>
+        </div>
         <form class="cartao" id="form-linkedin">
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="linkedin"></span><div class="titulos"><h3>Página do LinkedIn <span id="linkedin-status"></span></h3>
             <div class="meta">Os mesmos posts do Instagram, nos mesmos horários, na página da empresa. O vídeo sai como vídeo e o carrossel como documento de passar as páginas. A IA reescreve o texto para donos e gestores de empresa e troca a última tela por uma chamada que faz sentido lá.</div></div></div>
@@ -1696,6 +1722,8 @@ const dataHora = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "s
 const inicial = (nome) => esc((String(nome ?? "?").trim()[0] ?? "?").toUpperCase());
 
 const ICONES = {
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   camera: '<rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>',
   crown: '<path d="m2 7 4.5 4L12 4l5.5 7L22 7l-2 12H4L2 7Z"/><path d="M4 22h16"/>',
@@ -3881,8 +3909,9 @@ function mostrarConfigOficial(o) {
           <div>Token de verificação: <code>${esc(o.verifyToken)}</code> <button type="button" class="btn fantasma" data-copiar-oficial="${esc(o.verifyToken)}">${ic("copy")}Copiar</button></div>
         </div>Depois, em "Campos do webhook", assine <b>messages</b>.${o.appSecretDefinido ? "" : " <b>Falta a chave secreta do app</b>: sem ela o sistema recusa as respostas, porque não consegue confirmar que vieram da Meta."}</div></div>`
     : "";
-  if (o.tokenDefinido && o.phoneNumberId) carregarStatusOficial();
+  if (o.tokenDefinido && o.phoneNumberId) { carregarStatusOficial(); carregarNumerosOficiais(); }
   else {
+    $("#oficial-numeros-bloco").hidden = true;
     $("#oficial-status").innerHTML = `<span class="pilula">Não configurado</span>`;
     $("#oficial-conexao").innerHTML = "";
   }
@@ -3988,7 +4017,98 @@ $("#oficial-ativo").addEventListener("change", async (ev) => {
   }
 });
 
-$("#oficial-atualizar").addEventListener("click", () => carregarStatusOficial());
+$("#oficial-atualizar").addEventListener("click", () => { carregarStatusOficial(); carregarNumerosOficiais(); });
+// ---------- Vários números na API oficial ----------
+async function carregarNumerosOficiais() {
+  const bloco = $("#oficial-numeros-bloco");
+  try {
+    const { numeros } = await api("/api/whatsapp-oficial/numeros");
+    bloco.hidden = !numeros.length;
+    $("#oficial-numeros").innerHTML = numeros.map((n) => {
+      const st = n.status, s = st?.situacao;
+      const [rotulo, cor] = n.erro ? ["com erro", "perigo"] : !s ? ["sem situação", ""] : s.pronto ? ["liberado", "ok"] : (SITUACAO_NUMERO_WA[s.status] ?? [s.status ?? "pendente", "atencao"]);
+      const motivos = (s?.erros ?? []).filter((e) => !ERROS_DE_CHAMADA_WA.includes(e.codigo)).map((e) => MOTIVOS_WA[e.codigo] ?? esc(e.descricao)).join("<br>");
+      return `<div class="cartao" style="padding:12px 14px;display:grid;gap:8px" data-numero-oficial="${esc(n.id)}">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <b style="flex:1;min-width:140px">${esc(n.nome)}${st?.numero ? ` · ${esc(st.numero)}` : ""}${n.principal ? ` <span class="pilula">principal</span>` : ""}${n.tokenProprio ? ` <span class="pilula">outra conta</span>` : ""}</b>
+          <span class="pilula ${cor}">${esc(rotulo)}</span>
+          ${n.principal ? "" : `<label class="chave" title="Ligar ou desligar este número"><input type="checkbox" data-oficial-ativo="${esc(n.id)}" ${n.ativo ? "checked" : ""}><div><b style="font-size:13px">${n.ativo ? "Ligado" : "Desligado"}</b></div></label>
+          <button class="btn fantasma" type="button" data-oficial-remover="${esc(n.id)}" title="Tirar do sistema"><span data-ic-span="trash"></span>Tirar</button>`}
+        </div>
+        ${n.erro ? `<div class="muted" style="font-size:13px">${esc(n.erro)}</div>` : motivos ? `<div class="muted" style="font-size:13px">${motivos}</div>` : ""}
+        ${!n.principal && s && s.status !== "CONNECTED" ? `<form class="linha-pin" data-oficial-registrar="${esc(n.id)}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <input name="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="off" placeholder="PIN de 6 números" aria-label="PIN de 6 números" required style="max-width:170px">
+          <button class="btn" type="submit">Registrar este número</button></form>` : ""}
+      </div>`;
+    }).join("");
+    $("#oficial-numeros").querySelectorAll("[data-ic-span]").forEach((el) => (el.innerHTML = ic(el.dataset.icSpan)));
+  } catch (e) {
+    bloco.hidden = false;
+    $("#oficial-numeros").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+$("#form-oficial-novo").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    const r = await post("/api/whatsapp-oficial/numeros", Object.fromEntries(new FormData(ev.target)));
+    ev.target.reset();
+    $("#oficial-novo-det").open = false;
+    await carregarNumerosOficiais();
+    avisar(`Número "${r.numero.nome}" adicionado. Se ele ainda não estiver liberado, registre com o PIN.`, "ok");
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#oficial-numeros").addEventListener("change", async (ev) => {
+  const id = ev.target.dataset?.oficialAtivo;
+  if (!id) return;
+  try {
+    await api(`/api/whatsapp-oficial/numeros/${encodeURIComponent(id)}/ativo`, { method: "PUT", body: JSON.stringify({ ativo: ev.target.checked }) });
+    await carregarNumerosOficiais();
+    avisar(ev.target.checked ? "Número ligado: a IA volta a usar ele" : "Número desligado: as conversas dele passam para os outros números", "ok");
+  } catch (e) {
+    ev.target.checked = !ev.target.checked;
+    avisar(e.message, "perigo");
+  }
+});
+
+$("#oficial-numeros").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-oficial-remover]");
+  if (!b) return;
+  if (!confirm("Tirar este número do sistema? Nada muda na Meta, e as conversas dele passam a sair pelos outros números.")) return;
+  try {
+    await api(`/api/whatsapp-oficial/numeros/${encodeURIComponent(b.dataset.oficialRemover)}`, { method: "DELETE" });
+    await carregarNumerosOficiais();
+    avisar("Número tirado do sistema", "ok");
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+});
+
+$("#oficial-numeros").addEventListener("submit", async (ev) => {
+  const id = ev.target.dataset?.oficialRegistrar;
+  if (!id) return;
+  ev.preventDefault();
+  if (!confirm("Registrar este número na API oficial? Se ele estiver em uso em um celular ou na UAZap, pode parar de funcionar lá.")) return;
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    const r = await post(`/api/whatsapp-oficial/numeros/${encodeURIComponent(id)}/registrar`, { pin: ev.target.pin.value });
+    await carregarNumerosOficiais();
+    avisar(r.status?.situacao?.pronto ? "Número registrado e liberado para enviar" : "A Meta aceitou o registro. Confira a situação do número.", "ok");
+  } catch (e) {
+    avisar(e.message, "perigo");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 
 $("#cartao-oficial").addEventListener("click", async (ev) => {
   const b = ev.target.closest("[data-copiar-oficial]");
@@ -5291,6 +5411,7 @@ async function carregarConteudo() {
       : `<span class="pilula">Não conectado</span>`;
     $("#instagram-conectar").lastChild.textContent = r.instagram.conectado ? "Trocar token" : "Conectar Instagram";
     $("#instagram-desconectar").hidden = !r.instagram.conectado;
+    mostrarOutrosPerfis(r.instagram);
     mostrarLinkedin(r.linkedin);
     mostrarTiktok(r.tiktok).catch((e) => avisar(e.message, "perigo"));
     carregarDirect({ conferir: r.instagram.conectado });
@@ -5830,8 +5951,68 @@ $("#form-instagram").addEventListener("submit", async (ev) => {
   }
 });
 
+/** Os outros perfis do Instagram: aparecem depois que o principal está conectado. */
+function mostrarOutrosPerfis(insta) {
+  $("#cartao-ig-outras").hidden = !insta.conectado;
+  const outras = insta.outras ?? [];
+  $("#ig-outras-lista").innerHTML = outras.length ? outras.map((o) => `<div class="alerta" style="background:var(--surface-2);align-items:center;flex-wrap:wrap">
+      <b style="flex:1;min-width:140px">@${esc(o.usuario)}</b>${pilulaDoToken(o)}
+      <label class="chave"><input type="checkbox" data-ig-publicar="${esc(o.igId)}" ${o.publicar ? "checked" : ""}><div><b style="font-size:13px">Recebe os posts do dia</b></div></label>
+      <button class="btn fantasma" type="button" data-ig-principal="${esc(o.igId)}">Tornar principal</button>
+      <button class="btn fantasma" type="button" data-ig-tirar="${esc(o.igId)}">${ic("trash")}Desconectar</button></div>`).join("")
+    : `<p class="muted" style="font-size:13px;margin:0">Nenhum outro perfil ainda. O principal é @${esc(insta.usuario ?? "")}.</p>`;
+}
+
+$("#form-ig-outra").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const f = ev.target;
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    const r = await post("/api/instagram/conectar", { token: f.token.value, igId: f.igId.value, outra: true });
+    f.reset();
+    r.aviso ? avisar(`Perfil conectado: @${r.usuario}. ${r.aviso}`, "perigo", 15000) : avisar(`Perfil conectado: @${r.usuario}. Ele recebe os próximos posts do dia.`, "ok");
+    await carregarConteudo();
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#ig-outras-lista").addEventListener("change", async (ev) => {
+  const igId = ev.target.dataset?.igPublicar;
+  if (!igId) return;
+  try {
+    await api(`/api/instagram/contas/${igId}/publicar`, { method: "PUT", body: JSON.stringify({ publicar: ev.target.checked }) });
+    avisar(ev.target.checked ? "Este perfil volta a receber os posts do dia" : "Este perfil não recebe mais os posts do dia (direct e comentários continuam)", "ok");
+  } catch (e) {
+    ev.target.checked = !ev.target.checked;
+    avisar(e.message, "perigo");
+  }
+});
+
+$("#ig-outras-lista").addEventListener("click", async (ev) => {
+  const tirar = ev.target.closest("[data-ig-tirar]");
+  const principal = ev.target.closest("[data-ig-principal]");
+  try {
+    if (tirar) {
+      if (!confirm("Desconectar este perfil? Os posts e o direct dele param no sistema. Nada é apagado no Instagram.")) return;
+      await post(`/api/instagram/contas/${tirar.dataset.igTirar}/desconectar`);
+      avisar("Perfil desconectado", "ok");
+    } else if (principal) {
+      if (!confirm("Tornar este o perfil principal? Os insights, o plano de horários e a busca de empresas passam a usar ele. O principal de agora continua conectado e recebendo os posts.")) return;
+      await post(`/api/instagram/contas/${principal.dataset.igPrincipal}/principal`);
+      avisar("Perfil principal trocado", "ok");
+    } else return;
+    await carregarConteudo();
+  } catch (e) {
+    avisar(e.message, "perigo");
+  }
+});
+
 $("#instagram-desconectar").addEventListener("click", async () => {
-  if (!confirm("Desconectar o Instagram? Os posts voltam a ficar só para baixar.")) return;
+  if (!confirm("Desconectar o perfil principal? Se houver outros perfis, o primeiro deles vira o principal; sem outros, os posts voltam a ficar só para baixar.")) return;
   await post("/api/instagram/desconectar").catch((e) => avisar(e.message, "perigo"));
   await carregarConteudo();
 });

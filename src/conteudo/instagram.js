@@ -38,6 +38,13 @@ export async function gerarArquivos(post, empresa) {
   return (await imagensDoCarrossel(post, empresa)).map((dados, i) => ({ chave: `post-${post.id}-${i + 1}.jpg`, tipo: "image/jpeg", dados }));
 }
 
+/** Apaga os arquivos do post. Com o TikTok conectado, o vídeo fica para ele aproveitar: ele apaga ao publicar, e o que sobrar sai em 3 dias. */
+async function apagarArquivosDoPost(post) {
+  const atual = (await db.buscarPost(post.id)) ?? post;
+  const guardar = atual.formato === "reels" && !atual.tiktok_id && (await db.lerConfig("tiktok"))?.token ? `post-${atual.id}-reels.mp4` : null;
+  await db.apagarMidias(`post-${atual.id}-`, { menos: guardar });
+}
+
 /**
  * Leva o post até o perfil do Instagram: gera os arquivos e cria a mídia lá, espera o
  * Instagram processar e publica. Se o vídeo ainda estiver processando no fim da espera,
@@ -75,9 +82,8 @@ export async function postarNoInstagram(postId, campanha, {
     const publicado = await api.publicarContainer(conexao, container);
     await db.atualizarInstagramDoPost(post.id, { instagram_id: publicado.id, instagram_link: publicado.link, instagram_container: null, instagram_erro: null });
     await db.atualizarStatusPost(post.id, "postado");
-    // Com o TikTok conectado, o vídeo fica para ele aproveitar em vez de gerar de novo: ele apaga ao publicar, e o que sobrar sai em 3 dias.
-    const guardar = post.formato === "reels" && !post.tiktok_id && (await db.lerConfig("tiktok"))?.token ? `post-${post.id}-reels.mp4` : null;
-    await db.apagarMidias(`post-${post.id}-`, { menos: guardar });
+    // Com outros perfis recebendo o post, os arquivos ficam até eles publicarem (rodadaDasOutrasContas apaga depois).
+    if (!(await api.contasParaPublicar?.())?.length) await apagarArquivosDoPost(post);
     log(`📸 Post ${post.id} publicado no Instagram: ${publicado.link ?? publicado.id}`);
     return { instagram: "postado", link: publicado.link };
   } catch (e) {
@@ -94,4 +100,79 @@ export async function postarNoInstagram(postId, campanha, {
   } finally {
     await db.destravar(`instagram_post_${postId}`);
   }
+}
+
+// ---------- O mesmo post nos outros perfis ----------
+
+const chaveDaOutra = (postId, igId) => `ig_outra:${postId}:${igId}`;
+const lerResultado = async (postId, igId) => { try { return JSON.parse((await db.lerEstado(chaveDaOutra(postId, igId))) || "{}"); } catch { return {}; } };
+const gravarResultado = (postId, igId, r) => db.gravarEstado(chaveDaOutra(postId, igId), JSON.stringify(r));
+
+/** Onde o post saiu nos outros perfis (para o painel): { igId: { link, erro } }. */
+export async function resultadosNasOutrasContas(postId, contas) {
+  const r = {};
+  for (const c of contas) {
+    const x = await lerResultado(postId, c.igId);
+    if (x.id || x.erro) r[c.igId] = { usuario: c.usuario, link: x.link ?? null, erro: x.id ? null : x.erro ?? null };
+  }
+  return r;
+}
+
+/**
+ * A cada 2 minutos: os posts publicados no principal nos últimos 2 dias vão também para os outros perfis
+ * marcados, com os mesmos arquivos e a mesma legenda. Não espera o Instagram processar: cria a mídia numa
+ * rodada e publica numa seguinte. Quando todos terminam (ou desistem depois de 3 tentativas), os arquivos são apagados.
+ */
+export async function rodadaDasOutrasContas(campanha, { api = instagram, agora = Date.now() } = {}) {
+  const outras = await api.contasParaPublicar();
+  if (!outras.length) return { outrasContas: "nenhuma" };
+  const posts = (await db.postsRecentes(10)).filter((p) => p.status === "postado" && p.instagram_id && agora - new Date(p.postado_em ?? p.criado_em) < 2 * 24 * 3600_000);
+  let publicados = 0;
+  for (const post of posts) {
+    if (await db.lerEstado(`ig_outras_fim:${post.id}`)) continue;
+    let pendentes = 0;
+    for (const conta of outras) {
+      // Post publicado antes de o perfil entrar no sistema não vai para ele.
+      if (conta.conectadoEm && new Date(post.postado_em ?? post.criado_em) < new Date(conta.conectadoEm)) continue;
+      let st = await lerResultado(post.id, conta.igId);
+      if (st.id || (st.tentativas ?? 0) >= MAX_TENTATIVAS) continue;
+      pendentes++;
+      if (!(await db.travar(`ig_outra_${post.id}_${conta.igId}`, 4 * 60_000))) continue;
+      try {
+        if (!st.container) {
+          st = { ...st, tentativas: (st.tentativas ?? 0) + 1, erro: null };
+          await gravarResultado(post.id, conta.igId, st);
+          const chaves = await db.chavesDeMidia(`post-${post.id}-`);
+          const capa = chaves.find((k) => k.endsWith("-capa.jpg"));
+          const urls = post.formato === "reels" ? chaves.filter((k) => k.endsWith("-reels.mp4")) : chaves.filter((k) => /-\d+\.jpg$/.test(k)).sort((a, b) => Number(a.match(/-(\d+)\.jpg$/)[1]) - Number(b.match(/-(\d+)\.jpg$/)[1]));
+          if (!urls.length) throw new Error("os arquivos do post já foram apagados");
+          const container = await api.criarContainer(conta, { formato: post.formato, urls: urls.map(linkDaMidia), capaUrl: capa && linkDaMidia(capa), legenda: legendaDoPost(post) });
+          st = { ...st, container };
+          await gravarResultado(post.id, conta.igId, st);
+        }
+        const { codigo, detalhe } = await api.statusDoContainer(conta, st.container);
+        if (codigo === "ERROR" || codigo === "EXPIRED") throw new Error(`o Instagram não aceitou a mídia (${detalhe || codigo})`);
+        if (codigo === "FINISHED") {
+          const pub = await api.publicarContainer(conta, st.container);
+          st = { id: pub.id, link: pub.link, tentativas: st.tentativas };
+          await gravarResultado(post.id, conta.igId, st);
+          publicados++;
+          pendentes--;
+          log(`📸 Post ${post.id} publicado também em @${conta.usuario}: ${pub.link ?? pub.id}`);
+        }
+      } catch (e) {
+        st = { ...st, container: null, erro: e.message };
+        await gravarResultado(post.id, conta.igId, st);
+        if (st.tentativas >= MAX_TENTATIVAS) pendentes--;
+        log(`⚠️  Post ${post.id} não foi para @${conta.usuario} (tentativa ${st.tentativas}): ${e.message}`);
+      } finally {
+        await db.destravar(`ig_outra_${post.id}_${conta.igId}`);
+      }
+    }
+    if (!pendentes) {
+      await apagarArquivosDoPost(post);
+      await db.gravarEstado(`ig_outras_fim:${post.id}`, new Date(agora).toISOString());
+    }
+  }
+  return { outrasContas: outras.length, publicados };
 }

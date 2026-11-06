@@ -24,10 +24,12 @@ export function extrairMensagens(payload) {
   const mensagens = [];
   for (const entrada of payload?.entry ?? []) {
     for (const mudanca of entrada.changes ?? []) {
+      // O número da Meta que recebeu (para a resposta sair por ele, quando há vários números oficiais).
+      const recebeu = mudanca.value?.metadata?.phone_number_id;
       for (const m of mudanca.value?.messages ?? []) {
         const texto =
           m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? null;
-        if (texto) mensagens.push({ id: m.id, de: m.from, texto });
+        if (texto) mensagens.push({ id: m.id, de: m.from, texto, numeroId: recebeu ? `meta-${String(recebeu).replace(/\D/g, "")}` : null });
       }
     }
   }
@@ -50,8 +52,14 @@ export async function processarWebhookWhatsapp(payload, campanha) {
   for (const m of extrairMensagens(payload)) {
     const original = await mensagemOriginalWhatsapp(m.de);
     if (!original) continue; // conversa que não veio de uma proposta nossa
+    const lead = await db.buscarLead(original.lead_id);
+    // A conversa segue pelo número oficial em que o cliente escreveu.
+    if (lead && m.numeroId && lead.numero_wa !== m.numeroId) {
+      await db.atualizarLead(lead.id, { numero_wa: m.numeroId });
+      lead.numero_wa = m.numeroId;
+    }
     const r = await registrarResposta({
-      lead: await db.buscarLead(original.lead_id),
+      lead,
       canal: "whatsapp",
       origem_id: m.id,
       de: m.de,

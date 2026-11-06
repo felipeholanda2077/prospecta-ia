@@ -241,6 +241,11 @@ export async function lerMidiaComData(chave) {
   return m && { tipo: m.tipo, dados: Buffer.from(m.dados, "base64"), criadaEm: new Date(m.criada_em) };
 }
 
+/** As chaves das mídias que começam com o prefixo, sem carregar os arquivos. */
+export async function chavesDeMidia(prefixo) {
+  return (await q("SELECT chave FROM midias WHERE starts_with(chave, $1) ORDER BY chave", [prefixo])).map((m) => m.chave);
+}
+
 export async function lerMidia(chave) {
   const m = await um("SELECT tipo, dados FROM midias WHERE chave = $1", [chave]);
   return m && { tipo: m.tipo, dados: Buffer.from(m.dados, "base64") };

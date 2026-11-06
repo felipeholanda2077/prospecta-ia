@@ -31,12 +31,12 @@ import * as shopee from "./envio/shopee.js";
 import * as produtos from "./vendas/produtos.js";
 import { rodadaDoMercadoLivre, enviarResposta, refazerSugestao, testarSugestao } from "./vendas/mercadolivre.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
-import { postarNoInstagram, assinaturaDaMidia, gerarArquivos } from "./conteudo/instagram.js";
+import { postarNoInstagram, assinaturaDaMidia, gerarArquivos, rodadaDasOutrasContas } from "./conteudo/instagram.js";
 import { narracaoDisponivel, carregarChaveDaVoz, salvarChaveDoGemini } from "./conteudo/narracao.js";
 import { lerChavePexels, salvarChavePexels } from "./conteudo/fotos.js";
 import { lerConfigAvatar, salvarConfigAvatar, testarAvatar, testarRunway, falarPelaRunway, VOZES_DAS_MENSAGENS } from "./conteudo/avatar.js";
 import { rotinaDeInsights, desempenho, atualizarInsights, gerarAprendizados, lerAprendizados, feedDoInstagram, planejarPublicacao, lerPlano } from "./conteudo/insights.js";
-import { statusDaConexao, conectarInstagram, desconectarInstagram, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect, assinarWebhookDoApp } from "./envio/instagram.js";
+import { statusDaConexao, conectarInstagram, desconectarInstagram, desconectarOutraConta, definirPublicarNaConta, tornarPrincipal, configDoDirect, salvarConfigDoDirect, statusDoDirect, assinarWebhookDoDirect, assinarWebhookDoApp } from "./envio/instagram.js";
 import { processarWebhookInstagram, rodadaDeComentarios } from "./respostas/instagram.js";
 import { receberFormulario, lerConfigFormulario, salvarConfigFormulario } from "./respostas/formulario.js";
 import { paginaDoFormulario, paginaDeObrigado } from "./paginaContato.js";
@@ -345,7 +345,8 @@ const TAREFAS_CRON = {
   // A cada 2 minutos, a qualquer hora: os comentários novos nos posts e as respostas da IA no direct do Instagram.
   instagram: async (c) => {
     const comentarios = await rodadaDeComentarios(c).catch((e) => ({ erro: e.message }));
-    return { ...(await pipeline.enviarInstagram(c)), comentarios };
+    const outrasContas = await rodadaDasOutrasContas(c).catch((e) => ({ erro: e.message }));
+    return { ...(await pipeline.enviarInstagram(c)), comentarios, outrasContas };
   },
   // A cada 5 minutos: os posts do dia na página do LinkedIn, nos mesmos horários do Instagram.
   linkedin: (c) => rodadaDoLinkedin(c),
@@ -1537,7 +1538,7 @@ app.post("/api/conteudo/:id/testar-arquivos", async (req, res) => {
 
 app.post("/api/instagram/conectar", async (req, res) => {
   try {
-    res.json(await conectarInstagram(req.body?.token, req.body?.igId));
+    res.json(await conectarInstagram(req.body?.token, req.body?.igId, { outra: req.body?.outra === true }));
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
@@ -1547,6 +1548,23 @@ app.post("/api/instagram/desconectar", async (req, res) => {
   await desconectarInstagram();
   res.json({ ok: true });
 });
+
+// Os outros perfis do Instagram: recebem os posts do dia (quando marcados) e têm direct e comentários próprios.
+const rotaDoInstagram = (fn) => async (req, res) => {
+  try { res.json(await fn(req)); } catch (e) { res.status(400).json({ erro: e.message }); }
+};
+app.post("/api/instagram/contas/:igId/desconectar", rotaDoInstagram(async (req) => {
+  await desconectarOutraConta(req.params.igId);
+  return { ok: true, instagram: await statusDaConexao() };
+}));
+app.put("/api/instagram/contas/:igId/publicar", rotaDoInstagram(async (req) => {
+  await definirPublicarNaConta(req.params.igId, Boolean(req.body?.publicar));
+  return { ok: true, instagram: await statusDaConexao() };
+}));
+app.post("/api/instagram/contas/:igId/principal", rotaDoInstagram(async (req) => {
+  await tornarPrincipal(req.params.igId);
+  return { ok: true, instagram: await statusDaConexao() };
+}));
 
 /** O que o painel mostra do direct: o que está ligado, o webhook e se o token consegue ler o direct. */
 async function painelDoDirect({ conferir = false } = {}) {
@@ -1989,6 +2007,35 @@ app.put("/api/whatsapp-oficial/ativo", async (req, res) => {
     res.status(400).json({ erro: e.message });
   }
 });
+
+// Vários números na API oficial: o principal é o da conexão; os outros entram e saem por aqui.
+app.get("/api/whatsapp-oficial/numeros", comErro(async () => {
+  const numeros = await whatsappOficial.numerosOficiais();
+  // Uma consulta por vez: o status de um número com problema não pode derrubar o dos outros.
+  const lista = [];
+  for (const n of numeros) {
+    let status = null, erro = null;
+    try { status = await whatsappOficial.statusOficial(n.id); } catch (e) { erro = e.message; }
+    lista.push({ ...n, status, erro });
+  }
+  return { numeros: lista };
+}));
+app.post("/api/whatsapp-oficial/numeros", comErro(async (req) => {
+  const b = req.body ?? {};
+  return { ok: true, numero: await whatsappOficial.adicionarNumero({ nome: b.nome, phoneNumberId: b.phoneNumberId, token: b.token, template: b.template, idioma: b.idioma }) };
+}));
+app.put("/api/whatsapp-oficial/numeros/:id/ativo", comErro(async (req) => {
+  await whatsappOficial.definirNumeroAtivo(req.params.id, Boolean(req.body?.ativo));
+  return { ok: true };
+}));
+app.post("/api/whatsapp-oficial/numeros/:id/registrar", comErro(async (req) => {
+  await whatsappOficial.registrarNumero(req.body?.pin, req.params.id);
+  return { ok: true, status: await whatsappOficial.statusOficial(req.params.id) };
+}));
+app.delete("/api/whatsapp-oficial/numeros/:id", comErro(async (req) => {
+  await whatsappOficial.removerNumero(req.params.id);
+  return { ok: true };
+}));
 
 // Evolution API: alternativa à UAZap, com as mesmas ações no painel.
 app.post("/api/evolution/config", async (req, res) => {
