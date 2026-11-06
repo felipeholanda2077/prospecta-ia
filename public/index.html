@@ -465,6 +465,11 @@
   .bolha .rodape-b { display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: flex-end; align-items: center; font-size: 11px; color: var(--muted); margin-top: 3px; white-space: normal; }
   .bolha .rodape-b .icon { width: 12px; height: 12px; }
   .bolha button.link { font: inherit; font-size: 11px; color: var(--danger); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+  .troca-canal { align-self: stretch; display: flex; align-items: center; justify-content: center; gap: 8px; margin: 10px 0; color: var(--accent-text, var(--accent)); font-size: 12.5px; font-weight: 700; text-align: center; }
+  .troca-canal::before, .troca-canal::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: .35; min-width: 16px; }
+  .chat-busca { position: relative; padding: 10px 12px 0; }
+  .chat-busca .ic { position: absolute; left: 24px; top: calc(50% + 5px); transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+  .chat-busca input { width: 100%; padding-left: 36px; min-height: 40px; }
   .dia { align-self: center; background: var(--surface); color: var(--muted); font-size: 12px; padding: 4px 10px; border-radius: 8px; margin: 8px 0; box-shadow: var(--shadow-sm); }
   .chat-escrever { border-top: 1px solid var(--border); padding: 10px 12px; display: grid; gap: 8px; }
   .chat-escrever textarea { min-height: 64px; max-height: 200px; resize: vertical; }
@@ -2847,6 +2852,7 @@ function cardResposta(r) {
 // ===================== Respostas em formato de chat =====================
 let conversaAberta = null;
 let filtroConversa = "todas";
+let buscaConversa = "";
 let dadosConversas = null;
 const FILTROS_CONVERSA = [
   ["todas", "Todas"], ["interessados", `<span class="coroa-filtro">${ic("crown", "sm")}</span>Interessados`], ["precisa", "Precisam de você"], ["quente", "Chance alta"], ["morna", "Média"], ["fria", "Baixa"],
@@ -3089,20 +3095,39 @@ function itemConversa(c) {
   </button>`;
 }
 
+/** A conversa bate com a busca: pelo nome, pelo telefone (com ou sem DDD, espaço ou traço), pelo e-mail ou por um contato indicado. */
+function bateComBusca(c, termo) {
+  const t = termo.trim().toLowerCase();
+  if (!t) return true;
+  const digitos = t.replace(/\D/g, "");
+  const textos = [c.nome, c.email, c.busca].filter(Boolean).join(" ").toLowerCase();
+  if (textos.includes(t)) return true;
+  if (digitos.length < 3) return false;
+  const numeros = [c.whatsapp, ...String(c.busca ?? "").split(/\s+/)].map((n) => String(n ?? "").replace(/\D/g, "")).filter(Boolean);
+  // Sem o 9 da frente também acha (número antigo salvo sem ele).
+  return numeros.some((n) => n.includes(digitos) || (digitos.length >= 8 && n.replace(/^(55\d{2})9/, "$1").includes(digitos.replace(/^((?:55)?\d{2})9(\d{8})$/, "$1$2"))));
+}
+
 function conversasFiltradas() {
-  const lista = dadosConversas?.conversas ?? [];
+  const lista = (dadosConversas?.conversas ?? []).filter((c) => bateComBusca(c, buscaConversa));
   if (filtroConversa === "todas") return lista;
   if (filtroConversa === "precisa") return lista.filter((c) => c.andamento.precisaDeVoce);
   if (filtroConversa === "interessados") return lista.filter((c) => c.interessado);
   return lista.filter((c) => c.andamento.chance === filtroConversa);
 }
 
+document.addEventListener("input", (ev) => {
+  if (ev.target.id !== "chat-busca") return;
+  buscaConversa = ev.target.value;
+  desenharListaConversas();
+});
+
 function desenharListaConversas() {
   const lista = conversasFiltradas();
   $("#chat-filtros").innerHTML = FILTROS_CONVERSA.map(([v, t]) =>
     `<button class="filtro" data-filtro-conversa="${v}" aria-pressed="${v === filtroConversa}">${t}</button>`).join("");
   $("#chat-itens").innerHTML = lista.length ? lista.map(itemConversa).join("")
-    : `<p class="muted" style="padding:20px;text-align:center">Nenhuma conversa neste filtro.</p>`;
+    : `<p class="muted" style="padding:20px;text-align:center">${buscaConversa.trim() ? `Nenhuma conversa com "${esc(buscaConversa.trim())}"${filtroConversa !== "todas" ? " neste filtro" : ""}.` : "Nenhuma conversa neste filtro."}</p>`;
 }
 
 /** Monta a página (indicadores + lista + chat). Com `manterChat`, só atualiza o que mudou. */
@@ -3199,7 +3224,9 @@ async function carregarRespostas(alvo, { manterChat = false } = {}) {
   }
   alvo.innerHTML = `${BOTAO_CONVERSAR}<div id="chat-indicadores">${htmlIndicadores(indicadores)}</div>
     <div class="chat-app" id="chat-app">
-      <aside class="chat-lista" aria-label="Conversas"><div class="filtros" id="chat-filtros"></div><div class="chat-itens" id="chat-itens"></div></aside>
+      <aside class="chat-lista" aria-label="Conversas">
+        <div class="chat-busca">${ic("search", "sm")}<input id="chat-busca" type="search" placeholder="Buscar por nome ou telefone" aria-label="Buscar conversa por nome ou telefone" value="${esc(buscaConversa)}" autocomplete="off"></div>
+        <div class="filtros" id="chat-filtros"></div><div class="chat-itens" id="chat-itens"></div></aside>
       <section class="chat-painel" id="chat-painel"><div class="chat-vazio">${ic("message")}<p>Escolha uma conversa para ver tudo o que foi falado.</p></div></section>
     </div>`;
   desenharListaConversas();
@@ -3209,12 +3236,33 @@ async function carregarRespostas(alvo, { manterChat = false } = {}) {
   if (conversaAberta) await abrirConversa(conversaAberta);
 }
 
+/** Mesmo número de WhatsApp, com ou sem 55 e com ou sem o 9 (compara os 8 últimos dígitos e o DDD). */
+const mesmoNumero = (a, b) => {
+  const x = String(a ?? "").replace(/\D/g, ""), y = String(b ?? "").replace(/\D/g, "");
+  if (!x || !y) return String(a ?? "").toLowerCase() === String(b ?? "").toLowerCase();
+  return x.slice(-8) === y.slice(-8);
+};
+
+/** Quem é o contato de uma mensagem, para o aviso de troca: a empresa, a pessoa indicada ou o número. */
+function nomeDoContatoNaConversa(d, contato) {
+  const c = (d.contatos ?? []).find((x) => mesmoNumero(x.numero, contato));
+  if (c?.papel === "empresa" || mesmoNumero(d.lead.whatsapp, contato)) return esc(d.lead.nome);
+  if (c?.nome) return `${esc(c.nome)}${c.papel === "indicado" ? " (indicada pela empresa)" : ""}`;
+  return esc(contato);
+}
+
 function bolhasDaConversa(d, { somenteLer = false } = {}) {
   const contatoPrincipal = [d.lead.whatsapp, d.lead.email].filter(Boolean);
   let diaAnterior = "";
   let anterior = null;
   const partes = [];
   for (const m of d.mensagens) {
+    // A conversa mudou de canal (WhatsApp, e-mail, direct) ou passou a ser com outra pessoa (ex.: a indicada): aviso no meio.
+    if (anterior && m.canal !== anterior.canal) {
+      partes.push(`<div class="troca-canal">${ic(icCanal(m.canal), "sm")}A conversa passou para o ${esc(NOME_CANAL[m.canal] ?? m.canal)}${m.canal !== "instagram" && m.contato ? ` · ${nomeDoContatoNaConversa(d, m.contato)}` : ""}</div>`);
+    } else if (anterior && m.canal === "whatsapp" && m.contato && anterior.contato && !mesmoNumero(m.contato, anterior.contato)) {
+      partes.push(`<div class="troca-canal">${ic("users", "sm")}${m.autor === "nos" ? "Agora a conversa é com" : "Quem escreveu agora:"} ${nomeDoContatoNaConversa(d, m.contato)} · ${esc(m.contato)}</div>`);
+    }
     const horasDepois = anterior ? Math.max(1, Math.round((new Date(m.quando) - new Date(anterior.quando)) / 36e5)) : null;
     anterior = m;
     const dia = new Date(m.quando).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });

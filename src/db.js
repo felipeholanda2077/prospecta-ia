@@ -359,6 +359,21 @@ export async function gravarPublicacao({ produto_id, canal, conta_id, externo_id
 
 // ---------- Estado interno ----------
 
+/**
+ * Para a busca da tela Respostas: os outros contatos de cada conversa (números para quem escrevemos ou que
+ * escreveram, como a pessoa que a empresa indicou) e os nomes dos contatos ligados, num texto por empresa.
+ */
+export async function contatosParaBusca() {
+  const porLead = new Map();
+  const juntar = (id, texto) => texto && porLead.set(Number(id), `${porLead.get(Number(id)) ?? ""} ${texto}`);
+  for (const r of await q(`SELECT lead_id, destino AS contato FROM mensagens WHERE canal = 'whatsapp' AND destino IS NOT NULL
+                           UNION SELECT lead_id, de AS contato FROM respostas WHERE canal = 'whatsapp' AND de IS NOT NULL`)) juntar(r.lead_id, r.contato);
+  for (const r of await q("SELECT chave, valor FROM estado WHERE starts_with(chave, 'contatos_lead:')")) {
+    try { for (const c of JSON.parse(r.valor)) juntar(r.chave.split(":")[1], `${c.numero ?? ""} ${c.nome ?? ""}`); } catch {}
+  }
+  return porLead;
+}
+
 export async function lerEstado(chave) {
   return (await um("SELECT valor FROM estado WHERE chave = $1", [chave]))?.valor ?? null;
 }

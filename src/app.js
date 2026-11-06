@@ -1121,7 +1121,9 @@ const followupDaConversa = (c, registros) => previsaoDoFollowup({
 
 app.get("/api/conversas", async (req, res) => {
   const registros = await registrosDeFollowup();
-  const conversas = (await conversasAvaliadas()).map((c) => ({ ...c, followup: followupDaConversa(c, registros) }));
+  const extras = await db.contatosParaBusca();
+  // `busca`: os outros números e nomes da conversa (ex.: a pessoa indicada), para a barra de pesquisa do painel.
+  const conversas = (await conversasAvaliadas()).map((c) => ({ ...c, followup: followupDaConversa(c, registros), busca: (extras.get(c.id) ?? "").trim() }));
   const funil = { ...(await db.funilDeConversas()), ramos_teste: await lerRamos() };
   res.json({ indicadores: indicadoresDasConversas(conversas, funil), conversas });
 });
