@@ -1156,15 +1156,18 @@ app.get("/api/conversas/:leadId", async (req, res) => {
   const conversa = (await conversasAvaliadas()).find((c) => c.id === lead.id) ?? null;
   const resposta = await db.ultimaRespostaDaConversa(lead.id);
   const { token, analise, ...dados } = lead;
+  const mensagens = await db.historicoConversa(lead.id);
   res.json({
     lead: { ...dados, oportunidades: JSON.parse(dados.oportunidades || "[]") },
+    // Quem está nesta conversa (a empresa e quem ela indicou) e para quem a resposta vai por padrão.
+    ...(await pipeline.contatosDaConversa(lead, mensagens)),
     andamento: conversa?.andamento ?? null,
     interessado: conversa?.interessado ?? false,
     followup: conversa ? followupDaConversa(conversa, await registrosDeFollowup()) : null,
     iaPausada: (await iaPausada(lead.id)) || null,
     numeroWhatsapp: lead.numero_wa ? (await uazap.numero(lead.numero_wa))?.nome ?? null : null,
     agente: lead.agente_id ? (await db.buscarAgente(lead.agente_id))?.nome ?? null : null,
-    mensagens: await db.historicoConversa(lead.id),
+    mensagens,
     agendadas: await db.agendadasDaConversa(lead.id),
     // A sugestão da IA vai para a caixa de resposta quando ninguém respondeu ainda a última mensagem.
     resposta: resposta && {
@@ -1237,7 +1240,7 @@ app.post("/api/respostas/:id/apresentacao", async (req, res) => {
 });
 
 app.post("/api/respostas/:id/enviar", async (req, res) => {
-  const r = await pipeline.responderConversa(req.params.id, req.body?.texto, await carregarCampanhaCompleta());
+  const r = await pipeline.responderConversa(req.params.id, req.body?.texto, await carregarCampanhaCompleta(), { destino: req.body?.destino || null });
   if (r.manual) {
     const m = await db.buscarMensagem(r.id);
     return res.json({ ...r, linkWhatsapp: linkWhatsapp(m.destino, m.corpo, false) });

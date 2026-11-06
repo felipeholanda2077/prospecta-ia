@@ -4,6 +4,7 @@ import { mensagemParaIndicado } from "../ia/resposta.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { variantesWhatsappBR } from "../analise/telefone.js";
 import { normalizarContato } from "../db.js";
+import { ligarContatoAoLead } from "./contatoNovo.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
@@ -82,6 +83,8 @@ export async function contatarIndicados({
     if (de && variantes.some((v) => [normalizarContato(de), ...variantesWhatsappBR(de)].includes(v))) { pular("é o próprio contato de quem indicou"); continue; }
     if (await db.estaDescadastrado(destino)) { pular("esse contato pediu para não receber mensagens"); continue; }
     if ((await Promise.all(variantes.map((v) => db.contatoJaUsado(v)))).some(Boolean)) { pular("já existe conversa com esse contato"); continue; }
+    // A pessoa indicada faz parte da conversa da empresa: o que ela responder cai aqui, e o painel deixa responder para ela.
+    if (canal === "whatsapp") await ligarContatoAoLead(lead.id, { numero: destino, nome: contato.nome, papel: "indicado" });
 
     if (!manual && !campanha.automacao?.respostaAutomatica) {
       await enviarNotificacao(`${lead.nome} indicou um contato`,

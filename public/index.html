@@ -468,6 +468,8 @@
   .dia { align-self: center; background: var(--surface); color: var(--muted); font-size: 12px; padding: 4px 10px; border-radius: 8px; margin: 8px 0; box-shadow: var(--shadow-sm); }
   .chat-escrever { border-top: 1px solid var(--border); padding: 10px 12px; display: grid; gap: 8px; }
   .chat-escrever textarea { min-height: 64px; max-height: 200px; resize: vertical; }
+  .para-quem { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .para-quem select { width: auto; flex: 1 1 220px; max-width: 100%; min-height: 36px; padding: 6px 10px; font-size: 13.5px; }
   .chat-oferta:not([hidden]) { border-top: 1px solid var(--border); padding: 10px 12px; display: flex; gap: 8px; align-items: center; }
   .chat-oferta select { flex: 1; min-width: 0; }
   .chat-oferta .btn { flex: none; }
@@ -3261,6 +3263,12 @@ async function abrirConversa(id, { atualizar = false } = {}) {
   const r = d.resposta;
   const canal = NOME_CANAL[r?.canal] ?? "WhatsApp";
   const encerrada = a?.chance === "encerrada";
+  // Conversa com mais de uma pessoa (a empresa e quem ela indicou): dá para escolher para quem a resposta vai.
+  const variasPessoas = r?.canal === "whatsapp" && (d.contatos ?? []).length > 1;
+  const nomeDoContato = (c) => c.papel === "empresa" ? `${d.lead.nome} (empresa)` : `${c.nome || "Contato"}${c.papel === "indicado" ? " (indicada pela empresa)" : ""}`;
+  const paraQuem = variasPessoas ? d.responderPara ?? r.de : r?.de;
+  const seletorDeContato = variasPessoas ? `<label class="para-quem">${ic("users", "sm")}Responder para
+      <select id="chat-destino" aria-label="Para quem a resposta vai">${d.contatos.map((c) => `<option value="${esc(c.numero)}" ${c.numero === paraQuem ? "selected" : ""}>${esc(nomeDoContato(c))} · ${esc(c.numero)}</option>`).join("")}</select></label>` : "";
   painel.innerHTML = `
     <div class="chat-topo">
       <button class="btn fantasma sm so-celular" data-voltar-lista aria-label="Voltar para as conversas">${ic("arrowLeft", "sm")}</button>
@@ -3275,8 +3283,9 @@ async function abrirConversa(id, { atualizar = false } = {}) {
     <div class="chat-msgs" id="chat-msgs">${msgs}</div>
     <div class="chat-oferta" id="chat-oferta" hidden></div>
     ${r && !encerrada ? `<div class="chat-escrever" data-resposta="${r.id}" data-canal="${r.canal}">
+      ${seletorDeContato}
       <textarea id="chat-texto" aria-label="Mensagem para ${esc(d.lead.nome)}" placeholder="Escreva como Felipe, pelo ${canal}…">${esc(r.sugestao ?? "")}</textarea>
-      <div class="linha">${r.sugestao ? `${ic("spark", "sm")}Sugestão da IA (revise antes de enviar) ·` : ""} Responde pelo ${canal}${r.de && r.canal !== "instagram" ? ` para ${esc(r.de)}` : ""}${r.canal === "whatsapp" && d.numeroWhatsapp ? ` · pelo número ${esc(d.numeroWhatsapp)}` : ""}${r.canal === "instagram" ? " (até 24 h depois da última mensagem da pessoa)" : ""}
+      <div class="linha">${r.sugestao ? `${ic("spark", "sm")}Sugestão da IA (revise antes de enviar) ·` : ""} Responde pelo ${canal}${!variasPessoas && r.de && r.canal !== "instagram" ? ` para ${esc(r.de)}` : ""}${r.canal === "whatsapp" && d.numeroWhatsapp ? ` · pelo número ${esc(d.numeroWhatsapp)}` : ""}${r.canal === "instagram" ? " (até 24 h depois da última mensagem da pessoa)" : ""}
         <span class="espaco"></span>${d.iaPausada ? `<span>${ic("alert", "sm")}IA parada: ${esc(d.iaPausada)}</span>` : `<button class="btn sm" data-parar-ia="${d.lead.id}" title="A IA para de responder esta conversa">${ic("x", "sm")}Parar IA</button>`}
         ${r.precisa_humano || d.iaPausada ? `<button class="btn sm" data-ia-continua title="A IA lê a conversa de novo e responde sozinha">${ic("spark", "sm")}IA continua</button>` : ""}
         <button class="btn primario sm" data-enviar-conversa>${ic("send", "sm")}Enviar</button></div>
@@ -3353,7 +3362,7 @@ async function enviarNaConversa(btn) {
   const janela = caixa.dataset.canal === "whatsapp" && sessao.modoWhatsapp === "manual" ? window.open("about:blank", "_blank") : null;
   btn.disabled = true;
   try {
-    const r = await post(`/api/respostas/${caixa.dataset.resposta}/enviar`, { texto });
+    const r = await post(`/api/respostas/${caixa.dataset.resposta}/enviar`, { texto, destino: $("#chat-destino")?.value || null });
     if (r.manual) {
       if (janela) janela.location = r.linkWhatsapp;
       $(".linha", caixa).innerHTML = `<span style="font-weight:600">Você enviou a resposta no WhatsApp?</span><span class="espaco"></span>

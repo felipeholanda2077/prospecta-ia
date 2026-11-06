@@ -2,6 +2,7 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import { buscarMensagens } from "../envio/evolution.js";
 import { avaliarContatoNovo } from "../ia/resposta.js";
+import { variantesWhatsappBR } from "../analise/telefone.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
@@ -17,6 +18,27 @@ const chaveDaAvaliacao = (de) => `contato_novo:${de}`;
 const deixarDeFora = (de) => db.gravarEstado(chaveDaAvaliacao(de), Date.now() + PESSOAL_MS);
 
 /** Lead ligado a um contato que chamou por conta própria (ou que respondeu de outro número). */
+/**
+ * Liga um contato (ex.: a pessoa que a empresa indicou) à conversa da empresa: o que ela escrever entra
+ * nesta conversa, por qualquer jeito do número (com ou sem o 9, com ou sem o 55), e ela aparece no painel
+ * como alguém para quem dá para responder.
+ */
+export async function ligarContatoAoLead(leadId, { numero, nome = "", papel = "indicado" }) {
+  const limpo = String(numero ?? "").replace(/\D/g, "");
+  if (!leadId || !limpo) return;
+  for (const v of variantesWhatsappBR(limpo)) await db.gravarEstado(chaveDoLead(v), leadId);
+  const lista = await contatosLigados(leadId);
+  if (!lista.some((c) => variantesWhatsappBR(c.numero).includes(limpo))) {
+    lista.push({ numero: limpo, nome: String(nome ?? "").slice(0, 80), papel, desde: new Date().toISOString() });
+    await db.gravarEstado(`contatos_lead:${leadId}`, JSON.stringify(lista));
+  }
+}
+
+/** Os contatos ligados à conversa da empresa (fora o número dela). */
+export async function contatosLigados(leadId) {
+  try { return JSON.parse((await db.lerEstado(`contatos_lead:${leadId}`)) || "[]"); } catch { return []; }
+}
+
 export async function leadDoContato(de) {
   const id = Number(await db.lerEstado(chaveDoLead(de)));
   return id ? db.buscarLead(id) : null;

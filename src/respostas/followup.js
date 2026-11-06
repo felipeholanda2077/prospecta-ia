@@ -5,6 +5,8 @@ import { enderecoDoGuia } from "../vendas/campanha.js";
 import { momentoDaPrevia, semLinkDaPrevia } from "../vendas/previa.js";
 import { lerApresentacao } from "./apresentacao.js";
 import { iaPausada } from "./processar.js";
+import { contatosLigados } from "./contatoNovo.js";
+import { variantesWhatsappBR } from "../analise/telefone.js";
 
 // Follow-up da IA para quem mostrou interesse, ou está numa conversa morna ou quente (ex.: ficou de ver, ou de
 // repassar para o responsável), e parou de responder: 1 dia depois da nossa última mensagem, a IA retoma de onde
@@ -70,15 +72,21 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
       if (!dela || !CANAIS.includes(dela.canal)) continue;
       // Prévia do site: só para empresa sem site, quando a conversa tocou em presença online e o link ainda não foi.
       const linkPrevia = momentoDaPrevia({ lead, historico });
+      // Para quem vai: a pessoa indicada que ainda não respondeu recebe um follow-up escrito para ela.
+      const ultimoWa = dela.canal === "whatsapp" ? historico.filter((h) => h.canal === "whatsapp" && h.contato).at(-1) : null;
+      const indicado = ultimoWa?.autor === "nos" ? (await contatosLigados(lead.id)).find((c) => variantesWhatsappBR(c.numero).includes(String(ultimoWa.contato).replace(/\D/g, ""))) : null;
       const r = await escrever({
-        lead, historico, campanha, canal: dela.canal, numero: plano.numero, evitar: plano.evitar,
+        lead, historico, campanha, canal: dela.canal, numero: plano.numero, evitar: plano.evitar, contatoIndicado: indicado ?? null,
         apresentacao: await lerApresentacao(), linkMaterial: enderecoDoGuia(lead), linkPrevia,
       });
       let corpo = pediuValor(dela.texto, historico) ? r.mensagem : semValores(r.mensagem);
       if (!linkPrevia || !corpo?.includes(linkPrevia)) corpo = semLinkDaPrevia(corpo);
       if (!corpo?.trim()) continue;
+      // No WhatsApp, para quem falou por último: depois de escrevermos para a pessoa que a empresa indicou, o
+      // follow-up é com ela, não com quem passou o contato.
+      const ultimoContato = dela.canal === "whatsapp" ? historico.filter((h) => h.canal === "whatsapp" && h.contato).at(-1)?.contato : null;
       const id = await db.criarMensagem({
-        lead_id: lead.id, canal: dela.canal, destino: dela.de || (dela.canal === "email" ? lead.email : lead.whatsapp),
+        lead_id: lead.id, canal: dela.canal, destino: ultimoContato || dela.de || (dela.canal === "email" ? lead.email : lead.whatsapp),
         assunto: dela.canal === "email" ? (/^re:/i.test(dela.assunto ?? "") ? dela.assunto : `Re: ${dela.assunto ?? lead.nome}`) : null,
         corpo: corpo.trim(), status: "aprovada", tipo: "resposta", etapa: 0,
         em_resposta_a: dela.canal === "email" ? dela.origem_id : null, followup: plano.numero,

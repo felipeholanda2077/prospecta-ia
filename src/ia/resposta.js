@@ -396,7 +396,7 @@ const FOLLOWUP_JSON_SCHEMA = {
  * assunto da conversa) ou oferece um material de graça (o guia em PDF da empresa). `evitar` = a opção do
  * follow-up anterior, para não repetir. Retorna { opcao, mensagem }.
  */
-export async function escreverFollowup({ lead, historico, campanha, canal = "whatsapp", numero = 1, evitar = null, apresentacao = "", linkMaterial = "", linkPrevia = "" }) {
+export async function escreverFollowup({ lead, historico, campanha, canal = "whatsapp", numero = 1, evitar = null, apresentacao = "", linkMaterial = "", linkPrevia = "", contatoIndicado = null }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const ultimaDela = [...(historico ?? [])].reverse().find((h) => h.autor === "lead");
   const podeValores = pediuValor(ultimaDela?.texto, historico);
@@ -417,7 +417,8 @@ ${linkPrevia ? `- previa: a conversa tocou em presença online e a ${lead.nome} 
   Uma frase ligando ao que ela contou, e termine perguntando o que ela achou. É mais concreto que o guia: prefira
   esta opção à de material.
 ` : "- (NÃO use a opção previa nesta conversa.)\n"}${evitar ? `O follow-up anterior foi "${evitar}": agora use outra opção.` : "Escolha a que fizer mais sentido para esta conversa (se ela ficou de repassar, comece por responsavel)."}
-Regras:
+${contatoIndicado ? `ATENÇÃO: este follow-up vai para ${contatoIndicado.nome || "a pessoa"} que a ${lead.nome} indicou (você escreveu para ela e ela ainda não respondeu). Fale com ela${contatoIndicado.nome ? " pelo primeiro nome" : ""}, lembre de leve que o pessoal da ${lead.nome} passou o contato e não use a opção responsavel: ela já é a pessoa certa.
+` : ""}Regras:
 - Nada de cobrança ("não sei se viu", "só passando para lembrar", "fico no aguardo"), nada de pressão.
 - Não cumprimente com "bom dia/boa tarde" nem se apresente de novo: vocês já conversaram. Um "Oi, [nome]!" leve pode.
 - ${podeValores ? "Se citar valores, só os da apresentação, como estão escritos." : "Não cite valores, preços ou R$: ela não perguntou de preço."}

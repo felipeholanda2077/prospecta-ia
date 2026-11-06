@@ -51,8 +51,9 @@ export async function processarWebhookWhatsapp(payload, campanha) {
   let registradas = 0;
   for (const m of extrairMensagens(payload)) {
     const original = await mensagemOriginalWhatsapp(m.de);
-    if (!original) continue; // conversa que não veio de uma proposta nossa
-    const lead = await db.buscarLead(original.lead_id);
+    // Conversa que não veio de uma proposta nossa nem de um contato ligado a uma empresa (ex.: alguém indicado) fica de fora.
+    const lead = original ? await db.buscarLead(original.lead_id) : await leadDoContato(m.de);
+    if (!lead) continue;
     // A conversa segue pelo número oficial em que o cliente escreveu.
     if (lead && m.numeroId && lead.numero_wa !== m.numeroId) {
       await db.atualizarLead(lead.id, { numero_wa: m.numeroId });

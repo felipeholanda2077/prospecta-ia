@@ -7,7 +7,8 @@ import { buscarEmpresasPorCnpj, contatoDoCnpj, emailDeContador } from "./descobe
 import { escolherAbordagem } from "./ia/abordagens.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
-import { ehCelularBR, normalizarTelefoneBR } from "./analise/telefone.js";
+import { ehCelularBR, normalizarTelefoneBR, variantesWhatsappBR } from "./analise/telefone.js";
+import { contatosLigados } from "./respostas/contatoNovo.js";
 import { gerarSequencia, escreverDirectDeProspeccao } from "./ia/proposta.js";
 import { enviarEmail, explicarErroEmail, enviarNotificacao } from "./envio/email.js";
 import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, numerosOficiais, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
@@ -936,12 +937,43 @@ export async function marcarEnviadaManual(id, campanha) {
 }
 
 /** Responde uma conversa com o texto revisado no painel. Respeita o horário comercial. */
-export async function responderConversa(respostaId, texto, campanha) {
+/**
+ * As pessoas com quem a conversa de uma empresa acontece no WhatsApp: o número da empresa, os contatos que ela
+ * indicou (ligados pela indicação) e quem mais apareceu na conversa. `responderPara` é quem falou por último,
+ * de um lado ou do outro (ex.: depois de escrevermos para a pessoa indicada, a resposta vai para ela).
+ */
+export async function contatosDaConversa(lead, historico = null) {
+  historico ??= await db.historicoConversa(lead.id);
+  const lista = [];
+  const mesmo = (a, b) => /^\d+$/.test(String(a)) && /^\d+$/.test(String(b)) ? variantesWhatsappBR(a).includes(String(b)) : String(a) === String(b);
+  const juntar = (numero, nome, papel) => {
+    if (!numero || lista.some((c) => mesmo(c.numero, numero))) return;
+    lista.push({ numero: String(numero), nome: nome || "", papel });
+  };
+  juntar(lead.whatsapp, lead.nome, "empresa");
+  for (const c of await contatosLigados(lead.id)) juntar(c.numero, c.nome, c.papel || "indicado");
+  // Indicação de antes deste registro: o nome sai da observação ("Indicou Ingrid (5511942117931); ...").
+  const antiga = String(lead.observacao ?? "").match(/Indicou (.+?) \((\d{10,15})\)/);
+  if (antiga) juntar(antiga[2], antiga[1] === "um contato" ? "" : antiga[1], "indicado");
+  for (const h of historico) if (h.canal === "whatsapp") juntar(h.contato, "", "contato");
+  const ultimo = historico.filter((h) => h.canal === "whatsapp" && h.contato).at(-1);
+  const responderPara = ultimo ? lista.find((c) => mesmo(c.numero, ultimo.contato))?.numero ?? null : null;
+  return { contatos: lista, responderPara };
+}
+
+export async function responderConversa(respostaId, texto, campanha, { destino: escolhido = null } = {}) {
   const r = await db.buscarResposta(respostaId);
   if (!r) throw new Error("Resposta não encontrada");
   if (!String(texto ?? "").trim()) throw new Error("Escreva a mensagem antes de enviar");
-  // Para quem escreveu (pode ser um contato indicado, não o e-mail/número original da empresa).
-  const destino = r.de || (r.canal === "email" ? r.email : r.whatsapp);
+  // Para quem escreveu (pode ser um contato indicado, não o e-mail/número original da empresa), ou para quem
+  // foi escolhido no painel, desde que seja alguém desta conversa.
+  let destino = r.de || (r.canal === "email" ? r.email : r.whatsapp);
+  if (escolhido && r.canal === "whatsapp") {
+    const { contatos } = await contatosDaConversa(await db.buscarLead(r.lead_id));
+    const achado = contatos.find((c) => variantesWhatsappBR(c.numero).includes(String(escolhido).replace(/\D/g, "")) || c.numero === String(escolhido));
+    if (!achado) throw new Error("Esse número não faz parte desta conversa");
+    destino = achado.numero;
+  }
   const id = await db.criarMensagem({
     lead_id: r.lead_id,
     canal: r.canal,
