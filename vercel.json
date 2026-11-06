@@ -29,6 +29,10 @@
       "destination": "/api"
     },
     {
+      "source": "/previa/(.*)",
+      "destination": "/api"
+    },
+    {
       "source": "/contato",
       "destination": "/api"
     }

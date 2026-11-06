@@ -46,6 +46,7 @@ import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
 import { pdfDoGuia, prepararCampanha, imagemDaMensagem, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
+import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia } from "./vendas/previa.js";
 import { PILAR_BLACK_FRIDAY } from "./ia/conteudo.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
@@ -199,6 +200,16 @@ app.get("/diagnostico/:token/relatorio.pdf", async (req, res) => {
   if (!venda) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
   if (venda.status !== "paga") return res.redirect(`/diagnostico/${venda.token}`);
   await enviarRelatorio(venda, res);
+});
+
+// ---------- Prévia do site (público: o link é de cada empresa sem site próprio) ----------
+
+// Rascunho de como ficaria o site da empresa, montado na hora com os dados públicos dela (nenhum outro lead aparece).
+app.get("/previa/:token", async (req, res) => {
+  const lead = await db.buscarLeadPorToken(String(req.params.token ?? ""));
+  if (!podeTerPrevia(lead)) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
+  const { empresa } = await carregarCampanhaCompleta();
+  res.set({ ...SEM_CACHE, "Referrer-Policy": "no-referrer" }).send(paginaDaPrevia(lead, { marca: empresa.nome, telefoneMarca: empresa.telefone }));
 });
 
 // ---------- Webhook do WhatsApp (público, validado pela assinatura da Meta) ----------
@@ -1213,10 +1224,12 @@ app.post("/api/respostas/:id/apresentacao", async (req, res) => {
   if (!r) return res.status(404).json({ erro: "Resposta não encontrada" });
   const campanha = await carregarCampanhaCompleta();
   const lead = await db.buscarLead(r.lead_id);
+  const historico = await db.historicoConversa(lead.id);
   const texto = await escreverApresentacao({
-    texto: r.texto, lead, historico: await db.historicoConversa(lead.id), campanha, canal: r.canal,
+    texto: r.texto, lead, historico, campanha, canal: r.canal,
     apresentacao: await lerApresentacao(), linkAgendamento: calendly.linkAgendamento(campanha.automacao?.calendly, lead, r.canal),
     horarios: await calendly.horariosLivres(campanha.automacao?.calendly),
+    linkPrevia: momentoDaPrevia({ lead, historico, texto: r.texto }),
   });
   await marcarApresentacaoEnviada(lead.id);
   res.json({ texto });

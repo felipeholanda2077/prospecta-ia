@@ -213,7 +213,23 @@ function comoConvidar(linkAgendamento, horarios = [], ela = "a pessoa") {
   return ` e mande exatamente este link para ${ela} escolher o horário: ${linkAgendamento}`;
 }
 
-export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email", linkAgendamento = "", horarios = [], apresentacao = "", nota = "" }) {
+/**
+ * Instrução da prévia do site (o rascunho em /previa/<token>), só quando é a hora (`linkPrevia` vem de
+ * momentoDaPrevia: empresa sem site, link ainda não mandado e a conversa tocou em presença online).
+ */
+function comoOferecerPrevia(linkPrevia, lead) {
+  if (!linkPrevia) return "";
+  return `- PRÉVIA DO SITE: a ${lead.nome} não tem site próprio, e você já deixou pronto um rascunho de como ficaria o site
+  dela: ${linkPrevia}
+  Se a dor ou a pergunta tem a ver com presença online (site, aparecer no Google, mostrar o trabalho na internet, pediu
+  uma apresentação, um exemplo ou algo para dar uma olhada) e a pessoa não recusou, ofereça o link UMA vez, numa frase
+  natural (ex.: "Fiz um rascunho de como ficaria o site de vocês, dá uma olhada: <link>"), e termine perguntando o que
+  ela achou ou o que mudaria. Mande o link exatamente como está. É um presente, não uma proposta: sem preço e sem convite
+  para bate-papo por causa dele. Se a dor é outra (atendimento, agenda, gestão), não mande o link.
+`;
+}
+
+export async function classificarResposta({ texto, assunto, lead, historico, campanha, canal = "email", linkAgendamento = "", horarios = [], apresentacao = "", nota = "", linkPrevia = "" }) {
   const porRegra = classificarPorRegra(String(texto ?? "").replace(/^\[áudio\]\s*/, ""), assunto);
   if (porRegra) return porRegra;
   const podeValores = pediuValor(texto, historico);
@@ -253,7 +269,7 @@ ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, co
   fale de bate-papo, call, reunião nem agenda: continue descobrindo.
 - Na hora de convidar: convide para o bate-papo${comoConvidar(linkAgendamento, horarios)}.
 - Se a pessoa já recebeu o link e disse que vai marcar, agradeça em uma frase, sem insistir.
-- Nunca repita frases ou informações que já aparecem no histórico. Não invente fatos, prazos ou descontos.
+${comoOferecerPrevia(linkPrevia, lead)}- Nunca repita frases ou informações que já aparecem no histórico. Não invente fatos, prazos ou descontos.
 - Se o histórico já tem mensagem sua, NÃO cumprimente de novo (nada de "Bom dia!", "Boa tarde!", "Olá!") e NÃO se
   apresente de novo (seu nome e a empresa já foram ditos): vá direto ao assunto, como numa conversa que continua.
 - Nunca mencione assistente, robô, IA, sistema ou "equipe" respondendo por ${quem}.
@@ -319,7 +335,7 @@ const APRESENTACAO_JSON_SCHEMA = {
  * Primeira resposta a quem demonstrou interesse: como funciona, os planos e o prazo (da apresentação
  * editável no painel) e o convite para o bate-papo, se a pessoa quiser saber mais.
  */
-export async function escreverApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", apresentacao, linkAgendamento = "", horarios = [] }) {
+export async function escreverApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", apresentacao, linkAgendamento = "", horarios = [], linkPrevia = "" }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const podeValores = pediuValor(texto, historico);
   const r = await gerarJson({
@@ -337,7 +353,9 @@ A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa (${NOME_D
       : `os planos que combinam com o que ela precisa: SÓ o nome e para que serve, SEM NENHUM valor, preço ou R$ (ela ainda
      não perguntou de preço); no fim, uma frase dizendo que você passa os valores se ela quiser;`}
    - em quanto tempo fica pronto.
-3. Se ela pediu algo que não está na apresentação, uma frase sincera dizendo que isso vocês veem juntos no bate-papo.
+3. Se ela pediu algo que não está na apresentação, uma frase sincera dizendo que isso vocês veem juntos no bate-papo.${linkPrevia ? `
+   E uma linha dizendo que você já fez um rascunho de como ficaria o site da ${lead.nome}, com este link exatamente como
+   está: ${linkPrevia}` : ""}
 4. Feche dizendo que, se ela quiser saber mais, vocês marcam um bate-papo${comoConvidar(linkAgendamento, horarios, "ela")}.
 Promoção com data (ex.: só em novembro): hoje é ${hoje()}. Se ainda não começou, conte como novidade que vem aí; se
 já acabou, não cite.
@@ -361,11 +379,12 @@ ${texto}`,
   return r.mensagem.trim();
 }
 
-const FollowupSchema = z.object({ opcao: z.enum(["retomar", "material"]), mensagem: z.string() });
+export const OPCOES_DE_FOLLOWUP = ["retomar", "material", "responsavel", "previa"];
+const FollowupSchema = z.object({ opcao: z.enum(OPCOES_DE_FOLLOWUP), mensagem: z.string() });
 const FOLLOWUP_JSON_SCHEMA = {
   type: "object",
   properties: {
-    opcao: { type: "string", enum: ["retomar", "material", "responsavel"], description: "retomar = retoma de onde pararam; material = oferece o guia gratuito; responsavel = pergunta se conseguiu falar com o responsável" },
+    opcao: { type: "string", enum: OPCOES_DE_FOLLOWUP, description: "retomar = retoma de onde pararam; material = oferece o guia gratuito; responsavel = pergunta se conseguiu falar com o responsável; previa = manda o rascunho do site (só quando há link da prévia)" },
     mensagem: { type: "string", description: "a mensagem de follow-up, pronta para enviar" },
   },
   required: ["opcao", "mensagem"],
@@ -377,7 +396,7 @@ const FOLLOWUP_JSON_SCHEMA = {
  * assunto da conversa) ou oferece um material de graça (o guia em PDF da empresa). `evitar` = a opção do
  * follow-up anterior, para não repetir. Retorna { opcao, mensagem }.
  */
-export async function escreverFollowup({ lead, historico, campanha, canal = "whatsapp", numero = 1, evitar = null, apresentacao = "", linkMaterial = "" }) {
+export async function escreverFollowup({ lead, historico, campanha, canal = "whatsapp", numero = 1, evitar = null, apresentacao = "", linkMaterial = "", linkPrevia = "" }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const ultimaDela = [...(historico ?? [])].reverse().find((h) => h.autor === "lead");
   const podeValores = pediuValor(ultimaDela?.texto, historico);
@@ -393,7 +412,11 @@ Você é ${quem}. Esta empresa conversou com você (mostrou interesse, ficou de 
   Diga em uma frase por que ele ajuda no que ela contou, e termine com uma pergunta leve.
 - responsavel: SÓ se a pessoa disse que ia passar para o dono, o responsável ou a equipe: pergunte com leveza se ela
   conseguiu falar com ele, ou peça o primeiro nome e o melhor contato dele para você mesmo explicar, rapidinho.
-${evitar ? `O follow-up anterior foi "${evitar}": agora use outra opção.` : "Escolha a que fizer mais sentido para esta conversa (se ela ficou de repassar, comece por responsavel)."}
+${linkPrevia ? `- previa: a conversa tocou em presença online e a ${lead.nome} não tem site próprio: diga que você fez um rascunho
+  de como ficaria o site dela e mande exatamente este link: ${linkPrevia}
+  Uma frase ligando ao que ela contou, e termine perguntando o que ela achou. É mais concreto que o guia: prefira
+  esta opção à de material.
+` : "- (NÃO use a opção previa nesta conversa.)\n"}${evitar ? `O follow-up anterior foi "${evitar}": agora use outra opção.` : "Escolha a que fizer mais sentido para esta conversa (se ela ficou de repassar, comece por responsavel)."}
 Regras:
 - Nada de cobrança ("não sei se viu", "só passando para lembrar", "fico no aguardo"), nada de pressão.
 - Não cumprimente com "bom dia/boa tarde" nem se apresente de novo: vocês já conversaram. Um "Oi, [nome]!" leve pode.

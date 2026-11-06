@@ -2,6 +2,7 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import { escreverFollowup, pediuValor, semValores } from "../ia/resposta.js";
 import { enderecoDoGuia } from "../vendas/campanha.js";
+import { momentoDaPrevia, semLinkDaPrevia } from "../vendas/previa.js";
 import { lerApresentacao } from "./apresentacao.js";
 import { iaPausada } from "./processar.js";
 
@@ -67,11 +68,14 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
       // Responde no mesmo canal e para o mesmo contato da última mensagem dela (no e-mail, na mesma conversa).
       const dela = await db.ultimaRespostaDaConversa(lead.id);
       if (!dela || !CANAIS.includes(dela.canal)) continue;
+      // Prévia do site: só para empresa sem site, quando a conversa tocou em presença online e o link ainda não foi.
+      const linkPrevia = momentoDaPrevia({ lead, historico });
       const r = await escrever({
         lead, historico, campanha, canal: dela.canal, numero: plano.numero, evitar: plano.evitar,
-        apresentacao: await lerApresentacao(), linkMaterial: enderecoDoGuia(lead),
+        apresentacao: await lerApresentacao(), linkMaterial: enderecoDoGuia(lead), linkPrevia,
       });
-      const corpo = pediuValor(dela.texto, historico) ? r.mensagem : semValores(r.mensagem);
+      let corpo = pediuValor(dela.texto, historico) ? r.mensagem : semValores(r.mensagem);
+      if (!linkPrevia || !corpo?.includes(linkPrevia)) corpo = semLinkDaPrevia(corpo);
       if (!corpo?.trim()) continue;
       const id = await db.criarMensagem({
         lead_id: lead.id, canal: dela.canal, destino: dela.de || (dela.canal === "email" ? lead.email : lead.whatsapp),
@@ -85,7 +89,7 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
         n: plano.numero, desde: new Date().toISOString(), opcoes: [...((registro && plano.numero > 1 ? registro.opcoes : []) ?? []), r.opcao],
       }));
       criados++;
-      log(`🔔 Follow-up ${plano.numero} de ${MAX_SEGUIDOS} para ${lead.nome} (${{ material: "com o guia gratuito", responsavel: "perguntando pelo responsável" }[r.opcao] ?? "retomando a conversa"})`);
+      log(`🔔 Follow-up ${plano.numero} de ${MAX_SEGUIDOS} para ${lead.nome} (${{ material: "com o guia gratuito", responsavel: "perguntando pelo responsável", previa: "com a prévia do site" }[r.opcao] ?? "retomando a conversa"})`);
     } catch (e) {
       log(`⚠️  Follow-up de ${lead.nome} não saiu: ${e.message}`);
     }

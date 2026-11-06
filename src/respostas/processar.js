@@ -3,6 +3,7 @@ import * as db from "../db.js";
 import { classificarResposta, limparTextoResposta, escreverApresentacao, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo } from "../ia/resposta.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento, horariosLivres } from "../agenda/calendly.js";
+import { momentoDaPrevia, previaSoNaHora } from "../vendas/previa.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
 import { lerApresentacao } from "./apresentacao.js";
 import { responderComoAgente } from "../ia/agente.js";
@@ -215,9 +216,10 @@ async function pensarResposta(contexto, { classificar, apresentar }) {
   // A apresentação (planos e convite) só vai depois de entender a dor, ou quando a pessoa pede (como funciona, valores, call).
   const descobrindo = c.dor_entendida === false && c.pediu_conversa === false;
   if (QUER_SABER.includes(c.classificacao) && c.sugestao_resposta && !c.precisa_humano && !descobrindo && !(await jaApresentou(contexto.lead.id))) {
-    return { c: { ...c, sugestao_resposta: await apresentar(contexto) }, apresentou: true };
+    return { c: previaSoNaHora({ ...c, sugestao_resposta: await apresentar(contexto) }, contexto.linkPrevia), apresentou: true };
   }
-  return { c, apresentou: false };
+  // O link da prévia do site só sai se era a hora e a conversa segue (não em recusa, robô ou despedida).
+  return { c: previaSoNaHora(c, contexto.linkPrevia), apresentou: false };
 }
 
 export async function registrarResposta({
@@ -281,6 +283,7 @@ export async function registrarResposta({
         linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal),
         horarios: await horariosLivres(campanha.automacao?.calendly),
         apresentacao: await lerApresentacao(),
+        linkPrevia: momentoDaPrevia({ lead, historico, texto: limpo }),
       };
       ({ c, apresentou } = await pensarResposta(contexto, { classificar, apresentar }));
     }
@@ -418,8 +421,9 @@ export async function continuarComIA(respostaId, campanha, {
   const lead = await db.buscarLead(r.lead_id);
   if (lead.agente_id) return continuarComAgente(r, lead, { nota, responderAgente });
   await retomarIA(lead.id); // você mandou a IA continuar: sai da pausa
+  const historico = await db.historicoConversa(lead.id);
   const contexto = {
-    texto: r.texto, assunto: r.assunto, lead, historico: await db.historicoConversa(lead.id), campanha, canal: r.canal,
+    texto: r.texto, assunto: r.assunto, lead, historico, campanha, canal: r.canal, linkPrevia: momentoDaPrevia({ lead, historico, texto: r.texto }),
     linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, r.canal), horarios: await horariosLivres(campanha.automacao?.calendly),
     apresentacao: await lerApresentacao(),
     nota: String(nota ?? "").trim().slice(0, 500),
