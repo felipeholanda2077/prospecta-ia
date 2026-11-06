@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { classificarResposta, limparTextoResposta, escreverApresentacao, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo } from "../ia/resposta.js";
+import { classificarResposta, limparTextoResposta, escreverApresentacao, escreverEnvioDaApresentacao, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo } from "../ia/resposta.js";
+import { pediuApresentacaoComercial, linkDaApresentacao, apresentacaoJaEnviada, mensagemDaApresentacao } from "../vendas/apresentacaoComercial.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento, horariosLivres } from "../agenda/calendly.js";
 import { momentoDaPrevia, previaSoNaHora } from "../vendas/previa.js";
@@ -192,7 +193,8 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
  */
 function ajustarResposta(c, historico, texto) {
   if (!c) return c;
-  const podeValores = pediuValor(texto, historico);
+  // A mensagem com a apresentação comercial nunca leva valores: tudo é sob medida.
+  const podeValores = pediuValor(texto, historico) && !c.semValores;
   // Ainda descobrindo a dor e a pessoa não pediu conversa: nada de convite para bate-papo ou call.
   const cedoParaConvite = c.dor_entendida === false && c.pediu_conversa === false;
   const ajustar = (t, i) => {
@@ -211,8 +213,22 @@ function ajustarResposta(c, historico, texto) {
  * Classifica a última mensagem e escreve a próxima. Quando a dor já está entendida (ou a pessoa pediu),
  * a próxima mensagem é a apresentação (processo, planos, prazo) com o convite.
  */
-async function pensarResposta(contexto, { classificar, apresentar }) {
+async function pensarResposta(contexto, { classificar, apresentar, enviarSlides = escreverEnvioDaApresentacao }) {
   const c = await classificar(contexto);
+  // Pediu uma apresentação comercial (material, portfólio, algo para ver): vai o link dos slides, sem valores.
+  if (pediuApresentacaoComercial(contexto.texto) && !c.precisa_humano && !c.robo && !c.encerrar && !["recusa", "descadastro"].includes(c.classificacao)
+      && !apresentacaoJaEnviada(contexto.historico)) {
+    const link = linkDaApresentacao(contexto.lead);
+    let mensagem = await enviarSlides({ ...contexto, link }).catch(() => "");
+    // Sem o link exato (ou com valor), vai a mensagem pronta: a pessoa nunca fica sem a apresentação.
+    if (!mensagem?.includes(link) || /r\$\s*\d|\d+\s*reais\b/i.test(mensagem)) mensagem = mensagemDaApresentacao(contexto.lead, { canal: contexto.canal });
+    // Empresa sem site, na hora da prévia: junto vai o rascunho do site dela.
+    if (contexto.linkPrevia && !mensagem.includes(contexto.linkPrevia)) {
+      mensagem += `\n\nE como vocês ainda não têm site, já deixei um rascunho de como ficaria o de vocês: ${contexto.linkPrevia}`;
+    }
+    const { partes, ...resto } = c;
+    return { c: { ...resto, sugestao_resposta: mensagem, semValores: true }, apresentou: false };
+  }
   // A apresentação (planos e convite) só vai depois de entender a dor, ou quando a pessoa pede (como funciona, valores, call).
   const descobrindo = c.dor_entendida === false && c.pediu_conversa === false;
   if (QUER_SABER.includes(c.classificacao) && c.sugestao_resposta && !c.precisa_humano && !descobrindo && !(await jaApresentou(contexto.lead.id))) {
@@ -225,7 +241,7 @@ async function pensarResposta(contexto, { classificar, apresentar }) {
 export async function registrarResposta({
   lead, canal, origem_id, de, assunto = null, texto, campanha, forcarHumano = null,
   contatosIndicados = [], nomeRemetente = null, // cartão de contato do WhatsApp, já lido
-  classificar = classificarResposta, apresentar = escreverApresentacao,
+  classificar = classificarResposta, apresentar = escreverApresentacao, enviarSlides = escreverEnvioDaApresentacao,
   agente = null, responderAgente = responderComoAgente, // agente de atendimento do número que recebeu
 }) {
   if (origem_id && (await db.respostaJaRegistrada(origem_id))) return null;
@@ -285,7 +301,7 @@ export async function registrarResposta({
         apresentacao: await lerApresentacao(),
         linkPrevia: momentoDaPrevia({ lead, historico, texto: limpo }),
       };
-      ({ c, apresentou } = await pensarResposta(contexto, { classificar, apresentar }));
+      ({ c, apresentou } = await pensarResposta(contexto, { classificar, apresentar, enviarSlides }));
     }
   } catch (e) {
     c = { classificacao: "outro", resumo: forcarHumano ? "Mandou um áudio." : `Não foi possível classificar automaticamente: ${e.message}`,

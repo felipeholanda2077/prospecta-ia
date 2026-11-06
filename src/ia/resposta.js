@@ -335,6 +335,40 @@ const APRESENTACAO_JSON_SCHEMA = {
  * Primeira resposta a quem demonstrou interesse: como funciona, os planos e o prazo (da apresentação
  * editável no painel) e o convite para o bate-papo, se a pessoa quiser saber mais.
  */
+/**
+ * A pessoa pediu uma apresentação comercial: a mensagem leva o link dos slides (com o nome da empresa na capa),
+ * conta em tópicos o que tem nela e deixa claro que tudo é sob medida. Nunca com valores, mesmo que ela pergunte.
+ */
+export async function escreverEnvioDaApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", link }) {
+  const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
+  const r = await gerarJson({
+    system: `${contextoEmpresa(campanha, { semValores: true })}
+
+A pessoa pediu uma apresentação comercial (ou um material, portfólio, algo para ver). Escreva a próxima mensagem da
+conversa (${NOME_DO_CANAL[canal] ?? "WhatsApp"}), como ${quem}, em primeira pessoa:
+1. Uma frase curta respondendo que sim e mandando o link EXATAMENTE como está: ${link}
+   ${jaConversou(historico) ? "A conversa já começou: NÃO cumprimente e NÃO se apresente de novo." : "Comece com o cumprimento certo (bom dia, boa tarde...)."}
+2. Em tópicos curtos (um por linha), o que ela vai ver nos slides, puxando primeiro o que combina com o que a pessoa contou:
+   sites e páginas que trazem cliente; sistema próprio do jeito da operação; aplicativo da empresa (iPhone e Android);
+   IA atendendo no WhatsApp 24 horas; automações e integrações; loja virtual e Mercado Livre/Shopee. No máximo 6 tópicos.
+3. Uma frase dizendo que tudo é sob medida: não existe pacote fechado, o projeto é montado só com o que a empresa
+   precisa, e o investimento é definido depois de entender isso.
+4. Termine com UMA pergunta leve sobre o que mais pesa hoje na empresa (atendimento, vendas, gestão...).
+Regras: NUNCA cite valores, preços, R$, "a partir de" ou nomes de planos, mesmo que a pessoa tenha perguntado (diga que
+o valor sai do que ela precisar). Não invente clientes, números ou prazos. Não fale de bate-papo, call ou reunião.
+Nunca mencione assistente, robô, IA respondendo por ${quem}. Português do Brasil, no máximo 1 emoji.${FORMATO_DO_CANAL[canal] ?? FORMATO_DO_CANAL.whatsapp}`,
+    pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""})
+Histórico:
+${(historico ?? []).slice(-12).map((h) => `${h.autor === "nos" ? quem : lead.nome}: ${h.texto}`).join("\n")}
+
+Última mensagem de ${lead.nome}: ${texto}`,
+    jsonSchema: APRESENTACAO_JSON_SCHEMA,
+    zodSchema: ApresentacaoSchema,
+    effort: "low",
+  });
+  return String(r?.mensagem ?? "").trim();
+}
+
 export async function escreverApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", apresentacao, linkAgendamento = "", horarios = [], linkPrevia = "" }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const podeValores = pediuValor(texto, historico);
