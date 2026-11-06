@@ -24,6 +24,7 @@ import { semSiteProprio, potencialDaEmpresa } from "./analise/prioridade.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 import { numerosComAgente } from "./respostas/agentes.js";
 import { followupsDeInteressados } from "./respostas/followup.js";
+import { encerrarRecusasAbertas } from "./respostas/processar.js";
 import { rodadaDeReativacao } from "./respostas/reativacao.js";
 import { salvarFotosDasEmpresas } from "./respostas/fotos.js";
 import { rodadaDeRamos } from "./descoberta/ramos.js";
@@ -1322,6 +1323,11 @@ async function rodada(campanha) {
   // Antes dos envios, para quem acabou de marcar a reunião não receber a próxima etapa.
   resultado.agendamentos = await verificarAgendamentos().catch((e) => {
     log(`⚠️  Falha ao conferir o Calendly: ${e.message}`);
+    return { erro: e.message };
+  });
+  // Recusa clara que ficou aberta ("no momento não" lido como outra coisa): encerra antes de qualquer follow-up.
+  resultado.recusas = await encerrarRecusasAbertas().catch((e) => {
+    log(`⚠️  Falha ao rever as recusas: ${e.message}`);
     return { erro: e.message };
   });
   // Follow-up de quem mostrou interesse e parou de responder há 1 dia (sai pela fila de respostas, em minutos).

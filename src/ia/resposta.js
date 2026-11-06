@@ -99,12 +99,34 @@ export function limparTextoResposta(texto) {
   return linhas.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
+// Recusa clara e curta: "no momento não", "agora não, obrigado", "não tenho interesse", "sem interesse"...
+const CUMPRIMENTO_OU_AGRADECIMENTO = /^(?:(?:oi|ola|bom dia|boa tarde|boa noite|tudo bem|td bem|prezados?|ola tudo bem)\s*)+|(?:\s*(?:obrigad[oa]s?|grat[oa]|agradeco|valeu|abs|abracos?|att|atenciosamente|tenha um bom dia|bom dia|boa tarde|boa noite))+$/g;
+// "Não" sozinho fica com a IA (pode ser resposta a uma pergunta, como "vocês já têm site?"); com "no momento",
+// "agora", "por enquanto" ou "obrigado" junto, é recusa.
+const SO_NAO = /^(?:(?:(?:no|neste|nesse) momento|agora|por enquanto|por ora|por agora)\s*(?:nao|n)|(?:nao|n)(?:\s+(?:no momento|agora|por enquanto|por ora|por agora))+)$|^(?:nao|n) obrigad[oa]s?$/;
+const RECUSA = /\b(?:nao|n)\s+(?:tenho|temos|ha)\s+interesse\b|\bsem interesse\b|\bnao (?:me|nos) interessa\b|\bnao (?:precis(?:o|amos)|quer(?:o|emos)|vamos querer)\b|\b(?:no|neste|nesse) momento nao\b|\b(?:agora|por enquanto|por ora) nao\b/;
+// Sinais de que a conversa continua ("mas", pergunta, um "depois"): aí quem decide é a IA.
+const CONTINUA = /\?|\b(?:mas|porem|entretanto|talvez|quem sabe|depois|amanha|semana que vem|mes que vem|ano que vem|mais (?:pra|para) frente|retorn|me (?:liga|chama|manda)|pode (?:mandar|enviar|ligar)|quanto|valor|preco)\b/;
+
+/** A pessoa recusou de um jeito claro e curto (ex.: "Bom dia, no momento não"): a conversa é encerrada sem depender da IA. */
+export function recusouClaramente(texto) {
+  const t = String(texto ?? "").replace(/^\[áudio\]\s*/, "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9\s?]/g, " ").replace(/\s+/g, " ").trim();
+  if (!t || t.length > 90 || CONTINUA.test(t)) return false;
+  const semCumprimento = t.replace(/^(?:(?:oi|ola|bom dia|boa tarde|boa noite|tudo bem|td bem|prezados?)\s*)+/, "").trim();
+  if (/^(?:nao|n) obrigad[oa]s?$/.test(semCumprimento)) return true;
+  const nucleo = t.replace(CUMPRIMENTO_OU_AGRADECIMENTO, "").trim();
+  return SO_NAO.test(nucleo) || RECUSA.test(nucleo);
+}
+
 /** Casos óbvios resolvidos sem gastar IA. Retorna null quando precisa da IA. */
 export function classificarPorRegra(texto, assunto = "") {
   if (PEDIDO_SAIR.test(texto) || NAO_QUERO.test(texto))
     return { classificacao: "descadastro", resumo: "Pediu para não receber mais mensagens.", sugestao_resposta: "", precisa_humano: false, motivo_humano: "", robo: false, encerrar: false };
   if (AUTOMATICA.test(assunto) || AUTOMATICA.test(texto.slice(0, 300)))
     return { classificacao: "automatica", resumo: "Resposta automática.", sugestao_resposta: "", precisa_humano: false, motivo_humano: "", robo: false, encerrar: false };
+  if (recusouClaramente(texto))
+    return { classificacao: "sem_interesse", resumo: "Disse que não tem interesse no momento.", sugestao_resposta: "", precisa_humano: false, motivo_humano: "", robo: false, encerrar: false, temperatura: "fria" };
   return null;
 }
 

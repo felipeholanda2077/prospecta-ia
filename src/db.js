@@ -1170,6 +1170,15 @@ const SQL_ETAPAS = `
         WHERE l.agente_id IS NULL
           AND EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada' AND m.tipo <> 'resposta')`;
 
+/** A última mensagem de cada empresa em conversa ainda aberta (sem agente), para rever recusas que ficaram sem encerrar. */
+export async function ultimasRespostasAbertas() {
+  return q(`SELECT DISTINCT ON (r.lead_id) r.id, r.lead_id, r.texto, r.classificacao, r.canal, l.nome
+              FROM respostas r JOIN leads l ON l.id = r.lead_id
+             WHERE l.agente_id IS NULL AND l.status NOT IN ('sem_interesse', 'descadastrado', 'descartado', 'fechado', 'agendado')
+               AND r.classificacao IS DISTINCT FROM 'automatica'
+             ORDER BY r.lead_id, r.recebida_em DESC, r.id DESC`);
+}
+
 /** Números do funil: empresas contatadas, que responderam, mostraram interesse e agendaram. */
 export async function funilDeConversas() {
   // Não responderam: empresas contatadas sem nenhuma resposta de verdade (a automática do

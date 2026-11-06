@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { classificarResposta, limparTextoResposta, escreverApresentacao, escreverEnvioDaApresentacao, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo } from "../ia/resposta.js";
+import { classificarResposta, limparTextoResposta, escreverApresentacao, escreverEnvioDaApresentacao, recusouClaramente, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo } from "../ia/resposta.js";
 import { pediuApresentacaoComercial, linkDaApresentacao, apresentacaoJaEnviada, mensagemDaApresentacao } from "../vendas/apresentacaoComercial.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento, horariosLivres } from "../agenda/calendly.js";
@@ -236,6 +236,24 @@ async function pensarResposta(contexto, { classificar, apresentar, enviarSlides 
   }
   // O link da prévia do site só sai se era a hora e a conversa segue (não em recusa, robô ou despedida).
   return { c: previaSoNaHora(c, contexto.linkPrevia), apresentou: false };
+}
+
+/**
+ * Conversas em que a última mensagem da empresa foi uma recusa clara ("no momento não") mas que ficaram abertas
+ * (a IA classificou como outra coisa): encerra como sem interesse, cancela o que ia sair (follow-ups, etapas) e
+ * corrige a classificação da mensagem. Roda na rodada do funil, antes dos follow-ups.
+ */
+export async function encerrarRecusasAbertas() {
+  let encerradas = 0;
+  for (const r of await db.ultimasRespostasAbertas()) {
+    if (r.classificacao === "sem_interesse" || !recusouClaramente(limparTextoResposta(r.texto) || r.texto)) continue;
+    await db.cancelarPendentes(r.lead_id, "lead sem interesse");
+    await db.atualizarLead(r.lead_id, { status: "sem_interesse", observacao: `Sem interesse no momento (respondeu por ${r.canal})` });
+    await db.atualizarResposta(r.id, { classificacao: "sem_interesse", resumo: "Disse que não tem interesse no momento.", precisa_humano: null });
+    encerradas++;
+    log(`🙏 ${r.nome} tinha dito que não tem interesse ("${String(r.texto).slice(0, 60)}"): conversa encerrada`);
+  }
+  return { encerradas };
 }
 
 export async function registrarResposta({
