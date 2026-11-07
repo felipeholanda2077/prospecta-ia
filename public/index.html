@@ -2746,7 +2746,7 @@ function quandoSai(m) {
   if (m.agendada_para && new Date(m.agendada_para) > new Date()) return `Agendada para ${dataHora(m.agendada_para)} (em horário comercial)`;
   if (seguimentoWhatsapp) return `Sai na vez do número: uma mensagem por vez, com ${min} a ${max} min entre elas (em horário comercial)`;
   if (m.etapa <= 1 && m.tipo !== "resposta") {
-    return `Empresas novas saem uma por vez, das com mais potencial primeiro, com ${min} a ${max} min entre elas (em horário comercial)`;
+    return `Empresas novas saem uma por vez em cada número, das com mais potencial primeiro, com ${min} a ${max} min entre elas no mesmo número (em horário comercial)`;
   }
   return "Sai na próxima rodada de envios em horário comercial";
 }
@@ -3762,14 +3762,19 @@ const VAZIOS = {
 /** Faixa da Fila de envio: quando tudo o que está aqui termina de sair, se ninguém responder antes. */
 function previsaoDaFila(p) {
   if (!p?.termina) return "";
-  const quando = new Date(p.termina).toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
-  const ritmo = `uma mensagem a cada ~${p.ritmo.intervaloMin} min no WhatsApp, sem limite de empresas novas por dia, só em horário comercial`;
+  const data = (iso) => new Date(iso).toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const quando = data(p.termina);
+  const varios = p.numeros > 1;
+  const ritmo = `uma mensagem a cada ~${p.ritmo.intervaloMin} min ${varios ? `em cada número, com os ${p.numeros} mandando ao mesmo tempo` : "no WhatsApp"}, sem limite de empresas novas por dia, só em horário comercial`;
+  const umSo = varios && p.terminaComUmNumero
+    ? `<div>Com um número só: ${esc(data(p.terminaComUmNumero))} <span data-contagem="${esc(p.terminaComUmNumero)}"></span></div>` : "";
   const extras = [
     p.manuais ? `${p.manuais} ${p.manuais === 1 ? "mensagem depende" : "mensagens dependem"} de você (envio manual) e não ${p.manuais === 1 ? "entra" : "entram"} na conta.` : "",
     p.semVaga ? `${p.semVaga} ${p.semVaga === 1 ? "mensagem fica" : "mensagens ficam"} de fora: o limite de empresas novas do canal está em zero.` : "",
   ].filter(Boolean).join(" ");
   return `<div class="alerta ${p.parado ? "atencao" : "info"} fila-previsao">${ic("clock")}<div>
-    <b>Previsão para enviar toda a fila: ${esc(quando)} <span data-contagem="${esc(p.termina)}"></span></b>
+    <b>Previsão para enviar toda a fila${varios ? ` com os ${p.numeros} números conectados` : ""}: ${esc(quando)} <span data-contagem="${esc(p.termina)}"></span></b>
+    ${umSo}
     <small>${p.mensagens} ${p.mensagens === 1 ? "mensagem" : "mensagens"} de ${p.empresas} ${p.empresas === 1 ? "empresa" : "empresas"} · ${esc(ritmo)}.
       Quem responder não recebe as próximas etapas, então a fila costuma terminar antes.${p.parado ? ` <b>Agora ${esc(p.parado)}.</b>` : ""} ${esc(extras)}</small>
   </div></div>`;
@@ -7557,7 +7562,7 @@ async function carregarAutomacao() {
     const barra = (nome, h) => `<div><div style="display:flex;justify-content:space-between;font-size:13.5px"><b>${nome}</b><span class="muted">${h.limite == null ? `${h.enviadas} hoje · sem limite por dia` : `${h.enviadas} de ${h.limite} hoje`}</span></div>
       ${h.limite == null ? "" : `<div class="medidor"><i style="width:${h.limite ? Math.min(100, (h.enviadas / h.limite) * 100) : 0}%"></i></div>`}</div>`;
     $("#auto-hoje").innerHTML = `<div class="config-grade">${barra("E-mail", a.hoje.email)}${barra("WhatsApp", a.hoje.whatsapp)}</div>
-      <p class="muted" style="margin:8px 0 0;font-size:13px">Empresas novas e as etapas 2 e 3 do WhatsApp saem uma por vez, com ${a.intervaloEmpresasMin} a ${a.intervaloEmpresasMax} minutos entre uma e outra (as etapas 2 e 3 vão antes; entre as novas, as de mais potencial).${a.proximaEmpresaNova ? ` Próxima a partir de <b>${new Date(a.proximaEmpresaNova).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</b>.` : ""}</p>
+      <p class="muted" style="margin:8px 0 0;font-size:13px">Empresas novas e as etapas 2 e 3 do WhatsApp saem uma por vez em cada número, com ${a.intervaloEmpresasMin} a ${a.intervaloEmpresasMax} minutos entre uma e outra no mesmo número (as etapas 2 e 3 vão antes; entre as novas, as de mais potencial).${a.proximaEmpresaNova ? ` Próxima a partir de <b>${new Date(a.proximaEmpresaNova).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</b>.` : ""}</p>
       ${a.respostaAutomatica && !a.calendly ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>Coloque o link do Calendly para a IA conseguir levar as pessoas ao agendamento.</div></div>` : ""}
       ${a.ativo && sessao.modoWhatsapp === "manual" ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>O WhatsApp está no modo manual: as mensagens automáticas de WhatsApp vão ficar na Fila de envio esperando você. Conecte a UAZap ou a Evolution API em <a href="#configuracoes">Configurações</a> para elas saírem sozinhas.</div></div>` : ""}`;
   } catch (e) {

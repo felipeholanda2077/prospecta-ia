@@ -302,3 +302,26 @@ test("fila de envio: previsão de quando tudo termina de sair, com a vez do núm
     falsa.restaurar();
   }
 });
+
+test("fila de envio: com dois números, cada um na sua vez, a fila sai mais rápido que com um só", async () => {
+  const falsa = uazapFalsa();
+  try {
+    const nomes = (await uazap.numeros()).map((n) => n.nome);
+    if (!nomes.includes("IA 1")) await uazap.salvarNumero({ nome: "IA 1", url: URL_UAZAP, token: "A" });
+    if (!nomes.includes("IA 2")) await uazap.salvarNumero({ nome: "IA 2", url: URL_UAZAP, token: "B" });
+    for (const n of await uazap.numeros()) uazap.esquecerConexao(n.id);
+    const comercial = {
+      ...campanha,
+      limites: { ...campanha.limites, horarioComercial: { inicio: 9, fim: 18 }, somenteDiasUteis: true },
+      automacao: { ...campanha.automacao, intervaloEmpresasMin: 5, intervaloEmpresasMax: 12 },
+    };
+    const mensagens = Array.from({ length: 40 }, (_, i) => ({ lead_id: 950 + i, empresa: `E${i}`, canal: "whatsapp", tipo: "inicial", etapa: 1, agendada_para: null }));
+    const p = await pipeline.previsaoDaFila(comercial, new Date("2030-01-09T12:00:00Z"), { mensagens });
+    assert.equal(p.numeros, 2);
+    // Um número: 40 empresas a cada 8,5 min desde as 9:00, a última 39 × 8,5 min depois (14:31:30). Dois: 19 × 8,5 min (11:41:30).
+    assert.equal(p.terminaComUmNumero, "2030-01-09T17:31:30.000Z");
+    assert.equal(p.termina, "2030-01-09T14:41:30.000Z");
+  } finally {
+    falsa.restaurar();
+  }
+});

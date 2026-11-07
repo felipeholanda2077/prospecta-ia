@@ -364,23 +364,38 @@ test("WhatsApp desconectado: as mensagens que falharam por isso voltam para a fi
   assert.equal(await pipeline.whatsappDesconectado("manual"), false);
 });
 
-test("etapas 2 e 3 do WhatsApp dividem a vez com as empresas novas: uma por chamada", () => {
+test("etapas 2 e 3 do WhatsApp dividem a vez com as empresas novas: uma por número em cada chamada", async () => {
   const m = (id, lead, canal, etapa, tipo = "etapa") => ({ id, lead_id: lead, canal, etapa, tipo });
   const enviaveis = [
     m(1, 9, "whatsapp", 1, "resposta"), m(2, 10, "whatsapp", 2), m(3, 11, "whatsapp", 3), m(4, 12, "email", 2),
     m(5, 20, "email", 1), m(6, 20, "whatsapp", 1), m(7, 21, "whatsapp", 1),
   ];
   const vagas = { email: 5, whatsapp: 5 };
-  const ids = (r) => ({ fila: r.fila.map((x) => x.id), daVez: r.daVez.map((x) => x.id) });
-  // Respostas e e-mails saem direto; da vez, só a etapa de WhatsApp mais antiga. A empresa nova espera.
-  assert.deepEqual(ids(pipeline.filaDaChamada(enviaveis, vagas)), { fila: [1, 4, 2], daVez: [2] });
-  // A chamada de cada minuto leva a resposta da conversa e a vez, sem a etapa de e-mail.
-  assert.deepEqual(ids(pipeline.filaDaChamada(enviaveis, vagas, { somenteDaVez: true })), { fila: [1, 2], daVez: [2] });
+  const ids = (xs) => xs.map((x) => x.id);
+  // Respostas e etapas de e-mail saem direto; a chamada de cada minuto leva só a resposta da conversa.
+  assert.deepEqual(ids(pipeline.conversaDaChamada(enviaveis)), [1, 4]);
+  assert.deepEqual(ids(pipeline.conversaDaChamada(enviaveis, { somenteDaVez: true })), [1]);
+
+  // Um número só (sem WhatsApp ligado, a vez única): fica com a etapa de WhatsApp mais antiga; a empresa nova espera.
+  const unica = [{ modo: null, numeroId: null, chave: "vez_da_empresa_nova" }];
+  const vezDe = async (lista, pistas, v = vagas) => (await pipeline.escolherVezes(lista, v, pistas, {})).map((x) => ids(x.mensagens));
+  assert.deepEqual(await vezDe(enviaveis, unica), [[2]]);
+  // A vez está reservada: na chamada seguinte, antes do intervalo, nada sai.
+  assert.deepEqual(await vezDe(enviaveis, unica), []);
+  await db.destravar("vez_da_empresa_nova");
   // Sem etapa de WhatsApp pendente, a vez é da empresa nova (e-mail e WhatsApp juntos).
   const semSeguimento = enviaveis.filter((x) => ![2, 3].includes(x.id));
-  assert.deepEqual(ids(pipeline.filaDaChamada(semSeguimento, vagas, { somenteDaVez: true })), { fila: [1, 5, 6], daVez: [5, 6] });
+  assert.deepEqual(await vezDe(semSeguimento, unica), [[5, 6]]);
+  await db.destravar("vez_da_empresa_nova");
   // Sem vaga hoje para empresas novas, nada fica com a vez.
-  assert.deepEqual(ids(pipeline.filaDaChamada(semSeguimento, { email: 0, whatsapp: 0 })), { fila: [1, 4], daVez: [] });
+  assert.deepEqual(await vezDe(semSeguimento, unica, { email: 0, whatsapp: 0 }), []);
+
+  // Dois números, cada um na sua vez: as duas empresas novas saem na mesma chamada, uma por número.
+  const dois = [{ modo: "uazap", numeroId: "a", chave: "vez_da_empresa_nova:a" }, { modo: "uazap", numeroId: "b", chave: "vez_da_empresa_nova:b" }];
+  const vezes = await pipeline.escolherVezes(semSeguimento.map((x) => ({ ...x })), vagas, dois, {});
+  assert.deepEqual(vezes.map((v) => [v.chave, ids(v.mensagens)]), [["vez_da_empresa_nova:a", [5, 6]], ["vez_da_empresa_nova:b", [7]]]);
+  assert.deepEqual(vezes.map((v) => v.mensagens.find((x) => x.canal === "whatsapp").numeroDaVez.numeroId), ["a", "b"]);
+  for (const p of dois) await db.destravar(p.chave);
 });
 
 test("contato só com @lid: o telefone da empresa serve de reserva, sem virar número inventado", () => {
