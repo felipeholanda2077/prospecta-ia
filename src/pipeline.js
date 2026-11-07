@@ -469,7 +469,7 @@ export async function descobrirNasVagas(campanha, { cidade }, { agora = new Date
   await db.gravarEstado("vagas_rotacao", (vez + 1) % FUNCOES.length);
   try {
     const r = await buscarNasVagas(cidade, { funcao: vez % FUNCOES.length, agora });
-    const novas = (await capturarDasVagas(r.empresas.filter((e) => !e.jaCapturado), "", cidade)).novas;
+    const novas = (await capturarDasVagas(r.empresas.filter((e) => !e.jaCapturado && e.naCidade), "", cidade)).novas;
     log(`💼 Busca automática nas vagas "${FUNCOES[vez % FUNCOES.length].cargo} em ${cidade}": ${novas} novas${r.avisos.length ? ` · ${r.avisos.join(" · ")}` : ""}`);
     return { novas };
   } catch (e) {

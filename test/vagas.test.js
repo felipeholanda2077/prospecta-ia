@@ -37,7 +37,7 @@ test("vagas: uma empresa por nome, sem agência de emprego, com o cargo e o serv
 });
 
 test("vagas: a busca usa a função na cidade, gasta 1 do limite e só captura quem tem contato pelo Google Maps", async () => {
-  const api = serpApiFalsa([vaga("Clínica Sorriso"), vaga("Pet Feliz")]);
+  const api = serpApiFalsa([vaga("Pet Feliz", { location: "Jundiaí, SP" }), vaga("Clínica Sorriso")]);
   try {
     await anuncios.conectar({ chave: "chave-boa", limiteMensal: "250" });
     const antes = await anuncios.buscasNoMes();
@@ -46,6 +46,8 @@ test("vagas: a busca usa a função na cidade, gasta 1 do limite e só captura q
     const busca = api.chamadas.find((c) => c.engine);
     assert.deepEqual([busca.engine, busca.q, busca.location, busca.gl], ["google_jobs", "recepcionista", "Osasco,State of Sao Paulo,Brazil", "br"]);
     assert.equal(r.empresas.length, 2);
+    // A vaga de outra cidade vai para o fim e fica marcada.
+    assert.deepEqual(r.empresas.map((e) => [e.nome, e.naCidade]), [["Clínica Sorriso", true], ["Pet Feliz", false]]);
 
     const [sorriso, pet] = r.empresas;
     Object.assign(sorriso, { mapsPlaceId: "maps-sorriso", telefone: "+55 11 99999-0000", site: "https://sorriso.com.br" });

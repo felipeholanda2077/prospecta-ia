@@ -64,5 +64,10 @@ export async function buscarEmpresasContratando({ cidade, funcoes = [0, 1, 2], m
       if (!empresas.some((x) => semAcento(x.nome).toLowerCase() === semAcento(e.nome).toLowerCase())) empresas.push(e);
     }
   }
+  // O Google mistura vagas de cidades vizinhas: as que citam a cidade (no local ou no título) vêm primeiro,
+  // e só elas entram na busca automática.
+  const daCidade = semAcento(cidadeSemUf(cidade)).toLowerCase();
+  for (const e of empresas) e.naCidade = Boolean(daCidade) && semAcento(`${e.vaga.local ?? ""} ${e.vaga.cargo}`).toLowerCase().includes(daCidade);
+  empresas.sort((a, b) => Number(b.naCidade) - Number(a.naCidade));
   return { empresas, buscas, avisos };
 }

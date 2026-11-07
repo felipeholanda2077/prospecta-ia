@@ -2558,6 +2558,7 @@ function detalhesDaVaga(e) {
       <span class="pilula acc">${ic("users", "sm")}Contratando: ${esc(v.cargo)}</span>
       ${v.publicada ? `<span class="pilula">${ic("clock", "sm")}${esc(v.publicada)}</span>` : ""}
       ${v.onde ? `<span class="pilula">${esc(v.onde)}</span>` : ""}
+      ${e.naCidade === false ? `<span class="pilula atencao">${ic("pin", "sm")}${esc(v.local || "Outra cidade")}</span>` : ""}
     </div>
     ${v.link ? `<div class="links"><a href="${esc(v.link)}" target="_blank" rel="noopener">${ic("external", "sm")}Ver a vaga</a></div>` : ""}`;
 }
