@@ -4138,6 +4138,8 @@ function checklistDoNumero(n) {
   const itens = [];
   const item = (ok, titulo, detalhe = "", acao = "") => itens.push(`<li class="${ok ? "ok" : "falta"}"><span class="marca">${ok ? "✓" : "!"}</span><div style="flex:1"><b>${titulo}</b>${detalhe ? `<br><span class="muted">${detalhe}</span>` : ""}${!ok && acao ? `<div class="acao">${acao}</div>` : ""}</div></li>`);
 
+  if (!conta) item(false, "Conta do WhatsApp Business", "O sistema não conseguiu achar sozinho a conta deste número na Meta, e sem ela não consegue corrigir o fuso nem montar os links certos. Copie o ID da conta no Gerenciador do WhatsApp (Configurações da conta → ID da conta) e cole aqui.",
+    `<form data-oficial-conta="${esc(n.id)}" style="display:flex;gap:6px;flex-wrap:wrap"><input name="conta" inputmode="numeric" placeholder="ID da conta do WhatsApp" aria-label="ID da conta do WhatsApp Business" required style="max-width:220px"><button class="btn" type="submit">Salvar</button></form>`);
   const semFuso = tem(141007) || (conta && !conta.fuso);
   if (conta || tem(141007)) item(!semFuso, "Fuso horário da conta", semFuso ? "A Meta não deixa enviar enquanto a conta não tiver fuso. O sistema define o de São Paulo." : "",
     `<button class="btn primario" type="button" data-oficial-corrigir="${esc(n.id)}">Corrigir agora</button>`);
@@ -4149,7 +4151,7 @@ function checklistDoNumero(n) {
      <form data-oficial-confirmar="${esc(n.id)}" style="display:flex;gap:6px;flex-wrap:wrap"><input name="codigo" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Código" aria-label="Código de 6 números" required style="max-width:110px"><button class="btn" type="submit">Confirmar código</button></form>`);
   item(conectado, "Número registrado na API", conectado ? "" : "Escolha um PIN de 6 números. Se o número já tem verificação em duas etapas, use o PIN dela. Anote: o sistema não guarda.",
     `<form data-oficial-registrar="${esc(n.id)}" style="display:flex;gap:6px;flex-wrap:wrap"><input name="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="off" placeholder="PIN de 6 números" aria-label="PIN de 6 números" required style="max-width:150px"><button class="btn" type="submit">Registrar este número</button></form>`);
-  item(!tem(141006), "Forma de pagamento na Meta", tem(141006) ? `A Meta informa erro na forma de pagamento${conta?.empresaNome ? ` da BM <b>${esc(conta.empresaNome)}</b>` : ""}: sem ela, o primeiro contato com clientes fica bloqueado. Adicione um cartão válido na conta do WhatsApp dessa BM.` : "",
+  item(!tem(141006), "Forma de pagamento na Meta", tem(141006) ? `A Meta ainda informa erro na forma de pagamento${conta?.empresaNome ? ` da BM <b>${esc(conta.empresaNome)}</b>` : ""}, o que bloqueia o primeiro contato com clientes. O cartão precisa estar na conta do WhatsApp <b>desta</b> BM${n.tokenProprio ? " (o cartão da BM principal não vale para número de outra BM)" : ""}. Depois de adicionar, a Meta pode levar algumas horas para tirar o aviso; clique em <b>Atualizar status</b> para conferir.` : "",
     link(links?.pagamento, "Abrir pagamentos na Meta") + link(links?.conta, "Abrir conta do WhatsApp"));
   if (tem(141010)) item(false, "Verificação da empresa", "A Meta ainda não concluiu a verificação desta BM.", link(links?.verificacao, "Ver verificação"));
   const t = st.template;
@@ -4315,6 +4317,22 @@ $("#oficial-numeros").addEventListener("click", async (ev) => {
 $("#oficial-numeros").addEventListener("submit", async (ev) => {
   const registrar = ev.target.dataset?.oficialRegistrar;
   const confirmar = ev.target.dataset?.oficialConfirmar;
+  const contaDo = ev.target.dataset?.oficialConta;
+  if (contaDo) {
+    ev.preventDefault();
+    const btn = ev.submitter;
+    btn.disabled = true;
+    try {
+      await api(`/api/whatsapp-oficial/numeros/${encodeURIComponent(contaDo)}/conta`, { method: "PUT", body: JSON.stringify({ contaId: ev.target.conta.value }) });
+      avisar("Conta salva. Agora o sistema consegue corrigir o que falta.", "ok");
+      await carregarNumerosOficiais();
+    } catch (e) {
+      avisar(e.message, "perigo", 8000);
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
   if (!registrar && !confirmar) return;
   ev.preventDefault();
   if (registrar && !confirm("Registrar este número na API oficial? Se ele estiver em uso em um celular ou na UAZap, pode parar de funcionar lá.")) return;

@@ -66,7 +66,7 @@ test("outra BM (token sem lista de contas): lista os números do token, adiciona
     // Com o token da outra BM: os números dela, com a BM e a conta.
     const outra = await wa.descobrirNumeros("EAAoutra");
     assert.deepEqual(outra.map((n) => [n.phoneNumberId, n.contaId, n.empresa, n.noSistema]), [["7771", "800", "Kaique BM", false], ["7772", "800", "Kaique BM", false]]);
-    await assert.rejects(wa.descobrirNumeros("EAAnada"), /nenhuma conta do WhatsApp/);
+    await assert.rejects(wa.descobrirNumeros("EAAnada"), /não conseguiu listar as contas.*Resposta da Meta: 100/);
 
     // Antes de corrigir, o status mostra a conta sem fuso e os links da BM do número (não da principal).
     await db.gravarConfig("whatsapp_oficial", { ...(await db.lerConfig("whatsapp_oficial")), extras: [{ nome: "Kaique", phoneNumberId: "7772", token: "EAAoutra", ativo: false }] });
@@ -104,6 +104,11 @@ test("outra BM (token sem lista de contas): lista os números do token, adiciona
       ["request_code", "Bearer EAAoutra"], ["verify_code", "Bearer EAAoutra"], ["verify_code", "Bearer EAAoutra"], ["register", "Bearer EAAoutra"],
     ]);
     await assert.rejects(wa.pedirCodigo("meta-0000"), /não encontrado/);
+
+    // ID da conta informado à mão: confere na Meta se a conta tem o número antes de guardar.
+    await assert.rejects(wa.definirContaDoNumero("meta-7771", "900"), /não abriu essa conta|não tem este número/);
+    await wa.definirContaDoNumero("meta-7771", "800");
+    assert.equal((await db.lerConfig("whatsapp_oficial")).extras.find((e) => e.phoneNumberId === "7771").contaId, "800");
   } finally {
     meta.restaurar();
   }

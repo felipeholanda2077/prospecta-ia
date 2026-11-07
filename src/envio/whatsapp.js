@@ -39,6 +39,7 @@ export async function obterConfig() {
     verifyToken: env.verifyToken || salvo.verifyToken || "",
     appSecret: env.appSecret || salvo.appSecret || "",
     extras: Array.isArray(salvo.extras) ? salvo.extras : [],
+    contaId: salvo.contaId || "",
   };
   cacheAte = Date.now() + 30_000;
   return cache;
@@ -69,7 +70,7 @@ async function dadosDoNumero(numeroId, { soAtivos = true } = {}) {
   const c = await obterConfig();
   const extra = numeroId ? c.extras.find((e) => idDoNumeroOficial(e.phoneNumberId) === numeroId && (!soAtivos || e.ativo !== false)) : null;
   if (!extra) return { ...c, numeroId: c.phoneNumberId ? idDoNumeroOficial(c.phoneNumberId) : null };
-  return { ...c, token: extra.token || c.token, phoneNumberId: extra.phoneNumberId, template: extra.template || c.template, idioma: extra.idioma || c.idioma, contaId: extra.contaId || null, numeroId };
+  return { ...c, token: extra.token || c.token, phoneNumberId: extra.phoneNumberId, template: extra.template || c.template, idioma: extra.idioma || c.idioma, contaId: extra.contaId || null, appSecretDoNumero: extra.appSecret || "", numeroId };
 }
 
 /** Os dados de um número para conferir e corrigir na Meta, ligado ou não. Número desconhecido é erro. */
@@ -101,9 +102,10 @@ async function graph(c, caminho, token = c.token, corpo = null) {
   const dados = await resp.json().catch(() => ({}));
   if (!resp.ok) {
     const erro = dados.error ?? {};
-    if (erro.code === 190) throw new Error("A Meta recusou o token de acesso (inválido ou vencido). Gere um token permanente de usuário do sistema.");
-    if (erro.code === 100 || erro.code === 803) throw new Error("A Meta não encontrou esse ID do número de telefone com esse token. Confira o ID em WhatsApp → Configuração da API.");
-    throw new Error(`A Meta respondeu ${resp.status}: ${erro.message ?? "erro desconhecido"}`);
+    const falha = (texto) => Object.assign(new Error(texto), { daMeta: `${erro.code ?? resp.status}: ${erro.message ?? "erro desconhecido"}` });
+    if (erro.code === 190) throw falha("A Meta recusou o token de acesso (inválido ou vencido). Gere um token permanente de usuário do sistema.");
+    if (erro.code === 100 || erro.code === 803) throw falha("A Meta não encontrou esse ID do número de telefone com esse token. Confira o ID em WhatsApp → Configuração da API.");
+    throw falha(`A Meta respondeu ${resp.status}: ${erro.message ?? "erro desconhecido"}`);
   }
   return dados;
 }
@@ -131,24 +133,39 @@ export async function statusOficial(numeroId = null) {
 export const FUSO_SAO_PAULO = "25";
 const contaPorNumero = new Map();
 
-/** Contas do WhatsApp Business que o token acessa (as que foram marcadas ao gerar o token). */
-async function contasDoToken(c, token = c.token) {
-  const dbg = await graph(c, `debug_token?input_token=${encodeURIComponent(token)}`, token).catch(() => null);
-  const ids = new Set(
-    (dbg?.data?.granular_scopes ?? [])
-      .filter((s) => /whatsapp_business_(management|messaging)/.test(s.scope))
-      .flatMap((s) => s.target_ids ?? [])
-  );
+/**
+ * Contas do WhatsApp Business que o token acessa. Tenta, nesta ordem: o próprio token no debug_token,
+ * o token do app (id do app + chave secreta) no debug_token, e as BMs do token. Guarda o último motivo de falha.
+ */
+let ultimoMotivo = "";
+async function contasDoToken(c, token = c.token, segredo = c.appSecret) {
+  const ids = new Set();
+  const doDebug = (dbg) => (dbg?.data?.granular_scopes ?? [])
+    .filter((s) => /whatsapp_business_(management|messaging)/.test(s.scope))
+    .flatMap((s) => s.target_ids ?? [])
+    .forEach((id) => ids.add(String(id)));
+  const motivos = [];
+  try { doDebug(await graph(c, `debug_token?input_token=${encodeURIComponent(token)}`, token)); }
+  catch (e) { motivos.push(e.daMeta ?? e.message); }
+  if (!ids.size && segredo) {
+    try {
+      const app = await graph(c, "app?fields=id", token);
+      doDebug(await graph(c, `debug_token?input_token=${encodeURIComponent(token)}`, `${app.id}|${segredo}`));
+    } catch (e) { motivos.push(e.daMeta ?? e.message); }
+  }
   // Token que acessa todas as contas da BM não lista os ids: procura pelas empresas (BMs) do token.
   if (!ids.size) {
-    const empresas = await graph(c, "me/businesses?fields=id&limit=50", token).catch(() => null);
-    for (const { id } of empresas?.data ?? []) {
-      for (const tipo of ["owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"]) {
-        const r = await graph(c, `${id}/${tipo}?fields=id&limit=100`, token).catch(() => null);
-        for (const w of r?.data ?? []) ids.add(String(w.id));
+    try {
+      const empresas = await graph(c, "me/businesses?fields=id&limit=50", token);
+      for (const { id } of empresas?.data ?? []) {
+        for (const tipo of ["owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"]) {
+          const r = await graph(c, `${id}/${tipo}?fields=id&limit=100`, token).catch(() => null);
+          for (const w of r?.data ?? []) ids.add(String(w.id));
+        }
       }
-    }
+    } catch (e) { motivos.push(e.daMeta ?? e.message); }
   }
+  ultimoMotivo = ids.size ? "" : motivos.filter(Boolean).join(" · ");
   return [...ids];
 }
 
@@ -157,7 +174,7 @@ async function contaDoNumero(c) {
   if (c.contaId) return c.contaId;
   const chave = `${c.phoneNumberId}`;
   if (contaPorNumero.has(chave)) return contaPorNumero.get(chave);
-  for (const conta of await contasDoToken(c)) {
+  for (const conta of await contasDoToken(c, c.token, c.appSecretDoNumero || c.appSecret)) {
     const r = await graph(c, `${conta}/phone_numbers?fields=id&limit=100`).catch(() => null);
     if ((r?.data ?? []).some((p) => String(p.id) === String(c.phoneNumberId))) {
       contaPorNumero.set(chave, conta);
@@ -204,7 +221,7 @@ export async function corrigirNaMeta(numeroId = null) {
   const c = numeroId ? await numeroParaGerenciar(numeroId) : await obterConfig();
   if (!c.token || !c.phoneNumberId) throw new Error("Salve o token e o número da Meta antes");
   const conta = await contaDoNumero(c);
-  if (!conta) throw new Error("O token deste número não dá acesso à conta do WhatsApp Business dele. Gere o token marcando a conta do WhatsApp e as permissões whatsapp_business_management e whatsapp_business_messaging.");
+  if (!conta) throw new Error(`O sistema não achou a conta do WhatsApp Business deste número. Informe o ID da conta no cartão do número (Gerenciador do WhatsApp → Configurações da conta).${ultimoMotivo ? ` Resposta da Meta: ${ultimoMotivo}` : ""}`);
   const feito = [], falhou = [];
   const w = await graph(c, `${conta}?fields=timezone_id`).catch(() => ({}));
   if (!w.timezone_id) {
@@ -225,8 +242,8 @@ export async function descobrirNumeros(token) {
   const tk = String(token ?? "").trim() || atual.token || config.whatsapp.token;
   if (!tk) throw new Error("Cole o token de acesso da outra BM");
   const c = { apiVersion: config.whatsapp.apiVersion, token: tk };
-  const contas = await contasDoToken(c);
-  if (!contas.length) throw new Error("Este token não dá acesso a nenhuma conta do WhatsApp Business. Ao gerar o token, marque a conta do WhatsApp e as permissões whatsapp_business_management e whatsapp_business_messaging.");
+  const contas = await contasDoToken(c, tk, config.whatsapp.appSecret || atual.appSecret || "");
+  if (!contas.length) throw new Error(`O sistema não conseguiu listar as contas do WhatsApp deste token. Ao gerar o token, marque a conta do WhatsApp e as permissões whatsapp_business_management e whatsapp_business_messaging. Se preferir, use "digitar o ID do número".${ultimoMotivo ? ` Resposta da Meta: ${ultimoMotivo}` : ""}`);
   const noSistema = new Set([atual.phoneNumberId, config.whatsapp.phoneNumberId, ...(atual.extras ?? []).map((e) => e.phoneNumberId)].filter(Boolean).map(String));
   const lista = [];
   for (const conta of contas) {
@@ -375,6 +392,7 @@ export async function salvarConfig({ token, phoneNumberId, template, idioma, app
     appSecret: limpo(appSecret) || atual.appSecret || "",
     verifyToken: atual.verifyToken || crypto.randomBytes(16).toString("hex"),
     ativo: ativo === undefined ? Boolean(atual.ativo) : Boolean(ativo),
+    contaId: (limpo(phoneNumberId) || atual.phoneNumberId || "").replace(/\D/g, "") === String(atual.phoneNumberId ?? "") ? atual.contaId || "" : "",
     extras: Array.isArray(atual.extras) ? atual.extras.filter((e) => e.phoneNumberId !== (limpo(phoneNumberId) || atual.phoneNumberId || "").replace(/\D/g, "")) : [],
   };
   if (!novo.token) throw new Error("Informe o token de acesso da Meta");
@@ -412,6 +430,22 @@ export async function adicionarNumero({ nome, phoneNumberId, token, template, id
   // Já deixa a conta pronta no que dá pela API (fuso e respostas); o que falhar aparece no cartão do número.
   const correcao = await corrigirNaMeta(id).catch((e) => ({ feito: [], falhou: [e.message] }));
   return { id, nome: novo.nome, numero: n.display_phone_number ?? null, correcao };
+}
+
+/** Guarda o ID da conta do WhatsApp Business de um número (quando o sistema não consegue achar sozinho). */
+export async function definirContaDoNumero(numeroId, contaId) {
+  const id = String(contaId ?? "").replace(/\D/g, "");
+  if (!id) throw new Error("Informe o ID da conta do WhatsApp Business (só números)");
+  const c = await numeroParaGerenciar(numeroId);
+  const r = await graph(c, `${id}/phone_numbers?fields=id&limit=100`).catch((e) => { throw new Error(`A Meta não abriu essa conta com o token deste número: ${e.message}`); });
+  if (!(r.data ?? []).some((p) => String(p.id) === String(c.phoneNumberId))) throw new Error("Essa conta não tem este número. Confira o ID no Gerenciador do WhatsApp.");
+  const atual = (await db.lerConfig(CHAVE)) ?? {};
+  const extras = Array.isArray(atual.extras) ? atual.extras : [];
+  const alvo = extras.find((e) => idDoNumeroOficial(e.phoneNumberId) === numeroId);
+  if (alvo) alvo.contaId = id;
+  await db.gravarConfig(CHAVE, alvo ? { ...atual, extras } : { ...atual, contaId: id });
+  contaPorNumero.set(String(c.phoneNumberId), id);
+  cacheAte = 0;
 }
 
 /** Liga ou desliga um número extra (o principal liga e desliga com a API oficial inteira). */
