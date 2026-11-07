@@ -50,7 +50,8 @@ export async function buscarAnunciantesNoGoogle({ nicho, cidade, agora = new Dat
   const local = await localDaSerpApi(cidade);
   const consulta = `${String(nicho ?? "").trim()} ${cidadeSemUf(cidade)}`.trim();
   const { dados, aviso } = await buscarNaSerpApi({
-    engine: "google", q: consulta, ...(local ? { location: local } : {}), gl: "br", hl: "pt-br", google_domain: "google.com.br",
+    // No celular o Google mostra mais anúncio (e é de onde vem a maior parte da busca local).
+    engine: "google", q: consulta, ...(local ? { location: local } : {}), gl: "br", hl: "pt-br", google_domain: "google.com.br", device: "mobile",
   }, { fonte: "googleads", agora });
   if (!dados) return { empresas: [], buscas: 0, avisos: [aviso] };
   // O Google põe anúncio em mais de um bloco (topo, rodapé, "local_ads"); junta todos.
