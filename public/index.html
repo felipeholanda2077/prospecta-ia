@@ -4203,6 +4203,7 @@ function mostrarConfigOficial(o) {
   $("#oficial-token").placeholder = o.tokenDefinido ? "•••••••• já salvo (preencha só para trocar)" : "Cole o token permanente";
   $("#oficial-token").required = !o.tokenDefinido;
   $("#oficial-segredo").placeholder = o.appSecretDefinido ? "•••••••• já salva (preencha só para trocar)" : "Cole a chave secreta do app";
+  delete $("#oficial-webhook").dataset.passos;
   $("#oficial-webhook").innerHTML = o.verifyToken
     ? `<div class="alerta info">${ic("globe")}<div><b>Para receber as respostas</b>, no app da Meta vá em WhatsApp → Configuração → <b>Webhook</b>, clique em Editar e cole:
         <div style="display:grid;gap:6px;margin:8px 0">
@@ -4227,7 +4228,26 @@ async function carregarStatusOficial(st) {
   }
 }
 
+/** Quando a Meta confirma o webhook, troca o passo a passo por uma linha de "pronto" (os dados ficam escondidos). */
+function mostrarWebhookOficial(w) {
+  const bloco = $("#oficial-webhook");
+  if (!w || !bloco.firstElementChild) return;
+  if (!bloco.dataset.passos) bloco.dataset.passos = bloco.innerHTML;
+  if (w.pronto) {
+    bloco.innerHTML = `<div class="alerta info">${ic("checkCircle")}<div><b>Respostas ligadas:</b> o webhook já está configurado na Meta, aponta para o sistema e assina <b>messages</b>.
+      <details style="margin-top:6px"><summary>Ver os dados do webhook</summary>${bloco.dataset.passos}</details></div></div>`;
+    return;
+  }
+  const faltas = [
+    w.urlCerta === false && (w.url ? `a Meta manda as respostas para <code>${esc(w.url)}</code>, e não para o endereço do sistema` : "o webhook ainda não foi salvo no app da Meta"),
+    w.messages === false && w.url && "falta assinar <b>messages</b> em Campos do webhook",
+    w.contaLigada === false && "o app não está ligado à conta deste número: use <b>Corrigir na Meta</b>",
+  ].filter(Boolean);
+  bloco.innerHTML = bloco.dataset.passos + (faltas.length ? `<div class="alerta perigo">${ic("alert")}<div>Conferi na Meta: ${faltas.join("; ")}.</div></div>` : "");
+}
+
 function mostrarStatusOficial(st) {
+  mostrarWebhookOficial(st.webhook);
   if (!st.configurada) {
     $("#oficial-status").innerHTML = `<span class="pilula">Não configurado</span>`;
     $("#oficial-conexao").innerHTML = "";

@@ -124,6 +124,33 @@ export async function statusOficial(numeroId = null) {
     situacao: await situacaoDoNumero(c),
     template: await situacaoDoTemplate(c),
     conta: await infoDaConta(c),
+    webhook: await situacaoDoWebhook(c),
+  };
+}
+
+/**
+ * Pergunta à Meta se as respostas deste número chegam ao sistema: o webhook do app aponta para o
+ * endereço do sistema e assina "messages", e o app está ligado à conta do número. Sem dados, devolve null.
+ */
+export async function situacaoDoWebhook(c) {
+  const esperado = `${config.painel.urlPublica}/webhooks/whatsapp`;
+  let app;
+  try { app = await graph(c, "app?fields=id"); } catch { return null; }
+  let assinatura = null;
+  if (c.appSecret) {
+    const r = await graph(c, `${app.id}/subscriptions`, `${app.id}|${c.appSecret}`).catch(() => null);
+    assinatura = r ? (r.data ?? []).find((x) => x.object === "whatsapp_business_account") ?? {} : null;
+  }
+  const conta = await contaDoNumero(c).catch(() => null);
+  const ligados = conta ? await graph(c, `${conta}/subscribed_apps`).catch(() => null) : null;
+  const contaLigada = ligados ? (ligados.data ?? []).some((a) => String(a.whatsapp_business_api_data?.id ?? a.id) === String(app.id)) : null;
+  const url = assinatura?.callback_url ?? null;
+  const messages = assinatura ? (assinatura.fields ?? []).some((f) => (f.name ?? f) === "messages") : null;
+  const urlCerta = assinatura ? url === esperado : null;
+  return {
+    esperado, url, urlCerta, messages, contaLigada,
+    ativo: assinatura ? assinatura.active !== false : null,
+    pronto: Boolean(urlCerta && messages && assinatura.active !== false && contaLigada !== false),
   };
 }
 
