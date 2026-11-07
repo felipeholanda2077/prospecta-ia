@@ -4,7 +4,7 @@ import * as db from "./db.js";
 import { buscarEmpresas } from "./descoberta/googlePlaces.js";
 import { buscaNoInstagram, buscarEmpresasNoInstagram, instagramDaEmpresa, perfilDoInstagram, contatosDoPerfil } from "./descoberta/instagram.js";
 import { buscarEmpresasPorCnpj, contatoDoCnpj, emailDeContador } from "./descoberta/cnpj.js";
-import { buscarAnunciantes, podeBuscarSozinho, completarContatos } from "./descoberta/anuncios.js";
+import { buscarAnunciantes, podeBuscarSozinho, completarContatos, cortar } from "./descoberta/anuncios.js";
 import { escolherAbordagem } from "./ia/abordagens.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
@@ -474,7 +474,7 @@ export async function capturarDosAnuncios(empresas, nicho, cidade) {
       cidade,
       origem: "anuncio",
       anuncio: {
-        texto: String(a.texto ?? "").slice(0, 400), desde: a.desde ?? null, link: a.link ? String(a.link).slice(0, 500) : null,
+        texto: cortar(a.texto, 400), desde: a.desde ?? null, link: a.link ? String(a.link).slice(0, 500) : null,
         chamada: a.chamada ?? null, plataformas: Array.isArray(a.plataformas) ? a.plataformas.slice(0, 6) : [], biblioteca: a.biblioteca ?? null,
       },
     };

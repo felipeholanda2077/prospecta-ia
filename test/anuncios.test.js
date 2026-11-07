@@ -126,3 +126,11 @@ test("anúncios: quem anuncia só com 'Enviar mensagem no WhatsApp' ganha o cont
   assert.equal(empresas[2].telefone, null);
   assert.deepEqual(consultasMaps, ["Jabá Automóveis Osasco", "Loja Fantasma Osasco"]); // a do Instagram não precisou do Maps
 });
+
+test("anúncios: cortar o texto não parte emoji ao meio", () => {
+  const texto = `${"a".repeat(399)}🚗 depois`;
+  const cortado = anuncios.cortar(texto, 400);
+  assert.equal(cortado, `${"a".repeat(399)}🚗`);
+  assert.equal(cortado.isWellFormed(), true);
+  assert.equal(anuncios.cortar("x\uD83D", 10).isWellFormed(), true); // meio emoji que já veio partido
+});

@@ -985,7 +985,10 @@ function prepararMensagem({ token, ...m }, modo) {
 
 app.get("/api/mensagens", async (req, res) => {
   const status = req.query.status || "rascunho";
-  const mensagens = await db.mensagensPorStatus(status, 300);
+  // Com ?lead=ID, as mensagens de uma empresa só (as etapas de e-mail e de WhatsApp), em qualquer situação.
+  const lead = Number.parseInt(req.query.lead, 10);
+  const mensagens = lead ? [...await db.mensagensDaSequencia(lead, "whatsapp"), ...await db.mensagensDaSequencia(lead, "email")]
+    : await db.mensagensPorStatus(status, 300);
   const modo = await pipeline.modoWhatsapp();
   // Nas enviadas, mostra qual etapa vem depois e quando (se a empresa não responder).
   const proximas = status === "enviada" ? await db.proximasEtapas([...new Set(mensagens.map((m) => m.lead_id))]) : [];

@@ -14,6 +14,8 @@ export const CURTIDAS_MAXIMAS = 100_000;
 
 const mesAtual = (agora = new Date()) => new Date(agora).toLocaleDateString("en-CA", { timeZone: config.timezone }).slice(0, 7);
 const chaveDoMes = (agora) => `anuncios_buscas:${mesAtual(agora)}`;
+/** Corta o texto sem partir emoji ao meio (meio emoji vira um JSON que a IA recusa). */
+export const cortar = (s, n) => [...String(s ?? "").toWellFormed()].slice(0, n).join("");
 const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "");
 
 async function chaveAberta() {
@@ -117,7 +119,7 @@ export function empresaDoAnuncio(ad) {
     pagina: ad.page_profile_link ?? null,
     categorias: ad.page_categories ?? [],
     anuncio: {
-      texto: texto.slice(0, 400),
+      texto: cortar(texto, 400),
       desde: ad.start_date ?? null,
       link: links[0] ?? null,
       chamada: ad.call_to_action ?? null,

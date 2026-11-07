@@ -138,7 +138,7 @@ function linhaDoAnuncio(lead) {
   const onde = (a.plataformas ?? []).filter((p) => ["instagram", "facebook"].includes(p)).map((p) => (p === "instagram" ? "Instagram" : "Facebook")).join(" e ") || "Instagram e Facebook";
   const destino = /wa\.me|whatsapp/i.test(a.link ?? "") ? "o WhatsApp da empresa" : /instagram\.com/i.test(a.link ?? "") ? "o perfil do Instagram" : a.link ? `a página ${a.link}` : "não sabemos";
   return `
-- Está anunciando agora no ${onde}${desde ? `, desde ${desde}` : ""} (achada na Biblioteca de Anúncios da Meta). Texto do anúncio: "${String(a.texto ?? "").slice(0, 300)}". O anúncio leva para ${destino}.
+- Está anunciando agora no ${onde}${desde ? `, desde ${desde}` : ""} (achada na Biblioteca de Anúncios da Meta). Texto do anúncio: "${[...String(a.texto ?? "").toWellFormed()].slice(0, 300).join("")}". O anúncio leva para ${destino}.
   Use isto: abra mostrando que viu o anúncio (com naturalidade, citando algo dele) e ligue a oportunidade ao dinheiro que ela já investe em anúncio (ex.: quem clica cai numa página lenta, sem botão de WhatsApp, ou numa conversa que demora a ser respondida). Não critique o anúncio em si.`;
 }
 
