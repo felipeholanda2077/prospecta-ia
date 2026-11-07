@@ -16,7 +16,7 @@ function metaFalsa() {
   const antes = globalThis.fetch;
   const contas = {
     "Bearer EAAprincipal": { 900: { numeros: ["5551"], nome: "FluxDeck", bm: { id: "111", name: "FluxDeck" }, fuso: "25" } },
-    "Bearer EAAoutra": { 800: { numeros: ["7771", "7772"], nome: "Kaique WA", bm: { id: "222", name: "Kaique BM" }, fuso: null } },
+    "Bearer EAAoutra": { 800: { numeros: ["7771", "7772"], nome: "Kaique WA", bm: { id: "222", name: "Kaique BM" }, fuso: "0" } }, // a Meta devolve "0" sem fuso
   };
   globalThis.fetch = async (url, opcoes = {}) => {
     const u = new URL(url);
@@ -49,7 +49,7 @@ function metaFalsa() {
     if (partes[1] === "request_code") return Response.json({ success: true });
     if (partes[1] === "verify_code") return corpo.code === "123456" ? Response.json({ success: true }) : Response.json({ error: { code: 136025, message: "bad code" } }, { status: 400 });
     if (partes[1] === "register") return Response.json({ success: true });
-    const erros = dono.fuso ? [] : [{ error_code: 141007, error_description: "A timezone must be set before sending out messages." }];
+    const erros = dono.fuso && dono.fuso !== "0" ? [] : [{ error_code: 141007, error_description: "A timezone must be set before sending out messages." }];
     return Response.json({
       display_phone_number: `+55 11 9${partes[0]}`, verified_name: `Num ${partes[0]}`, status: "DISCONNECTED", code_verification_status: "NOT_VERIFIED",
       health_status: { can_send_message: "BLOCKED", entities: [{ errors: erros }] },

@@ -131,6 +131,8 @@ export async function statusOficial(numeroId = null) {
 
 /** Fuso horário de São Paulo na lista da Meta (timezone_id). Sem fuso, a Meta bloqueia os envios (erro 141007). */
 export const FUSO_SAO_PAULO = "25";
+/** A Meta devolve timezone_id "0" para conta sem fuso. */
+const temFuso = (v) => Boolean(v) && String(v) !== "0";
 const contaPorNumero = new Map();
 
 /**
@@ -200,7 +202,7 @@ async function infoDaConta(c) {
       nome: w.name ?? null,
       empresaId: empresa,
       empresaNome: w.owner_business_info?.name ?? null,
-      fuso: w.timezone_id ? String(w.timezone_id) : null,
+      fuso: temFuso(w.timezone_id) ? String(w.timezone_id) : null,
       links: empresa ? {
         conta: `${base}/settings/whatsapp_account?business_id=${empresa}&selected_asset_id=${id}&selected_asset_type=whatsapp-business-account`,
         pagamento: `https://business.facebook.com/billing_hub/payment_settings/?business_id=${empresa}&asset_id=${id}&payment_account_id=${id}`,
@@ -224,7 +226,7 @@ export async function corrigirNaMeta(numeroId = null) {
   if (!conta) throw new Error(semPermissao(ultimoMotivo) ? SEM_GERENCIAR : `O sistema não achou a conta do WhatsApp Business deste número. Informe o ID da conta no cartão do número (Gerenciador do WhatsApp → Configurações da conta).${ultimoMotivo ? ` Resposta da Meta: ${ultimoMotivo}` : ""}`);
   const feito = [], falhou = [];
   const w = await graph(c, `${conta}?fields=timezone_id`).catch(() => ({}));
-  if (!w.timezone_id) {
+  if (!temFuso(w.timezone_id)) {
     try { await graph(c, conta, c.token, { timezone_id: FUSO_SAO_PAULO }); feito.push("fuso horário definido (São Paulo)"); }
     catch (e) { falhou.push(`fuso horário: ${e.message}`); }
   }
