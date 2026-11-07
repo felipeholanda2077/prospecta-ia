@@ -16,7 +16,7 @@ test("Google Ads: um anunciante por site, sem portais, com o nome da fonte ou do
     ad("https://www.clinicasorriso.com.br/implante", { source: "Clínica Sorriso" }),
     ad("https://clinicasorriso.com.br/outra"),
     ad("https://www.doctoralia.com.br/dentista/osasco"),
-    ad("https://odontomais.com.br/", { title: "OdontoMais | Dentista 24h" }),
+    ad("https://odontomais.com.br/", { title: "OdontoMais | Dentista 24h", source: "odontomais.com.br" }),
   ], "dentista Osasco");
   assert.deepEqual(lista.map((e) => [e.dominio, e.nome]), [["clinicasorriso.com.br", "Clínica Sorriso"], ["odontomais.com.br", "OdontoMais"]]);
   assert.deepEqual([lista[0].anuncio.plataforma, lista[0].anuncio.topo, lista[0].anuncio.consulta], ["google", true, "dentista Osasco"]);

@@ -22,7 +22,8 @@ export const cidadeSemUf = (cidade) => String(cidade ?? "").split(/\s+-\s+|,|\//
 const chaveDaFonte = (fonte, agora) => `serpapi:${fonte}:${mesAtual(agora)}`;
 // A mesma chave da SerpApi serve a três buscas automáticas; cada uma gasta no máximo esta parte do limite do mês
 // (a busca feita no painel só respeita o limite total).
-export const COTA_AUTOMATICA = { anuncios: 0.3, googleads: 0.2, vagas: 0.25, avaliacoes: 0.25 };
+// O Google mostra poucos anúncios por busca (0 a 2 nos testes de Osasco, contra uns 9 na Meta): fica com a menor parte.
+export const COTA_AUTOMATICA = { anuncios: 0.4, googleads: 0.1, vagas: 0.25, avaliacoes: 0.25 };
 
 async function chaveAberta() {
   const c = (await db.lerConfig(CHAVE_CONFIG)) ?? {};

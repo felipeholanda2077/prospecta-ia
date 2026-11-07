@@ -17,7 +17,13 @@ export function dominioDoLink(link) {
 }
 
 /** O nome do anunciante: o que o Google mostra como fonte, ou o começo do título do anúncio. */
-const nomeDoAnuncio = (ad) => cortar(String(ad.source || String(ad.title ?? "").split(/\s[-|–:]\s/)[0] || "").trim(), 120);
+function nomeDoAnuncio(ad) {
+  const doTitulo = String(ad.title ?? "").split(/\s[-|–:]\s/)[0].trim();
+  // No celular a "fonte" costuma ser só o domínio (clinicax.com.br): aí o título diz melhor quem é.
+  const fonte = String(ad.source ?? "").trim();
+  const nome = fonte && !/^[\w.-]+\.[a-z]{2,}(\.[a-z]{2})?$/i.test(fonte) ? fonte : doTitulo || fonte;
+  return cortar(nome, 120);
+}
 
 /** Os anúncios de uma busca, um por site, sem portais e marketplaces. */
 export function anunciantesDaBusca(ads, consulta) {
