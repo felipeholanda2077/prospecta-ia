@@ -54,6 +54,8 @@ async function pedir(caminho, parametros) {
   const dados = await r.json().catch(() => ({}));
   if (!r.ok || dados.error) {
     const erro = String(dados.error ?? `erro ${r.status}`);
+    // Busca sem nenhum resultado não é falha: é uma lista vazia.
+    if (/hasn't returned any results/i.test(erro)) return { semResultados: true };
     if (/invalid api key/i.test(erro)) throw new Error("A SerpApi recusou a chave. Confira em serpapi.com → Api Key e cole de novo.");
     if (/run out of searches|plan.*limit/i.test(erro)) throw new Error("As buscas do mês na SerpApi acabaram. Elas voltam no próximo ciclo do plano.");
     throw new Error(`A SerpApi respondeu: ${erro}`);
@@ -213,6 +215,24 @@ async function reservarBusca(limite, agora, fonte = "anuncios") {
   const daFonte = chaveDaFonte(fonte, agora);
   await db.gravarEstado(daFonte, (Number(await db.lerEstado(daFonte)) || 0) + 1);
   return true;
+}
+
+const locais = new Map();
+/** O nome da cidade como a SerpApi entende ("Osasco,State of Sao Paulo,Brazil"); a consulta dos locais não gasta busca. */
+export async function localDaSerpApi(cidade) {
+  const nome = cidadeSemUf(cidade);
+  if (!nome) return null;
+  if (locais.has(nome)) return locais.get(nome);
+  let local = null;
+  try {
+    const r = await fetch(`${ENDERECO}/locations.json?${new URLSearchParams({ q: nome, limit: "10" })}`, { signal: AbortSignal.timeout(15_000) });
+    const lista = await r.json();
+    const cidades = (Array.isArray(lista) ? lista : []).filter((l) => l.country_code === "BR" && l.target_type === "City");
+    // O mais curto ("Osasco,State of Sao Paulo,Brazil") é o da própria cidade; o maior alcance desempata.
+    local = cidades.sort((a, b) => a.canonical_name.split(",").length - b.canonical_name.split(",").length || (b.reach ?? 0) - (a.reach ?? 0))[0]?.canonical_name ?? null;
+  } catch { /* sem o local, a busca vai só com o nome da cidade no texto */ }
+  locais.set(nome, local);
+  return local;
 }
 
 /**

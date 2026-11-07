@@ -1,4 +1,4 @@
-import { buscarNaSerpApi, cidadeSemUf, cortar, semAcento } from "./anuncios.js";
+import { buscarNaSerpApi, cidadeSemUf, cortar, semAcento, localDaSerpApi } from "./anuncios.js";
 
 // Empresas contratando para uma função que a FluxDeck resolve (social media, atendimento no WhatsApp, marketing,
 // site, sistema): a dor está declarada na própria vaga. Vem das vagas do Google (Google Jobs, pela SerpApi), e o
@@ -53,7 +53,11 @@ export async function buscarEmpresasContratando({ cidade, funcoes = [0, 1, 2], m
   for (const i of funcoes) {
     const funcao = FUNCOES[i];
     if (!funcao || buscas >= maxBuscas) continue;
-    const { dados, aviso } = await buscarNaSerpApi({ engine: "google_jobs", q: `${funcao.cargo} ${cidadeSemUf(cidade)}`, gl: "br", hl: "pt-br" }, { fonte: "vagas", agora });
+    // Com o local da cidade, o Google procura as vagas de lá; sem ele, a cidade vai no texto da busca.
+    const local = await localDaSerpApi(cidade);
+    const { dados, aviso } = await buscarNaSerpApi({
+      engine: "google_jobs", q: local ? funcao.cargo : `${funcao.cargo} ${cidadeSemUf(cidade)}`, ...(local ? { location: local } : {}), gl: "br", hl: "pt-br",
+    }, { fonte: "vagas", agora });
     if (!dados) { avisos.push(aviso); break; }
     buscas++;
     for (const e of empresasDasVagas(dados.jobs_results, funcao)) {

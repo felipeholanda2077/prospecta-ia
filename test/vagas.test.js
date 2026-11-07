@@ -19,6 +19,10 @@ function serpApiFalsa(jobs) {
     const u = new URL(url);
     chamadas.push(Object.fromEntries(u.searchParams));
     if (u.pathname === "/account.json") return Response.json({ plan_name: "Free Plan", searches_per_month: 250 });
+    if (u.pathname === "/locations.json") return Response.json([
+      { canonical_name: "Osasco,Osasco,State of Sao Paulo,Brazil", country_code: "BR", target_type: "City", reach: 1 },
+      { canonical_name: "Osasco,State of Sao Paulo,Brazil", country_code: "BR", target_type: "City", reach: 2 },
+    ]);
     return Response.json({ jobs_results: jobs });
   };
   return { chamadas, restaurar: () => (globalThis.fetch = antes) };
@@ -40,7 +44,7 @@ test("vagas: a busca usa a função na cidade, gasta 1 do limite e só captura q
     const r = await vagas.buscarEmpresasContratando({ cidade: "Osasco - SP", funcoes: [1] });
     assert.equal(await anuncios.buscasNoMes(), antes + 1);
     const busca = api.chamadas.find((c) => c.engine);
-    assert.deepEqual([busca.engine, busca.q, busca.gl], ["google_jobs", "recepcionista Osasco", "br"]);
+    assert.deepEqual([busca.engine, busca.q, busca.location, busca.gl], ["google_jobs", "recepcionista", "Osasco,State of Sao Paulo,Brazil", "br"]);
     assert.equal(r.empresas.length, 2);
 
     const [sorriso, pet] = r.empresas;
