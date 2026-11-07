@@ -114,10 +114,13 @@ export async function gerarCobrancas(dados, agora = new Date()) {
   return { parcelas: await db.listarCobrancas({ contratoId: contrato.id }) };
 }
 
-/** Procura pela referência antes de criar: se a resposta de uma emissão se perdeu, o cliente não recebe duas. */
+/**
+ * Procura pela referência antes de criar: se a resposta de uma emissão se perdeu, o cliente não recebe duas.
+ * Só PIX: é a taxa mais baixa do Asaas, e boleto e cartão ficam de fora da página de pagamento.
+ */
 async function emitir(p) {
   const pagamento = await asaas.cobrancaPorReferencia(referenciaDaParcela(p.id)) ?? await asaas.criarCobranca({
-    customer: p.cliente_asaas, billingType: "UNDEFINED", value: p.valor, dueDate: p.vencimento, description: p.descricao,
+    customer: p.cliente_asaas, billingType: "PIX", value: p.valor, dueDate: p.vencimento, description: p.descricao,
     externalReference: referenciaDaParcela(p.id), fine: { value: p.multa, type: "PERCENTAGE" }, interest: { value: p.juros },
   });
   await db.atualizarCobranca(p.id, { status: "emitida", asaas_id: pagamento.id, link: /^https:\/\//.test(pagamento.invoiceUrl ?? "") ? pagamento.invoiceUrl : null, erro: null });

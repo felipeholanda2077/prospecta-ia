@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import * as db from "../db.js";
 import { cifrar, decifrar } from "../segredos.js";
 
-// Asaas: emite PIX e boleto e avisa o cliente (e-mail e SMS, com as notificações padrão de cada cliente).
+// Asaas: emite PIX (parcelas dos contratos e links) e avisa o cliente (e-mail e SMS, com as notificações padrão de cada cliente).
 // A chave de API fica cifrada no banco; o ambiente sai do começo dela, para nunca misturar teste e produção.
 const ENDERECOS = { producao: "https://api.asaas.com/v3", sandbox: "https://api-sandbox.asaas.com/v3" };
 const CHAVE_CONFIG = "asaas";

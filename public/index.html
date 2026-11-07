@@ -1484,7 +1484,7 @@
 
         <div class="ig-painel" data-ct-painel="cobrancas" hidden>
           <div class="ig-barra">
-            <div class="ig-barra-texto"><h3>Cobranças</h3><p class="muted">As parcelas dos contratos assinados. Cada uma vai para o Asaas 15 dias antes de vencer, e o cliente paga por PIX ou boleto. O pagamento aparece na hora pelo webhook e também é conferido a cada hora.</p></div>
+            <div class="ig-barra-texto"><h3>Cobranças</h3><p class="muted">As parcelas dos contratos assinados. Cada uma vai para o Asaas 15 dias antes de vencer, e o cliente paga só por PIX. O pagamento aparece na hora pelo webhook e também é conferido a cada hora.</p></div>
             <div class="ig-barra-botoes">
               <button class="btn fantasma" type="button" id="cb-atualizar"><span data-ic="refresh"></span>Atualizar</button>
               <button class="btn primario" type="button" id="cb-nova"><span data-ic="check"></span>Gerar cobranças</button>
@@ -1517,7 +1517,7 @@
 
           <form class="cartao" id="form-oferta">
             <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="send"></span><div class="titulos"><h3>Ofertas</h3>
-              <div class="meta">Na conversa, o botão Link de pagamento gera o link daquela empresa; quando ela paga, vira cliente sozinha. Pagamento único é por PIX. Mensal é uma assinatura no cartão, que o Asaas cobra sozinho todo mês; para mensalidade por PIX ou boleto, use o contrato e gere as parcelas acima.</div></div></div>
+              <div class="meta">Na conversa, o botão Link de pagamento gera o link daquela empresa; quando ela paga, vira cliente sozinha. Pagamento único é por PIX. Mensal é uma assinatura no cartão, que o Asaas cobra sozinho todo mês; para mensalidade por PIX, use o contrato e gere as parcelas acima.</div></div></div>
             <div class="cartao-corpo config-grade">
               <div class="campo"><label for="of-nome">Nome da oferta</label><input id="of-nome" name="nome" maxlength="80" autocomplete="off" placeholder="Ex.: Diagnóstico completo do site" required></div>
               <div class="campo"><label for="of-valor">Preço (R$)</label><input id="of-valor" name="valor" inputmode="numeric" data-dinheiro autocomplete="off" required></div>

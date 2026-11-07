@@ -255,7 +255,7 @@ test("cobrança: 12 parcelas, e só a que vence em 15 dias vai para o Asaas", as
 
     assert.equal(api.estado.pagamentos.length, 1);
     const p = api.estado.pagamentos[0];
-    assert.deepEqual([p.billingType, p.value, p.dueDate, p.fine.value, p.fine.type, p.interest.value], ["UNDEFINED", 500, "2026-12-05", 2, "PERCENTAGE", 1]);
+    assert.deepEqual([p.billingType, p.value, p.dueDate, p.fine.value, p.fine.type, p.interest.value], ["PIX", 500, "2026-12-05", 2, "PERCENTAGE", 1]);
     assert.match(p.description, /parcela 1 de 12/);
     assert.equal(api.estado.clientes[0].cpfCnpj, "11222333000181");
     assert.ok(api.estado.chamadas.every((c) => c.cabecalhos["User-Agent"] && c.cabecalhos.access_token === CHAVE));
