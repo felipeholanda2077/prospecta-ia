@@ -4158,7 +4158,9 @@ function checklistDoNumero(n) {
   if (t) item(t.status === "APPROVED", `Template <code>${esc(t.nome)}</code> aprovado`, t.status === "APPROVED" ? "" : `Nesta conta ele está: ${esc((SITUACAO_TEMPLATE[t.status] ?? [t.status])[0])}. Crie ou aprove o template na BM do número.`, link(links?.templates, "Abrir templates"));
   else item(false, "Template", "O sistema não conseguiu ler os templates desta conta com o token. Confira na Meta se o template do primeiro contato existe e está aprovado nesta BM.", link(links?.templates, "Abrir templates"));
   for (const e of erros.filter((e) => !ERROS_TRATADOS_WA.includes(e.codigo))) item(false, esc(e.descricao || `Aviso ${e.codigo}`), esc(e.solucao || ""));
-  return `<ul class="checklist">${itens.join("")}</ul>`;
+  const trocar = n.tokenProprio ? `<details style="margin-top:8px"><summary class="muted" style="cursor:pointer;font-size:13px">Trocar o token deste número</summary>
+    <form data-oficial-token="${esc(n.id)}" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"><input name="token" type="password" autocomplete="off" placeholder="Token novo da BM do número" required style="flex:1;min-width:200px"><button class="btn" type="submit">Trocar e corrigir</button></form></details>` : "";
+  return `<ul class="checklist">${itens.join("")}</ul>${trocar}`;
 }
 
 async function carregarNumerosOficiais() {
@@ -4317,6 +4319,22 @@ $("#oficial-numeros").addEventListener("click", async (ev) => {
 $("#oficial-numeros").addEventListener("submit", async (ev) => {
   const registrar = ev.target.dataset?.oficialRegistrar;
   const confirmar = ev.target.dataset?.oficialConfirmar;
+  const tokenDo = ev.target.dataset?.oficialToken;
+  if (tokenDo) {
+    ev.preventDefault();
+    const btn = ev.submitter;
+    btn.disabled = true;
+    try {
+      const r = await api(`/api/whatsapp-oficial/numeros/${encodeURIComponent(tokenDo)}/token`, { method: "PUT", body: JSON.stringify({ token: ev.target.token.value }) });
+      avisar(r.falhou?.length ? `Token trocado. Ainda falta: ${r.falhou.join("; ")}` : `Token trocado. ${r.feito?.length ? `Corrigido na Meta: ${r.feito.join(", ")}` : ""}`, r.falhou?.length ? "perigo" : "ok", 9000);
+      await carregarNumerosOficiais();
+    } catch (e) {
+      avisar(e.message, "perigo", 8000);
+    } finally {
+      btn.disabled = false;
+    }
+    return;
+  }
   const contaDo = ev.target.dataset?.oficialConta;
   if (contaDo) {
     ev.preventDefault();

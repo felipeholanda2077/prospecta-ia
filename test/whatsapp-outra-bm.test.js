@@ -109,6 +109,12 @@ test("outra BM (token sem lista de contas): lista os números do token, adiciona
     await assert.rejects(wa.definirContaDoNumero("meta-7771", "900"), /não abriu essa conta|não tem este número/);
     await wa.definirContaDoNumero("meta-7771", "800");
     assert.equal((await db.lerConfig("whatsapp_oficial")).extras.find((e) => e.phoneNumberId === "7771").contaId, "800");
+
+    // Trocar o token: recusa token que não enxerga o número; o novo fica guardado e já corrige.
+    await assert.rejects(wa.trocarTokenDoNumero("meta-7771", "EAAprincipal"), /não encontrou/);
+    const troca = await wa.trocarTokenDoNumero("meta-7771", "EAAoutra");
+    assert.deepEqual(troca.falhou, []);
+    await assert.rejects(wa.trocarTokenDoNumero("meta-5551", "EAAoutra"), /formulário da conexão/);
   } finally {
     meta.restaurar();
   }

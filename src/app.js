@@ -2037,6 +2037,7 @@ app.post("/api/whatsapp-oficial/numeros/:id/corrigir", comErro(async (req) => {
   const r = await whatsappOficial.corrigirNaMeta(req.params.id);
   return { ok: true, ...r, status: await whatsappOficial.statusOficial(req.params.id).catch(() => null) };
 }));
+app.put("/api/whatsapp-oficial/numeros/:id/token", comErro(async (req) => ({ ok: true, ...(await whatsappOficial.trocarTokenDoNumero(req.params.id, req.body?.token)) })));
 app.put("/api/whatsapp-oficial/numeros/:id/conta", comErro(async (req) => {
   await whatsappOficial.definirContaDoNumero(req.params.id, req.body?.contaId);
   return { ok: true };

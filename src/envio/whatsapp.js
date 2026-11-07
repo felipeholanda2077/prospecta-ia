@@ -221,7 +221,7 @@ export async function corrigirNaMeta(numeroId = null) {
   const c = numeroId ? await numeroParaGerenciar(numeroId) : await obterConfig();
   if (!c.token || !c.phoneNumberId) throw new Error("Salve o token e o número da Meta antes");
   const conta = await contaDoNumero(c);
-  if (!conta) throw new Error(`O sistema não achou a conta do WhatsApp Business deste número. Informe o ID da conta no cartão do número (Gerenciador do WhatsApp → Configurações da conta).${ultimoMotivo ? ` Resposta da Meta: ${ultimoMotivo}` : ""}`);
+  if (!conta) throw new Error(semPermissao(ultimoMotivo) ? SEM_GERENCIAR : `O sistema não achou a conta do WhatsApp Business deste número. Informe o ID da conta no cartão do número (Gerenciador do WhatsApp → Configurações da conta).${ultimoMotivo ? ` Resposta da Meta: ${ultimoMotivo}` : ""}`);
   const feito = [], falhou = [];
   const w = await graph(c, `${conta}?fields=timezone_id`).catch(() => ({}));
   if (!w.timezone_id) {
@@ -432,12 +432,15 @@ export async function adicionarNumero({ nome, phoneNumberId, token, template, id
   return { id, nome: novo.nome, numero: n.display_phone_number ?? null, correcao };
 }
 
+const semPermissao = (texto) => /Missing Permission|\(#10\)|\(#200\)/i.test(String(texto ?? ""));
+const SEM_GERENCIAR = "O token deste número só envia mensagens: falta a permissão de gerenciar a conta do WhatsApp. Gere um token novo no usuário do sistema da BM do número, com a conta do WhatsApp atribuída (controle total) e as permissões whatsapp_business_management e whatsapp_business_messaging, e cole no lugar do atual.";
+
 /** Guarda o ID da conta do WhatsApp Business de um número (quando o sistema não consegue achar sozinho). */
 export async function definirContaDoNumero(numeroId, contaId) {
   const id = String(contaId ?? "").replace(/\D/g, "");
   if (!id) throw new Error("Informe o ID da conta do WhatsApp Business (só números)");
   const c = await numeroParaGerenciar(numeroId);
-  const r = await graph(c, `${id}/phone_numbers?fields=id&limit=100`).catch((e) => { throw new Error(`A Meta não abriu essa conta com o token deste número: ${e.message}`); });
+  const r = await graph(c, `${id}/phone_numbers?fields=id&limit=100`).catch((e) => { throw new Error(semPermissao(e.daMeta) ? SEM_GERENCIAR : `A Meta não abriu essa conta com o token deste número: ${e.daMeta ?? e.message}`); });
   if (!(r.data ?? []).some((p) => String(p.id) === String(c.phoneNumberId))) throw new Error("Essa conta não tem este número. Confira o ID no Gerenciador do WhatsApp.");
   const atual = (await db.lerConfig(CHAVE)) ?? {};
   const extras = Array.isArray(atual.extras) ? atual.extras : [];
@@ -446,6 +449,22 @@ export async function definirContaDoNumero(numeroId, contaId) {
   await db.gravarConfig(CHAVE, alvo ? { ...atual, extras } : { ...atual, contaId: id });
   contaPorNumero.set(String(c.phoneNumberId), id);
   cacheAte = 0;
+}
+
+/** Troca o token de um número de outra BM (confere com a Meta antes) e já tenta corrigir o que falta. */
+export async function trocarTokenDoNumero(numeroId, token) {
+  const tk = String(token ?? "").trim();
+  if (!tk) throw new Error("Cole o token novo");
+  const atual = (await db.lerConfig(CHAVE)) ?? {};
+  const extras = Array.isArray(atual.extras) ? atual.extras : [];
+  const alvo = extras.find((e) => idDoNumeroOficial(e.phoneNumberId) === numeroId);
+  if (!alvo) throw new Error("Para o número principal, troque o token no formulário da conexão, acima.");
+  await graph({ apiVersion: config.whatsapp.apiVersion }, `${alvo.phoneNumberId}?fields=display_phone_number`, tk);
+  alvo.token = tk;
+  await db.gravarConfig(CHAVE, { ...atual, extras });
+  contaPorNumero.delete(String(alvo.phoneNumberId));
+  cacheAte = 0;
+  return corrigirNaMeta(numeroId).catch((e) => ({ feito: [], falhou: [e.message] }));
 }
 
 /** Liga ou desliga um número extra (o principal liga e desliga com a API oficial inteira). */
