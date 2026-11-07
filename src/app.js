@@ -222,8 +222,10 @@ app.get("/webhooks/whatsapp", async (req, res) => {
 });
 
 app.post("/webhooks/whatsapp", async (req, res) => {
-  const { appSecret } = await whatsappOficial.obterConfig();
-  if (!assinaturaValida(req.corpoBruto, req.get("x-hub-signature-256"), appSecret)) {
+  // Número de outra BM pode vir por outro app da Meta, com a chave secreta dele.
+  const { appSecret, extras } = await whatsappOficial.obterConfig();
+  const segredos = [appSecret, ...extras.map((e) => e.appSecret)].filter(Boolean);
+  if (!segredos.some((s) => assinaturaValida(req.corpoBruto, req.get("x-hub-signature-256"), s))) {
     return res.sendStatus(401);
   }
   // Processa antes de responder: em ambiente serverless nada roda depois da resposta.
@@ -2027,7 +2029,21 @@ app.get("/api/whatsapp-oficial/numeros", comErro(async () => {
 }));
 app.post("/api/whatsapp-oficial/numeros", comErro(async (req) => {
   const b = req.body ?? {};
-  return { ok: true, numero: await whatsappOficial.adicionarNumero({ nome: b.nome, phoneNumberId: b.phoneNumberId, token: b.token, template: b.template, idioma: b.idioma }) };
+  return { ok: true, numero: await whatsappOficial.adicionarNumero({ nome: b.nome, phoneNumberId: b.phoneNumberId, token: b.token, template: b.template, idioma: b.idioma, appSecret: b.appSecret, contaId: b.contaId }) };
+}));
+// Lista os números que um token acessa (outra BM) ou, sem token, os da BM principal.
+app.post("/api/whatsapp-oficial/numeros/descobrir", comErro(async (req) => ({ numeros: await whatsappOficial.descobrirNumeros(req.body?.token) })));
+app.post("/api/whatsapp-oficial/numeros/:id/corrigir", comErro(async (req) => {
+  const r = await whatsappOficial.corrigirNaMeta(req.params.id);
+  return { ok: true, ...r, status: await whatsappOficial.statusOficial(req.params.id).catch(() => null) };
+}));
+app.post("/api/whatsapp-oficial/numeros/:id/codigo", comErro(async (req) => {
+  await whatsappOficial.pedirCodigo(req.params.id, req.body?.metodo);
+  return { ok: true };
+}));
+app.post("/api/whatsapp-oficial/numeros/:id/confirmar", comErro(async (req) => {
+  await whatsappOficial.confirmarCodigo(req.params.id, req.body?.codigo);
+  return { ok: true, status: await whatsappOficial.statusOficial(req.params.id).catch(() => null) };
 }));
 app.put("/api/whatsapp-oficial/numeros/:id/ativo", comErro(async (req) => {
   await whatsappOficial.definirNumeroAtivo(req.params.id, Boolean(req.body?.ativo));

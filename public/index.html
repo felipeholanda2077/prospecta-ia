@@ -873,6 +873,20 @@
     textarea { min-height: 200px; }
   }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  .passo-num{display:flex;gap:12px;align-items:flex-start}
+  .passo-num .bolinha{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--accent);color:#fff}
+  .escolha-bm{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+  .escolha-bm label,.achado{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);border-radius:12px;cursor:pointer}
+  .escolha-bm label:has(input:checked),.achado:has(input:checked){border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent)}
+  .escolha-bm span,.achado span{display:block;font-size:12px;color:var(--muted)}
+  .achado.desligado{opacity:.55;cursor:not-allowed}
+  .escolha-bm input[type=radio],.achado input[type=radio]{width:16px;height:16px;flex:none;margin:3px 0 0;padding:0;box-shadow:none;accent-color:var(--accent)}
+  .checklist{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+  .checklist li{display:flex;gap:10px;align-items:flex-start;font-size:13px}
+  .checklist .marca{flex:none;width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700}
+  .checklist .ok .marca{background:var(--ok);color:#fff}
+  .checklist .falta .marca{background:var(--warn);color:#fff}
+  .checklist .acao{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
 </style>
 </head>
 <body>
@@ -1123,14 +1137,49 @@
               <div><b>Números oficiais</b><div class="muted" style="font-size:13px">A IA usa todos os números ligados. Cada empresa fica sempre no mesmo número; as novas vão para o que mandou menos no dia. O mesmo webhook recebe as respostas de todos.</div></div>
               <div id="oficial-numeros" style="display:grid;gap:8px"></div>
               <details id="oficial-novo-det"><summary class="btn" style="width:max-content;list-style:none"><span data-ic="plus"></span>Adicionar outro número</summary>
-                <form id="form-oficial-novo" class="config-grade" style="margin-top:12px">
-                  <div class="campo"><label for="oficial-novo-nome">Nome (para você reconhecer)</label><input id="oficial-novo-nome" name="nome" maxlength="40" placeholder="Ex.: Vendas 2"></div>
-                  <div class="campo"><label for="oficial-novo-id">ID do número de telefone</label><input id="oficial-novo-id" name="phoneNumberId" inputmode="numeric" placeholder="Ex.: 123456789012345" required></div>
-                  <div class="campo" style="grid-column:1/-1"><label for="oficial-novo-token">Token de acesso (só se o número for de outra conta da Meta)</label><input id="oficial-novo-token" name="token" type="password" autocomplete="off" placeholder="Deixe vazio para usar o token da conexão principal"></div>
-                  <div class="campo"><label for="oficial-novo-template">Template (opcional)</label><input id="oficial-novo-template" name="template" placeholder="Vazio: o mesmo da conexão"></div>
-                  <div class="campo"><label for="oficial-novo-idioma">Idioma do template (opcional)</label><input id="oficial-novo-idioma" name="idioma" placeholder="pt_BR"></div>
-                  <div style="grid-column:1/-1"><button class="btn primario" type="submit"><span data-ic="plus"></span>Conferir com a Meta e adicionar</button></div>
-                </form>
+                <div class="novo-numero" style="margin-top:12px;display:grid;gap:14px">
+                  <div class="passo-num"><span class="bolinha">1</span><div style="flex:1;display:grid;gap:8px">
+                    <b>De qual BM (conta da Meta) é o número?</b>
+                    <div class="escolha-bm">
+                      <label><input type="radio" name="oficial-bm" value="mesma" checked><div><b>Mesma BM da conexão principal</b><span>O sistema já tem acesso: é só escolher o número.</span></div></label>
+                      <label><input type="radio" name="oficial-bm" value="outra"><div><b>Outra BM</b><span>Número de outra empresa ou de outra conta da Meta. Precisa de um token dessa BM.</span></div></label>
+                    </div>
+                  </div></div>
+                  <div class="passo-num" id="oficial-passo-token" hidden><span class="bolinha">2</span><div style="flex:1;display:grid;gap:8px">
+                    <b>Cole o token de acesso da outra BM</b>
+                    <input id="oficial-novo-token" type="password" autocomplete="off" placeholder="Token permanente do usuário do sistema da outra BM">
+                    <details class="ajuda"><summary>Como gerar esse token (2 minutos)</summary>
+                      <ol class="muted" style="font-size:13px;margin:8px 0 0;padding-left:18px;display:grid;gap:6px">
+                        <li>Entre em <a href="https://business.facebook.com/settings/system-users" target="_blank" rel="noopener">business.facebook.com → Configurações do negócio → Usuários do sistema</a> <b>com a outra BM selecionada</b> no topo.</li>
+                        <li>Crie um usuário do sistema <b>Administrador</b> (ou use um que já existe).</li>
+                        <li>Clique em <b>Atribuir ativos</b> → <b>Contas do WhatsApp</b> → marque a conta do número → <b>Controle total</b>.</li>
+                        <li>Clique em <b>Gerar token</b>, escolha o app, validade <b>Nunca</b>, e marque <code>whatsapp_business_messaging</code> e <code>whatsapp_business_management</code>.</li>
+                        <li>Copie o token e cole aqui.</li>
+                      </ol></details>
+                  </div></div>
+                  <div class="passo-num"><span class="bolinha" id="oficial-bolinha-buscar">2</span><div style="flex:1;display:grid;gap:8px">
+                    <b>Escolha o número</b>
+                    <button class="btn" type="button" id="oficial-buscar"><span data-ic="search"></span>Buscar números na Meta</button>
+                    <div id="oficial-encontrados" style="display:grid;gap:8px"></div>
+                  </div></div>
+                  <form id="form-oficial-novo" class="passo-num" hidden><span class="bolinha" id="oficial-bolinha-final">3</span><div style="flex:1;display:grid;gap:10px">
+                    <b>Confirme e adicione</b>
+                    <div class="campo"><label for="oficial-novo-nome">Nome (para você reconhecer)</label><input id="oficial-novo-nome" name="nome" maxlength="40" placeholder="Ex.: Vendas 2"></div>
+                    <input type="hidden" id="oficial-novo-id" name="phoneNumberId"><input type="hidden" id="oficial-novo-conta" name="contaId">
+                    <details><summary class="muted" style="cursor:pointer;font-size:13px">Opções avançadas (template e app diferentes)</summary>
+                      <div class="config-grade" style="margin-top:10px">
+                        <div class="campo"><label for="oficial-novo-template">Template (opcional)</label><input id="oficial-novo-template" name="template" placeholder="Vazio: o mesmo da conexão"></div>
+                        <div class="campo"><label for="oficial-novo-idioma">Idioma do template (opcional)</label><input id="oficial-novo-idioma" name="idioma" placeholder="pt_BR"></div>
+                        <div class="campo" style="grid-column:1/-1"><label for="oficial-novo-segredo">Chave secreta do app (só se o token for de outro app da Meta)</label><input id="oficial-novo-segredo" name="appSecret" type="password" autocomplete="off" placeholder="Vazio: o mesmo app da conexão principal"></div>
+                      </div>
+                    </details>
+                    <div><button class="btn primario" type="submit"><span data-ic="plus"></span>Adicionar e deixar pronto na Meta</button></div>
+                    <div class="muted" style="font-size:12px">Ao adicionar, o sistema já define o fuso horário da conta (se faltar) e liga as respostas desse número.</div>
+                  </div></form>
+                  <details><summary class="muted" style="cursor:pointer;font-size:13px">Prefere digitar o ID do número?</summary>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"><input id="oficial-id-manual" inputmode="numeric" placeholder="ID do número de telefone" style="max-width:240px"><button class="btn fantasma" type="button" id="oficial-usar-id">Usar este ID</button></div>
+                  </details>
+                </div>
               </details>
             </div>
             <details><summary class="muted" style="cursor:pointer;font-size:13px">Onde pegar cada dado na Meta</summary>
@@ -4076,26 +4125,59 @@ $("#oficial-ativo").addEventListener("change", async (ev) => {
 
 $("#oficial-atualizar").addEventListener("click", () => { carregarStatusOficial(); carregarNumerosOficiais(); });
 // ---------- Vários números na API oficial ----------
+const ERROS_TRATADOS_WA = [141006, 141007, 141010];
+
+/** Lista do que falta para o número enviar, cada item com a ação que resolve. */
+function checklistDoNumero(n) {
+  if (n.erro) return `<ul class="checklist"><li class="falta"><span class="marca">!</span><div><b>O sistema não consegue ler este número na Meta</b><br>${esc(n.erro)}<br>Confira o token: ele precisa ser da BM do número, com a conta do WhatsApp marcada.</div></li></ul>`;
+  const st = n.status, s = st?.situacao, conta = st?.conta, links = conta?.links ?? (n.principal ? { conta: CONTA_WA_NA_META, pagamento: CONTA_WA_NA_META, verificacao: CONTA_WA_NA_META } : null);
+  if (!s) return "";
+  const erros = (s.erros ?? []).filter((e) => !ERROS_DE_CHAMADA_WA.includes(e.codigo));
+  const tem = (codigo) => erros.some((e) => e.codigo === codigo);
+  const link = (url, texto) => url ? `<a class="btn fantasma" href="${esc(url)}" target="_blank" rel="noopener">${texto}</a>` : "";
+  const itens = [];
+  const item = (ok, titulo, detalhe = "", acao = "") => itens.push(`<li class="${ok ? "ok" : "falta"}"><span class="marca">${ok ? "✓" : "!"}</span><div style="flex:1"><b>${titulo}</b>${detalhe ? `<br><span class="muted">${detalhe}</span>` : ""}${!ok && acao ? `<div class="acao">${acao}</div>` : ""}</div></li>`);
+
+  const semFuso = tem(141007) || (conta && !conta.fuso);
+  if (conta || tem(141007)) item(!semFuso, "Fuso horário da conta", semFuso ? "A Meta não deixa enviar enquanto a conta não tiver fuso. O sistema define o de São Paulo." : "",
+    `<button class="btn primario" type="button" data-oficial-corrigir="${esc(n.id)}">Corrigir agora</button>`);
+  const conectado = s.status === "CONNECTED";
+  const posseOk = conectado || s.verificacao === "VERIFIED";
+  item(posseOk, "Posse do número confirmada", posseOk ? "" : "A Meta manda um código de 6 números para este número, por SMS ou ligação.",
+    `<button class="btn" type="button" data-oficial-codigo="${esc(n.id)}" data-metodo="SMS">Receber código por SMS</button>
+     <button class="btn fantasma" type="button" data-oficial-codigo="${esc(n.id)}" data-metodo="VOICE">Receber por ligação</button>
+     <form data-oficial-confirmar="${esc(n.id)}" style="display:flex;gap:6px;flex-wrap:wrap"><input name="codigo" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Código" aria-label="Código de 6 números" required style="max-width:110px"><button class="btn" type="submit">Confirmar código</button></form>`);
+  item(conectado, "Número registrado na API", conectado ? "" : "Escolha um PIN de 6 números. Se o número já tem verificação em duas etapas, use o PIN dela. Anote: o sistema não guarda.",
+    `<form data-oficial-registrar="${esc(n.id)}" style="display:flex;gap:6px;flex-wrap:wrap"><input name="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="off" placeholder="PIN de 6 números" aria-label="PIN de 6 números" required style="max-width:150px"><button class="btn" type="submit">Registrar este número</button></form>`);
+  item(!tem(141006), "Forma de pagamento na Meta", tem(141006) ? `A Meta informa erro na forma de pagamento${conta?.empresaNome ? ` da BM <b>${esc(conta.empresaNome)}</b>` : ""}: sem ela, o primeiro contato com clientes fica bloqueado. Adicione um cartão válido na conta do WhatsApp dessa BM.` : "",
+    link(links?.pagamento, "Abrir pagamentos na Meta") + link(links?.conta, "Abrir conta do WhatsApp"));
+  if (tem(141010)) item(false, "Verificação da empresa", "A Meta ainda não concluiu a verificação desta BM.", link(links?.verificacao, "Ver verificação"));
+  const t = st.template;
+  if (t) item(t.status === "APPROVED", `Template <code>${esc(t.nome)}</code> aprovado`, t.status === "APPROVED" ? "" : `Nesta conta ele está: ${esc((SITUACAO_TEMPLATE[t.status] ?? [t.status])[0])}. Crie ou aprove o template na BM do número.`, link(links?.templates, "Abrir templates"));
+  else item(false, "Template", "O sistema não conseguiu ler os templates desta conta com o token. Confira na Meta se o template do primeiro contato existe e está aprovado nesta BM.", link(links?.templates, "Abrir templates"));
+  for (const e of erros.filter((e) => !ERROS_TRATADOS_WA.includes(e.codigo))) item(false, esc(e.descricao || `Aviso ${e.codigo}`), esc(e.solucao || ""));
+  return `<ul class="checklist">${itens.join("")}</ul>`;
+}
+
 async function carregarNumerosOficiais() {
   const bloco = $("#oficial-numeros-bloco");
   try {
     const { numeros } = await api("/api/whatsapp-oficial/numeros");
     bloco.hidden = !numeros.length;
     $("#oficial-numeros").innerHTML = numeros.map((n) => {
-      const st = n.status, s = st?.situacao;
-      const [rotulo, cor] = n.erro ? ["com erro", "perigo"] : !s ? ["sem situação", ""] : s.pronto ? ["liberado", "ok"] : (SITUACAO_NUMERO_WA[s.status] ?? [s.status ?? "pendente", "atencao"]);
-      const motivos = (s?.erros ?? []).filter((e) => !ERROS_DE_CHAMADA_WA.includes(e.codigo)).map((e) => MOTIVOS_WA[e.codigo] ?? esc(e.descricao)).join("<br>");
+      const st = n.status, s = st?.situacao, conta = st?.conta;
+      const [rotulo, cor] = n.erro ? ["com erro", "perigo"] : !s ? ["sem situação", ""] : s.pronto ? ["pronto para enviar", "ok"] : ["falta resolver", "atencao"];
+      const lista = !n.principal || !s?.pronto ? checklistDoNumero(n) : "";
+      const aberto = !n.erro && s && !s.pronto;
       return `<div class="cartao" style="padding:12px 14px;display:grid;gap:8px" data-numero-oficial="${esc(n.id)}">
         <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-          <b style="flex:1;min-width:140px">${esc(n.nome)}${st?.numero ? ` · ${esc(st.numero)}` : ""}${n.principal ? ` <span class="pilula">principal</span>` : ""}${n.tokenProprio ? ` <span class="pilula">outra conta</span>` : ""}</b>
+          <b style="flex:1;min-width:140px">${esc(n.nome)}${st?.numero ? ` · ${esc(st.numero)}` : ""}${n.principal ? ` <span class="pilula">principal</span>` : ""}${n.tokenProprio ? ` <span class="pilula">outra BM</span>` : ""}</b>
           <span class="pilula ${cor}">${esc(rotulo)}</span>
           ${n.principal ? "" : `<label class="chave" title="Ligar ou desligar este número"><input type="checkbox" data-oficial-ativo="${esc(n.id)}" ${n.ativo ? "checked" : ""}><div><b style="font-size:13px">${n.ativo ? "Ligado" : "Desligado"}</b></div></label>
           <button class="btn fantasma" type="button" data-oficial-remover="${esc(n.id)}" title="Tirar do sistema"><span data-ic-span="trash"></span>Tirar</button>`}
         </div>
-        ${n.erro ? `<div class="muted" style="font-size:13px">${esc(n.erro)}</div>` : motivos ? `<div class="muted" style="font-size:13px">${motivos}</div>` : ""}
-        ${!n.principal && s && s.status !== "CONNECTED" ? `<form class="linha-pin" data-oficial-registrar="${esc(n.id)}" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-          <input name="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}" autocomplete="off" placeholder="PIN de 6 números" aria-label="PIN de 6 números" required style="max-width:170px">
-          <button class="btn" type="submit">Registrar este número</button></form>` : ""}
+        ${conta?.empresaNome || conta?.nome ? `<div class="muted" style="font-size:12px">BM: <b>${esc(conta.empresaNome ?? "—")}</b>${conta.nome ? ` · Conta do WhatsApp: ${esc(conta.nome)}` : ""}</div>` : ""}
+        ${lista ? `<details ${aberto || n.erro ? "open" : ""}><summary class="muted" style="cursor:pointer;font-size:13px">${s?.pronto ? "Tudo certo na Meta" : "O que falta para este número enviar"}</summary><div style="margin-top:8px">${lista}</div></details>` : ""}
       </div>`;
     }).join("");
     $("#oficial-numeros").querySelectorAll("[data-ic-span]").forEach((el) => (el.innerHTML = ic(el.dataset.icSpan)));
@@ -4105,16 +4187,83 @@ async function carregarNumerosOficiais() {
   }
 }
 
+// Adicionar número: escolher a BM, buscar os números que o token enxerga e escolher na lista.
+let encontradosOficiais = [];
+function bmEscolhida() { return document.querySelector('input[name="oficial-bm"]:checked')?.value ?? "mesma"; }
+function atualizarPassosNovo() {
+  const outra = bmEscolhida() === "outra";
+  $("#oficial-passo-token").hidden = !outra;
+  $("#oficial-bolinha-buscar").textContent = outra ? "3" : "2";
+  $("#oficial-bolinha-final").textContent = outra ? "4" : "3";
+  $("#oficial-encontrados").innerHTML = "";
+  $("#form-oficial-novo").hidden = true;
+}
+document.querySelectorAll('input[name="oficial-bm"]').forEach((r) => r.addEventListener("change", atualizarPassosNovo));
+
+function escolherNumeroNovo({ phoneNumberId, contaId = "", nome = "" }) {
+  $("#oficial-novo-id").value = phoneNumberId;
+  $("#oficial-novo-conta").value = contaId;
+  if (!$("#oficial-novo-nome").value) $("#oficial-novo-nome").value = nome;
+  $("#form-oficial-novo").hidden = false;
+}
+
+$("#oficial-buscar").addEventListener("click", async (ev) => {
+  const outra = bmEscolhida() === "outra";
+  const token = $("#oficial-novo-token").value.trim();
+  if (outra && !token) { avisar("Cole o token da outra BM primeiro", "perigo"); $("#oficial-novo-token").focus(); return; }
+  const btn = ev.currentTarget;
+  btn.disabled = true;
+  $("#oficial-encontrados").innerHTML = `<span class="muted" style="font-size:13px">Procurando na Meta…</span>`;
+  try {
+    const { numeros } = await post("/api/whatsapp-oficial/numeros/descobrir", { token: outra ? token : "" });
+    encontradosOficiais = numeros;
+    $("#oficial-encontrados").innerHTML = numeros.map((n, i) => `<label class="achado ${n.noSistema ? "desligado" : ""}">
+        <input type="radio" name="oficial-achado" value="${i}" ${n.noSistema ? "disabled" : ""}>
+        <div><b>${esc(n.numero ?? n.phoneNumberId)}${n.nome ? ` · ${esc(n.nome)}` : ""}</b>
+        <span>${n.empresa ? `BM ${esc(n.empresa)} · ` : ""}${n.conta ? `conta ${esc(n.conta)}` : ""}${n.noSistema ? " · já está no sistema" : ""}</span></div></label>`).join("");
+    const livres = numeros.filter((n) => !n.noSistema);
+    if (!livres.length) $("#oficial-encontrados").insertAdjacentHTML("beforeend", `<span class="muted" style="font-size:13px">Todos os números deste token já estão no sistema.</span>`);
+    if (livres.length === 1) {
+      const i = numeros.indexOf(livres[0]);
+      $("#oficial-encontrados").querySelector(`input[value="${i}"]`).checked = true;
+      escolherNumeroNovo(livres[0]);
+    }
+  } catch (e) {
+    $("#oficial-encontrados").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+$("#oficial-encontrados").addEventListener("change", (ev) => {
+  if (ev.target.name !== "oficial-achado") return;
+  const n = encontradosOficiais[Number(ev.target.value)];
+  $("#oficial-novo-nome").value = "";
+  if (n) escolherNumeroNovo(n);
+});
+
+$("#oficial-usar-id").addEventListener("click", () => {
+  const id = $("#oficial-id-manual").value.replace(/\D/g, "");
+  if (!id) { avisar("Digite o ID do número", "perigo"); return; }
+  escolherNumeroNovo({ phoneNumberId: id });
+});
+
 $("#form-oficial-novo").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const btn = ev.submitter;
   btn.disabled = true;
   try {
-    const r = await post("/api/whatsapp-oficial/numeros", Object.fromEntries(new FormData(ev.target)));
+    const dados = Object.fromEntries(new FormData(ev.target));
+    if (bmEscolhida() === "outra") dados.token = $("#oficial-novo-token").value.trim();
+    const r = await post("/api/whatsapp-oficial/numeros", dados);
     ev.target.reset();
+    $("#oficial-novo-token").value = "";
+    $("#oficial-id-manual").value = "";
+    atualizarPassosNovo();
     $("#oficial-novo-det").open = false;
     await carregarNumerosOficiais();
-    avisar(`Número "${r.numero.nome}" adicionado. Se ele ainda não estiver liberado, registre com o PIN.`, "ok");
+    const falhou = r.numero.correcao?.falhou ?? [];
+    avisar(`Número "${r.numero.nome}" adicionado.${falhou.length ? " Veja no cartão dele o que ainda falta." : " Confira no cartão dele se falta algo na Meta."}`, falhou.length ? "info" : "ok", 6000);
   } catch (e) {
     avisar(e.message, "perigo");
   } finally {
@@ -4136,31 +4285,52 @@ $("#oficial-numeros").addEventListener("change", async (ev) => {
 });
 
 $("#oficial-numeros").addEventListener("click", async (ev) => {
-  const b = ev.target.closest("[data-oficial-remover]");
+  const remover = ev.target.closest("[data-oficial-remover]");
+  const corrigir = ev.target.closest("[data-oficial-corrigir]");
+  const codigo = ev.target.closest("[data-oficial-codigo]");
+  const b = remover || corrigir || codigo;
   if (!b) return;
-  if (!confirm("Tirar este número do sistema? Nada muda na Meta, e as conversas dele passam a sair pelos outros números.")) return;
+  if (remover && !confirm("Tirar este número do sistema? Nada muda na Meta, e as conversas dele passam a sair pelos outros números.")) return;
+  b.disabled = true;
   try {
-    await api(`/api/whatsapp-oficial/numeros/${encodeURIComponent(b.dataset.oficialRemover)}`, { method: "DELETE" });
+    if (remover) {
+      await api(`/api/whatsapp-oficial/numeros/${encodeURIComponent(b.dataset.oficialRemover)}`, { method: "DELETE" });
+      avisar("Número tirado do sistema", "ok");
+    } else if (corrigir) {
+      const r = await post(`/api/whatsapp-oficial/numeros/${encodeURIComponent(b.dataset.oficialCorrigir)}/corrigir`, {});
+      avisar(r.falhou.length ? `A Meta recusou: ${r.falhou.join("; ")}` : `Corrigido na Meta: ${r.feito.join(", ")}`, r.falhou.length ? "perigo" : "ok", 7000);
+    } else {
+      await post(`/api/whatsapp-oficial/numeros/${encodeURIComponent(b.dataset.oficialCodigo)}/codigo`, { metodo: b.dataset.metodo });
+      avisar(b.dataset.metodo === "VOICE" ? "A Meta vai ligar para o número com o código. Digite ele ao lado." : "A Meta mandou um SMS com o código para o número. Digite ele ao lado.", "ok", 7000);
+      return;
+    }
     await carregarNumerosOficiais();
-    avisar("Número tirado do sistema", "ok");
   } catch (e) {
-    avisar(e.message, "perigo");
+    avisar(e.message, "perigo", 7000);
+  } finally {
+    b.disabled = false;
   }
 });
 
 $("#oficial-numeros").addEventListener("submit", async (ev) => {
-  const id = ev.target.dataset?.oficialRegistrar;
-  if (!id) return;
+  const registrar = ev.target.dataset?.oficialRegistrar;
+  const confirmar = ev.target.dataset?.oficialConfirmar;
+  if (!registrar && !confirmar) return;
   ev.preventDefault();
-  if (!confirm("Registrar este número na API oficial? Se ele estiver em uso em um celular ou na UAZap, pode parar de funcionar lá.")) return;
+  if (registrar && !confirm("Registrar este número na API oficial? Se ele estiver em uso em um celular ou na UAZap, pode parar de funcionar lá.")) return;
   const btn = ev.submitter;
   btn.disabled = true;
   try {
-    const r = await post(`/api/whatsapp-oficial/numeros/${encodeURIComponent(id)}/registrar`, { pin: ev.target.pin.value });
+    if (registrar) {
+      const r = await post(`/api/whatsapp-oficial/numeros/${encodeURIComponent(registrar)}/registrar`, { pin: ev.target.pin.value });
+      avisar(r.status?.situacao?.pronto ? "Número registrado e liberado para enviar" : "A Meta aceitou o registro. Veja no cartão o que ainda falta.", "ok");
+    } else {
+      await post(`/api/whatsapp-oficial/numeros/${encodeURIComponent(confirmar)}/confirmar`, { codigo: ev.target.codigo.value });
+      avisar("Posse do número confirmada. Agora registre com o PIN.", "ok");
+    }
     await carregarNumerosOficiais();
-    avisar(r.status?.situacao?.pronto ? "Número registrado e liberado para enviar" : "A Meta aceitou o registro. Confira a situação do número.", "ok");
   } catch (e) {
-    avisar(e.message, "perigo");
+    avisar(e.message, "perigo", 7000);
   } finally {
     btn.disabled = false;
   }

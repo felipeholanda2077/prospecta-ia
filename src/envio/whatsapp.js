@@ -59,17 +59,26 @@ export async function numerosOficiais({ ativos = false } = {}) {
   if (c.phoneNumberId) lista.push({ id: idDoNumeroOficial(c.phoneNumberId), nome: "Principal", principal: true, phoneNumberId: c.phoneNumberId, ativo: true, tokenProprio: false });
   for (const e of c.extras) {
     if (!e?.phoneNumberId || lista.some((n) => n.phoneNumberId === e.phoneNumberId)) continue;
-    lista.push({ id: idDoNumeroOficial(e.phoneNumberId), nome: e.nome || "Número", principal: false, phoneNumberId: e.phoneNumberId, ativo: e.ativo !== false, tokenProprio: Boolean(e.token), template: e.template || "", idioma: e.idioma || "" });
+    lista.push({ id: idDoNumeroOficial(e.phoneNumberId), nome: e.nome || "Número", principal: false, phoneNumberId: e.phoneNumberId, ativo: e.ativo !== false, tokenProprio: Boolean(e.token), segredoProprio: Boolean(e.appSecret), template: e.template || "", idioma: e.idioma || "" });
   }
   return ativos ? lista.filter((n) => n.ativo) : lista;
 }
 
 /** Token, número e template de um envio: os do número escolhido, ou os da conexão quando ele não tem próprios. */
-async function dadosDoNumero(numeroId) {
+async function dadosDoNumero(numeroId, { soAtivos = true } = {}) {
   const c = await obterConfig();
-  const extra = numeroId ? c.extras.find((e) => idDoNumeroOficial(e.phoneNumberId) === numeroId && e.ativo !== false) : null;
+  const extra = numeroId ? c.extras.find((e) => idDoNumeroOficial(e.phoneNumberId) === numeroId && (!soAtivos || e.ativo !== false)) : null;
   if (!extra) return { ...c, numeroId: c.phoneNumberId ? idDoNumeroOficial(c.phoneNumberId) : null };
-  return { ...c, token: extra.token || c.token, phoneNumberId: extra.phoneNumberId, template: extra.template || c.template, idioma: extra.idioma || c.idioma, numeroId };
+  return { ...c, token: extra.token || c.token, phoneNumberId: extra.phoneNumberId, template: extra.template || c.template, idioma: extra.idioma || c.idioma, contaId: extra.contaId || null, numeroId };
+}
+
+/** Os dados de um número para conferir e corrigir na Meta, ligado ou não. Número desconhecido é erro. */
+async function numeroParaGerenciar(numeroId) {
+  const c = await obterConfig();
+  if (numeroId && numeroId !== idDoNumeroOficial(c.phoneNumberId) && !c.extras.some((e) => idDoNumeroOficial(e.phoneNumberId) === numeroId)) {
+    throw new Error("Número não encontrado");
+  }
+  return dadosDoNumero(numeroId, { soAtivos: false });
 }
 
 /** A API oficial está ligada e com token e número: o WhatsApp sai por ela. */
@@ -78,11 +87,12 @@ export async function oficialAtiva() {
   return Boolean(c.ativo && c.token && c.phoneNumberId);
 }
 
-async function graph(c, caminho, token = c.token) {
+async function graph(c, caminho, token = c.token, corpo = null) {
   let resp;
   try {
     resp = await fetch(`https://graph.facebook.com/${c.apiVersion}/${caminho}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      ...(corpo ? { method: "POST", body: JSON.stringify(corpo) } : {}),
+      headers: { Authorization: `Bearer ${token}`, ...(corpo ? { "Content-Type": "application/json" } : {}) },
       signal: AbortSignal.timeout(20_000),
     });
   } catch {
@@ -100,7 +110,7 @@ async function graph(c, caminho, token = c.token) {
 
 /** Dados do número na Meta (nome verificado, número e qualidade), para o painel. */
 export async function statusOficial(numeroId = null) {
-  const c = numeroId ? await dadosDoNumero(numeroId) : await obterConfig();
+  const c = numeroId ? await numeroParaGerenciar(numeroId) : await obterConfig();
   if (!c.token || !c.phoneNumberId) return { configurada: false, ativo: c.ativo };
   const n = await graph(c, `${c.phoneNumberId}?fields=display_phone_number,verified_name,quality_rating`);
   return {
@@ -111,7 +121,156 @@ export async function statusOficial(numeroId = null) {
     qualidade: n.quality_rating ?? null,
     situacao: await situacaoDoNumero(c),
     template: await situacaoDoTemplate(c),
+    conta: await infoDaConta(c),
   };
+}
+
+// ---------- Conta do WhatsApp Business (WABA) de cada número ----------
+
+/** Fuso horário de São Paulo na lista da Meta (timezone_id). Sem fuso, a Meta bloqueia os envios (erro 141007). */
+export const FUSO_SAO_PAULO = "25";
+const contaPorNumero = new Map();
+
+/** Contas do WhatsApp Business que o token acessa (as que foram marcadas ao gerar o token). */
+async function contasDoToken(c, token = c.token) {
+  const dbg = await graph(c, `debug_token?input_token=${encodeURIComponent(token)}`, token);
+  return [...new Set(
+    (dbg.data?.granular_scopes ?? [])
+      .filter((s) => /whatsapp_business_(management|messaging)/.test(s.scope))
+      .flatMap((s) => s.target_ids ?? [])
+  )];
+}
+
+/** Id da conta do WhatsApp Business que tem este número (procura nas contas do token; guarda na memória). */
+async function contaDoNumero(c) {
+  if (c.contaId) return c.contaId;
+  const chave = `${c.phoneNumberId}`;
+  if (contaPorNumero.has(chave)) return contaPorNumero.get(chave);
+  for (const conta of await contasDoToken(c)) {
+    const r = await graph(c, `${conta}/phone_numbers?fields=id&limit=100`).catch(() => null);
+    if ((r?.data ?? []).some((p) => String(p.id) === String(c.phoneNumberId))) {
+      contaPorNumero.set(chave, conta);
+      return conta;
+    }
+  }
+  return null;
+}
+
+/**
+ * Nome, empresa (BM) e fuso da conta do número, com os links certos da Meta para ela.
+ * Número de outra BM tem links da BM dele, não da principal. Retorna null se não der para ler.
+ */
+async function infoDaConta(c) {
+  try {
+    const id = await contaDoNumero(c);
+    if (!id) return null;
+    const w = await graph(c, `${id}?fields=name,timezone_id,owner_business_info`);
+    const empresa = w.owner_business_info?.id ?? null;
+    const base = "https://business.facebook.com/latest";
+    return {
+      id,
+      nome: w.name ?? null,
+      empresaId: empresa,
+      empresaNome: w.owner_business_info?.name ?? null,
+      fuso: w.timezone_id ? String(w.timezone_id) : null,
+      links: empresa ? {
+        conta: `${base}/settings/whatsapp_account?business_id=${empresa}&selected_asset_id=${id}&selected_asset_type=whatsapp-business-account`,
+        pagamento: `https://business.facebook.com/billing_hub/payment_settings/?business_id=${empresa}&asset_id=${id}&payment_account_id=${id}`,
+        verificacao: `https://business.facebook.com/settings/security?business_id=${empresa}`,
+        templates: `${base}/whatsapp_manager/message_templates?business_id=${empresa}&asset_id=${id}`,
+      } : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Corrige na Meta o que dá para corrigir pela API: define o fuso de São Paulo se a conta estiver sem fuso
+ * e liga o app do sistema à conta (para as respostas chegarem pelo webhook). Diz o que fez e o que falhou.
+ */
+export async function corrigirNaMeta(numeroId = null) {
+  const c = numeroId ? await numeroParaGerenciar(numeroId) : await obterConfig();
+  if (!c.token || !c.phoneNumberId) throw new Error("Salve o token e o número da Meta antes");
+  const conta = await contaDoNumero(c);
+  if (!conta) throw new Error("O token deste número não dá acesso à conta do WhatsApp Business dele. Gere o token marcando a conta do WhatsApp e as permissões whatsapp_business_management e whatsapp_business_messaging.");
+  const feito = [], falhou = [];
+  const w = await graph(c, `${conta}?fields=timezone_id`).catch(() => ({}));
+  if (!w.timezone_id) {
+    try { await graph(c, conta, c.token, { timezone_id: FUSO_SAO_PAULO }); feito.push("fuso horário definido (São Paulo)"); }
+    catch (e) { falhou.push(`fuso horário: ${e.message}`); }
+  }
+  try { await graph(c, `${conta}/subscribed_apps`, c.token, {}); feito.push("respostas ligadas ao sistema"); }
+  catch (e) { falhou.push(`respostas: ${e.message}`); }
+  return { feito, falhou };
+}
+
+/**
+ * Números que um token acessa, para escolher na lista em vez de procurar o ID na Meta.
+ * Sem token, usa o da conexão principal (números da mesma BM).
+ */
+export async function descobrirNumeros(token) {
+  const atual = (await db.lerConfig(CHAVE)) ?? {};
+  const tk = String(token ?? "").trim() || atual.token || config.whatsapp.token;
+  if (!tk) throw new Error("Cole o token de acesso da outra BM");
+  const c = { apiVersion: config.whatsapp.apiVersion, token: tk };
+  const contas = await contasDoToken(c);
+  if (!contas.length) throw new Error("Este token não dá acesso a nenhuma conta do WhatsApp Business. Ao gerar o token, marque a conta do WhatsApp e as permissões whatsapp_business_management e whatsapp_business_messaging.");
+  const noSistema = new Set([atual.phoneNumberId, config.whatsapp.phoneNumberId, ...(atual.extras ?? []).map((e) => e.phoneNumberId)].filter(Boolean).map(String));
+  const lista = [];
+  for (const conta of contas) {
+    const w = await graph(c, `${conta}?fields=name,owner_business_info`).catch(() => null);
+    const r = await graph(c, `${conta}/phone_numbers?fields=display_phone_number,verified_name,status&limit=100`).catch(() => null);
+    for (const p of r?.data ?? []) {
+      lista.push({
+        phoneNumberId: String(p.id), numero: p.display_phone_number ?? null, nome: p.verified_name ?? null, status: p.status ?? null,
+        contaId: conta, conta: w?.name ?? null, empresa: w?.owner_business_info?.name ?? null, noSistema: noSistema.has(String(p.id)),
+      });
+    }
+  }
+  if (!lista.length) throw new Error("O token acessa a conta do WhatsApp, mas não achou nenhum número nela. Adicione o número no Gerenciador do WhatsApp da outra BM primeiro.");
+  return lista;
+}
+
+const ERROS_DO_CODIGO = {
+  136024: "A Meta não conseguiu mandar o código para este número. Confira se ele recebe SMS ou ligação.",
+  136025: "O código não confere. Peça um novo e digite os 6 números.",
+  133009: "Tentativas rápidas demais. Espere um minuto e tente de novo.",
+  133010: "Este número ainda não está ligado à conta. Adicione no Gerenciador do WhatsApp.",
+};
+
+async function postNoNumero(c, acao, corpo) {
+  let resp;
+  try {
+    resp = await fetch(`https://graph.facebook.com/${c.apiVersion}/${c.phoneNumberId}/${acao}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${c.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    throw new Error("Não foi possível falar com a Meta agora. Tente de novo em instantes.");
+  }
+  const dados = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const erro = dados.error ?? {};
+    throw new Error(ERROS_DO_CODIGO[erro.code] ?? `A Meta recusou: ${erro.error_data?.details ?? erro.message ?? `erro ${resp.status}`}`);
+  }
+  return dados;
+}
+
+/** Pede à Meta o código que confirma a posse do número (chega por SMS ou ligação no próprio número). */
+export async function pedirCodigo(numeroId, metodo = "SMS") {
+  const c = await numeroParaGerenciar(numeroId);
+  await postNoNumero(c, "request_code", { code_method: metodo === "VOICE" ? "VOICE" : "SMS", language: "pt_BR" });
+}
+
+/** Confere o código de 6 números que chegou no número. */
+export async function confirmarCodigo(numeroId, codigo) {
+  const c = await numeroParaGerenciar(numeroId);
+  const limpo = String(codigo ?? "").replace(/\D/g, "");
+  if (limpo.length !== 6) throw new Error("O código tem 6 números");
+  await postNoNumero(c, "verify_code", { code: limpo });
 }
 
 /**
@@ -150,7 +309,7 @@ const ERROS_DO_REGISTRO = {
 
 /** Registra o número na API oficial, passo que a Meta só aceita pela API. O PIN não é guardado. */
 export async function registrarNumero(pin, numeroId = null) {
-  const c = numeroId ? await dadosDoNumero(numeroId) : await obterConfig();
+  const c = numeroId ? await numeroParaGerenciar(numeroId) : await obterConfig();
   if (!c.token || !c.phoneNumberId) throw new Error("Salve o token e o número da Meta antes de registrar");
   const limpo = String(pin ?? "").trim();
   if (!/^\d{6}$/.test(limpo)) throw new Error("O PIN precisa ter 6 números");
@@ -224,7 +383,7 @@ export async function salvarConfig({ token, phoneNumberId, template, idioma, app
  * Adiciona outro número da API oficial, depois de confirmar com a Meta que ele existe. Sem token próprio,
  * usa o da conexão (número da mesma conta do WhatsApp Business); com token, pode ser de outra conta.
  */
-export async function adicionarNumero({ nome, phoneNumberId, token, template, idioma }) {
+export async function adicionarNumero({ nome, phoneNumberId, token, template, idioma, appSecret, contaId }) {
   const atual = (await db.lerConfig(CHAVE)) ?? {};
   const limpo = (v) => String(v ?? "").trim();
   const pid = limpo(phoneNumberId).replace(/\D/g, "");
@@ -236,10 +395,16 @@ export async function adicionarNumero({ nome, phoneNumberId, token, template, id
   if (tpl && !/^[a-z0-9_]+$/.test(tpl)) throw new Error("O nome do template usa só letras minúsculas, números e _ (como está na Meta)");
   const tk = limpo(token);
   const n = await graph({ apiVersion: config.whatsapp.apiVersion }, `${pid}?fields=display_phone_number,verified_name`, tk || atual.token || config.whatsapp.token);
-  const novo = { nome: limpo(nome).slice(0, 40) || n.verified_name || n.display_phone_number || "Número", phoneNumberId: pid, token: tk, template: tpl, idioma: limpo(idioma), ativo: true, criadoEm: new Date().toISOString() };
+  const novo = {
+    nome: limpo(nome).slice(0, 40) || n.verified_name || n.display_phone_number || "Número", phoneNumberId: pid, token: tk, template: tpl,
+    idioma: limpo(idioma), appSecret: limpo(appSecret), contaId: limpo(contaId).replace(/\D/g, ""), ativo: true, criadoEm: new Date().toISOString(),
+  };
   await db.gravarConfig(CHAVE, { ...atual, extras: [...extras, novo] });
   cacheAte = 0;
-  return { id: idDoNumeroOficial(pid), nome: novo.nome, numero: n.display_phone_number ?? null };
+  const id = idDoNumeroOficial(pid);
+  // Já deixa a conta pronta no que dá pela API (fuso e respostas); o que falhar aparece no cartão do número.
+  const correcao = await corrigirNaMeta(id).catch((e) => ({ feito: [], falhou: [e.message] }));
+  return { id, nome: novo.nome, numero: n.display_phone_number ?? null, correcao };
 }
 
 /** Liga ou desliga um número extra (o principal liga e desliga com a API oficial inteira). */
