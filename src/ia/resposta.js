@@ -211,6 +211,10 @@ const ORIGEM_PROPRIA = {
   whatsapp: " · chamou por conta própria",
   instagram_direct: " · chamou por conta própria no direct do Instagram (pode ser só uma pessoa, não uma empresa)",
   formulario: " · preencheu o formulário do site pedindo contato: é a PRIMEIRA mensagem para a pessoa; cumprimente pelo nome, diga que viu o pedido e responda ao que ela precisa",
+  contador: ` · ESCRITÓRIO DE CONTABILIDADE: a conversa é de PARCERIA DE INDICAÇÃO, não de venda para o escritório. Ele indica clientes que precisam
+de site, sistema ou automação e recebe 10% do primeiro pagamento de cada cliente indicado que fechar contrato. Só diga o percentual se a pessoa
+perguntar como funciona a comissão ou quanto ganha. Não ofereça serviço para o próprio escritório, a menos que a pessoa peça. O próximo passo é uma
+conversa rápida para combinar como as indicações chegam`,
 };
 
 /** Como formatar a mensagem em cada canal. */

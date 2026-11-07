@@ -167,7 +167,8 @@ function linhaDaVaga(lead) {
 const PARCERIA_CONTADOR = `ATENÇÃO, ISTO MUDA A ABORDAGEM: este contato é um ESCRITÓRIO DE CONTABILIDADE, e a proposta é de PARCERIA, não de venda para ele.
 - O escritório atende empresas que estão abrindo ou se organizando e que muitas vezes precisam de site, sistema ou automação. A ideia:
   ele indica esses clientes para a FluxDeck e recebe uma comissão por cliente que fechar.
-- NÃO cite valor nem percentual de comissão (isso se combina na conversa) e NÃO ofereça site ou serviço para o próprio escritório.
+- A comissão é de 10% do primeiro pagamento de cada cliente indicado que fechar, mas NÃO cite o percentual nas mensagens da sequência
+  (só na conversa, se perguntarem). NÃO ofereça site ou serviço para o próprio escritório.
 - Etapa 1: apresente-se em poucas palavras e pergunte se os clientes deles costumam pedir indicação de quem faça site ou sistema.
 - Etapas 2 e 3: explique a parceria em 1 ou 2 frases e convide para uma conversa rápida.
 - Esta instrução vale acima das outras sobre oportunidades e abordagem.
