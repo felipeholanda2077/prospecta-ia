@@ -4,6 +4,9 @@ import { buscarNaSerpApi, podeBuscarSozinho, cortar } from "../descoberta/anunci
 // ("das 9 avaliações dos últimos 3 meses, 6 estão sem resposta"). A API do Google não mostra a resposta do dono;
 // a SerpApi mostra. Gasta 1 busca por empresa, dentro da cota das avaliações no limite do mês.
 const DIAS_RECENTES = 90;
+// Reclamação de atendimento: o cliente não conseguiu falar com a empresa (WhatsApp, telefone, demora, sem retorno).
+// (Só "demora" sozinha não conta: "o prato demorou" é outra coisa.)
+const RECLAMA_DE_ATENDIMENTO = /whats|zap\b|telefone|liguei|ligacao|ligação|n[aã]o (me )?(respond|atend|retorn)|sem (resposta|retorno)|demor\w* (pra|para|a|em) (responder|atender|retornar)|v[aá]cuo|ningu[eé]m atend|visualiz/i;
 export const MIN_AVALIACOES = 5;
 
 /** O resumo das avaliações mais novas: quantas recentes, quantas sem resposta, quantas negativas sem resposta. */
@@ -14,6 +17,7 @@ export function resumoDasAvaliacoes(avaliacoes, agora = new Date()) {
   const semResposta = recentes.filter((a) => !a.response?.snippet);
   const negativas = semResposta.filter((a) => Number(a.rating) <= 3);
   const respostas = lidas.map((a) => a.response?.iso_date).filter(Boolean).sort();
+  const reclamacoes = lidas.filter((a) => Number(a.rating) <= 3 && RECLAMA_DE_ATENDIMENTO.test(String(a.snippet ?? "")));
   return {
     lidas: lidas.length,
     recentes: recentes.length,
@@ -21,6 +25,7 @@ export function resumoDasAvaliacoes(avaliacoes, agora = new Date()) {
     negativasSemResposta: negativas.length,
     ultimaResposta: respostas.at(-1) ?? null,
     exemploNegativa: negativas[0]?.snippet ? cortar(negativas[0].snippet.replace(/\s+/g, " "), 160) : null,
+    reclamamDeAtendimento: reclamacoes.length,
   };
 }
 
@@ -37,6 +42,14 @@ export async function avaliacoesDoGoogle(lead, { agora = new Date() } = {}) {
 
 /** A oportunidade que as avaliações mostram (ou null): várias recentes sem resposta, ou alguma negativa sem resposta. */
 export function oportunidadeDasAvaliacoes(r) {
+  // Cliente reclamando que não consegue falar com a empresa é a dor mais forte para o atendimento automático.
+  if (r?.reclamamDeAtendimento >= 1) {
+    return {
+      servico: "automacao",
+      motivo: `${r.reclamamDeAtendimento} ${r.reclamamDeAtendimento === 1 ? "avaliação negativa no Google reclama" : "avaliações negativas no Google reclamam"} de demora ou de não conseguir falar com a empresa (WhatsApp, telefone, retorno); atendimento automático responde na hora, a qualquer horário`,
+      peso: 11,
+    };
+  }
   if (!r || !(r.semResposta >= 3 || r.negativasSemResposta >= 1)) return null;
   const negativas = r.negativasSemResposta ? ` (${r.negativasSemResposta} ${r.negativasSemResposta === 1 ? "negativa" : "negativas"})` : "";
   return {

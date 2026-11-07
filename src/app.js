@@ -974,6 +974,22 @@ app.post("/api/vagas/capturar", async (req, res) => {
   res.json(await pipeline.capturarDasVagas(empresas.slice(0, 100), String(nicho ?? ""), String(cidade ?? "")));
 });
 
+// Quem paga anúncio no Google para o segmento na cidade (pela SerpApi).
+app.post("/api/googleads/buscar", async (req, res) => {
+  const { nicho, cidade } = req.body ?? {};
+  if (!String(nicho ?? "").trim() || !String(cidade ?? "").trim()) return res.status(400).json({ erro: "Informe o segmento e a cidade" });
+  try {
+    res.json(await pipeline.buscarNoGoogleAds(nicho.trim(), cidade.trim()));
+  } catch (e) {
+    res.status(502).json({ erro: e.message });
+  }
+});
+app.post("/api/googleads/capturar", async (req, res) => {
+  const { empresas, nicho, cidade } = req.body ?? {};
+  if (!Array.isArray(empresas) || !empresas.length) return res.status(400).json({ erro: "Selecione ao menos uma empresa" });
+  res.json(await pipeline.capturarDoGoogleAds(empresas.slice(0, 100), String(nicho ?? ""), String(cidade ?? "")));
+});
+
 // Escritórios de contabilidade (Google Maps) para a parceria de indicação.
 app.post("/api/contadores/buscar", async (req, res) => {
   const { cidade, quantidade } = req.body ?? {};
@@ -1402,6 +1418,7 @@ app.put("/api/config/automacao", async (req, res) => {
     buscarPorCnpj: b.buscarPorCnpj !== false,
     buscarEmAnuncios: b.buscarEmAnuncios !== false,
     buscarEmVagas: b.buscarEmVagas !== false,
+    buscarNoGoogleAds: b.buscarNoGoogleAds !== false,
     buscarContadores: b.buscarContadores !== false,
     testarRamos: b.testarRamos !== false,
     buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,

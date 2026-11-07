@@ -6,6 +6,7 @@ import { buscaNoInstagram, buscarEmpresasNoInstagram, instagramDaEmpresa, perfil
 import { buscarEmpresasPorCnpj, contatoDoCnpj, emailDeContador } from "./descoberta/cnpj.js";
 import { buscarAnunciantes, podeBuscarSozinho, completarContatos, cortar } from "./descoberta/anuncios.js";
 import { buscarEmpresasContratando, FUNCOES } from "./descoberta/vagas.js";
+import { buscarAnunciantesNoGoogle } from "./descoberta/googleAds.js";
 import { avaliacoesDoGoogle, oportunidadeDasAvaliacoes } from "./analise/avaliacoes.js";
 import { escolherAbordagem } from "./ia/abordagens.js";
 import { analisarSite } from "./analise/site.js";
@@ -403,11 +404,62 @@ export async function descobrirProxima(campanha, { tentativas = 3 } = {}) {
   const anuncios = await descobrirNosAnuncios(campanha, combinacoes[inicio % combinacoes.length]);
   const vagas = await descobrirNasVagas(campanha, combinacoes[inicio % combinacoes.length]);
   const contadores = await descobrirContadores(campanha, combinacoes[inicio % combinacoes.length]);
+  const googleAds = await descobrirNoGoogleAds(campanha, combinacoes[inicio % combinacoes.length]);
   return {
-    novas: novas + (instagram?.novas ?? 0) + (cnpj?.novas ?? 0) + (anuncios?.novas ?? 0) + (vagas?.novas ?? 0) + (contadores?.novas ?? 0), buscas: feitas,
+    novas: novas + (instagram?.novas ?? 0) + (cnpj?.novas ?? 0) + (anuncios?.novas ?? 0) + (vagas?.novas ?? 0) + (contadores?.novas ?? 0) + (googleAds?.novas ?? 0),
+    buscas: feitas, ...(googleAds ? { googleAds } : {}),
     ...(instagram ? { instagram } : {}), ...(cnpj ? { cnpj } : {}), ...(anuncios ? { anuncios } : {}), ...(vagas ? { vagas } : {}),
     ...(contadores ? { contadores } : {}),
   };
+}
+
+// ---------- Quem paga anúncio no Google ----------
+
+/** Com a SerpApi conectada, a busca automática também pega quem paga anúncio no Google para o segmento na cidade. */
+export async function descobrirNoGoogleAds(campanha, { nicho, cidade }, { agora = new Date() } = {}) {
+  if (campanha.automacao?.buscarNoGoogleAds === false) return null;
+  if (!(await podeBuscarSozinho(agora, "googleads"))) return null;
+  try {
+    const r = await buscarNoGoogleAds(nicho, cidade, { agora });
+    const novas = (await capturarDoGoogleAds(r.empresas.filter((e) => !e.jaCapturado), nicho, cidade)).novas;
+    log(`🔝 Busca automática nos anúncios do Google "${nicho} em ${cidade}": ${novas} novas`);
+    return { novas };
+  } catch (e) {
+    log(`⚠️  Falha na busca nos anúncios do Google "${nicho} em ${cidade}": ${e.message}`);
+    return { novas: 0, erro: e.message };
+  }
+}
+
+/** Quem paga anúncio no Google para o segmento na cidade, sem salvar (o contato sai do site, na análise). */
+export async function buscarNoGoogleAds(nicho, cidade, { agora = new Date() } = {}) {
+  const r = await buscarAnunciantesNoGoogle({ nicho, cidade, agora });
+  const capturados = await db.placeIdsCapturados(r.empresas.map((e) => `gads:${e.dominio}`));
+  const doSite = await db.sitesCapturados(r.empresas.map((e) => e.dominio));
+  log(`🔝 Busca nos anúncios do Google "${nicho} em ${cidade}": ${r.empresas.length} anunciantes`);
+  return {
+    ...r,
+    empresas: r.empresas.map((e) => ({ ...e, jaCapturado: capturados.has(`gads:${e.dominio}`) || doSite.has(e.dominio), celular: ehCelularBR(e.telefone), semSite: false })),
+  };
+}
+
+/** Salva os anunciantes do Google como leads, com o anúncio (o e-mail e o WhatsApp saem da análise do site). */
+export async function capturarDoGoogleAds(empresas, nicho, cidade) {
+  let novas = 0;
+  const doSite = await db.sitesCapturados(empresas.map((e) => e?.dominio).filter(Boolean));
+  for (const e of empresas) {
+    const dominio = String(e?.dominio ?? "").toLowerCase();
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(dominio) || !e?.nome || !e?.site || doSite.has(dominio)) continue;
+    const a = e.anuncio ?? {};
+    const lead = {
+      place_id: `gads:${dominio}`, nome: String(e.nome).slice(0, 120), endereco: null,
+      telefone: e.telefone ? String(e.telefone).replace(/\D/g, "").slice(0, 15) : null, site: String(e.site).slice(0, 500),
+      maps_url: null, avaliacao: null, total_avaliacoes: null, nicho, cidade, origem: "google_ads",
+      anuncio: { plataforma: "google", consulta: cortar(a.consulta, 120), texto: cortar(a.texto, 400), link: a.link ? String(a.link).slice(0, 500) : null, topo: Boolean(a.topo) },
+    };
+    if (await db.inserirLead(lead)) novas++;
+  }
+  if (novas) log(`🔝 ${novas} empresas capturadas dos anúncios do Google`);
+  return { novas };
 }
 
 // ---------- Contadores: parceria de indicação ----------
@@ -877,7 +929,7 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
       observacao = whatsapp_status === "sem_whatsapp"
         ? "sem e-mail no site e o telefone não tem WhatsApp"
         : lead.origem === "instagram" ? "sem e-mail nem WhatsApp na bio do Instagram"
-          : lead.origem === "anuncio" ? "o anúncio não leva a site, WhatsApp ou Instagram com contato"
+          : ["anuncio", "google_ads"].includes(lead.origem) ? "o anúncio não leva a site, WhatsApp ou Instagram com contato"
             : "sem e-mail no site e sem telefone no Google";
       status = "descartado";
     } else if (!oportunidades.length) [status, observacao] = ["descartado", "nenhuma oportunidade clara"];

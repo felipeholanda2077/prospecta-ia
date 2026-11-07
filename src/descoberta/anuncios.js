@@ -22,7 +22,7 @@ export const cidadeSemUf = (cidade) => String(cidade ?? "").split(/\s+-\s+|,|\//
 const chaveDaFonte = (fonte, agora) => `serpapi:${fonte}:${mesAtual(agora)}`;
 // A mesma chave da SerpApi serve a três buscas automáticas; cada uma gasta no máximo esta parte do limite do mês
 // (a busca feita no painel só respeita o limite total).
-export const COTA_AUTOMATICA = { anuncios: 0.4, vagas: 0.3, avaliacoes: 0.3 };
+export const COTA_AUTOMATICA = { anuncios: 0.3, googleads: 0.2, vagas: 0.25, avaliacoes: 0.25 };
 
 async function chaveAberta() {
   const c = (await db.lerConfig(CHAVE_CONFIG)) ?? {};

@@ -135,6 +135,11 @@ function linhaDoAnuncio(lead) {
   try { a = JSON.parse(lead.anuncio ?? "null"); } catch {}
   if (!a) return "";
   const desde = a.desde ? new Date(`${a.desde}T12:00:00Z`).toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) : null;
+  if (a.plataforma === "google") {
+    return `
+- Paga anúncio no Google: aparece patrocinada${a.topo ? " no topo" : ""} quando alguém procura "${a.consulta ?? ""}". Texto do anúncio: "${[...String(a.texto ?? "").toWellFormed()].slice(0, 300).join("")}". O anúncio leva para ${a.link ?? "o site"}.
+  Use isto: mostre que viu a empresa no topo do Google (com naturalidade) e ligue a oportunidade ao dinheiro que ela já paga por clique (ex.: quem clica cai numa página lenta, sem botão de WhatsApp, ou numa conversa que demora a ser respondida). Não critique o anúncio em si.`;
+  }
   const onde = (a.plataformas ?? []).filter((p) => ["instagram", "facebook"].includes(p)).map((p) => (p === "instagram" ? "Instagram" : "Facebook")).join(" e ") || "Instagram e Facebook";
   const destino = /wa\.me|whatsapp/i.test(a.link ?? "") ? "o WhatsApp da empresa" : /instagram\.com/i.test(a.link ?? "") ? "o perfil do Instagram" : a.link ? `a página ${a.link}` : "não sabemos";
   return `
@@ -146,9 +151,10 @@ function linhaDoAnuncio(lead) {
 function linhaDasAvaliacoes(lead) {
   let a = null;
   try { a = JSON.parse(lead.analise ?? "{}").avaliacoes; } catch {}
-  if (!a?.recentes || !(a.semResposta >= 3 || a.negativasSemResposta >= 1)) return "";
+  if (!a || !(a.reclamamDeAtendimento >= 1 || (a.recentes && (a.semResposta >= 3 || a.negativasSemResposta >= 1)))) return "";
   return `
-- Avaliações no Google: das ${a.recentes} dos últimos 3 meses, ${a.semResposta} estão sem resposta da empresa${a.negativasSemResposta ? ` (${a.negativasSemResposta} negativas)` : ""}.
+- Avaliações no Google: ${a.recentes ? `das ${a.recentes} dos últimos 3 meses, ${a.semResposta} estão sem resposta da empresa${a.negativasSemResposta ? ` (${a.negativasSemResposta} negativas)` : ""}` : "poucas recentes"}.${a.reclamamDeAtendimento ? `
+  ${a.reclamamDeAtendimento} ${a.reclamamDeAtendimento === 1 ? "avaliação negativa reclama" : "avaliações negativas reclamam"} de demora ou de não conseguir falar com a empresa: é a dor principal. Fale dela como algo comum em quem está ocupado atendendo, sem citar a avaliação.` : ""}
   Se usar, cite como algo que você notou e que acontece com muita gente ocupada, sem expor nem constranger a empresa e sem citar o texto de nenhuma avaliação.`;
 }
 

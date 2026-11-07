@@ -979,7 +979,7 @@
       <section id="view-maps" hidden>
         <form class="cartao cartao-corpo busca" id="form-maps">
           <div class="campo"><label for="onde">Onde buscar</label>
-            <select id="onde"><option value="maps">Google Maps</option><option value="instagram">Instagram</option><option value="cnpj">CNPJ (Receita Federal)</option><option value="anuncios">Anúncios da Meta (quem está anunciando)</option><option value="vagas">Vagas abertas (quem está contratando)</option><option value="contadores">Contadores (parceria de indicação)</option></select></div>
+            <select id="onde"><option value="maps">Google Maps</option><option value="instagram">Instagram</option><option value="cnpj">CNPJ (Receita Federal)</option><option value="anuncios">Anúncios da Meta (quem está anunciando)</option><option value="vagas">Vagas abertas (quem está contratando)</option><option value="contadores">Contadores (parceria de indicação)</option><option value="googleads">Anúncios no Google (quem paga para aparecer)</option></select></div>
           <div class="campo"><label for="nicho">Segmento</label>
             <div class="com-icone"><span data-ic="search"></span><input id="nicho" list="nichos" placeholder="Ex.: pet shop, clínica odontológica" required></div></div>
           <div class="campo"><label for="cidade">Cidade</label>
@@ -1004,6 +1004,7 @@
                 <option value="3">Desenvolvedor web</option><option value="4">Analista de sistemas</option><option value="5">Pré-vendas (SDR)</option></select></div>
             <span class="muted" style="font-size:12.5px;grid-column:1/-1">Empresas da cidade com vaga aberta no Google para uma função que a FluxDeck resolve: a dor está na própria vaga. O contato vem do Google Maps, pelo nome da empresa; agências de emprego ficam de fora. O segmento é opcional aqui. Cada busca gasta 1 do plano da SerpApi.</span>
           </div>
+          <span class="muted" id="campos-googleads" style="font-size:12.5px;grid-column:1/-1" hidden>Quem aparece patrocinado no topo do Google quando alguém da cidade procura pelo segmento. Já paga por clique: a IA fala do que acontece depois do clique (a página e o atendimento). Portais e marketplaces ficam de fora; o e-mail e o WhatsApp saem do site, na análise. Cada busca gasta 1 do plano da SerpApi.</span>
           <span class="muted" id="campos-contadores" style="font-size:12.5px;grid-column:1/-1" hidden>Escritórios de contabilidade da cidade, pelo Google Maps. Eles atendem empresas que estão abrindo e precisam de site e sistema: a IA propõe uma parceria de indicação (eles indicam e ganham 10% do primeiro pagamento de cada cliente fechado; o percentual só é dito se perguntarem), e não vende para eles. O segmento é ignorado aqui.</span>
           <div class="campo" id="campo-termos" style="grid-column:1/-1" hidden><label for="termos">Hashtags ou @perfis (opcional)</label>
             <input id="termos" placeholder="Ex.: #petshopfortaleza #banhoetosa @petconcorrente">
@@ -1037,6 +1038,8 @@
               <span>Com a SerpApi conectada, a busca automática procura nas cidades da campanha empresas com vaga aberta de atendente de WhatsApp, recepcionista, social media, desenvolvedor, sistemas ou pré-vendas (uma função por rodada). O contato vem do Google Maps.</span></div></label>
             <label class="chave"><input type="checkbox" name="buscarContadores"><div><b>Buscar contadores para parceria</b>
               <span>Uma vez por dia, escritórios de contabilidade das cidades da campanha (Google Maps). A IA propõe uma parceria de indicação: eles indicam clientes que precisam de site ou sistema e ganham 10% do primeiro pagamento de cada cliente fechado (a IA só diz o percentual se perguntarem).</span></div></label>
+            <label class="chave"><input type="checkbox" name="buscarNoGoogleAds"><div><b>Buscar também quem anuncia no Google</b>
+              <span>Com a SerpApi conectada, a busca automática pega quem aparece patrocinado no topo do Google para o segmento e a cidade da rodada. O contato sai do site, na análise.</span></div></label>
             <label class="chave"><input type="checkbox" name="testarRamos"><div><b>A IA testa ramos novos</b>
               <span>Uma vez por dia a IA escolhe ramos que combinam com os seus serviços (2 por vez), busca nas mesmas cidades e compara com os seus. Fica com os que respondem bem (20% ou mais em 20 contatadas) e pausa os outros. O resultado aparece em Respostas.</span></div></label>
             <label class="chave"><input type="checkbox" name="respostaAutomatica"><div><b>IA responde as conversas sozinha</b>
@@ -2432,7 +2435,7 @@ setInterval(() => dashboardVisivel() && carregarDashboard(), DASH_ATUALIZA_MS);
 document.addEventListener("visibilitychange", () => dashboardVisivel() && carregarDashboard());
 
 // ===================== Google Maps =====================
-const NOME_DA_FONTE = { maps: "no Google Maps", instagram: "no Instagram", cnpj: "pelo CNPJ", anuncios: "nos anúncios da Meta", vagas: "contratando", contadores: "de contabilidade" };
+const NOME_DA_FONTE = { maps: "no Google Maps", instagram: "no Instagram", cnpj: "pelo CNPJ", anuncios: "nos anúncios da Meta", vagas: "contratando", contadores: "de contabilidade", googleads: "anunciando no Google" };
 
 /** A conexão com a SerpApi: chave, limite de buscas do mês e quanto já foi usado. */
 async function mostrarConexaoAnuncios() {
@@ -2478,6 +2481,7 @@ $("#onde").addEventListener("change", () => {
   $("#campos-anuncios").hidden = onde !== "anuncios";
   $("#campos-vagas").hidden = onde !== "vagas";
   $("#campos-contadores").hidden = onde !== "contadores";
+  $("#campos-googleads").hidden = onde !== "googleads";
   // Nas vagas e nos contadores o segmento não é usado (a empresa é achada pela vaga, ou é um escritório de contabilidade).
   $("#nicho").required = !["vagas", "contadores"].includes(onde);
   if (onde === "anuncios") mostrarConexaoAnuncios();
@@ -2509,6 +2513,10 @@ $("#form-maps").addEventListener("submit", async (ev) => {
       });
       resultadosMaps = r.empresas;
       avisosBusca = [`Atividade (CNAE): ${r.cnaes.map((c) => `${c.codigo} · ${c.descricao.toLowerCase()}`).join("; ")}. ${r.total.toLocaleString("pt-BR")} empresas com esse filtro na cidade; aqui vêm as que você ainda não capturou.`, ...(r.avisos ?? [])];
+    } else if (onde === "googleads") {
+      const r = await post("/api/googleads/buscar", buscaMaps);
+      resultadosMaps = r.empresas;
+      avisosBusca = [...(r.avisos ?? [])];
     } else if (onde === "contadores") {
       const r = await post("/api/contadores/buscar", { cidade: buscaMaps.cidade, quantidade: $("#quantidade").value });
       resultadosMaps = r.empresas;
@@ -2567,6 +2575,10 @@ function detalhesDaVaga(e) {
 function detalhesDoAnuncio(e) {
   if (!e.anuncio) return "";
   const a = e.anuncio;
+  if (a.plataforma === "google") {
+    return `<div class="pilulas"><span class="pilula acc">${ic("search", "sm")}Anúncio no Google${a.topo ? " · topo" : ""}</span><span class="pilula">${esc(e.dominio ?? "")}</span></div>
+      ${a.texto ? `<p class="muted" style="margin:0;font-size:13px">“${esc(a.texto.slice(0, 180))}${a.texto.length > 180 ? "…" : ""}”</p>` : ""}`;
+  }
   const desde = a.desde ? new Date(`${a.desde}T12:00:00`).toLocaleDateString("pt-BR", { day: "numeric", month: "short" }) : "";
   return `<div class="pilulas">
       <span class="pilula acc">${ic("spark", "sm")}Anunciando${desde ? ` desde ${desde}` : ""}</span>
@@ -2667,7 +2679,7 @@ async function capturarSelecionadas(btn) {
   if (!escolhidas.length) return avisar("Selecione ao menos uma empresa");
   btn.disabled = true;
   try {
-    const r = await post(`/api/${["instagram", "cnpj", "anuncios", "vagas", "contadores"].includes(buscaMaps.onde) ? buscaMaps.onde : "maps"}/capturar`, { empresas: escolhidas, ...buscaMaps });
+    const r = await post(`/api/${["instagram", "cnpj", "anuncios", "vagas", "contadores", "googleads"].includes(buscaMaps.onde) ? buscaMaps.onde : "maps"}/capturar`, { empresas: escolhidas, ...buscaMaps });
     for (const e of escolhidas) e.jaCapturado = true;
     selecionadas.clear();
     atualizarSelecao();
@@ -3824,7 +3836,7 @@ function cardLead(l) {
       <span class="avatar">${inicial(l.nome)}${fotoLead(l.id)}</span>
       <div class="titulos">
         <h3>${esc(l.nome)}</h3>
-        <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}${l.origem === "instagram" ? `<span class="pilula">${ic("camera", "sm")}Instagram</span>` : ""}${l.origem === "instagram_direct" ? `<span class="pilula">${ic("camera", "sm")}Chamou no direct</span>` : ""}${l.origem === "cnpj" ? `<span class="pilula">${ic("building", "sm")}CNPJ</span>` : ""}${l.origem === "anuncio" ? `<span class="pilula acc">${ic("spark", "sm")}Anunciando na Meta</span>` : ""}${l.origem === "vaga" ? `<span class="pilula acc">${ic("users", "sm")}Contratando</span>` : ""}${l.origem === "contador" ? `<span class="pilula ok">${ic("users", "sm")}Contador · parceria</span>` : ""}${l.origem === "formulario" ? `<span class="pilula ok">${ic("inbox", "sm")}Formulário do site</span>` : ""}</div>
+        <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}${l.origem === "instagram" ? `<span class="pilula">${ic("camera", "sm")}Instagram</span>` : ""}${l.origem === "instagram_direct" ? `<span class="pilula">${ic("camera", "sm")}Chamou no direct</span>` : ""}${l.origem === "cnpj" ? `<span class="pilula">${ic("building", "sm")}CNPJ</span>` : ""}${l.origem === "anuncio" ? `<span class="pilula acc">${ic("spark", "sm")}Anunciando na Meta</span>` : ""}${l.origem === "vaga" ? `<span class="pilula acc">${ic("users", "sm")}Contratando</span>` : ""}${l.origem === "contador" ? `<span class="pilula ok">${ic("users", "sm")}Contador · parceria</span>` : ""}${l.origem === "google_ads" ? `<span class="pilula acc">${ic("search", "sm")}Anunciando no Google</span>` : ""}${l.origem === "formulario" ? `<span class="pilula ok">${ic("inbox", "sm")}Formulário do site</span>` : ""}</div>
         <div class="meta" style="margin-top:8px">
           ${l.nicho ? `<span>${ic("building", "sm")}${esc(l.nicho)}${l.cidade ? ` · ${esc(l.cidade)}` : ""}</span>` : ""}
           ${l.email ? `<span>${ic("mail", "sm")}${esc(l.email)}</span>` : ""}
@@ -7712,6 +7724,7 @@ async function carregarAutomacao() {
     f.buscarEmAnuncios.checked = a.buscarEmAnuncios !== false;
     f.buscarEmVagas.checked = a.buscarEmVagas !== false;
     f.buscarContadores.checked = a.buscarContadores !== false;
+    f.buscarNoGoogleAds.checked = a.buscarNoGoogleAds !== false;
     f.testarRamos.checked = a.testarRamos !== false;
     f.intervaloEmpresasMin.value = a.intervaloEmpresasMin;
     f.intervaloEmpresasMax.value = a.intervaloEmpresasMax;
@@ -7747,6 +7760,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
       buscarEmAnuncios: f.buscarEmAnuncios.checked,
       buscarEmVagas: f.buscarEmVagas.checked,
       buscarContadores: f.buscarContadores.checked,
+      buscarNoGoogleAds: f.buscarNoGoogleAds.checked,
       testarRamos: f.testarRamos.checked,
       metaEmail: f.metaEmail.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,

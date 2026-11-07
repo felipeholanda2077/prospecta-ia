@@ -48,3 +48,12 @@ test("avaliações: só empresas do Google com avaliações bastantes, e gastand
     globalThis.fetch = antes;
   }
 });
+
+test("avaliações: reclamação de não conseguir falar com a empresa vira a oportunidade mais forte", () => {
+  const reclama = { iso_date: dia(400), rating: 1, snippet: "Mandei mensagem no WhatsApp e ninguém respondeu, péssimo" };
+  const r = av.resumoDasAvaliacoes([reclama, avaliacao(3, 5, true), { iso_date: dia(20), rating: 2, snippet: "Comida fria" }], AGORA);
+  assert.equal(r.reclamamDeAtendimento, 1);
+  const o = av.oportunidadeDasAvaliacoes(r);
+  assert.equal(o.peso, 11);
+  assert.match(o.motivo, /1 avaliação negativa no Google reclama de demora ou de não conseguir falar com a empresa/);
+});

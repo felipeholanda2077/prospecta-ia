@@ -488,6 +488,18 @@ export async function placeIdsCapturados(ids) {
   return new Set(linhas.map((l) => l.place_id));
 }
 
+/** Quais destes domínios ("clinicax.com.br") já são o site de alguma empresa capturada, por qualquer fonte. */
+export async function sitesCapturados(dominios) {
+  const lista = [...new Set(dominios.filter(Boolean).map((d) => String(d).toLowerCase()))];
+  if (!lista.length) return new Set();
+  const linhas = await q(
+    `SELECT DISTINCT d FROM (SELECT lower(regexp_replace(regexp_replace(site, '^https?://(www\\.)?', '', 'i'), '[/?#:].*$', '')) AS d
+       FROM leads WHERE site IS NOT NULL) s WHERE d IN (${marcadores(lista.length)})`,
+    lista
+  );
+  return new Set(linhas.map((l) => l.d));
+}
+
 /** Quais destes @ do Instagram já viraram empresa (pelo Instagram ou pelo link do perfil no Google). */
 export async function instagramsCapturados(usuarios) {
   if (!usuarios.length) return new Set();
