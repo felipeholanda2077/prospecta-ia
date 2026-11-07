@@ -55,7 +55,8 @@ export async function gerarCobrancas(dados, agora = new Date()) {
   const contrato = await db.buscarContrato(dados.contratoId);
   if (!contrato) return { erro: "Contrato não encontrado" };
   if (contrato.status !== "assinado") return { erro: "Marque o contrato como assinado antes de cobrar" };
-  if (!(await asaas.situacao()).conectado) return { erro: "Conecte o Asaas antes de gerar cobranças" };
+  const conta = await asaas.situacao();
+  if (!conta.conectado) return { erro: conta.trancada ? asaas.CHAVE_TRANCADA : "Conecte o Asaas antes de gerar cobranças" };
 
   const nome = String(dados.nome ?? "").trim();
   const doc = documentoFormatado(dados.documento);
@@ -126,7 +127,11 @@ export async function processarAvisoDoAsaas(corpo, agora = new Date()) {
 
 /** O que colar no cadastro do webhook do Asaas e quando chegou o último aviso. */
 export async function dadosDoWebhook({ novo = false } = {}) {
-  return { url: `${config.painel.urlPublica}/webhooks/asaas`, token: await asaas.tokenDoWebhook({ novo }), ultimoAviso: await db.lerEstado(ESTADO_ULTIMO_AVISO) };
+  const { token, trocadoSozinho } = await asaas.tokenDoWebhook({ novo });
+  const ultimoAviso = await db.lerEstado(ESTADO_ULTIMO_AVISO);
+  // Token trocado sozinho e nenhum aviso aceito depois: falta colar o novo no Asaas.
+  const faltaColar = Boolean(trocadoSozinho && !(ultimoAviso && ultimoAviso > trocadoSozinho));
+  return { url: `${config.painel.urlPublica}/webhooks/asaas`, token, ultimoAviso, faltaColar };
 }
 
 export const registrarAviso = (agora = new Date()) => db.gravarEstado(ESTADO_ULTIMO_AVISO, new Date(agora).toISOString());

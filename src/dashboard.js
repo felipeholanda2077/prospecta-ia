@@ -466,12 +466,13 @@ async function servicosDasContas() {
       servico("TikTok", tt.conectado ? (tt.usuario ? `@${tt.usuario}` : "Conectado") : tt.faltaPermissao ? "Falta permissão" : tt.entrou ? "Falta escolher quem vê" : tt.appDefinido ? "Falta entrar" : "Não configurado", tt.conectado ? "ok" : tt.faltaPermissao ? "atencao" : "", "conteudo", { aba: "config" }),
       conectou("Mercado Livre", ml.conectado, "marketplaces"),
       conectou("Shopee", sp.conectado, "marketplaces"),
-      conectou("Cobranças (Asaas)", cob.conectado, "contratos", "cobrancas"),
+      cob.trancada ? servico("Cobranças (Asaas)", "Cole a chave de novo", "perigo", "contratos", { aba: "cobrancas" }) : conectou("Cobranças (Asaas)", cob.conectado, "contratos", "cobrancas"),
       conectou("Calendly", cal.conectado, "automacao"),
     ],
     atencao: [
       ...seVier(li.erro && li.conectado, alerta("atencao", "O LinkedIn precisa de atenção", "conteudo", { aba: "config", detalhe: curto(li.erro) })),
       ...seVier(tt.faltaPermissao, alerta("atencao", "O TikTok precisa de mais uma permissão", "conteudo", { aba: "config" })),
+      ...seVier(cob.trancada, alerta("perigo", "Asaas: cole a chave de API de novo", "contratos", { aba: "cobrancas", detalhe: "A senha do painel mudou e trancou a chave guardada; sem ela não sai cobrança nem link de pagamento." })),
     ],
   };
 }

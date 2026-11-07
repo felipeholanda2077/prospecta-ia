@@ -32,16 +32,22 @@ async function requisitar(chave, metodo, caminho, corpo) {
   return dados;
 }
 
+/** A chave guardada só abre com a senha do painel de quando foi salva: trocar a senha na Vercel tranca ela. */
+export const CHAVE_TRANCADA = "A chave do Asaas guardada não abre mais porque a senha do painel (PAINEL_SENHA) mudou depois que ela foi salva. Cole a chave de API de novo em Contratos → Cobranças → Conta do Asaas";
+
 async function chamar(metodo, caminho, corpo) {
   const { chave } = (await db.lerConfig(CHAVE_CONFIG)) ?? {};
-  const aberta = chave && decifrar(chave);
-  if (!aberta) throw new Error("Cole de novo a chave de API do Asaas");
+  if (!chave) throw new Error("Conecte o Asaas: cole a chave de API em Contratos → Cobranças → Conta do Asaas");
+  const aberta = decifrar(chave);
+  if (!aberta) throw new Error(CHAVE_TRANCADA);
   return requisitar(aberta, metodo, caminho, corpo);
 }
 
+/** Conectado só quando a chave guardada abre; `trancada` diz que ela existe, mas precisa ser colada de novo. */
 export async function situacao() {
   const c = (await db.lerConfig(CHAVE_CONFIG)) ?? {};
-  return { conectado: Boolean(c.chave), ambiente: c.ambiente ?? null };
+  const abre = Boolean(c.chave && decifrar(c.chave));
+  return { conectado: abre, trancada: Boolean(c.chave) && !abre, ambiente: abre ? c.ambiente ?? null : null };
 }
 
 /** Confere a chave no próprio Asaas antes de guardar. Sem chave, desconecta. */
@@ -64,12 +70,14 @@ export async function conectar(chave) {
 
 /** O token que o Asaas manda em cada aviso. Criado aqui e colado lá, no cadastro do webhook. */
 export async function tokenDoWebhook({ novo = false } = {}) {
-  const guardado = (await db.lerConfig(CHAVE_WEBHOOK))?.token;
-  const aberto = guardado && !novo ? decifrar(guardado) : null;
-  if (aberto) return aberto;
+  const guardado = (await db.lerConfig(CHAVE_WEBHOOK)) ?? {};
+  const aberto = guardado.token && !novo ? decifrar(guardado.token) : null;
+  if (aberto) return { token: aberto, trocadoSozinho: guardado.trocadoSozinho ?? null };
+  // O token antigo não abre (a senha do painel mudou): o novo só vale depois de colado no Asaas.
+  const trocadoSozinho = guardado.token && !novo ? new Date().toISOString() : null;
   const token = crypto.randomBytes(32).toString("hex");
-  await db.gravarConfig(CHAVE_WEBHOOK, { token: cifrar(token) });
-  return token;
+  await db.gravarConfig(CHAVE_WEBHOOK, { token: cifrar(token), trocadoSozinho });
+  return { token, trocadoSozinho };
 }
 
 export async function tokenValido(recebido) {

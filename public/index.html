@@ -1537,6 +1537,7 @@
           <form class="cartao" id="form-asaas">
             <div class="cartao-cab"><span class="kpi-ic" data-ic-span="settings"></span><div class="titulos"><h3>Conta do Asaas <span id="cb-asaas-status"></span></h3>
               <div class="meta">No Asaas, abra Integrações, depois Chaves de API, e cole a chave aqui. Ela fica cifrada no banco e não volta a aparecer.</div></div></div>
+            <div class="alerta perigo" id="cb-chave-trancada" hidden><span data-ic-span="alert"></span><div><b>Cole a chave de API de novo.</b> A senha do painel (PAINEL_SENHA na Vercel) mudou depois que a chave foi salva, e a chave guardada não abre mais. Sem ela não sai cobrança nem link de pagamento. Pode ser a mesma chave de antes; se não tiver mais, gere uma nova no Asaas (Integrações → Chaves de API).</div></div>
             <div class="cartao-corpo config-grade">
               <div class="campo"><label for="cb-chave">Chave de API</label><input id="cb-chave" name="chave" type="password" autocomplete="new-password" spellcheck="false"></div>
             </div>
@@ -5173,8 +5174,10 @@ async function carregarCobrancas() {
     const [{ asaas, resumo, parcelas, contratos, ofertas, vendas }, webhook] = await Promise.all([api("/api/cobrancas"), api("/api/cobrancas/webhook")]);
     contratosCobraveis = contratos;
     mostrarWebhookAsaas(webhook);
+    $("#cb-chave-trancada").hidden = !asaas.trancada;
     mostrarVendas(ofertas, vendas);
-    $("#cb-asaas-status").innerHTML = !asaas.conectado ? `<span class="pilula">Não conectado</span>`
+    $("#cb-asaas-status").innerHTML = asaas.trancada ? `<span class="pilula perigo">Cole a chave de novo</span>`
+      : !asaas.conectado ? `<span class="pilula">Não conectado</span>`
       : asaas.ambiente === "sandbox" ? `<span class="pilula atencao">Modo de teste</span>` : `<span class="pilula ok">Conectado</span>`;
     const total = (rotulo, valor, sub) => `<div class="ig-card"><span class="ig-card-cab">${rotulo}</span><b>${esc(emReais(valor))}</b><span class="ig-card-sub">${sub}</span></div>`;
     $("#cb-resumo").innerHTML = total("Recebido no mês", resumo.recebidoNoMes, "Pagamentos deste mês")
@@ -5303,8 +5306,9 @@ document.addEventListener("click", async (ev) => {
   }
 });
 
-function mostrarWebhookAsaas({ url, token, ultimoAviso }) {
+function mostrarWebhookAsaas({ url, token, ultimoAviso, faltaColar }) {
   $("#cb-webhook-corpo").innerHTML = `<div style="display:grid;gap:8px">
+      ${faltaColar ? `<div class="alerta perigo">${ic("alert")}<div><b>Cole o token novo no Asaas.</b> O token antigo foi trancado quando a senha do painel mudou, e o sistema gerou outro. Até você colar este no cadastro do webhook do Asaas, os avisos de pagamento são recusados (a conferência de cada hora continua valendo).</div></div>` : ""}
       <div>URL do Webhook: <code style="overflow-wrap:anywhere">${esc(url)}</code> <button type="button" class="btn fantasma sm" data-cb-copiar="${esc(url)}">${ic("copy", "sm")}Copiar</button></div>
       <div>Token de autenticação: <code style="overflow-wrap:anywhere">${esc(token)}</code> <button type="button" class="btn fantasma sm" data-cb-copiar="${esc(token)}">${ic("copy", "sm")}Copiar</button></div>
       <div class="muted">No Asaas: webhook ativo, versão v3, envio não sequencial, fila de sincronização ativada. Eventos: PAYMENT_CREATED, PAYMENT_CONFIRMED, PAYMENT_RECEIVED, PAYMENT_OVERDUE, PAYMENT_DELETED, PAYMENT_REFUNDED, PAYMENT_REFUND_IN_PROGRESS e PAYMENT_CHARGEBACK_REQUESTED.</div>

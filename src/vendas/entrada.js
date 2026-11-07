@@ -39,7 +39,8 @@ const mensagemDoLink = (v) => (v.mensal
 
 /** O link de uma oferta para uma empresa. Pedir de novo devolve o mesmo, enquanto não for pago. */
 export async function gerarLink({ leadId, ofertaId } = {}, agora = new Date()) {
-  if (!(await asaas.situacao()).conectado) return { erro: "Conecte o Asaas antes de gerar o link" };
+  const conta = await asaas.situacao();
+  if (!conta.conectado) return { erro: conta.trancada ? asaas.CHAVE_TRANCADA : "Conecte o Asaas antes de gerar o link" };
   const lead = await db.buscarLead(leadId);
   if (!lead) return { erro: "Empresa não encontrada" };
   if (lead.status === "descadastrado") return { erro: "Esta empresa pediu para não receber mais mensagens" };

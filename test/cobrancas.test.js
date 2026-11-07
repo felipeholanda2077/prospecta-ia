@@ -80,16 +80,36 @@ test("cobrança: a chave é conferida, fica cifrada e define o ambiente", async 
   const api = apiFalsa();
   await comApi(api, async () => {
     assert.match((await asaas.conectar("chave-qualquer")).erro, /aact/);
-    assert.deepEqual(await asaas.conectar(CHAVE), { conectado: true, ambiente: "sandbox" });
+    assert.deepEqual(await asaas.conectar(CHAVE), { conectado: true, trancada: false, ambiente: "sandbox" });
   });
   assert.equal(api.estado.chamadas[0].host, "api-sandbox.asaas.com");
   assert.ok(!JSON.stringify(await db.lerConfig("asaas")).includes("chave-falsa"));
-  assert.deepEqual(await comApi(api, () => asaas.conectar("")), { conectado: false, ambiente: null });
+  assert.deepEqual(await comApi(api, () => asaas.conectar("")), { conectado: false, trancada: false, ambiente: null });
 
   const recusa = apiFalsa({ falhar: () => true });
   assert.equal((await comApi(recusa, () => asaas.conectar(CHAVE))).erro, "Recusado pelo Asaas");
   assert.equal((await asaas.situacao()).conectado, false);
   assert.equal(asaas.ambienteDaChave("$aact_prod_x"), "producao");
+});
+
+test("asaas: chave e token trancados pela troca da senha do painel pedem para colar de novo", async () => {
+  // Cifrado com outra senha: não abre com a de agora.
+  await db.gravarConfig("asaas", { chave: "AAAA.BBBB.CCCC", ambiente: "producao" });
+  assert.deepEqual(await asaas.situacao(), { conectado: false, trancada: true, ambiente: null });
+  const r = await cobranca.gerarCobrancas({ contratoId: 999999 });
+  assert.equal(r.erro, "Contrato não encontrado"); // o contrato é conferido antes
+  await assert.rejects(asaas.garantirCliente({ referencia: "x", nome: "X", documento: "1", email: "a@b.c" }), /senha do painel \(PAINEL_SENHA\) mudou/);
+
+  await db.gravarConfig("asaas_webhook", { token: "AAAA.BBBB.CCCC" });
+  const w = await cobranca.dadosDoWebhook();
+  assert.equal(w.faltaColar, true);
+  assert.match(w.token, /^[0-9a-f]{64}$/);
+  // Lido de novo, o token novo continua o mesmo, e o aviso some depois do primeiro aviso aceito.
+  assert.equal((await cobranca.dadosDoWebhook()).token, w.token);
+  await cobranca.registrarAviso(new Date(Date.now() + 1000));
+  assert.equal((await cobranca.dadosDoWebhook()).faltaColar, false);
+  assert.equal(await asaas.tokenValido(w.token), true);
+  await db.gravarConfig("asaas", {});
 });
 
 test("cobrança: dia 31 cai no último dia dos meses curtos", () => {
