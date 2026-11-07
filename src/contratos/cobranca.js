@@ -2,6 +2,7 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import * as asaas from "./asaas.js";
 import { documentoFormatado, lerData, lerValor, MESES } from "./valores.js";
+import { enesimoDiaUtil } from "./diasUteis.js";
 
 // As parcelas de um contrato assinado ficam guardadas aqui e só vão para o Asaas perto do vencimento: emitir
 // as 12 de uma vez mandaria 12 avisos de "cobrança criada" ao cliente no mesmo dia. O webhook avisa na hora o
@@ -16,12 +17,23 @@ const dataIso = (d) => d.toISOString().slice(0, 10);
 export const hojeNoFuso = (agora) => new Date(agora).toLocaleDateString("en-CA", { timeZone: config.timezone });
 const referenciaDaParcela = (id) => `parcela-${id}`;
 
-/** A data de cada parcela: mesmo dia todo mês; dia 29 a 31 cai no último dia dos meses mais curtos. */
-export function datasDasParcelas({ dia, mes, ano }, quantidade) {
+/**
+ * A data de cada parcela: mesmo dia todo mês (dia 29 a 31 cai no último dia dos meses mais curtos) ou, com `diaUtil`,
+ * o N-ésimo dia útil de cada mês a partir do mês da primeira (sem fim de semana e feriado nacional).
+ */
+export function datasDasParcelas({ dia, mes, ano }, quantidade, { diaUtil = null } = {}) {
   return Array.from({ length: quantidade }, (_, i) => {
+    if (diaUtil) return enesimoDiaUtil(ano, mes + i, diaUtil);
     const ultimoDia = new Date(Date.UTC(ano, mes + i + 1, 0)).getUTCDate();
     return dataIso(new Date(Date.UTC(ano, mes + i, Math.min(dia, ultimoDia))));
   });
+}
+
+/** "5" vira 5; vazio vira null (mesmo dia todo mês). Fora de 1 a 20, undefined (inválido). */
+function lerDiaUtil(v) {
+  if (v === undefined || v === null || String(v).trim() === "") return null;
+  const n = Number.parseInt(v, 10);
+  return n >= 1 && n <= 20 ? n : undefined;
 }
 
 /** O que dá para tirar do contrato. O painel mostra para conferir: nada vira cobrança sem o clique. */
@@ -33,7 +45,9 @@ export async function padroesDaCobranca(contratoId) {
   const data = c.corpo.match(/\|\s*1ª[^|]*\|[^|]*\|\s*(\d{1,2}) de ([a-zç]+) de (\d{4})\s*\|/);
   const mes = data ? MESES.indexOf(data[2]) : -1;
   const atraso = c.corpo.match(/multa de ([\d,]+)%.*?juros de ([\d,]+)% ao mês/);
+  const diaUtil = c.corpo.match(/(\d{1,2})[ºo°]?\s*(?:\(\w+\)\s*)?dia útil/i)?.[1] ?? "";
   return {
+    diaUtil,
     contratoId: c.id, nome: c.contratante,
     documento: c.corpo.match(/(?:CNPJ|CPF) sob o nº ([\d./-]+\d)/)?.[1] ?? "",
     // Os seus dados no texto ainda são {{campos}}: o e-mail que aparece nele é o do cliente.
@@ -65,6 +79,7 @@ export async function gerarCobrancas(dados, agora = new Date()) {
   const valor = lerValor(dados.valor);
   const quantidade = Number.parseInt(dados.parcelas, 10);
   const primeira = lerData(dados.vencimento);
+  const diaUtil = lerDiaUtil(dados.diaUtil);
   const multa = percentual(dados.multa, MULTA_PADRAO);
   const juros = percentual(dados.juros, JUROS_PADRAO);
   if (!nome) return { erro: "Informe o nome do cliente" };
@@ -74,9 +89,10 @@ export async function gerarCobrancas(dados, agora = new Date()) {
   if (!(quantidade >= 1 && quantidade <= 120)) return { erro: "Informe em quantas parcelas (de 1 a 120)" };
   if (!primeira) return { erro: "Confira a data do primeiro vencimento" };
   if (multa == null || juros == null) return { erro: "Confira a multa e os juros" };
-  if (dados.vencimento < hojeNoFuso(agora)) return { erro: "O primeiro vencimento não pode estar no passado" };
+  if (diaUtil === undefined) return { erro: "O dia útil do vencimento vai de 1 a 20 (ou deixe vazio para vencer no mesmo dia todo mês)" };
+  const datas = datasDasParcelas(primeira, quantidade, { diaUtil });
+  if (datas[0] < hojeNoFuso(agora)) return { erro: "O primeiro vencimento não pode estar no passado" };
 
-  const datas = datasDasParcelas(primeira, quantidade);
   const existentes = await db.listarCobrancas({ contratoId: contrato.id });
   const repetida = datas.find((d) => existentes.some((e) => e.vencimento === d && e.status !== "cancelada"));
   if (repetida) return { erro: `Este contrato já tem cobrança com vencimento em ${repetida.split("-").reverse().join("/")}` };
@@ -172,6 +188,35 @@ export async function rodadaDeCobrancas(agora = new Date()) {
   } finally {
     await db.destravar(TRAVA);
   }
+}
+
+/**
+ * Muda o vencimento das parcelas em aberto de um contrato para o N-ésimo dia útil do mês de cada uma (ou, com
+ * `dia`, para esse dia do mês). A que ainda não foi para o Asaas muda só aqui; a emitida muda também no Asaas.
+ * Paga, cancelada ou que já venceu fica como está.
+ */
+export async function mudarVencimentos(contratoId, { diaUtil = null, dia = null } = {}, agora = new Date()) {
+  const n = lerDiaUtil(diaUtil);
+  const d = Number.parseInt(dia, 10);
+  if (!n && !(d >= 1 && d <= 31)) return { erro: "Informe o dia útil (1 a 20) ou o dia do mês (1 a 31)" };
+  const hoje = hojeNoFuso(agora);
+  const abertas = (await db.listarCobrancas({ contratoId })).filter((p) => ["agendada", "emitida"].includes(p.status) && p.vencimento >= hoje);
+  if (!abertas.length) return { erro: "Este contrato não tem parcelas em aberto para mudar" };
+  let mudadas = 0;
+  const falhas = [];
+  for (const p of abertas) {
+    const [ano, mes] = p.vencimento.split("-").map(Number);
+    const nova = n ? enesimoDiaUtil(ano, mes - 1, n) : datasDasParcelas({ dia: d, mes: mes - 1, ano }, 1)[0];
+    if (!nova || nova === p.vencimento) continue;
+    if (nova < hoje) { falhas.push(`${p.descricao}: a nova data já passou`); continue; }
+    if (p.asaas_id) {
+      try { await asaas.mudarVencimento(p.asaas_id, nova); }
+      catch (e) { falhas.push(`${p.descricao}: o Asaas não aceitou (${e.message})`); continue; }
+    }
+    await db.atualizarCobranca(p.id, { vencimento: nova, erro: null });
+    mudadas += 1;
+  }
+  return { mudadas, falhas, parcelas: await db.listarCobrancas({ contratoId }) };
 }
 
 /** Cancela uma parcela. Paga não se cancela: devolver dinheiro é um reembolso, feito no Asaas. */

@@ -54,6 +54,10 @@ function apiFalsa({ falhar = null } = {}) {
     const id = caminho.split("/")[2];
     const p = estado.pagamentos.find((x) => x.id === id);
     if (!p) return responde({}, 404);
+    if (metodo === "PUT") {
+      Object.assign(p, corpo);
+      return responde(p);
+    }
     if (metodo === "DELETE") {
       p.deleted = true;
       return responde({ deleted: true, id });
@@ -160,6 +164,42 @@ test("asaas: o sistema cadastra o webhook no Asaas com o próprio token, sem nin
 test("cobrança: dia 31 cai no último dia dos meses curtos", () => {
   assert.deepEqual(cobranca.datasDasParcelas({ dia: 31, mes: 0, ano: 2027 }, 4), ["2027-01-31", "2027-02-28", "2027-03-31", "2027-04-30"]);
   assert.deepEqual(cobranca.datasDasParcelas({ dia: 5, mes: 11, ano: 2026 }, 2), ["2026-12-05", "2027-01-05"]);
+});
+
+test("cobrança: vencimento no 5º dia útil de cada mês, sem fim de semana e feriado nacional", async () => {
+  const { enesimoDiaUtil, ehDiaUtil } = await import("../src/contratos/diasUteis.js");
+  // Janeiro de 2027: o dia 1 é feriado (sexta); setembro: o 7 é feriado; fevereiro: Carnaval nos dias 8 e 9.
+  assert.deepEqual(cobranca.datasDasParcelas({ dia: 1, mes: 11, ano: 2026 }, 4, { diaUtil: 5 }), ["2026-12-07", "2027-01-08", "2027-02-05", "2027-03-05"]);
+  assert.equal(enesimoDiaUtil(2027, 8, 5), "2027-09-08");
+  assert.equal(enesimoDiaUtil(2027, 1, 6), "2027-02-10");
+  assert.deepEqual(["2027-02-08", "2027-02-09", "2027-03-26", "2027-05-27", "2027-11-20"].map(ehDiaUtil), [false, false, false, false, false]);
+
+  const api = apiFalsa();
+  await comApi(api, async () => {
+    await asaas.conectar(CHAVE);
+    const id = await contratoAssinado();
+    assert.match((await cobranca.gerarCobrancas(pedido(id, { diaUtil: "30" }), AGORA)).erro, /1 a 20/);
+    const { parcelas } = await cobranca.gerarCobrancas(pedido(id, { diaUtil: "5" }), AGORA);
+    assert.deepEqual(parcelas.slice(0, 3).map((p) => p.vencimento), ["2026-12-07", "2027-01-08", "2027-02-05"]);
+    // 07/12 ainda está a mais de 15 dias de 20/11: fica agendada.
+    assert.equal(api.estado.pagamentos.length, 0);
+  });
+});
+
+test("cobrança: mudar o vencimento das parcelas em aberto para o dia útil, aqui e no Asaas", async () => {
+  const api = apiFalsa();
+  await comApi(api, async () => {
+    await asaas.conectar(CHAVE);
+    const id = await contratoAssinado();
+    await cobranca.gerarCobrancas(pedido(id), AGORA); // todo dia 5; a 1ª já foi para o Asaas
+    const r = await cobranca.mudarVencimentos(id, { diaUtil: "5" }, AGORA);
+    assert.equal(r.falhas.length, 0);
+    assert.deepEqual(r.parcelas.slice(0, 4).map((p) => p.vencimento), ["2026-12-07", "2027-01-08", "2027-02-05", "2027-03-05"]);
+    assert.equal(r.mudadas, r.parcelas.filter((p) => !p.vencimento.endsWith("-05")).length);
+    // A que já estava no Asaas mudou lá também.
+    assert.equal(api.estado.pagamentos[0].dueDate, "2026-12-07");
+    assert.match((await cobranca.mudarVencimentos(id, { diaUtil: "0" }, AGORA)).erro, /dia útil/);
+  });
 });
 
 test("cobrança: os campos vêm do texto do contrato", async () => {

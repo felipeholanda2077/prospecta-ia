@@ -138,6 +138,7 @@ export async function garantirCliente({ referencia, nome, documento, email, celu
 export const cobrancaPorReferencia = async (referencia) => (await chamar("GET", `/payments?externalReference=${encodeURIComponent(referencia)}&limit=1`))?.data?.[0] ?? null;
 export const criarCobranca = (dados) => chamar("POST", "/payments", dados);
 export const lerCobranca = (id) => chamar("GET", `/payments/${encodeURIComponent(id)}`);
+export const mudarVencimento = (id, dueDate) => chamar("PUT", `/payments/${encodeURIComponent(id)}`, { dueDate });
 export const removerCobranca = (id) => chamar("DELETE", `/payments/${encodeURIComponent(id)}`);
 export const pagamentosDesde = (data, offset = 0) => chamar("GET", `/payments?${new URLSearchParams({ "dateCreated[ge]": data, limit: "100", offset: String(offset) })}`);
 export const criarLink = (dados) => chamar("POST", "/paymentLinks", dados);

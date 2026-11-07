@@ -1502,6 +1502,8 @@
               <div class="campo"><label for="cb-valor">Valor de cada parcela (R$)</label><input id="cb-valor" name="valor" inputmode="numeric" data-dinheiro autocomplete="off" required></div>
               <div class="campo"><label for="cb-parcelas">Parcelas</label><input id="cb-parcelas" name="parcelas" type="number" min="1" max="120" value="1" required></div>
               <div class="campo"><label for="cb-vencimento">Primeiro vencimento</label><input id="cb-vencimento" name="vencimento" type="date" required></div>
+              <div class="campo"><label for="cb-dia-util">Vencer no dia útil (opcional)</label><input id="cb-dia-util" name="diaUtil" type="number" min="1" max="20" placeholder="Ex.: 5 = 5º dia útil de cada mês">
+                <small class="muted">Com um número aqui, cada parcela vence nesse dia útil do mês (sem fim de semana e feriado nacional), a partir do mês do primeiro vencimento. Vazio: o mesmo dia todo mês.</small></div>
               <div class="campo"><label for="cb-multa">Multa por atraso (%)</label><input id="cb-multa" name="multa" inputmode="decimal" autocomplete="off"></div>
               <div class="campo"><label for="cb-juros">Juros ao mês (%)</label><input id="cb-juros" name="juros" inputmode="decimal" autocomplete="off"></div>
             </div>
@@ -5183,7 +5185,13 @@ async function carregarCobrancas() {
     $("#cb-resumo").innerHTML = total("Recebido no mês", resumo.recebidoNoMes, "Pagamentos deste mês")
       + total("Mensalidades", resumo.mensalidades ?? 0, "Assinaturas em andamento, por mês") + total("A receber", resumo.aReceber, "Parcelas ainda no prazo") + total("Em atraso", resumo.emAtraso, "Já venceram sem pagamento");
     const ordenadas = [...parcelas].sort((a, b) => ORDEM_COBRANCA.indexOf(a.status) - ORDEM_COBRANCA.indexOf(b.status));
-    $("#cb-lista").innerHTML = ordenadas.length ? ordenadas.map((p) => {
+    // Um botão por contrato com parcelas em aberto, para mudar o vencimento de todas de uma vez.
+    const comAbertas = [...new Map(parcelas.filter((p) => ["agendada", "emitida"].includes(p.status)).map((p) => [p.contrato_id, p])).values()];
+    const mudarVencimentos = comAbertas.map((p) => `<article class="cartao"><div class="cb-linha">
+        <span class="ct-linha-texto"><b>${esc(p.projeto)}</b><span class="muted">${esc(p.contratante)} · vencimento das parcelas em aberto</span></span>
+        <button class="btn fantasma sm" type="button" data-cb-vencimentos="${p.contrato_id}" data-cb-projeto="${esc(p.projeto)}">${ic("clock", "sm")}Mudar vencimento</button>
+      </div></article>`).join("");
+    $("#cb-lista").innerHTML = mudarVencimentos + (ordenadas.length ? ordenadas.map((p) => {
       const [rotulo, cor] = STATUS_COBRANCA[p.status] ?? [p.status, ""];
       const aberta = ["agendada", "emitida", "atrasada"].includes(p.status);
       return `<article class="cartao"><div class="cb-linha">
@@ -5193,7 +5201,7 @@ async function carregarCobrancas() {
         ${p.link ? `<a class="btn sm" href="${esc(p.link)}" target="_blank" rel="noopener">${ic("external", "sm")}Página de pagamento</a>` : ""}
         ${aberta ? `<button class="btn fantasma sm" type="button" data-cb-cancelar="${p.id}">Cancelar</button>` : ""}
       </div></article>`;
-    }).join("") : vazio("checkCircle", "Nenhuma cobrança ainda", "Marque um contrato como assinado e clique em Gerar cobranças.");
+    }).join("") : vazio("checkCircle", "Nenhuma cobrança ainda", "Marque um contrato como assinado e clique em Gerar cobranças."));
   } catch (e) {
     $("#cb-lista").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
@@ -5361,7 +5369,7 @@ async function preencherCobranca(contratoId) {
   try {
     const p = await api(`/api/cobrancas/padroes?contrato=${encodeURIComponent(contratoId)}`);
     const f = $("#form-cobranca");
-    for (const k of ["nome", "documento", "email", "celular", "valor", "parcelas", "vencimento", "multa", "juros"]) f[k].value = p[k] ?? "";
+    for (const k of ["nome", "documento", "email", "celular", "valor", "parcelas", "vencimento", "diaUtil", "multa", "juros"]) f[k].value = p[k] ?? "";
   } catch (e) {
     avisar(e.message, "perigo");
   }
@@ -5380,7 +5388,8 @@ $("#cb-contrato").addEventListener("change", (ev) => preencherCobranca(ev.target
 $("#form-cobranca").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const d = Object.fromEntries(new FormData(ev.target));
-  if (!confirm(`Gerar ${d.parcelas} cobrança(s) de ${formatoReais(valorDoDinheiro(d.valor) ?? 0)} para ${d.nome}, a primeira em ${dataCurta(d.vencimento)}?`)) return;
+  const quando = d.diaUtil ? `vencendo no ${d.diaUtil}º dia útil de cada mês, a partir de ${dataCurta(d.vencimento).replace(/^\d+\//, "")}` : `a primeira em ${dataCurta(d.vencimento)}`;
+  if (!confirm(`Gerar ${d.parcelas} cobrança(s) de ${formatoReais(valorDoDinheiro(d.valor) ?? 0)} para ${d.nome}, ${quando}?`)) return;
   const btn = $("button[type=submit]", ev.target);
   btn.disabled = true;
   try {
@@ -5419,6 +5428,19 @@ $("#cb-atualizar").addEventListener("click", async (ev) => {
   }
 });
 $("#cb-lista").addEventListener("click", async (ev) => {
+  const mudar = ev.target.closest("[data-cb-vencimentos]");
+  if (mudar) {
+    const resposta = prompt(`Em que dia útil do mês as parcelas em aberto de ${mudar.dataset.cbProjeto} devem vencer? (ex.: 5 = 5º dia útil; fim de semana e feriado nacional não contam)`, "5");
+    if (resposta === null) return;
+    try {
+      const r = await post(`/api/cobrancas/contrato/${mudar.dataset.cbVencimentos}/vencimentos`, { diaUtil: resposta });
+      avisar(`${r.mudadas} ${r.mudadas === 1 ? "parcela mudou" : "parcelas mudaram"} para o ${resposta}º dia útil${r.falhas.length ? `. Não mudaram: ${r.falhas.join("; ")}` : ""}`, r.falhas.length ? "perigo" : "ok", 9000);
+      await carregarCobrancas();
+    } catch (e) {
+      avisar(e.message, "perigo", 7000);
+    }
+    return;
+  }
   const btn = ev.target.closest("[data-cb-cancelar]");
   if (!btn || !confirm("Cancelar esta cobrança? Se já foi emitida, o cliente não poderá mais pagá-la.")) return;
   try {

@@ -1753,6 +1753,11 @@ app.post("/api/cobrancas", async (req, res) => {
 
 app.post("/api/cobrancas/atualizar", async (req, res) => res.json({ ...(await cobrancas.rodadaDeCobrancas()), ...(await entrada.conferirVendas()) }));
 
+app.post("/api/cobrancas/contrato/:id/vencimentos", async (req, res) => {
+  const r = await cobrancas.mudarVencimentos(Number(req.params.id), req.body ?? {});
+  res.status(r.erro ? 400 : 200).json(r);
+});
+
 app.post("/api/cobrancas/:id/cancelar", async (req, res) => {
   const r = await cobrancas.cancelarCobranca(req.params.id);
   res.status(r.erro ? 400 : 200).json(r);
