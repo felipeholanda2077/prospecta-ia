@@ -129,13 +129,26 @@ const SEM_SITE_CONHECIDO = (lead) => (lead.origem === "cnpj"
   ? "não sabemos (a empresa veio do cadastro do CNPJ, que não informa site). NÃO diga nem dê a entender que ela não tem site; fale do digital de forma geral"
   : "não possui");
 
+/** O anúncio ativo da empresa (achada na Biblioteca de Anúncios da Meta), para a IA citar. */
+function linhaDoAnuncio(lead) {
+  let a = null;
+  try { a = JSON.parse(lead.anuncio ?? "null"); } catch {}
+  if (!a) return "";
+  const desde = a.desde ? new Date(`${a.desde}T12:00:00Z`).toLocaleDateString("pt-BR", { day: "numeric", month: "long" }) : null;
+  const onde = (a.plataformas ?? []).filter((p) => ["instagram", "facebook"].includes(p)).map((p) => (p === "instagram" ? "Instagram" : "Facebook")).join(" e ") || "Instagram e Facebook";
+  const destino = /wa\.me|whatsapp/i.test(a.link ?? "") ? "o WhatsApp da empresa" : /instagram\.com/i.test(a.link ?? "") ? "o perfil do Instagram" : a.link ? `a página ${a.link}` : "não sabemos";
+  return `
+- Está anunciando agora no ${onde}${desde ? `, desde ${desde}` : ""} (achada na Biblioteca de Anúncios da Meta). Texto do anúncio: "${String(a.texto ?? "").slice(0, 300)}". O anúncio leva para ${destino}.
+  Use isto: abra mostrando que viu o anúncio (com naturalidade, citando algo dele) e ligue a oportunidade ao dinheiro que ela já investe em anúncio (ex.: quem clica cai numa página lenta, sem botão de WhatsApp, ou numa conversa que demora a ser respondida). Não critique o anúncio em si.`;
+}
+
 function montarPedido(lead, oportunidades) {
   return `Dados da empresa prospectada:
 - Nome: ${lead.nome}
 - Segmento: ${lead.nicho ?? "não informado"}
 - Cidade: ${lead.cidade ?? "não informada"}
 - Site: ${lead.site ?? SEM_SITE_CONHECIDO(lead)}
-- Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "sem dados"}${linhaDoInstagram(lead)}${lead.responsavel ? `
+- Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "sem dados"}${linhaDoInstagram(lead)}${linhaDoAnuncio(lead)}${lead.responsavel ? `
 - Sócio que administra (cadastro do CNPJ, em maiúsculas e sem acento): ${lead.responsavel}` : ""}
 
 Oportunidades encontradas na análise (da mais para a menos relevante):

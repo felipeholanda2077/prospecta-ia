@@ -4,6 +4,7 @@ import * as db from "./db.js";
 import { buscarEmpresas } from "./descoberta/googlePlaces.js";
 import { buscaNoInstagram, buscarEmpresasNoInstagram, instagramDaEmpresa } from "./descoberta/instagram.js";
 import { buscarEmpresasPorCnpj, contatoDoCnpj, emailDeContador } from "./descoberta/cnpj.js";
+import { buscarAnunciantes, podeBuscarSozinho } from "./descoberta/anuncios.js";
 import { escolherAbordagem } from "./ia/abordagens.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
@@ -397,10 +398,75 @@ export async function descobrirProxima(campanha, { tentativas = 3 } = {}) {
   await db.gravarEstado("busca_rotacao", indice % combinacoes.length);
   const instagram = await descobrirNoInstagram(campanha, combinacoes[inicio % combinacoes.length]);
   const cnpj = await descobrirPorCnpj(campanha, combinacoes[inicio % combinacoes.length]);
+  const anuncios = await descobrirNosAnuncios(campanha, combinacoes[inicio % combinacoes.length]);
   return {
-    novas: novas + (instagram?.novas ?? 0) + (cnpj?.novas ?? 0), buscas: feitas,
-    ...(instagram ? { instagram } : {}), ...(cnpj ? { cnpj } : {}),
+    novas: novas + (instagram?.novas ?? 0) + (cnpj?.novas ?? 0) + (anuncios?.novas ?? 0), buscas: feitas,
+    ...(instagram ? { instagram } : {}), ...(cnpj ? { cnpj } : {}), ...(anuncios ? { anuncios } : {}),
   };
+}
+
+/**
+ * Com a SerpApi conectada, a busca automática também procura quem está anunciando no Instagram e no Facebook
+ * no mesmo segmento e cidade. Gasta no máximo 1 busca por rodada e o limite do mês aos poucos.
+ */
+export async function descobrirNosAnuncios(campanha, { nicho, cidade }, { agora = new Date() } = {}) {
+  if (campanha.automacao?.buscarEmAnuncios === false) return null;
+  if (!(await podeBuscarSozinho(agora))) return null;
+  try {
+    const { empresas, avisos } = await buscarAnunciantes({ nicho, cidade, quantidade: 30, maxBuscas: 1, agora });
+    const novas = (await capturarDosAnuncios(empresas, nicho, cidade)).novas;
+    log(`📣 Busca automática nos anúncios da Meta "${nicho} em ${cidade}": ${novas} novas${avisos.length ? ` · ${avisos.join(" · ")}` : ""}`);
+    return { novas };
+  } catch (e) {
+    log(`⚠️  Falha na busca automática nos anúncios "${nicho} em ${cidade}": ${e.message}`);
+    return { novas: 0, erro: e.message };
+  }
+}
+
+/** Busca nos anúncios da Meta pelo painel, sem salvar: mostra os anunciantes para você escolher quem capturar. */
+export async function buscarNosAnuncios(nicho, cidade, { quantidade = 20 } = {}) {
+  const r = await buscarAnunciantes({ nicho, cidade, quantidade: Math.min(Number(quantidade) || 20, 60), maxBuscas: Number(quantidade) > 30 ? 2 : 1 });
+  const capturados = await db.placeIdsCapturados(r.empresas.map((e) => `ad:${e.page_id}`));
+  log(`📣 Busca no painel nos anúncios "${nicho} em ${cidade}": ${r.empresas.length} anunciantes (${r.buscas} ${r.buscas === 1 ? "busca" : "buscas"})`);
+  return {
+    ...r,
+    empresas: r.empresas.map((e) => ({
+      ...e, jaCapturado: capturados.has(`ad:${e.page_id}`), celular: ehCelularBR(e.telefone),
+      semSite: !e.site, semContato: !e.site && !e.telefone && !e.instagram,
+    })),
+  };
+}
+
+/** Salva como leads os anunciantes escolhidos (ou achados pela busca automática), com o anúncio deles. */
+export async function capturarDosAnuncios(empresas, nicho, cidade) {
+  let novas = 0;
+  for (const e of empresas) {
+    const pagina = String(e?.page_id ?? "").replace(/\D/g, "");
+    if (!pagina || !e?.nome || (!e.site && !e.telefone && !e.instagram)) continue;
+    const instagram = /^[a-z0-9._]{2,30}$/.test(String(e.instagram ?? "")) ? e.instagram : null;
+    const a = e.anuncio ?? {};
+    const lead = {
+      place_id: `ad:${pagina}`,
+      nome: String(e.nome).slice(0, 120),
+      endereco: null,
+      telefone: e.telefone ? String(e.telefone).replace(/\D/g, "").slice(0, 15) : null,
+      site: e.site ? String(e.site).slice(0, 500) : instagram ? `https://www.instagram.com/${instagram}/` : null,
+      maps_url: null,
+      avaliacao: null,
+      total_avaliacoes: null,
+      instagram,
+      nicho,
+      cidade,
+      origem: "anuncio",
+      anuncio: {
+        texto: String(a.texto ?? "").slice(0, 400), desde: a.desde ?? null, link: a.link ? String(a.link).slice(0, 500) : null,
+        chamada: a.chamada ?? null, plataformas: Array.isArray(a.plataformas) ? a.plataformas.slice(0, 6) : [], biblioteca: a.biblioteca ?? null,
+      },
+    };
+    if (await db.inserirLead(lead)) novas++;
+  }
+  if (novas) log(`📣 ${novas} empresas capturadas dos anúncios da Meta`);
+  return { novas };
 }
 
 /** A busca pelo CNPJ com o que o sistema já sabe: os CNPJs já capturados e os telefones de contador. */
@@ -663,7 +729,8 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
     else if (!email && !whatsapp) {
       observacao = whatsapp_status === "sem_whatsapp"
         ? "sem e-mail no site e o telefone não tem WhatsApp"
-        : lead.origem === "instagram" ? "sem e-mail nem WhatsApp na bio do Instagram" : "sem e-mail no site e sem telefone no Google";
+        : lead.origem === "instagram" ? "sem e-mail nem WhatsApp na bio do Instagram"
+          : lead.origem === "anuncio" ? "o anúncio não leva a site, WhatsApp ou Instagram com contato" : "sem e-mail no site e sem telefone no Google";
       status = "descartado";
     } else if (!oportunidades.length) [status, observacao] = ["descartado", "nenhuma oportunidade clara"];
 

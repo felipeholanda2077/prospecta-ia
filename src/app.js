@@ -42,6 +42,7 @@ import { receberFormulario, lerConfigFormulario, salvarConfigFormulario } from "
 import { paginaDoFormulario, paginaDeObrigado } from "./paginaContato.js";
 import * as contratos from "./contratos/contrato.js";
 import * as asaas from "./contratos/asaas.js";
+import * as anuncios from "./descoberta/anuncios.js";
 import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
 import { pdfDoGuia, prepararCampanha, imagemDaMensagem, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
@@ -936,6 +937,27 @@ app.post("/api/cnpj/capturar", async (req, res) => {
   res.json(await pipeline.capturarDoCnpj(empresas.slice(0, 100), String(nicho ?? ""), String(cidade ?? "")));
 });
 
+// Anúncios da Meta (pela SerpApi): quem está anunciando no Instagram e no Facebook no segmento e cidade.
+app.get("/api/anuncios", async (req, res) => res.json(await anuncios.situacao()));
+app.put("/api/anuncios/conexao", async (req, res) => {
+  const r = await anuncios.conectar({ chave: req.body?.chave, limiteMensal: req.body?.limiteMensal });
+  res.status(r.erro ? 400 : 200).json(r);
+});
+app.post("/api/anuncios/buscar", async (req, res) => {
+  const { nicho, cidade, quantidade } = req.body ?? {};
+  if (!String(nicho ?? "").trim() || !String(cidade ?? "").trim()) return res.status(400).json({ erro: "Informe o segmento e a cidade" });
+  try {
+    res.json(await pipeline.buscarNosAnuncios(nicho.trim(), cidade.trim(), { quantidade }));
+  } catch (e) {
+    res.status(502).json({ erro: e.message });
+  }
+});
+app.post("/api/anuncios/capturar", async (req, res) => {
+  const { empresas, nicho, cidade } = req.body ?? {};
+  if (!Array.isArray(empresas) || !empresas.length) return res.status(400).json({ erro: "Selecione ao menos uma empresa" });
+  res.json(await pipeline.capturarDosAnuncios(empresas.slice(0, 100), String(nicho ?? ""), String(cidade ?? "")));
+});
+
 app.post("/api/maps/capturar", async (req, res) => {
   const { empresas, nicho, cidade } = req.body ?? {};
   if (!Array.isArray(empresas) || !empresas.length) return res.status(400).json({ erro: "Selecione ao menos uma empresa" });
@@ -1343,6 +1365,7 @@ app.put("/api/config/automacao", async (req, res) => {
     calendly: calendlyLink,
     buscarNoInstagram: b.buscarNoInstagram !== false,
     buscarPorCnpj: b.buscarPorCnpj !== false,
+    buscarEmAnuncios: b.buscarEmAnuncios !== false,
     testarRamos: b.testarRamos !== false,
     buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,
   };
