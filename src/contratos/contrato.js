@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import * as db from "../db.js";
-import { reais, reaisComExtenso, numeroPorExtenso, lerValor, diasPorExtenso, documentoFormatado, lerData, dataPorExtenso, mesDepois } from "./valores.js";
+import { reais, reaisComExtenso, numeroPorExtenso, lerValor, diasPorExtenso, documentoFormatado, lerData, dataPorExtenso, mesDepois, ordinalComExtenso, MESES } from "./valores.js";
 
 // O contrato de cada cliente nasce do modelo (editável no painel; o padrão fica em config/contrato-modelo.md,
 // sem dados pessoais, porque o repositório é público). Os dados de quem contrata e o pagamento entram quando o
@@ -47,7 +47,7 @@ const OBRIGACOES_PADRAO = "A CONTRATANTE obriga-se a fornecer, na data da assina
  * O pagamento, nos dois formatos: "mensal" (valor × meses) ou "entrada e saldo". Retorna os trechos do
  * contrato, ou { erro } com o que falta preencher.
  */
-export function montarPagamento({ tipoPagamento = "mensal", valorMensal, meses, primeiroPagamento, entrada, saldo }) {
+export function montarPagamento({ tipoPagamento = "mensal", valorMensal, meses, primeiroPagamento, diaUtil, entrada, saldo }) {
   const linhaTabela = (...c) => `| ${c.join(" | ")} |`;
   const blocoResumo = (...linhas) => ["::resumo", ...linhas.map(([a, b]) => `${a} | ${b}`), "::"].join("\n");
   if (tipoPagamento === "mensal") {
@@ -60,22 +60,32 @@ export function montarPagamento({ tipoPagamento = "mensal", valorMensal, meses, 
     const periodo = `${n} (${numeroPorExtenso(n)}) ${n === 1 ? "mês" : "meses"}`;
     const primeira = lerData(primeiroPagamento);
     if (primeiroPagamento && !primeira) return { erro: "Confira a data do primeiro pagamento" };
+    const util = String(diaUtil ?? "").trim() === "" ? null : Number.parseInt(diaUtil, 10);
+    if (util !== null && !(util >= 1 && util <= 20)) return { erro: "O dia útil do vencimento vai de 1 a 20" };
     // Dia 29 a 31 não existe em todo mês.
     const todoDia = primeira && `Todo dia ${primeira.dia}${primeira.dia > 28 ? " (ou o último dia do mês)" : ""}`;
-    const demais = primeira
-      ? (n === 2 ? `Dia ${primeira.dia} de ${mesDepois(primeira, 1)}` : `${todoDia}, de ${mesDepois(primeira, 1)} a ${mesDepois(primeira, n - 1)}`)
-      : (n === 2 ? "No mesmo dia do mês seguinte" : `No mesmo dia dos ${n - 1} meses seguintes`);
+    // No N-ésimo dia útil, a data muda todo mês: o contrato diz o dia útil e o mês (a data da 1ª só vale para escolher o mês).
+    const noDiaUtil = util && ordinalComExtenso(util);
+    const primeiraNoDiaUtil = util && primeira && `${noDiaUtil} dia útil de ${MESES[primeira.mes]} de ${primeira.ano}`;
+    const demais = util
+      ? (primeira
+        ? (n === 2 ? `${noDiaUtil} dia útil de ${mesDepois(primeira, 1)}` : `Todo ${noDiaUtil} dia útil do mês, de ${mesDepois(primeira, 1)} a ${mesDepois(primeira, n - 1)}`)
+        : (n === 2 ? `${noDiaUtil} dia útil do mês seguinte` : `${noDiaUtil} dia útil de cada um dos ${n - 1} meses seguintes`))
+      : primeira
+        ? (n === 2 ? `Dia ${primeira.dia} de ${mesDepois(primeira, 1)}` : `${todoDia}, de ${mesDepois(primeira, 1)} a ${mesDepois(primeira, n - 1)}`)
+        : (n === 2 ? "No mesmo dia do mês seguinte" : `No mesmo dia dos ${n - 1} meses seguintes`);
+    const vencimentoUtil = util ? `, com vencimento no ${noDiaUtil} dia útil de cada mês (dias úteis são os de segunda a sexta-feira, exceto feriados nacionais)` : "";
     return {
       total: valor * n,
-      forma_de_pagamento: n === 1 ? "em parcela única, da seguinte forma"
-        : `em ${qtd} parcelas mensais e consecutivas de ${parcela}, com período de vigência de ${periodo}, da seguinte forma`,
+      forma_de_pagamento: n === 1 ? `em parcela única${util && primeira ? `, com vencimento no ${noDiaUtil} dia útil do mês (dias úteis são os de segunda a sexta-feira, exceto feriados nacionais)` : ""}, da seguinte forma`
+        : `em ${qtd} parcelas mensais e consecutivas de ${parcela}, com período de vigência de ${periodo}${vencimentoUtil}, da seguinte forma`,
       tabela_pagamento: [
         linhaTabela("Parcela", "Valor", "Vencimento"), "|---|---|---|",
-        linhaTabela("1ª", parcela, primeira ? dataPorExtenso(primeira) : "Na assinatura deste contrato"),
+        linhaTabela("1ª", parcela, primeiraNoDiaUtil ? primeiraNoDiaUtil.replace(/^./, (l) => l.toUpperCase()) : primeira ? dataPorExtenso(primeira) : "Na assinatura deste contrato"),
         ...(n > 1 ? [linhaTabela(n === 2 ? "2ª" : `2ª a ${n}ª`, `${parcela}${n > 2 ? " cada" : ""}`, demais)] : []),
       ].join("\n"),
       bloco_resumo: blocoResumo(["Valor mensal", reais(valor)], ["Vigência", `${n} ${n === 1 ? "mês" : "meses"}`],
-        ["1º pagamento", primeira ? dataPorExtenso(primeira) : "Na assinatura"], ["Valor total", reais(valor * n)]),
+        ["1º pagamento", primeiraNoDiaUtil ?? (primeira ? dataPorExtenso(primeira) : "Na assinatura")], ["Valor total", reais(valor * n)]),
       rescisao_valores_pagos: n === 1 ? "o valor pago não será restituído" : "as parcelas já pagas não serão restituídas",
       resumo: `${reaisComExtenso(valor)} por mês, ${n} ${n === 1 ? "mês" : "meses"}`,
     };

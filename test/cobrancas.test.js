@@ -202,6 +202,20 @@ test("cobrança: mudar o vencimento das parcelas em aberto para o dia útil, aqu
   });
 });
 
+test("contrato no 5º dia útil: o texto diz o dia útil e a cobrança já vem com ele", async () => {
+  const m = contrato.montarPagamento({ valorMensal: 500, meses: 12, primeiroPagamento: "2026-12-05", diaUtil: "5" });
+  assert.match(m.forma_de_pagamento, /com vencimento no 5º \(quinto\) dia útil de cada mês \(dias úteis são os de segunda a sexta-feira, exceto feriados nacionais\)/);
+  assert.match(m.tabela_pagamento, /\| 1ª \| R\$ 500,00 \(quinhentos reais\) \| 5º \(quinto\) dia útil de dezembro de 2026 \|/);
+  assert.match(m.tabela_pagamento, /Todo 5º \(quinto\) dia útil do mês, de janeiro de 2027 a novembro de 2027/);
+  assert.match(m.bloco_resumo, /1º pagamento \| 5º \(quinto\) dia útil de dezembro de 2026/);
+  assert.match(contrato.montarPagamento({ valorMensal: 500, meses: 12, diaUtil: "25" }).erro, /1 a 20/);
+  // Sem dia útil, continua como antes.
+  assert.match(contrato.montarPagamento({ valorMensal: 500, meses: 12, primeiroPagamento: "2026-12-05", diaUtil: "" }).tabela_pagamento, /Todo dia 5, de janeiro/);
+
+  const p = await cobranca.padroesDaCobranca(await contratoAssinado({ diaUtil: "5" }));
+  assert.deepEqual([p.diaUtil, p.vencimento, p.parcelas, p.valor], ["5", "2026-12-07", 12, 500]);
+});
+
 test("cobrança: os campos vêm do texto do contrato", async () => {
   const p = await cobranca.padroesDaCobranca(await contratoAssinado({ email: "cliente@exemplo.com" }));
   assert.equal(p.documento, "11.222.333/0001-81");

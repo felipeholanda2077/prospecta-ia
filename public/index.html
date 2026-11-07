@@ -1446,6 +1446,8 @@
             <div class="campo" data-ct-pag="mensal"><label for="ct-valor">Valor por mês (R$)</label><input id="ct-valor" name="valorMensal" inputmode="numeric" data-dinheiro placeholder="R$ 500,00"></div>
             <div class="campo" data-ct-pag="mensal"><label for="ct-meses">Quantos meses</label><input id="ct-meses" name="meses" type="number" min="1" max="120" inputmode="numeric" placeholder="Ex.: 12"></div>
             <div class="campo" data-ct-pag="mensal"><label for="ct-primeiro">Primeiro pagamento</label><input id="ct-primeiro" name="primeiroPagamento" type="date"></div>
+            <div class="campo" data-ct-pag="mensal"><label for="ct-dia-util">Vencer no dia útil (opcional)</label><input id="ct-dia-util" name="diaUtil" type="number" min="1" max="20" inputmode="numeric" placeholder="Ex.: 5 = 5º dia útil">
+              <small class="muted">Com um número, o contrato diz "todo 5º dia útil do mês" e o primeiro pagamento vale só pelo mês. Vazio: o mesmo dia todo mês.</small></div>
             <div class="campo" data-ct-pag="entrada_saldo" hidden><label for="ct-entrada">Entrada (R$)</label><input id="ct-entrada" name="entrada" inputmode="numeric" data-dinheiro placeholder="Na assinatura"></div>
             <div class="campo" data-ct-pag="entrada_saldo" hidden><label for="ct-saldo">Saldo (R$)</label><input id="ct-saldo" name="saldo" inputmode="numeric" data-dinheiro placeholder="Na entrega"></div>
             <div class="alerta info" id="ct-total" style="grid-column:1/-1" hidden></div>

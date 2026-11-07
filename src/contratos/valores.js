@@ -87,6 +87,11 @@ export function lerData(iso) {
 export const dataPorExtenso = ({ dia, mes, ano }) => `${dia} de ${MESES[mes]} de ${ano}`;
 
 /** "janeiro de 2027": o mês `n` meses depois da data. */
+const ORDINAIS = ["primeiro", "segundo", "terceiro", "quarto", "quinto", "sexto", "sétimo", "oitavo", "nono", "décimo",
+  "décimo primeiro", "décimo segundo", "décimo terceiro", "décimo quarto", "décimo quinto", "décimo sexto", "décimo sétimo", "décimo oitavo", "décimo nono", "vigésimo"];
+/** 5 vira "5º (quinto)". */
+export const ordinalComExtenso = (n) => `${n}º (${ORDINAIS[n - 1]})`;
+
 export function mesDepois({ mes, ano }, n) {
   const total = mes + n;
   return `${MESES[total % 12]} de ${ano + Math.floor(total / 12)}`;

@@ -43,9 +43,12 @@ export async function padroesDaCobranca(contratoId) {
   const lead = c.lead_id ? await db.buscarLead(c.lead_id) : null;
   const mensal = String(c.resumo ?? "").match(/^R\$\s*([\d.,]+).*por mês, (\d+) m/);
   const data = c.corpo.match(/\|\s*1ª[^|]*\|[^|]*\|\s*(\d{1,2}) de ([a-zç]+) de (\d{4})\s*\|/);
-  const mes = data ? MESES.indexOf(data[2]) : -1;
+  // No dia útil, a 1ª diz só o mês ("5º (quinto) dia útil de dezembro de 2026"): a data é o dia útil daquele mês.
+  const util = !data && c.corpo.match(/\|\s*1ª[^|]*\|[^|]*\|\s*(\d{1,2})º[^|]*?dia útil de ([a-zç]+) de (\d{4})\s*\|/i);
+  const mes = data ? MESES.indexOf(data[2]) : util ? MESES.indexOf(util[2]) : -1;
+  const vencimentoUtil = util && mes >= 0 ? enesimoDiaUtil(Number(util[3]), mes, Number(util[1])) : null;
   const atraso = c.corpo.match(/multa de ([\d,]+)%.*?juros de ([\d,]+)% ao mês/);
-  const diaUtil = c.corpo.match(/(\d{1,2})[ºo°]?\s*(?:\(\w+\)\s*)?dia útil/i)?.[1] ?? "";
+  const diaUtil = c.corpo.match(/(\d{1,2})[ºo°]?\s*(?:\([^)]*\)\s*)?dia útil/i)?.[1] ?? "";
   return {
     diaUtil,
     contratoId: c.id, nome: c.contratante,
@@ -53,7 +56,7 @@ export async function padroesDaCobranca(contratoId) {
     // Os seus dados no texto ainda são {{campos}}: o e-mail que aparece nele é o do cliente.
     email: lead?.email || (c.corpo.match(/[\w.+-]+@[\w-]+(?:\.[\w-]+)+/)?.[0] ?? ""), celular: lead?.whatsapp || lead?.telefone || "",
     valor: mensal ? lerValor(mensal[1]) : null, parcelas: mensal ? Number(mensal[2]) : 1,
-    vencimento: data && mes >= 0 ? dataIso(new Date(Date.UTC(Number(data[3]), mes, Number(data[1])))) : "",
+    vencimento: vencimentoUtil ?? (data && mes >= 0 ? dataIso(new Date(Date.UTC(Number(data[3]), mes, Number(data[1])))) : ""),
     multa: atraso ? lerValor(atraso[1]) : MULTA_PADRAO, juros: atraso ? lerValor(atraso[2]) : JUROS_PADRAO,
   };
 }
