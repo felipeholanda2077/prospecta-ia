@@ -16,7 +16,7 @@ const pedido = (id, extra = {}) => ({ contratoId: id, nome: "Cliente Teste LTDA"
 
 /** Um Asaas falso, em memória, que anota o que recebeu. */
 function apiFalsa({ falhar = null } = {}) {
-  const estado = { clientes: [], pagamentos: [], chamadas: [] };
+  const estado = { clientes: [], pagamentos: [], chamadas: [], webhooks: [] };
   const fetchFalso = async (url, opcoes = {}) => {
     const u = new URL(url);
     const caminho = u.pathname.replace(/^\/v3/, "");
@@ -25,6 +25,18 @@ function apiFalsa({ falhar = null } = {}) {
     estado.chamadas.push({ metodo, caminho, host: u.host, corpo, cabecalhos: opcoes.headers });
     const responde = (dados, status = 200) => new Response(JSON.stringify(dados), { status });
     if (falhar?.(metodo, caminho)) return responde({ errors: [{ description: "Recusado pelo Asaas" }] }, 400);
+    if (caminho === "/webhooks" && metodo === "GET") return responde({ data: estado.webhooks.map(({ authToken, ...w }) => ({ ...w, hasAuthToken: Boolean(authToken) })) });
+    if (caminho === "/webhooks") {
+      const w = { id: `wh_${estado.webhooks.length + 1}`, ...corpo };
+      estado.webhooks.push(w);
+      return responde(w);
+    }
+    if (caminho.startsWith("/webhooks/")) {
+      const w = estado.webhooks.find((x) => x.id === caminho.split("/")[2]);
+      if (!w) return responde({}, 404);
+      Object.assign(w, corpo);
+      return responde(w);
+    }
     const ref = u.searchParams.get("externalReference");
     if (caminho === "/customers" && metodo === "GET") return responde({ data: estado.clientes.filter((c) => !ref || c.externalReference === ref) });
     if (caminho === "/customers") {
@@ -110,6 +122,33 @@ test("asaas: chave e token trancados pela troca da senha do painel pedem para co
   assert.equal((await cobranca.dadosDoWebhook()).faltaColar, false);
   assert.equal(await asaas.tokenValido(w.token), true);
   await db.gravarConfig("asaas", {});
+});
+
+test("asaas: o sistema cadastra o webhook no Asaas com o próprio token, sem ninguém colar nada", async () => {
+  const api = apiFalsa();
+  await comApi(api, async () => {
+    await asaas.conectar(CHAVE);
+    // Já existe um "Prospecta IA" com o token antigo e a fila parada: é atualizado, não duplicado.
+    api.estado.webhooks.push({ id: "wh_antigo", name: "Prospecta IA", url: "https://velho.example.com/webhooks/asaas", enabled: false, interrupted: true, authToken: "antigo".repeat(6), events: ["PAYMENT_RECEIVED"] });
+    const w = await cobranca.configurarWebhookNoAsaas();
+    assert.equal(api.estado.webhooks.length, 1);
+    const [cadastrado] = api.estado.webhooks;
+    assert.equal(cadastrado.authToken, w.token);
+    assert.equal(cadastrado.url, w.url);
+    assert.deepEqual([cadastrado.enabled, cadastrado.interrupted], [true, false]);
+    assert.ok(asaas.EVENTOS_DO_WEBHOOK.every((e) => cadastrado.events.includes(e)));
+    assert.ok(w.configuradoEm);
+    assert.equal(w.faltaColar, false);
+
+    // Trocar o token grava o novo lá também; sem webhook nenhum, cria um.
+    const trocado = await cobranca.configurarWebhookNoAsaas({ novo: true });
+    assert.notEqual(trocado.token, w.token);
+    assert.equal(api.estado.webhooks[0].authToken, trocado.token);
+    api.estado.webhooks.length = 0;
+    await cobranca.configurarWebhookNoAsaas();
+    assert.equal(api.estado.webhooks[0].name, "Prospecta IA");
+    assert.equal(await asaas.tokenValido(api.estado.webhooks[0].authToken), true);
+  });
 });
 
 test("cobrança: dia 31 cai no último dia dos meses curtos", () => {

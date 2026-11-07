@@ -5306,14 +5306,17 @@ document.addEventListener("click", async (ev) => {
   }
 });
 
-function mostrarWebhookAsaas({ url, token, ultimoAviso, faltaColar }) {
+function mostrarWebhookAsaas({ url, token, ultimoAviso, faltaColar, configuradoEm, erroAoConfigurar }) {
   $("#cb-webhook-corpo").innerHTML = `<div style="display:grid;gap:8px">
-      ${faltaColar ? `<div class="alerta perigo">${ic("alert")}<div><b>Cole o token novo no Asaas.</b> O token antigo foi trancado quando a senha do painel mudou, e o sistema gerou outro. Até você colar este no cadastro do webhook do Asaas, os avisos de pagamento são recusados (a conferência de cada hora continua valendo).</div></div>` : ""}
+      ${configuradoEm ? `<div class="alerta info">${ic("checkCircle")}<div><b>Webhook cadastrado no Asaas pelo sistema</b> em ${esc(dataHora(configuradoEm))}, com este token. Não precisa colar nada.</div></div>`
+        : faltaColar ? `<div class="alerta perigo">${ic("alert")}<div><b>O Asaas ainda está com o token antigo.</b> O token antigo foi trancado quando a senha do painel mudou, e o sistema gerou outro. Clique em <b>Cadastrar no Asaas</b> e o sistema grava este token lá. Até isso, os avisos de pagamento são recusados (a conferência de cada hora continua valendo).</div></div>` : ""}
+      ${erroAoConfigurar ? `<div class="alerta perigo">${ic("alert")}<div>O Asaas não aceitou o cadastro do webhook: ${esc(erroAoConfigurar)}. Cole o token abaixo no webhook do Asaas.</div></div>` : ""}
       <div>URL do Webhook: <code style="overflow-wrap:anywhere">${esc(url)}</code> <button type="button" class="btn fantasma sm" data-cb-copiar="${esc(url)}">${ic("copy", "sm")}Copiar</button></div>
       <div>Token de autenticação: <code style="overflow-wrap:anywhere">${esc(token)}</code> <button type="button" class="btn fantasma sm" data-cb-copiar="${esc(token)}">${ic("copy", "sm")}Copiar</button></div>
-      <div class="muted">No Asaas: webhook ativo, versão v3, envio não sequencial, fila de sincronização ativada. Eventos: PAYMENT_CREATED, PAYMENT_CONFIRMED, PAYMENT_RECEIVED, PAYMENT_OVERDUE, PAYMENT_DELETED, PAYMENT_REFUNDED, PAYMENT_REFUND_IN_PROGRESS e PAYMENT_CHARGEBACK_REQUESTED.</div>
+      <div class="muted">O botão Cadastrar no Asaas faz isto sozinho. À mão, seria: webhook ativo, versão v3, envio não sequencial, fila de sincronização ativada. Eventos: PAYMENT_CREATED, PAYMENT_CONFIRMED, PAYMENT_RECEIVED, PAYMENT_OVERDUE, PAYMENT_DELETED, PAYMENT_REFUNDED, PAYMENT_REFUND_IN_PROGRESS e PAYMENT_CHARGEBACK_REQUESTED.</div>
       <div class="muted">${ultimoAviso ? `Último aviso recebido em ${esc(dataHora(ultimoAviso))}.` : "Nenhum aviso recebido ainda."}</div>
-      <div><button type="button" class="btn fantasma sm" id="cb-novo-token">${ic("refresh", "sm")}Trocar o token</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="btn ${configuradoEm ? "fantasma" : "primario"} sm" id="cb-configurar-webhook">${ic("send", "sm")}Cadastrar no Asaas</button>
+        <button type="button" class="btn fantasma sm" id="cb-novo-token">${ic("refresh", "sm")}Trocar o token</button></div>
     </div>`;
 }
 
@@ -5323,10 +5326,20 @@ $("#cb-webhook").addEventListener("click", async (ev) => {
     await navigator.clipboard.writeText(copiar.dataset.cbCopiar).catch(() => {});
     return avisar("Copiado", "ok", 1500);
   }
-  if (!ev.target.closest("#cb-novo-token") || !confirm("Trocar o token? Os avisos do Asaas só voltam a valer depois de colar o novo token no cadastro do webhook.")) return;
+  if (ev.target.closest("#cb-configurar-webhook")) {
+    try {
+      mostrarWebhookAsaas(await post("/api/cobrancas/webhook/configurar"));
+      avisar("Webhook cadastrado no Asaas com o token do sistema", "ok", 5000);
+    } catch (e) {
+      avisar(e.message, "perigo", 8000);
+    }
+    return;
+  }
+  if (!ev.target.closest("#cb-novo-token") || !confirm("Trocar o token? O sistema grava o novo no webhook do Asaas.")) return;
   try {
-    mostrarWebhookAsaas(await post("/api/cobrancas/webhook/token"));
-    avisar("Token trocado. Cole o novo no Asaas.", "ok", 6000);
+    const w = await post("/api/cobrancas/webhook/token");
+    mostrarWebhookAsaas(w);
+    avisar(w.erroAoConfigurar ? "Token trocado, mas o Asaas não aceitou: cole o novo à mão" : "Token trocado e gravado no Asaas", w.erroAoConfigurar ? "perigo" : "ok", 6000);
   } catch (e) {
     avisar(e.message, "perigo");
   }
@@ -5373,9 +5386,10 @@ $("#form-cobranca").addEventListener("submit", async (ev) => {
 $("#form-asaas").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   try {
-    const { conectado } = await api("/api/cobrancas/asaas", { method: "PUT", body: JSON.stringify({ chave: ev.target.chave.value }) });
+    const { conectado, webhook, avisoWebhook } = await api("/api/cobrancas/asaas", { method: "PUT", body: JSON.stringify({ chave: ev.target.chave.value }) });
     ev.target.chave.value = "";
-    avisar(conectado ? "Asaas conectado" : "Asaas desconectado", "ok");
+    if (avisoWebhook) avisar(avisoWebhook, "perigo", 9000);
+    else avisar(conectado ? `Asaas conectado${webhook?.configuradoEm ? " e webhook cadastrado" : ""}` : "Asaas desconectado", "ok");
     await carregarCobrancas();
   } catch (e) {
     avisar(e.message, "perigo", 7000);

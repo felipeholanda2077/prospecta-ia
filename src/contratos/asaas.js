@@ -72,12 +72,35 @@ export async function conectar(chave) {
 export async function tokenDoWebhook({ novo = false } = {}) {
   const guardado = (await db.lerConfig(CHAVE_WEBHOOK)) ?? {};
   const aberto = guardado.token && !novo ? decifrar(guardado.token) : null;
-  if (aberto) return { token: aberto, trocadoSozinho: guardado.trocadoSozinho ?? null };
+  if (aberto) return { token: aberto, trocadoSozinho: guardado.trocadoSozinho ?? null, configuradoEm: guardado.configuradoEm ?? null };
   // O token antigo não abre (a senha do painel mudou): o novo só vale depois de colado no Asaas.
   const trocadoSozinho = guardado.token && !novo ? new Date().toISOString() : null;
   const token = crypto.randomBytes(32).toString("hex");
   await db.gravarConfig(CHAVE_WEBHOOK, { token: cifrar(token), trocadoSozinho });
-  return { token, trocadoSozinho };
+  return { token, trocadoSozinho, configuradoEm: null };
+}
+
+/** Os avisos que o sistema usa (pagamento criado, pago, atrasado, apagado, estornado). */
+export const EVENTOS_DO_WEBHOOK = ["PAYMENT_CREATED", "PAYMENT_CONFIRMED", "PAYMENT_RECEIVED", "PAYMENT_OVERDUE", "PAYMENT_DELETED", "PAYMENT_REFUNDED", "PAYMENT_REFUND_IN_PROGRESS", "PAYMENT_CHARGEBACK_REQUESTED"];
+const NOME_DO_WEBHOOK = "Prospecta IA";
+
+/**
+ * Cadastra o webhook no próprio Asaas, pela API, com o token de agora: atualiza o que já aponta para o sistema
+ * (ou se chama "Prospecta IA") e, sem nenhum, cria. Liga o webhook e destrava a fila de avisos. Ninguém precisa colar nada.
+ */
+export async function configurarWebhook(url) {
+  const { token } = await tokenDoWebhook();
+  const lista = (await chamar("GET", "/webhooks?limit=100"))?.data ?? [];
+  const nossos = lista.filter((w) => w.url === url || w.name === NOME_DO_WEBHOOK);
+  const corpo = { url, enabled: true, interrupted: false, authToken: token, sendType: "NON_SEQUENTIALLY" };
+  for (const w of nossos) {
+    await chamar("PUT", `/webhooks/${w.id}`, { ...corpo, name: w.name || NOME_DO_WEBHOOK, events: [...new Set([...(w.events ?? []), ...EVENTOS_DO_WEBHOOK])] });
+  }
+  if (!nossos.length) await chamar("POST", "/webhooks", { ...corpo, name: NOME_DO_WEBHOOK, apiVersion: 3, events: EVENTOS_DO_WEBHOOK });
+  const guardado = (await db.lerConfig(CHAVE_WEBHOOK)) ?? {};
+  const configuradoEm = new Date().toISOString();
+  await db.gravarConfig(CHAVE_WEBHOOK, { ...guardado, configuradoEm });
+  return { configuradoEm, criado: !nossos.length, atualizados: nossos.length };
 }
 
 export async function tokenValido(recebido) {

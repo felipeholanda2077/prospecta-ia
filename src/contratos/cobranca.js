@@ -127,11 +127,18 @@ export async function processarAvisoDoAsaas(corpo, agora = new Date()) {
 
 /** O que colar no cadastro do webhook do Asaas e quando chegou o último aviso. */
 export async function dadosDoWebhook({ novo = false } = {}) {
-  const { token, trocadoSozinho } = await asaas.tokenDoWebhook({ novo });
+  const { token, trocadoSozinho, configuradoEm } = await asaas.tokenDoWebhook({ novo });
   const ultimoAviso = await db.lerEstado(ESTADO_ULTIMO_AVISO);
-  // Token trocado sozinho e nenhum aviso aceito depois: falta colar o novo no Asaas.
-  const faltaColar = Boolean(trocadoSozinho && !(ultimoAviso && ultimoAviso > trocadoSozinho));
-  return { url: `${config.painel.urlPublica}/webhooks/asaas`, token, ultimoAviso, faltaColar };
+  // Token trocado sozinho, sem o sistema ter cadastrado o novo no Asaas e sem aviso aceito depois: o Asaas ainda tem o antigo.
+  const faltaColar = Boolean(trocadoSozinho && !configuradoEm && !(ultimoAviso && ultimoAviso > trocadoSozinho));
+  return { url: `${config.painel.urlPublica}/webhooks/asaas`, token, ultimoAviso, faltaColar, configuradoEm };
+}
+
+/** Cadastra o webhook no Asaas pela API, com o token de agora (com `novo`, troca o token antes). */
+export async function configurarWebhookNoAsaas({ novo = false } = {}) {
+  if (novo) await asaas.tokenDoWebhook({ novo: true });
+  await asaas.configurarWebhook(`${config.painel.urlPublica}/webhooks/asaas`);
+  return dadosDoWebhook();
 }
 
 export const registrarAviso = (agora = new Date()) => db.gravarEstado(ESTADO_ULTIMO_AVISO, new Date(agora).toISOString());

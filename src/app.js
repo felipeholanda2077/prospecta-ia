@@ -1727,11 +1727,24 @@ app.get("/api/cobrancas/padroes", async (req, res) => {
 
 app.put("/api/cobrancas/asaas", async (req, res) => {
   const r = await asaas.conectar(req.body?.chave);
+  // Chave nova aceita: o sistema já cadastra o webhook no Asaas com o token dele.
+  if (r.conectado) {
+    try { r.webhook = await cobrancas.configurarWebhookNoAsaas(); }
+    catch (e) { r.avisoWebhook = `A chave foi salva, mas o webhook não foi cadastrado no Asaas: ${e.message}`; }
+  }
   res.status(r.erro ? 400 : 200).json(r);
 });
 
 app.get("/api/cobrancas/webhook", async (req, res) => res.json(await cobrancas.dadosDoWebhook()));
-app.post("/api/cobrancas/webhook/token", async (req, res) => res.json(await cobrancas.dadosDoWebhook({ novo: true })));
+app.post("/api/cobrancas/webhook/token", async (req, res) => {
+  // Troca o token e já grava o novo no Asaas; sem conseguir, mostra o token para colar à mão.
+  try { res.json(await cobrancas.configurarWebhookNoAsaas({ novo: true })); }
+  catch (e) { res.json({ ...(await cobrancas.dadosDoWebhook()), erroAoConfigurar: e.message }); }
+});
+app.post("/api/cobrancas/webhook/configurar", async (req, res) => {
+  try { res.json(await cobrancas.configurarWebhookNoAsaas()); }
+  catch (e) { res.status(400).json({ erro: `O Asaas não aceitou o cadastro do webhook: ${e.message}` }); }
+});
 
 app.post("/api/cobrancas", async (req, res) => {
   const r = await cobrancas.gerarCobrancas(req.body ?? {});
