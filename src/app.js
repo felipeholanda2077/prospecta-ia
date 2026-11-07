@@ -762,7 +762,7 @@ app.get("/api/meta-do-mes", async (req, res) => res.set("Cache-Control", "no-sto
 app.put("/api/meta-do-mes", async (req, res) => {
   try {
     const b = req.body ?? {};
-    res.json(await salvarMetaDoMes({ ...("meta" in b ? { meta: b.meta } : {}), ...("caixa" in b ? { caixa: b.caixa } : {}) }));
+    res.json(await salvarMetaDoMes({ ...("meta" in b ? { meta: b.meta } : {}), ...("fontes" in b ? { fontes: b.fontes } : {}), ...("entradas" in b ? { entradas: b.entradas } : {}) }));
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }

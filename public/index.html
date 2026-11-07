@@ -896,8 +896,21 @@
   .meta-mes .barra{height:12px;border-radius:999px;background:var(--subtle);overflow:hidden;margin:14px 0 8px}
   .meta-mes .barra i{display:block;height:100%;border-radius:999px;background:var(--accent);transition:width .6s ease}
   .meta-mes .barra i.ok{background:var(--ok)}
-  .meta-mes form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:start;margin-top:12px}
-  .meta-mes form .acoes{display:flex;gap:8px;flex-wrap:wrap;padding-top:22px}
+  .meta-mes form{display:grid;gap:14px;margin-top:12px}
+  .meta-mes form .campo{max-width:320px}
+  .meta-mes form .acoes{display:flex;gap:8px;flex-wrap:wrap}
+  .bloco-entradas{display:grid;gap:8px;padding:12px;border:1px solid var(--border);border-radius:12px}
+  .linha-entrada{display:grid;grid-template-columns:minmax(120px,1fr) minmax(140px,1.4fr) minmax(130px,1fr) auto;gap:8px;align-items:center}
+  .linha-entrada.auto{grid-template-columns:minmax(0,2.4fr) minmax(130px,1fr) 38px}
+  .linha-entrada.auto small{display:block;font-size:12px;color:var(--muted)}
+  .total-ao-vivo{font-size:14px;padding-top:6px;border-top:1px dashed var(--border)}
+  .entradas-caixa{margin-top:12px}
+  .entradas-caixa summary{cursor:pointer;font-size:13px;color:var(--muted)}
+  .entradas-caixa ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+  .entradas-caixa li{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:13.5px;padding:6px 0;border-bottom:1px solid var(--border)}
+  .entradas-caixa li small{display:block;font-size:12px;color:var(--muted)}
+  .entradas-caixa li.total{border-bottom:0;font-size:15px}
+  @media (max-width:640px){.linha-entrada{grid-template-columns:1fr 1fr}.linha-entrada [name=descricao]{grid-column:1/-1;order:3}.linha-entrada.auto{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -1273,13 +1286,13 @@
               <div class="meta">Sem estoque: como afiliado você só divulga o link da Shopee; no dropshipping você anuncia e compra do fornecedor depois de cada venda.</div></div></div>
             <div class="cartao-corpo config-grade">
               <div class="campo" style="grid-column:1/-1"><label for="prod-nome">Nome do produto</label><input id="prod-nome" name="nome" maxlength="120" required placeholder="Ex.: Máquina de corte de cabelo profissional sem fio"></div>
-              <div class="campo"><label for="prod-preco">Preço (R$)</label><input id="prod-preco" name="preco" inputmode="decimal" required></div>
+              <div class="campo"><label for="prod-preco">Preço (R$)</label><input id="prod-preco" name="preco" inputmode="numeric" data-dinheiro required></div>
               <div class="campo"><label for="prod-modo">Como vender</label><select id="prod-modo" name="modo"><option value="afiliado">Afiliado da Shopee</option><option value="dropshipping">Dropshipping</option></select></div>
               <div class="campo" data-so-afiliado style="grid-column:1/-1"><label for="prod-link-afiliado">Link de afiliado da Shopee</label><input id="prod-link-afiliado" name="link_afiliado" inputmode="url" autocomplete="off" placeholder="https://s.shopee.com.br/..."></div>
               <div class="campo" data-so-afiliado><label for="prod-comissao">Comissão (%), opcional</label><input id="prod-comissao" name="comissao" inputmode="decimal" autocomplete="off"></div>
               <div class="campo" data-so-drop><label for="prod-fornecedor">Fornecedor</label><input id="prod-fornecedor" name="fornecedor" maxlength="120" autocomplete="off"></div>
               <div class="campo" data-so-drop><label for="prod-link-fornecedor">Link do produto no fornecedor</label><input id="prod-link-fornecedor" name="link_fornecedor" inputmode="url" autocomplete="off" placeholder="https://..."></div>
-              <div class="campo" data-so-drop><label for="prod-custo">Custo no fornecedor (R$)</label><input id="prod-custo" name="custo" inputmode="decimal" autocomplete="off"></div>
+              <div class="campo" data-so-drop><label for="prod-custo">Custo no fornecedor (R$)</label><input id="prod-custo" name="custo" inputmode="numeric" data-dinheiro autocomplete="off"></div>
               <div class="campo" data-so-drop><label for="prod-condicao">Condição</label><select id="prod-condicao" name="condicao"><option value="new">Novo</option><option value="used">Usado</option></select></div>
               <div class="campo" data-so-drop><label for="prod-sku">Código interno (SKU)</label><input id="prod-sku" name="sku" maxlength="60"></div>
               <div class="campo" data-so-drop><label for="prod-marca">Marca</label><input id="prod-marca" name="marca" maxlength="60"></div>
@@ -1427,11 +1440,11 @@
 
             <h4 class="ct-secao">Pagamento</h4>
             <div class="campo"><label for="ct-tipo">Forma</label><select id="ct-tipo" name="tipoPagamento"><option value="mensal">Por mês</option><option value="entrada_saldo">Entrada e saldo</option></select></div>
-            <div class="campo" data-ct-pag="mensal"><label for="ct-valor">Valor por mês (R$)</label><input id="ct-valor" name="valorMensal" inputmode="decimal" placeholder="Ex.: 500"></div>
+            <div class="campo" data-ct-pag="mensal"><label for="ct-valor">Valor por mês (R$)</label><input id="ct-valor" name="valorMensal" inputmode="numeric" data-dinheiro placeholder="R$ 500,00"></div>
             <div class="campo" data-ct-pag="mensal"><label for="ct-meses">Quantos meses</label><input id="ct-meses" name="meses" type="number" min="1" max="120" inputmode="numeric" placeholder="Ex.: 12"></div>
             <div class="campo" data-ct-pag="mensal"><label for="ct-primeiro">Primeiro pagamento</label><input id="ct-primeiro" name="primeiroPagamento" type="date"></div>
-            <div class="campo" data-ct-pag="entrada_saldo" hidden><label for="ct-entrada">Entrada (R$)</label><input id="ct-entrada" name="entrada" inputmode="decimal" placeholder="Na assinatura"></div>
-            <div class="campo" data-ct-pag="entrada_saldo" hidden><label for="ct-saldo">Saldo (R$)</label><input id="ct-saldo" name="saldo" inputmode="decimal" placeholder="Na entrega"></div>
+            <div class="campo" data-ct-pag="entrada_saldo" hidden><label for="ct-entrada">Entrada (R$)</label><input id="ct-entrada" name="entrada" inputmode="numeric" data-dinheiro placeholder="Na assinatura"></div>
+            <div class="campo" data-ct-pag="entrada_saldo" hidden><label for="ct-saldo">Saldo (R$)</label><input id="ct-saldo" name="saldo" inputmode="numeric" data-dinheiro placeholder="Na entrega"></div>
             <div class="alerta info" id="ct-total" style="grid-column:1/-1" hidden></div>
           </div>
           <div class="acoes"><button class="btn primario" type="submit"><span data-ic="check"></span>Gerar contrato</button>
@@ -1483,7 +1496,7 @@
               <div class="campo"><label for="cb-documento">CNPJ ou CPF</label><input id="cb-documento" name="documento" autocomplete="off" required></div>
               <div class="campo"><label for="cb-email">E-mail</label><input id="cb-email" name="email" type="email" autocomplete="off"></div>
               <div class="campo"><label for="cb-celular">Celular com DDD</label><input id="cb-celular" name="celular" inputmode="tel" autocomplete="off"></div>
-              <div class="campo"><label for="cb-valor">Valor de cada parcela (R$)</label><input id="cb-valor" name="valor" inputmode="decimal" autocomplete="off" required></div>
+              <div class="campo"><label for="cb-valor">Valor de cada parcela (R$)</label><input id="cb-valor" name="valor" inputmode="numeric" data-dinheiro autocomplete="off" required></div>
               <div class="campo"><label for="cb-parcelas">Parcelas</label><input id="cb-parcelas" name="parcelas" type="number" min="1" max="120" value="1" required></div>
               <div class="campo"><label for="cb-vencimento">Primeiro vencimento</label><input id="cb-vencimento" name="vencimento" type="date" required></div>
               <div class="campo"><label for="cb-multa">Multa por atraso (%)</label><input id="cb-multa" name="multa" inputmode="decimal" autocomplete="off"></div>
@@ -1500,7 +1513,7 @@
               <div class="meta">Na conversa, o botão Link de pagamento gera o link daquela empresa; quando ela paga, vira cliente sozinha. Pagamento único é por PIX. Mensal é uma assinatura no cartão, que o Asaas cobra sozinho todo mês; para mensalidade por PIX ou boleto, use o contrato e gere as parcelas acima.</div></div></div>
             <div class="cartao-corpo config-grade">
               <div class="campo"><label for="of-nome">Nome da oferta</label><input id="of-nome" name="nome" maxlength="80" autocomplete="off" placeholder="Ex.: Diagnóstico completo do site" required></div>
-              <div class="campo"><label for="of-valor">Preço (R$)</label><input id="of-valor" name="valor" inputmode="decimal" autocomplete="off" required></div>
+              <div class="campo"><label for="of-valor">Preço (R$)</label><input id="of-valor" name="valor" inputmode="numeric" data-dinheiro autocomplete="off" required></div>
               <div class="campo"><label for="of-mensal">Cobrança</label><select id="of-mensal" name="mensal"><option value="false">Pagamento único (PIX)</option><option value="true">Mensal (assinatura no cartão)</option></select></div>
               <div class="campo"><label for="of-diagnostico">Entrega</label><select id="of-diagnostico" name="diagnostico"><option value="false">Serviço combinado com o cliente</option><option value="true">Relatório automático do site, liberado ao pagar</option></select></div>
               <div class="campo" style="grid-column:1/-1"><label for="of-descricao">O que está incluído (aparece na página de pagamento)</label><input id="of-descricao" name="descricao" maxlength="500" autocomplete="off"></div>
@@ -2184,6 +2197,38 @@ function dashAtencao(lista, naoLidos = 0) {
   </section>`;
 }
 
+// ---------- Campos de dinheiro: "R$ 1.500,00" enquanto digita ----------
+const formatoReais = (n) => Number(n).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+/** Lê "R$ 1.500,00", "1500", "1.500" ou 199.9 (número salvo). Null se não for valor. */
+function valorDoDinheiro(texto) {
+  if (typeof texto === "number") return Number.isFinite(texto) ? texto : null;
+  let t = String(texto ?? "").replace(/[^\d.,]/g, "");
+  if (!t) return null;
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, "");
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+}
+/** Máscara de centavos: cada número digitado entra pela direita (1 → R$ 0,01, 150000 → R$ 1.500,00). */
+function mascararDinheiro(el) {
+  const digitos = el.value.replace(/\D/g, "").replace(/^0+/, "").slice(0, 13);
+  el.value = digitos ? formatoReais(Number(digitos) / 100) : "";
+}
+/** Formata os campos de dinheiro preenchidos pelo sistema (vêm como número: 199.9). */
+function formatarCamposDinheiro(raiz = document) {
+  raiz.querySelectorAll("input[data-dinheiro]").forEach((el) => {
+    const v = el.value.trim();
+    if (!v || v.includes("R$")) return;
+    const n = Number(v.replace(",", "."));
+    el.value = Number.isFinite(n) ? formatoReais(n) : el.value;
+  });
+}
+document.addEventListener("input", (ev) => {
+  if (!ev.target.matches?.("input[data-dinheiro]")) return;
+  mascararDinheiro(ev.target);
+  ev.target.setSelectionRange?.(ev.target.value.length, ev.target.value.length);
+}, true); // na captura: formata antes de quem soma os valores
+
 // ---------- Meta do mês (fica fora do resto da Dashboard para não redesenhar enquanto edita) ----------
 let metaAtual = null;
 function desenharMeta(m) {
@@ -2192,34 +2237,74 @@ function desenharMeta(m) {
   if (el.querySelector("form")) return; // editando: não mexe
   if (m.meta == null) {
     el.innerHTML = `<article class="cartao meta-mes"><div class="cartao-cab"><h3>${ic("target")}Meta de ${esc(m.nomeDoMes)}</h3></div>
-      <div class="cartao-corpo"><p class="muted" style="margin:0 0 4px">Defina quanto a empresa quer faturar este mês. A Dashboard mostra quanto já entrou em caixa e quanto falta.</p>
+      <div class="cartao-corpo"><p class="muted" style="margin:0 0 4px">Defina quanto a empresa quer faturar este mês e lance cada tipo de entrada. A Dashboard soma tudo no caixa geral e mostra quanto falta.</p>
       ${formMeta(m)}</div></article>`;
+    formatarCamposDinheiro(el);
     return;
   }
   const pct = m.porcentagem ?? 0;
+  const linhas = [
+    ...m.fontes.map((f) => ({ nome: f.nome, detalhe: f.ajustado ? `ajustado por você${f.automatico != null ? ` · automático ${formatoReais(f.automatico)}` : ""}` : "automático", valor: f.valor })),
+    ...m.entradas.map((e) => ({ nome: e.tipo, detalhe: e.descricao, valor: e.valor })),
+  ];
   el.innerHTML = `<article class="cartao meta-mes">
     <div class="cartao-cab"><h3>${ic("target")}Meta de ${esc(m.nomeDoMes)}</h3>
       <span class="pilula ${m.bateu ? "ok" : pct >= 70 ? "acc" : "atencao"}">${m.bateu ? "Meta batida!" : `${pct}% da meta`}</span>
       <button class="btn sm" type="button" id="meta-editar" style="margin-left:auto">${ic("edit")}Editar</button></div>
     <div class="cartao-corpo">
       <div class="numeros">
-        <div class="numero"><small>Meta do mês${m.metaDoMesAnterior ? " (a mesma do mês passado)" : ""}</small><b>${emReais(m.meta)}</b></div>
-        <div class="numero"><small>Entrou em caixa · ${m.caixaManual ? "ajustado por você" : "automático"}</small><b>${emReais(m.caixa)}</b>
-          ${m.caixaManual && m.caixaAutomatico != null ? `<div class="ed muted" style="font-size:12px">Soma das cobranças pagas: ${emReais(m.caixaAutomatico)}</div>` : !m.caixaManual ? `<div class="ed muted" style="font-size:12px">Cobranças e vendas pagas no mês</div>` : ""}</div>
-        <div class="numero"><small>${m.bateu ? "Passou da meta" : "Falta para bater a meta"}</small><b style="color:var(${m.bateu ? "--ok" : "--text"})">${emReais(m.bateu ? m.caixa - m.meta : m.falta)}</b></div>
+        <div class="numero"><small>Meta do mês${m.metaDoMesAnterior ? " (a mesma do mês passado)" : ""}</small><b>${formatoReais(m.meta)}</b></div>
+        <div class="numero"><small>Caixa geral (soma das entradas)</small><b>${formatoReais(m.caixa)}</b></div>
+        <div class="numero"><small>${m.bateu ? "Passou da meta" : "Falta para bater a meta"}</small><b style="color:var(${m.bateu ? "--ok" : "--text"})">${formatoReais(m.bateu ? m.caixa - m.meta : m.falta)}</b></div>
       </div>
       <div class="barra" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100, pct)}" aria-label="Quanto da meta já entrou"><i class="${m.bateu ? "ok" : ""}" style="width:${Math.min(100, pct)}%"></i></div>
-      <div class="muted" style="font-size:13px">${m.bateu ? "Parabéns: a meta do mês já foi batida." : `${m.diasRestantes === 1 ? "Último dia do mês" : `Faltam ${m.diasRestantes} dias para o fim do mês`} · precisa entrar <b>${emReais(m.porDia)}</b> por dia para bater a meta.`}</div>
+      <div class="muted" style="font-size:13px">${m.bateu ? "Parabéns: a meta do mês já foi batida." : `${m.diasRestantes === 1 ? "Último dia do mês" : `Faltam ${m.diasRestantes} dias para o fim do mês`} · precisa entrar <b>${formatoReais(m.porDia)}</b> por dia para bater a meta.`}</div>
+      <details class="entradas-caixa"><summary>Entradas do caixa (${linhas.length})</summary>
+        <ul>${linhas.map((l) => `<li><span><b>${esc(l.nome)}</b>${l.detalhe ? `<small>${esc(l.detalhe)}</small>` : ""}</span><b>${formatoReais(l.valor)}</b></li>`).join("")}
+          <li class="total"><span><b>Caixa geral</b></span><b>${formatoReais(m.caixa)}</b></li></ul>
+      </details>
     </div></article>`;
+}
+
+function linhaDeEntrada(e = {}, tipos = []) {
+  return `<div class="linha-entrada" data-entrada="${esc(e.id ?? "")}">
+    <input name="tipo" list="tipos-de-entrada" placeholder="Tipo (ex.: Pix)" aria-label="Tipo da entrada" value="${esc(e.tipo ?? "")}" maxlength="40">
+    <input name="descricao" placeholder="Descrição (opcional)" aria-label="Descrição da entrada" value="${esc(e.descricao ?? "")}" maxlength="80">
+    <input name="valor" data-dinheiro inputmode="numeric" placeholder="R$ 0,00" aria-label="Valor da entrada" value="${e.valor != null ? esc(String(e.valor)) : ""}">
+    <button class="btn fantasma sm" type="button" data-tirar-entrada title="Tirar esta entrada" aria-label="Tirar esta entrada">${ic("trash")}</button>
+  </div>`;
 }
 
 function formMeta(m) {
   return `<form id="form-meta">
-    <div class="campo"><label for="meta-valor">Meta do mês (R$)</label><input id="meta-valor" name="meta" inputmode="decimal" placeholder="Ex.: 20.000" value="${m.meta != null ? esc(String(m.meta).replace(".", ",")) : ""}" required></div>
-    <div class="campo"><label for="meta-caixa">Entrou em caixa (R$)</label><input id="meta-caixa" name="caixa" inputmode="decimal" placeholder="${m.caixaAutomatico != null ? `Automático: ${esc(emReais(m.caixaAutomatico))}` : "Ex.: 5.300,00"}" value="${m.caixaManual ? esc(String(m.caixa).replace(".", ",")) : ""}">
-      <small class="muted" style="font-size:12px">Deixe vazio para usar a soma automática das cobranças e vendas pagas no mês.</small></div>
+    <div class="campo"><label for="meta-valor">Meta do mês</label><input id="meta-valor" name="meta" data-dinheiro inputmode="numeric" placeholder="R$ 20.000,00" value="${m.meta != null ? esc(String(m.meta)) : ""}" required></div>
+    <div class="bloco-entradas">
+      <b>Entradas do caixa</b>
+      <div class="muted" style="font-size:12.5px">Cada tipo de entrada soma no caixa geral. As automáticas vêm das cobranças e vendas pagas no mês; deixe vazio para manter o valor automático.</div>
+      ${m.fontes.map((f) => `<div class="linha-entrada auto">
+        <span><b>${esc(f.nome)}</b><small>${f.automatico != null ? `Automático: ${formatoReais(f.automatico)}` : "Não deu para ler agora"}</small></span>
+        <input data-fonte="${esc(f.id)}" data-dinheiro inputmode="numeric" placeholder="${f.automatico != null ? esc(formatoReais(f.automatico)) : "R$ 0,00"}" aria-label="${esc(f.nome)}" value="${f.ajustado ? esc(String(f.valor)) : ""}">
+      </div>`).join("")}
+      <div id="meta-entradas" style="display:grid;gap:8px">${m.entradas.map((e) => linhaDeEntrada(e)).join("")}</div>
+      <datalist id="tipos-de-entrada">${(m.tipos ?? []).map((t) => `<option value="${esc(t)}">`).join("")}</datalist>
+      <button class="btn sm" type="button" id="meta-nova-entrada" style="width:max-content">${ic("plus")}Adicionar entrada</button>
+      <div class="total-ao-vivo">Caixa geral: <b id="meta-total">${formatoReais(m.caixa)}</b></div>
+    </div>
     <div class="acoes"><button class="btn primario" type="submit">${ic("save")}Salvar</button>${m.meta != null ? `<button class="btn fantasma" type="button" id="meta-cancelar">Cancelar</button>` : ""}</div>
   </form>`;
+}
+
+/** Soma ao vivo enquanto edita: automáticas (ou o valor ajustado) + entradas lançadas. */
+function somarCaixaDoForm() {
+  const f = $("#form-meta");
+  if (!f || !metaAtual) return;
+  let total = 0;
+  for (const fonte of metaAtual.fontes) {
+    const v = valorDoDinheiro(f.querySelector(`[data-fonte="${fonte.id}"]`)?.value);
+    total += v ?? fonte.automatico ?? 0;
+  }
+  f.querySelectorAll("#meta-entradas [name=valor]").forEach((el) => (total += valorDoDinheiro(el.value) ?? 0));
+  $("#meta-total").textContent = formatoReais(total);
 }
 
 async function carregarMeta() {
@@ -2229,20 +2314,33 @@ async function carregarMeta() {
 $("#dash-meta").addEventListener("click", (ev) => {
   if (ev.target.closest("#meta-editar") && metaAtual) {
     $("#dash-meta .cartao-corpo").innerHTML = formMeta(metaAtual);
+    formatarCamposDinheiro($("#dash-meta"));
     $("#meta-valor").focus();
   }
   if (ev.target.closest("#meta-cancelar")) { $("#dash-meta").innerHTML = ""; desenharMeta(metaAtual); }
+  if (ev.target.closest("#meta-nova-entrada")) {
+    $("#meta-entradas").insertAdjacentHTML("beforeend", linhaDeEntrada());
+    $("#meta-entradas .linha-entrada:last-child [name=tipo]").focus();
+  }
+  const tirar = ev.target.closest("[data-tirar-entrada]");
+  if (tirar) { tirar.closest(".linha-entrada").remove(); somarCaixaDoForm(); }
 });
+$("#dash-meta").addEventListener("input", () => somarCaixaDoForm());
 $("#dash-meta").addEventListener("submit", async (ev) => {
   if (ev.target.id !== "form-meta") return;
   ev.preventDefault();
+  const f = ev.target;
   const btn = ev.submitter;
   btn.disabled = true;
   try {
-    const m = await api("/api/meta-do-mes", { method: "PUT", body: JSON.stringify({ meta: $("#meta-valor").value, caixa: $("#meta-caixa").value.trim() || null }) });
+    const fontes = Object.fromEntries(metaAtual.fontes.map((x) => [x.id, f.querySelector(`[data-fonte="${x.id}"]`)?.value.trim() || null]));
+    const entradas = [...f.querySelectorAll("#meta-entradas .linha-entrada")].map((l) => ({
+      id: l.dataset.entrada || undefined, tipo: l.querySelector("[name=tipo]").value, descricao: l.querySelector("[name=descricao]").value, valor: l.querySelector("[name=valor]").value,
+    }));
+    const m = await api("/api/meta-do-mes", { method: "PUT", body: JSON.stringify({ meta: $("#meta-valor").value, fontes, entradas }) });
     $("#dash-meta").innerHTML = "";
     desenharMeta(m);
-    avisar("Meta do mês salva", "ok");
+    avisar("Meta e entradas do mês salvas", "ok");
   } catch (e) {
     avisar(e.message, "perigo");
     btn.disabled = false;
@@ -4693,7 +4791,7 @@ async function abrirNovoContrato(leadId = null) {
 function atualizarPagamentoCt() {
   const f = $("#form-contrato");
   $$("[data-ct-pag]", f).forEach((c) => (c.hidden = c.dataset.ctPag !== f.tipoPagamento.value));
-  const n = (v) => Number(String(v).replace(/\.(?=\d{3})/g, "").replace(",", ".")) || 0;
+  const n = (v) => valorDoDinheiro(v) || 0;
   const total = f.tipoPagamento.value === "mensal" ? n(f.valorMensal.value) * (Number(f.meses.value) || 0) : n(f.entrada.value) + n(f.saldo.value);
   $("#ct-total").hidden = !total;
   $("#ct-total").textContent = total ? `Valor total do contrato: ${total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}` : "";
@@ -5202,7 +5300,7 @@ $("#cb-contrato").addEventListener("change", (ev) => preencherCobranca(ev.target
 $("#form-cobranca").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const d = Object.fromEntries(new FormData(ev.target));
-  if (!confirm(`Gerar ${d.parcelas} cobrança(s) de R$ ${d.valor} para ${d.nome}, a primeira em ${dataCurta(d.vencimento)}?`)) return;
+  if (!confirm(`Gerar ${d.parcelas} cobrança(s) de ${formatoReais(valorDoDinheiro(d.valor) ?? 0)} para ${d.nome}, a primeira em ${dataCurta(d.vencimento)}?`)) return;
   const btn = $("button[type=submit]", ev.target);
   btn.disabled = true;
   try {
@@ -6620,6 +6718,7 @@ function abrirFormProduto(p = null) {
   estadoMl.fotos = [...(p?.fotos ?? [])];
   $("#prod-titulo").textContent = p ? "Editar produto" : "Novo produto";
   if (p) for (const c of ["nome", "preco", "modo", "link_afiliado", "comissao", "fornecedor", "link_fornecedor", "custo", "condicao", "sku", "marca", "modelo", "gtin", "descricao", "peso_g", "altura_cm", "largura_cm", "comprimento_cm", "ncm", "cfop_mesmo_estado", "cfop_outro_estado", "csosn", "origem"]) f[c].value = p[c] ?? "";
+  formatarCamposDinheiro(f);
   mostrarCamposDoModo();
   desenharFotosDoProduto();
   f.hidden = false;

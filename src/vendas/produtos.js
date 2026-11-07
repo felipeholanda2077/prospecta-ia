@@ -1,3 +1,4 @@
+import { lerValor } from "../contratos/valores.js";
 import crypto from "node:crypto";
 import { config } from "../config.js";
 import * as db from "../db.js";
@@ -36,8 +37,8 @@ const urlValida = (v) => {
 };
 const numeroOpcional = (v, erro) => {
   if (v === undefined || v === null || v === "") return null;
-  const n = Number(String(v).replace(",", "."));
-  if (!Number.isFinite(n) || n < 0) throw new Error(erro);
+  const n = lerValor(v);
+  if (n == null || n < 0) throw new Error(erro);
   return n;
 };
 
@@ -61,9 +62,9 @@ function dadosDeVenda(d, preco) {
 /** Confere o que veio do painel. Retorna os dados limpos ou lança com o que corrigir. */
 export function limparProduto(d = {}) {
   const nome = texto(d.nome, 120);
-  const preco = Number(String(d.preco ?? "").replace(",", "."));
+  const preco = lerValor(d.preco ?? "");
   if (!nome || nome.length < 3) throw new Error("Escreva o nome do produto.");
-  if (!Number.isFinite(preco) || preco <= 0) throw new Error("Informe um preço maior que zero.");
+  if (preco == null || preco <= 0) throw new Error("Informe um preço maior que zero.");
   const venda = dadosDeVenda(d, preco);
   const fotos = (Array.isArray(d.fotos) ? d.fotos : []).filter((f) => /^produto-[0-9a-f-]+\.jpg$/.test(String(f))).slice(0, MAX_FOTOS);
   return {
