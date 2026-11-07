@@ -887,6 +887,17 @@
   .checklist .ok .marca{background:var(--ok);color:#fff}
   .checklist .falta .marca{background:var(--warn);color:#fff}
   .checklist .acao{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}
+  .meta-mes{margin-bottom:16px}
+  .meta-mes .numeros{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+  .meta-mes .numero{padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+  .meta-mes .numero small{display:block;color:var(--muted);font-size:12.5px;margin-bottom:4px}
+  .meta-mes .numero b{font-size:22px;letter-spacing:-.3px}
+  .meta-mes .numero .ed{margin-top:6px}
+  .meta-mes .barra{height:12px;border-radius:999px;background:var(--subtle);overflow:hidden;margin:14px 0 8px}
+  .meta-mes .barra i{display:block;height:100%;border-radius:999px;background:var(--accent);transition:width .6s ease}
+  .meta-mes .barra i.ok{background:var(--ok)}
+  .meta-mes form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:start;margin-top:12px}
+  .meta-mes form .acoes{display:flex;gap:8px;flex-wrap:wrap;padding-top:22px}
 </style>
 </head>
 <body>
@@ -945,6 +956,7 @@
           <span class="muted" id="dash-hora" aria-live="polite"></span>
           <button type="button" class="btn" id="dash-atualizar"><span data-ic="refresh"></span>Atualizar</button>
         </div>
+        <div id="dash-meta"></div>
         <div id="dash-corpo"></div>
       </section>
 
@@ -1778,6 +1790,8 @@ const dataHora = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "s
 const inicial = (nome) => esc((String(nome ?? "?").trim()[0] ?? "?").toUpperCase());
 
 const ICONES = {
+  target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
@@ -2170,8 +2184,74 @@ function dashAtencao(lista, naoLidos = 0) {
   </section>`;
 }
 
+// ---------- Meta do mês (fica fora do resto da Dashboard para não redesenhar enquanto edita) ----------
+let metaAtual = null;
+function desenharMeta(m) {
+  metaAtual = m;
+  const el = $("#dash-meta");
+  if (el.querySelector("form")) return; // editando: não mexe
+  if (m.meta == null) {
+    el.innerHTML = `<article class="cartao meta-mes"><div class="cartao-cab"><h3>${ic("target")}Meta de ${esc(m.nomeDoMes)}</h3></div>
+      <div class="cartao-corpo"><p class="muted" style="margin:0 0 4px">Defina quanto a empresa quer faturar este mês. A Dashboard mostra quanto já entrou em caixa e quanto falta.</p>
+      ${formMeta(m)}</div></article>`;
+    return;
+  }
+  const pct = m.porcentagem ?? 0;
+  el.innerHTML = `<article class="cartao meta-mes">
+    <div class="cartao-cab"><h3>${ic("target")}Meta de ${esc(m.nomeDoMes)}</h3>
+      <span class="pilula ${m.bateu ? "ok" : pct >= 70 ? "acc" : "atencao"}">${m.bateu ? "Meta batida!" : `${pct}% da meta`}</span>
+      <button class="btn sm" type="button" id="meta-editar" style="margin-left:auto">${ic("edit")}Editar</button></div>
+    <div class="cartao-corpo">
+      <div class="numeros">
+        <div class="numero"><small>Meta do mês${m.metaDoMesAnterior ? " (a mesma do mês passado)" : ""}</small><b>${emReais(m.meta)}</b></div>
+        <div class="numero"><small>Entrou em caixa · ${m.caixaManual ? "ajustado por você" : "automático"}</small><b>${emReais(m.caixa)}</b>
+          ${m.caixaManual && m.caixaAutomatico != null ? `<div class="ed muted" style="font-size:12px">Soma das cobranças pagas: ${emReais(m.caixaAutomatico)}</div>` : !m.caixaManual ? `<div class="ed muted" style="font-size:12px">Cobranças e vendas pagas no mês</div>` : ""}</div>
+        <div class="numero"><small>${m.bateu ? "Passou da meta" : "Falta para bater a meta"}</small><b style="color:var(${m.bateu ? "--ok" : "--text"})">${emReais(m.bateu ? m.caixa - m.meta : m.falta)}</b></div>
+      </div>
+      <div class="barra" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100, pct)}" aria-label="Quanto da meta já entrou"><i class="${m.bateu ? "ok" : ""}" style="width:${Math.min(100, pct)}%"></i></div>
+      <div class="muted" style="font-size:13px">${m.bateu ? "Parabéns: a meta do mês já foi batida." : `${m.diasRestantes === 1 ? "Último dia do mês" : `Faltam ${m.diasRestantes} dias para o fim do mês`} · precisa entrar <b>${emReais(m.porDia)}</b> por dia para bater a meta.`}</div>
+    </div></article>`;
+}
+
+function formMeta(m) {
+  return `<form id="form-meta">
+    <div class="campo"><label for="meta-valor">Meta do mês (R$)</label><input id="meta-valor" name="meta" inputmode="decimal" placeholder="Ex.: 20.000" value="${m.meta != null ? esc(String(m.meta).replace(".", ",")) : ""}" required></div>
+    <div class="campo"><label for="meta-caixa">Entrou em caixa (R$)</label><input id="meta-caixa" name="caixa" inputmode="decimal" placeholder="${m.caixaAutomatico != null ? `Automático: ${esc(emReais(m.caixaAutomatico))}` : "Ex.: 5.300,00"}" value="${m.caixaManual ? esc(String(m.caixa).replace(".", ",")) : ""}">
+      <small class="muted" style="font-size:12px">Deixe vazio para usar a soma automática das cobranças e vendas pagas no mês.</small></div>
+    <div class="acoes"><button class="btn primario" type="submit">${ic("save")}Salvar</button>${m.meta != null ? `<button class="btn fantasma" type="button" id="meta-cancelar">Cancelar</button>` : ""}</div>
+  </form>`;
+}
+
+async function carregarMeta() {
+  try { desenharMeta(await api("/api/meta-do-mes")); } catch { /* sem a meta, o resto da Dashboard segue */ }
+}
+
+$("#dash-meta").addEventListener("click", (ev) => {
+  if (ev.target.closest("#meta-editar") && metaAtual) {
+    $("#dash-meta .cartao-corpo").innerHTML = formMeta(metaAtual);
+    $("#meta-valor").focus();
+  }
+  if (ev.target.closest("#meta-cancelar")) { $("#dash-meta").innerHTML = ""; desenharMeta(metaAtual); }
+});
+$("#dash-meta").addEventListener("submit", async (ev) => {
+  if (ev.target.id !== "form-meta") return;
+  ev.preventDefault();
+  const btn = ev.submitter;
+  btn.disabled = true;
+  try {
+    const m = await api("/api/meta-do-mes", { method: "PUT", body: JSON.stringify({ meta: $("#meta-valor").value, caixa: $("#meta-caixa").value.trim() || null }) });
+    $("#dash-meta").innerHTML = "";
+    desenharMeta(m);
+    avisar("Meta do mês salva", "ok");
+  } catch (e) {
+    avisar(e.message, "perigo");
+    btn.disabled = false;
+  }
+});
+
 let dashCarregando = false;
 async function carregarDashboard() {
+  carregarMeta();
   if (dashCarregando) return;
   dashCarregando = true;
   if (!dashDesenhado) $("#dash-corpo").innerHTML = `<div class="dash-setores">${'<div class="esqueleto"></div>'.repeat(6)}</div>`;

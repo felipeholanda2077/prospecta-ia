@@ -53,6 +53,7 @@ import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js
 import { escreverApresentacao } from "./ia/resposta.js";
 import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada, revisarParadasPorRobo, aplicarRevisaoDeRobos } from "./respostas/processar.js";
 import { dashboardDoPainel } from "./dashboard.js";
+import { metaDoMes, salvarMetaDoMes } from "./vendas/metaDoMes.js";
 import * as agentes from "./respostas/agentes.js";
 import * as crm from "./respostas/crmAgente.js";
 import { previsaoDoFollowup, registrosDeFollowup } from "./respostas/followup.js";
@@ -756,6 +757,16 @@ app.get("/api/stats", async (req, res) => res.json(await db.estatisticas()));
 
 // A dashboard: o que precisa de atenção agora e os números de cada setor.
 app.get("/api/dashboard", async (req, res) => res.set("Cache-Control", "no-store").json(await dashboardDoPainel({ conversasAvaliadas })));
+// Meta do mês na Dashboard: a meta e o valor que entrou em caixa podem ser editados.
+app.get("/api/meta-do-mes", async (req, res) => res.set("Cache-Control", "no-store").json(await metaDoMes()));
+app.put("/api/meta-do-mes", async (req, res) => {
+  try {
+    const b = req.body ?? {};
+    res.json(await salvarMetaDoMes({ ...("meta" in b ? { meta: b.meta } : {}), ...("caixa" in b ? { caixa: b.caixa } : {}) }));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
 
 // Falhas de conexão vistas pelo navegador (o painel envia na próxima chamada que funciona).
 app.post("/api/diagnostico", (req, res) => {
