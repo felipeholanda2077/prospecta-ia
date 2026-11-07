@@ -2050,8 +2050,7 @@ app.post("/api/whatsapp-oficial/numeros/:id/corrigir", comErro(async (req) => {
 }));
 app.put("/api/whatsapp-oficial/numeros/:id/token", comErro(async (req) => ({ ok: true, ...(await whatsappOficial.trocarTokenDoNumero(req.params.id, req.body?.token)) })));
 app.put("/api/whatsapp-oficial/numeros/:id/conta", comErro(async (req) => {
-  await whatsappOficial.definirContaDoNumero(req.params.id, req.body?.contaId);
-  return { ok: true };
+  return { ok: true, ...(await whatsappOficial.definirContaDoNumero(req.params.id, req.body?.contaId)) };
 }));
 app.post("/api/whatsapp-oficial/numeros/:id/codigo", comErro(async (req) => {
   await whatsappOficial.pedirCodigo(req.params.id, req.body?.metodo);

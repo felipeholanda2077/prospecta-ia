@@ -435,20 +435,56 @@ export async function adicionarNumero({ nome, phoneNumberId, token, template, id
 const semPermissao = (texto) => /Missing Permission|\(#10\)|\(#200\)/i.test(String(texto ?? ""));
 const SEM_GERENCIAR = "O token deste número só envia mensagens: falta a permissão de gerenciar a conta do WhatsApp. Gere um token novo no usuário do sistema da BM do número, com a conta do WhatsApp atribuída (controle total) e as permissões whatsapp_business_management e whatsapp_business_messaging, e cole no lugar do atual.";
 
+const ONDE_ACHAR_A_CONTA = "O ID certo fica em business.facebook.com → Configurações do negócio → Contas → Contas do WhatsApp: clique na conta e copie o número que aparece abaixo do nome. Também dá para colar o ID da BM (empresa), que o sistema procura a conta sozinho.";
+const NOMES_DE_TIPO = { business: "o ID de uma BM (empresa)", application: "o ID de um app", user: "o ID de um usuário", page: "o ID de uma página do Facebook", whatsapp_business_phone_number: "o ID de um número de telefone" };
+
+/**
+ * A conta do WhatsApp Business do número, a partir do ID colado no painel. Aceita o ID da conta ou o da BM
+ * (procura nas contas dela a que tem o número). Outro tipo de ID volta com uma explicação do que foi colado.
+ */
+async function contaPeloIdInformado(c, id) {
+  if (id === String(c.phoneNumberId)) throw new Error(`Esse é o ID do número de telefone, não o da conta. ${ONDE_ACHAR_A_CONTA}`);
+  if (/^55\d{10,11}$/.test(id)) throw new Error(`Isso parece o número do WhatsApp, não o ID da conta. ${ONDE_ACHAR_A_CONTA}`);
+  const temONumero = (r) => (r?.data ?? []).some((p) => String(p.id) === String(c.phoneNumberId));
+  const erroDaMeta = (e) => (semPermissao(e.daMeta) ? new Error(SEM_GERENCIAR) : null);
+  try {
+    if (temONumero(await graph(c, `${id}/phone_numbers?fields=id&limit=100`))) return id;
+    throw Object.assign(new Error("Essa conta do WhatsApp não tem este número. Confira se colou a conta da BM certa."), { final: true });
+  } catch (e) {
+    if (e.final) throw e;
+    if (erroDaMeta(e)) throw erroDaMeta(e);
+    if (/does not exist|Unsupported get request/i.test(e.daMeta ?? "")) throw new Error(`A Meta não achou esse ID com o token deste número: ou o ID está errado, ou é de outra BM. ${ONDE_ACHAR_A_CONTA}`);
+    if (!/nonexisting field/i.test(e.daMeta ?? "")) throw new Error(`A Meta não abriu essa conta com o token deste número: ${e.daMeta ?? e.message}`);
+  }
+  // Não é uma conta do WhatsApp: se for a BM, procura nas contas dela a que tem o número.
+  const contasDaBm = [];
+  for (const tipo of ["owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"]) {
+    const r = await graph(c, `${id}/${tipo}?fields=id&limit=100`).catch((e) => { if (erroDaMeta(e)) throw erroDaMeta(e); return null; });
+    for (const w of r?.data ?? []) contasDaBm.push(String(w.id));
+  }
+  for (const conta of contasDaBm) {
+    if (temONumero(await graph(c, `${conta}/phone_numbers?fields=id&limit=100`).catch(() => null))) return conta;
+  }
+  if (contasDaBm.length) throw new Error("Essa BM tem contas do WhatsApp, mas nenhuma com este número. O número deve estar em outra BM: cole o ID da BM ou da conta onde ele foi cadastrado.");
+  const tipo = await graph(c, `${id}?metadata=1&fields=id`).then((r) => r.metadata?.type ?? null).catch(() => null);
+  if (tipo === "business") throw new Error("Esse é o ID de uma BM, mas o token deste número não enxerga as contas do WhatsApp dela. Gere o token no usuário do sistema dessa BM, com a conta do WhatsApp atribuída, e troque o token do número.");
+  throw new Error(`Esse ID não é de uma conta do WhatsApp Business${NOMES_DE_TIPO[tipo] ? ` (é ${NOMES_DE_TIPO[tipo]})` : ""}. ${ONDE_ACHAR_A_CONTA}`);
+}
+
 /** Guarda o ID da conta do WhatsApp Business de um número (quando o sistema não consegue achar sozinho). */
 export async function definirContaDoNumero(numeroId, contaId) {
   const id = String(contaId ?? "").replace(/\D/g, "");
   if (!id) throw new Error("Informe o ID da conta do WhatsApp Business (só números)");
   const c = await numeroParaGerenciar(numeroId);
-  const r = await graph(c, `${id}/phone_numbers?fields=id&limit=100`).catch((e) => { throw new Error(semPermissao(e.daMeta) ? SEM_GERENCIAR : `A Meta não abriu essa conta com o token deste número: ${e.daMeta ?? e.message}`); });
-  if (!(r.data ?? []).some((p) => String(p.id) === String(c.phoneNumberId))) throw new Error("Essa conta não tem este número. Confira o ID no Gerenciador do WhatsApp.");
+  const conta = await contaPeloIdInformado(c, id);
   const atual = (await db.lerConfig(CHAVE)) ?? {};
   const extras = Array.isArray(atual.extras) ? atual.extras : [];
   const alvo = extras.find((e) => idDoNumeroOficial(e.phoneNumberId) === numeroId);
-  if (alvo) alvo.contaId = id;
-  await db.gravarConfig(CHAVE, alvo ? { ...atual, extras } : { ...atual, contaId: id });
-  contaPorNumero.set(String(c.phoneNumberId), id);
+  if (alvo) alvo.contaId = conta;
+  await db.gravarConfig(CHAVE, alvo ? { ...atual, extras } : { ...atual, contaId: conta });
+  contaPorNumero.set(String(c.phoneNumberId), conta);
   cacheAte = 0;
+  return { contaId: conta };
 }
 
 /** Troca o token de um número de outra BM (confere com a Meta antes) e já tenta corrigir o que falta. */

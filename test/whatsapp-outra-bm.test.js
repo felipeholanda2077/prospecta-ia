@@ -31,6 +31,10 @@ function metaFalsa() {
       return Response.json({ data: { granular_scopes: [{ scope: "whatsapp_business_management", ...alvo }] } });
     }
     if (partes[0] === "me" && partes[1] === "businesses") return Response.json({ data: auth === "Bearer EAAoutra" ? [{ id: "222" }] : [] });
+    if (partes[0] === "222" && u.searchParams.get("metadata")) return Response.json({ id: "222", metadata: { type: "business" } });
+    if (partes[0] === "222" && partes[1] === "phone_numbers") return Response.json({ error: { code: 100, message: "(#100) Tried accessing nonexisting field (phone_numbers) on node type (Business)" } }, { status: 400 });
+    if (partes[0] === "333" && u.searchParams.get("metadata")) return Response.json({ id: "333", metadata: { type: "application" } });
+    if (partes[0] === "333") return Response.json({ error: { code: 100, message: "(#100) Tried accessing nonexisting field (phone_numbers) on node type (Application)" } }, { status: 400 });
     if (partes[0] === "222") return Response.json({ data: partes[1] === "owned_whatsapp_business_accounts" && auth === "Bearer EAAoutra" ? [{ id: "800" }] : [] });
     const conta = minhas[partes[0]];
     if (conta) {
@@ -106,7 +110,13 @@ test("outra BM (token sem lista de contas): lista os números do token, adiciona
     await assert.rejects(wa.pedirCodigo("meta-0000"), /não encontrado/);
 
     // ID da conta informado à mão: confere na Meta se a conta tem o número antes de guardar.
-    await assert.rejects(wa.definirContaDoNumero("meta-7771", "900"), /não abriu essa conta|não tem este número/);
+    await assert.rejects(wa.definirContaDoNumero("meta-7771", "900"), /não achou esse ID com o token deste número/);
+    // ID da BM no lugar da conta (o erro "nonexisting field (phone_numbers)"): acha a conta da BM que tem o número.
+    assert.deepEqual(await wa.definirContaDoNumero("meta-7771", "222"), { contaId: "800" });
+    // Outros IDs explicam o que foi colado.
+    await assert.rejects(wa.definirContaDoNumero("meta-7771", "333"), /não é de uma conta do WhatsApp Business \(é o ID de um app\)/);
+    await assert.rejects(wa.definirContaDoNumero("meta-7771", "7771"), /ID do número de telefone/);
+    await assert.rejects(wa.definirContaDoNumero("meta-7771", "5511987654321"), /número do WhatsApp/);
     await wa.definirContaDoNumero("meta-7771", "800");
     assert.equal((await db.lerConfig("whatsapp_oficial")).extras.find((e) => e.phoneNumberId === "7771").contaId, "800");
 
