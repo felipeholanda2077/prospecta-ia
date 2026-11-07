@@ -97,10 +97,23 @@ export async function configurarWebhook(url) {
     await chamar("PUT", `/webhooks/${w.id}`, { ...corpo, name: w.name || NOME_DO_WEBHOOK, events: [...new Set([...(w.events ?? []), ...EVENTOS_DO_WEBHOOK])] });
   }
   if (!nossos.length) await chamar("POST", "/webhooks", { ...corpo, name: NOME_DO_WEBHOOK, apiVersion: 3, events: EVENTOS_DO_WEBHOOK });
+  // Avisos que falharam com o token antigo ficam penalizados (o Asaas espera cada vez mais para tentar de novo).
+  // Corrigido o token, tira a penalidade uma vez, e eles são reenviados logo. O Asaas limita essa chamada: só aqui.
+  let semPenalidade = 0;
+  for (const w of nossos.filter((x) => x.penalizedRequestsCount > 0)) {
+    try { await chamar("POST", `/webhooks/${w.id}/removeBackoff`, {}); semPenalidade += w.penalizedRequestsCount; } catch { /* o Asaas tenta de novo sozinho */ }
+  }
   const guardado = (await db.lerConfig(CHAVE_WEBHOOK)) ?? {};
   const configuradoEm = new Date().toISOString();
   await db.gravarConfig(CHAVE_WEBHOOK, { ...guardado, configuradoEm });
-  return { configuradoEm, criado: !nossos.length, atualizados: nossos.length };
+  return { configuradoEm, criado: !nossos.length, atualizados: nossos.length, semPenalidade };
+}
+
+/** Como o webhook do sistema está no Asaas agora: ligado, fila parada, avisos penalizados, com token. Null se não houver. */
+export async function webhookNoAsaas(url) {
+  const lista = (await chamar("GET", "/webhooks?limit=100"))?.data ?? [];
+  const w = lista.find((x) => x.url === url) ?? lista.find((x) => x.name === NOME_DO_WEBHOOK);
+  return w ? { ligado: w.enabled !== false, filaParada: Boolean(w.interrupted), penalizados: w.penalizedRequestsCount ?? 0, temToken: w.hasAuthToken !== false, urlCerta: w.url === url } : null;
 }
 
 export async function tokenValido(recebido) {

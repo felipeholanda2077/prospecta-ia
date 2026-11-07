@@ -34,6 +34,7 @@ function apiFalsa({ falhar = null } = {}) {
     if (caminho.startsWith("/webhooks/")) {
       const w = estado.webhooks.find((x) => x.id === caminho.split("/")[2]);
       if (!w) return responde({}, 404);
+      if (caminho.endsWith("/removeBackoff")) { w.penalizedRequestsCount = 0; return responde(w); }
       Object.assign(w, corpo);
       return responde(w);
     }
@@ -129,8 +130,13 @@ test("asaas: o sistema cadastra o webhook no Asaas com o próprio token, sem nin
   await comApi(api, async () => {
     await asaas.conectar(CHAVE);
     // Já existe um "Prospecta IA" com o token antigo e a fila parada: é atualizado, não duplicado.
-    api.estado.webhooks.push({ id: "wh_antigo", name: "Prospecta IA", url: "https://velho.example.com/webhooks/asaas", enabled: false, interrupted: true, authToken: "antigo".repeat(6), events: ["PAYMENT_RECEIVED"] });
+    api.estado.webhooks.push({ id: "wh_antigo", name: "Prospecta IA", url: "https://velho.example.com/webhooks/asaas", enabled: false, interrupted: true, authToken: "antigo".repeat(6), events: ["PAYMENT_RECEIVED"], penalizedRequestsCount: 1 });
+    const antes = await cobranca.dadosDoWebhook();
+    assert.deepEqual(antes.noAsaas, { ligado: false, filaParada: true, penalizados: 1, temToken: true, urlCerta: false });
     const w = await cobranca.configurarWebhookNoAsaas();
+    // O aviso que falhou com o token antigo perde a penalidade e sai logo.
+    assert.equal(w.semPenalidade, 1);
+    assert.deepEqual(w.noAsaas, { ligado: true, filaParada: false, penalizados: 0, temToken: true, urlCerta: true });
     assert.equal(api.estado.webhooks.length, 1);
     const [cadastrado] = api.estado.webhooks;
     assert.equal(cadastrado.authToken, w.token);

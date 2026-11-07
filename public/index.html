@@ -5306,8 +5306,18 @@ document.addEventListener("click", async (ev) => {
   }
 });
 
-function mostrarWebhookAsaas({ url, token, ultimoAviso, faltaColar, configuradoEm, erroAoConfigurar }) {
+function mostrarWebhookAsaas({ url, token, ultimoAviso, faltaColar, configuradoEm, erroAoConfigurar, noAsaas }) {
+  const a = noAsaas;
+  const problemaNoAsaas = a === null ? "O webhook do sistema não está cadastrado no Asaas. Clique em <b>Cadastrar no Asaas</b>."
+    : !a ? "" : [
+      !a.ligado && "está desligado",
+      a.filaParada && "a fila de avisos está parada",
+      !a.urlCerta && "aponta para outro endereço",
+      !a.temToken && "está sem token",
+    ].filter(Boolean).join(", ");
   $("#cb-webhook-corpo").innerHTML = `<div style="display:grid;gap:8px">
+      ${problemaNoAsaas ? `<div class="alerta perigo">${ic("alert")}<div>${a === null ? problemaNoAsaas : `No Asaas, o webhook ${problemaNoAsaas}. Clique em <b>Cadastrar no Asaas</b> para o sistema acertar.`}</div></div>` : ""}
+      ${a?.penalizados ? `<div class="alerta atencao">${ic("clock")}<div><b>${a.penalizados} ${a.penalizados === 1 ? "aviso penalizado" : "avisos penalizados"} no Asaas.</b> ${a.penalizados === 1 ? "É um aviso que falhou" : "São avisos que falharam"} antes (por exemplo, com o token antigo), e o Asaas espera cada vez mais para tentar de novo. Com o token certo, ${a.penalizados === 1 ? "ele sai" : "eles saem"} na próxima tentativa e o aviso some; <b>Cadastrar no Asaas</b> tira a penalidade na hora.</div></div>` : ""}
       ${configuradoEm ? `<div class="alerta info">${ic("checkCircle")}<div><b>Webhook cadastrado no Asaas pelo sistema</b> em ${esc(dataHora(configuradoEm))}, com este token. Não precisa colar nada.</div></div>`
         : faltaColar ? `<div class="alerta perigo">${ic("alert")}<div><b>O Asaas ainda está com o token antigo.</b> O token antigo foi trancado quando a senha do painel mudou, e o sistema gerou outro. Clique em <b>Cadastrar no Asaas</b> e o sistema grava este token lá. Até isso, os avisos de pagamento são recusados (a conferência de cada hora continua valendo).</div></div>` : ""}
       ${erroAoConfigurar ? `<div class="alerta perigo">${ic("alert")}<div>O Asaas não aceitou o cadastro do webhook: ${esc(erroAoConfigurar)}. Cole o token abaixo no webhook do Asaas.</div></div>` : ""}
@@ -5328,8 +5338,9 @@ $("#cb-webhook").addEventListener("click", async (ev) => {
   }
   if (ev.target.closest("#cb-configurar-webhook")) {
     try {
-      mostrarWebhookAsaas(await post("/api/cobrancas/webhook/configurar"));
-      avisar("Webhook cadastrado no Asaas com o token do sistema", "ok", 5000);
+      const w = await post("/api/cobrancas/webhook/configurar");
+      mostrarWebhookAsaas(w);
+      avisar(`Webhook cadastrado no Asaas com o token do sistema${w.semPenalidade ? "; penalidade removida, os avisos pendentes saem agora" : ""}`, "ok", 6000);
     } catch (e) {
       avisar(e.message, "perigo", 8000);
     }
