@@ -104,3 +104,25 @@ test("anúncios: a captura guarda o anúncio no lead, e quem não tem por onde s
   assert.equal(anuncios.whatsappDoLink("https://api.whatsapp.com/send?phone=85999990000"), "5585999990000");
   assert.equal(anuncios.instagramDoLink("https://www.instagram.com/p/abc123/"), null);
 });
+
+test("anúncios: quem anuncia só com 'Enviar mensagem no WhatsApp' ganha o contato pelo Instagram ou pelo Google Maps", async () => {
+  assert.equal(anuncios.apelidoDaPagina("https://www.facebook.com/jabaautomoveis/"), "jabaautomoveis");
+  assert.equal(anuncios.apelidoDaPagina("https://www.facebook.com/profile.php?id=123"), null);
+  assert.equal(anuncios.mesmoNome("Jabá Automóveis", "Jaba Automoveis Osasco"), true);
+  assert.equal(anuncios.mesmoNome("Criative Veiculos", "Prime Veículos Osasco"), false); // só "veículos" em comum
+  const sem = (pagina, nome) => anuncios.empresaDoAnuncio(anuncio(pagina, pagina, { page_name: nome, link: "https://api.whatsapp.com/send", page_profile_link: `https://www.facebook.com/${nome.toLowerCase().replace(/\W/g, "")}/` }));
+  const empresas = [sem("1", "Jabá Automóveis"), sem("2", "Tagma Car Service"), sem("3", "Loja Fantasma")];
+  assert.ok(empresas.every((e) => !e.telefone && !e.site));
+  const consultasMaps = [];
+  await anuncios.completarContatos(empresas, "Osasco - SP", {
+    instagram: async (u) => (u === "tagmacarservice" ? { usuario: "tagma.car", site: null, contatos: { whatsapp: "5511977776666", email: "contato@tagma.com.br" } } : null),
+    maps: async (q) => {
+      consultasMaps.push(q);
+      return q.startsWith("Jabá") ? [{ nome: "Outra Loja", telefone: "+55 11 1111-1111" }, { nome: "Jaba Automoveis", telefone: "+55 11 3685-0000", site: "https://jaba.com.br", endereco: "Av. dos Autonomistas, Osasco" }] : [];
+    },
+  });
+  assert.deepEqual([empresas[0].telefone, empresas[0].site, empresas[0].contatoDe], ["551136850000", "https://jaba.com.br", "maps"]);
+  assert.deepEqual([empresas[1].telefone, empresas[1].instagram, empresas[1].email, empresas[1].contatoDe], ["5511977776666", "tagma.car", "contato@tagma.com.br", "instagram"]);
+  assert.equal(empresas[2].telefone, null);
+  assert.deepEqual(consultasMaps, ["Jabá Automóveis Osasco", "Loja Fantasma Osasco"]); // a do Instagram não precisou do Maps
+});

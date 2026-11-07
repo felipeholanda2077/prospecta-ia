@@ -114,6 +114,7 @@ export function empresaDoAnuncio(ad) {
     telefone: whatsapp,
     instagram,
     curtidas: ad.page_likes ?? null,
+    pagina: ad.page_profile_link ?? null,
     categorias: ad.page_categories ?? [],
     anuncio: {
       texto: texto.slice(0, 400),
@@ -136,6 +137,61 @@ export async function podeBuscarSozinho(agora = new Date()) {
   const [ano, mes, dia] = new Date(agora).toLocaleDateString("en-CA", { timeZone: config.timezone }).split("-").map(Number);
   const diasNoMes = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
   return s.buscasNoMes < Math.ceil((s.limiteMensal * dia) / diasNoMes);
+}
+
+/** O nome da página no Facebook (facebook.com/nome): muitas vezes é o mesmo @ do Instagram. */
+export function apelidoDaPagina(link) {
+  const m = String(link ?? "").match(/facebook\.com\/([a-z0-9._]{2,50})\/?(?:[?#]|$)/i)?.[1]?.toLowerCase();
+  return m && !["profile.php", "pages", "people", "groups", "marketplace"].includes(m) ? m.replace(/\.+$/, "") : null;
+}
+
+// Palavras que muita empresa do mesmo ramo tem no nome: sozinhas não provam que é a mesma empresa.
+const GENERICAS = new Set(["ltda", "eireli", "me", "epp", "sa", "de", "da", "do", "das", "dos", "e", "a", "o", "the",
+  "veiculos", "automoveis", "auto", "autos", "carros", "multimarcas", "motors", "clinica", "studio", "store", "loja", "oficial", "brasil", "sp"]);
+const palavras = (s) => semAcento(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").split(" ").filter((p) => p.length >= 3 && !GENERICAS.has(p));
+
+/** O resultado do Google Maps é a mesma empresa do anúncio? Pelo menos uma palavra própria do nome em comum. */
+export function mesmoNome(daPagina, doMaps) {
+  const doAnuncio = palavras(daPagina);
+  const doLugar = new Set(palavras(doMaps));
+  return doAnuncio.length > 0 && doAnuncio.some((p) => doLugar.has(p));
+}
+
+/**
+ * O anúncio que abre uma conversa no WhatsApp não traz o número. Para esses, procura o contato pelo Instagram
+ * (o nome da página no Facebook costuma ser o @) e, sem ele, pelo nome da empresa no Google Maps da cidade.
+ * Muda as empresas no lugar; `instagram` e `maps` são as consultas (para o teste).
+ */
+export async function completarContatos(empresas, cidade, { instagram = null, maps = null, maximo = 15 } = {}) {
+  const cidadeSemUf = String(cidade ?? "").split(/\s+-\s+|,|\//)[0].trim();
+  let feitas = 0;
+  for (const e of empresas) {
+    if (e.site || e.telefone || feitas >= maximo) continue;
+    feitas++;
+    const apelido = e.instagram ?? apelidoDaPagina(e.pagina);
+    if (instagram && apelido) {
+      const p = await instagram(apelido).catch(() => null);
+      if (p) {
+        e.instagram = p.usuario;
+        e.telefone = p.contatos?.whatsapp ?? p.contatos?.telefone?.replace(/\D/g, "") ?? null;
+        e.email ??= p.contatos?.email ?? null;
+        if (p.site && !ehDaMeta(p.site)) e.site = p.site;
+        e.contatoDe = "instagram";
+      }
+    }
+    if (!e.telefone && !e.site && maps) {
+      const achados = await maps(`${e.nome} ${cidadeSemUf}`).catch(() => []);
+      const lugar = achados.find((l) => mesmoNome(e.nome, l.nome));
+      if (lugar) {
+        Object.assign(e, {
+          telefone: lugar.telefone ? String(lugar.telefone).replace(/\D/g, "") : null, site: lugar.site ?? e.site ?? null,
+          endereco: lugar.endereco ?? null, maps_url: lugar.maps_url ?? null, avaliacao: lugar.avaliacao ?? null, total_avaliacoes: lugar.total_avaliacoes ?? null,
+          contatoDe: "maps",
+        });
+      }
+    }
+  }
+  return empresas;
 }
 
 /** Reserva uma busca do mês (no banco, para dois agendadores não passarem do limite juntos). */

@@ -2,9 +2,9 @@ import crypto from "node:crypto";
 import { config } from "./config.js";
 import * as db from "./db.js";
 import { buscarEmpresas } from "./descoberta/googlePlaces.js";
-import { buscaNoInstagram, buscarEmpresasNoInstagram, instagramDaEmpresa } from "./descoberta/instagram.js";
+import { buscaNoInstagram, buscarEmpresasNoInstagram, instagramDaEmpresa, perfilDoInstagram, contatosDoPerfil } from "./descoberta/instagram.js";
 import { buscarEmpresasPorCnpj, contatoDoCnpj, emailDeContador } from "./descoberta/cnpj.js";
-import { buscarAnunciantes, podeBuscarSozinho } from "./descoberta/anuncios.js";
+import { buscarAnunciantes, podeBuscarSozinho, completarContatos } from "./descoberta/anuncios.js";
 import { escolherAbordagem } from "./ia/abordagens.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
@@ -414,6 +414,7 @@ export async function descobrirNosAnuncios(campanha, { nicho, cidade }, { agora 
   if (!(await podeBuscarSozinho(agora))) return null;
   try {
     const { empresas, avisos } = await buscarAnunciantes({ nicho, cidade, quantidade: 30, maxBuscas: 1, agora });
+    await completarContatosDosAnunciantes(empresas, cidade);
     const novas = (await capturarDosAnuncios(empresas, nicho, cidade)).novas;
     log(`📣 Busca automática nos anúncios da Meta "${nicho} em ${cidade}": ${novas} novas${avisos.length ? ` · ${avisos.join(" · ")}` : ""}`);
     return { novas };
@@ -423,9 +424,22 @@ export async function descobrirNosAnuncios(campanha, { nicho, cidade }, { agora 
   }
 }
 
+/** O contato de quem anuncia só com "Enviar mensagem no WhatsApp": pelo Instagram conectado e pelo Google Maps. */
+async function completarContatosDosAnunciantes(empresas, cidade) {
+  const { conexao } = await buscaNoInstagram();
+  await completarContatos(empresas, cidade, {
+    instagram: conexao ? async (usuario) => {
+      const p = await perfilDoInstagram(conexao, usuario);
+      return p && { ...p, contatos: contatosDoPerfil(p.bio, p.site) };
+    } : null,
+    maps: (consulta) => buscarEmpresas(consulta, 3),
+  });
+}
+
 /** Busca nos anúncios da Meta pelo painel, sem salvar: mostra os anunciantes para você escolher quem capturar. */
 export async function buscarNosAnuncios(nicho, cidade, { quantidade = 20 } = {}) {
   const r = await buscarAnunciantes({ nicho, cidade, quantidade: Math.min(Number(quantidade) || 20, 60), maxBuscas: Number(quantidade) > 30 ? 2 : 1 });
+  await completarContatosDosAnunciantes(r.empresas, cidade);
   const capturados = await db.placeIdsCapturados(r.empresas.map((e) => `ad:${e.page_id}`));
   log(`📣 Busca no painel nos anúncios "${nicho} em ${cidade}": ${r.empresas.length} anunciantes (${r.buscas} ${r.buscas === 1 ? "busca" : "buscas"})`);
   return {
@@ -448,12 +462,13 @@ export async function capturarDosAnuncios(empresas, nicho, cidade) {
     const lead = {
       place_id: `ad:${pagina}`,
       nome: String(e.nome).slice(0, 120),
-      endereco: null,
+      endereco: e.endereco ?? null,
       telefone: e.telefone ? String(e.telefone).replace(/\D/g, "").slice(0, 15) : null,
+      email: e.email ? String(e.email).slice(0, 200) : null,
       site: e.site ? String(e.site).slice(0, 500) : instagram ? `https://www.instagram.com/${instagram}/` : null,
-      maps_url: null,
-      avaliacao: null,
-      total_avaliacoes: null,
+      maps_url: e.maps_url ?? null,
+      avaliacao: e.avaliacao ?? null,
+      total_avaliacoes: e.total_avaliacoes ?? null,
       instagram,
       nicho,
       cidade,
