@@ -25,9 +25,13 @@ function metaFalsa() {
     const partes = u.pathname.split("/").slice(2);
     chamadas.push({ partes, auth, corpo, metodo: opcoes.method ?? "GET" });
     const minhas = contas[auth] ?? {};
+    // A outra BM tem token com acesso a tudo: a Meta não lista os ids, e a conta sai pela BM do token.
     if (partes[0] === "debug_token") {
-      return Response.json({ data: { granular_scopes: [{ scope: "whatsapp_business_management", target_ids: Object.keys(minhas) }] } });
+      const alvo = auth === "Bearer EAAoutra" ? {} : { target_ids: Object.keys(minhas) };
+      return Response.json({ data: { granular_scopes: [{ scope: "whatsapp_business_management", ...alvo }] } });
     }
+    if (partes[0] === "me" && partes[1] === "businesses") return Response.json({ data: auth === "Bearer EAAoutra" ? [{ id: "222" }] : [] });
+    if (partes[0] === "222") return Response.json({ data: partes[1] === "owned_whatsapp_business_accounts" && auth === "Bearer EAAoutra" ? [{ id: "800" }] : [] });
     const conta = minhas[partes[0]];
     if (conta) {
       if (partes[1] === "phone_numbers") return Response.json({ data: conta.numeros.map((id) => ({ id, display_phone_number: `+55 11 9${id}`, verified_name: `Num ${id}`, status: "DISCONNECTED" })) });
@@ -50,7 +54,7 @@ function metaFalsa() {
   return { chamadas, restaurar: () => (globalThis.fetch = antes) };
 }
 
-test("outra BM: lista os números do token, adiciona já definindo o fuso, e confirma código e registro", async () => {
+test("outra BM (token sem lista de contas): lista os números do token, adiciona já definindo o fuso, e confirma código e registro", async () => {
   const meta = metaFalsa();
   try {
     await wa.salvarConfig({ token: "EAAprincipal", phoneNumberId: "5551", appSecret: "s", ativo: true });

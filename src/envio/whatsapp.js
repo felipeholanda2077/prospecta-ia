@@ -133,12 +133,23 @@ const contaPorNumero = new Map();
 
 /** Contas do WhatsApp Business que o token acessa (as que foram marcadas ao gerar o token). */
 async function contasDoToken(c, token = c.token) {
-  const dbg = await graph(c, `debug_token?input_token=${encodeURIComponent(token)}`, token);
-  return [...new Set(
-    (dbg.data?.granular_scopes ?? [])
+  const dbg = await graph(c, `debug_token?input_token=${encodeURIComponent(token)}`, token).catch(() => null);
+  const ids = new Set(
+    (dbg?.data?.granular_scopes ?? [])
       .filter((s) => /whatsapp_business_(management|messaging)/.test(s.scope))
       .flatMap((s) => s.target_ids ?? [])
-  )];
+  );
+  // Token que acessa todas as contas da BM não lista os ids: procura pelas empresas (BMs) do token.
+  if (!ids.size) {
+    const empresas = await graph(c, "me/businesses?fields=id&limit=50", token).catch(() => null);
+    for (const { id } of empresas?.data ?? []) {
+      for (const tipo of ["owned_whatsapp_business_accounts", "client_whatsapp_business_accounts"]) {
+        const r = await graph(c, `${id}/${tipo}?fields=id&limit=100`, token).catch(() => null);
+        for (const w of r?.data ?? []) ids.add(String(w.id));
+      }
+    }
+  }
+  return [...ids];
 }
 
 /** Id da conta do WhatsApp Business que tem este número (procura nas contas do token; guarda na memória). */
@@ -337,12 +348,8 @@ export async function registrarNumero(pin, numeroId = null) {
  */
 async function situacaoDoTemplate(c) {
   try {
-    const dbg = await graph(c, `debug_token?input_token=${encodeURIComponent(c.token)}`);
-    const contas = new Set(
-      (dbg.data?.granular_scopes ?? [])
-        .filter((s) => /whatsapp_business_(management|messaging)/.test(s.scope))
-        .flatMap((s) => s.target_ids ?? [])
-    );
+    const conta0 = await contaDoNumero(c).catch(() => null);
+    const contas = new Set(conta0 ? [conta0] : await contasDoToken(c));
     for (const conta of contas) {
       const r = await graph(c, `${conta}/message_templates?name=${encodeURIComponent(c.template)}&fields=name,status,language`).catch(() => null);
       const achado = (r?.data ?? []).filter((t) => t.name === c.template);
