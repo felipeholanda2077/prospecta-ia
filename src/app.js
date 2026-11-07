@@ -1180,7 +1180,9 @@ app.get("/api/conversas/:leadId", async (req, res) => {
     interessado: conversa?.interessado ?? false,
     followup: conversa ? followupDaConversa(conversa, await registrosDeFollowup()) : null,
     iaPausada: (await iaPausada(lead.id)) || null,
-    numeroWhatsapp: lead.numero_wa ? (await uazap.numero(lead.numero_wa))?.nome ?? null : null,
+    numeroWhatsapp: !lead.numero_wa ? null : whatsappOficial.ehNumeroOficial(lead.numero_wa)
+      ? (n => n ? `${n.nome} (API oficial)` : null)((await whatsappOficial.numerosOficiais()).find((n) => n.id === lead.numero_wa))
+      : (await uazap.numero(lead.numero_wa))?.nome ?? null,
     agente: lead.agente_id ? (await db.buscarAgente(lead.agente_id))?.nome ?? null : null,
     mensagens,
     agendadas: await db.agendadasDaConversa(lead.id),

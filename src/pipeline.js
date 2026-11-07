@@ -11,7 +11,7 @@ import { ehCelularBR, normalizarTelefoneBR, variantesWhatsappBR } from "./analis
 import { contatosLigados } from "./respostas/contatoNovo.js";
 import { gerarSequencia, escreverDirectDeProspeccao } from "./ia/proposta.js";
 import { enviarEmail, explicarErroEmail, enviarNotificacao } from "./envio/email.js";
-import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, numerosOficiais, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
+import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, numerosOficiais, ehNumeroOficial, prontoParaEmpresaNova, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import { enviarDirect } from "./envio/instagram.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
@@ -217,8 +217,55 @@ export async function numeroOficialParaEnviar(m) {
   const dono = ativos.find((n) => n.id === doLead);
   if (dono) return dono;
   if (ativos.length === 1 || m.tipo === "resposta" || m.etapa > 1) return ativos[0];
-  const enviadas = await Promise.all(ativos.map((n) => db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id })));
-  return ativos[enviadas.indexOf(Math.min(...enviadas))];
+  // Empresa nova não vai para número que a Meta ainda não liberou (se nenhum estiver pronto, vale a lista toda).
+  const prontos = [];
+  for (const n of ativos) if (await prontoParaEmpresaNova(n.id)) prontos.push(n);
+  const lista = prontos.length ? prontos : ativos;
+  const enviadas = await Promise.all(lista.map((n) => db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id })));
+  return lista[enviadas.indexOf(Math.min(...enviadas))];
+}
+
+/**
+ * Por onde sai uma mensagem de WhatsApp quando a API oficial e a UAZap (ou a Evolution) estão ligadas juntas.
+ * Cada empresa fica sempre no número que já fala com ela, seja da API oficial ou da UAZap; empresa nova vai para
+ * o número, de qualquer uma das duas, que mandou menos primeiros contatos hoje. Com só uma delas ligada, vale ela.
+ * Retorna { modo, numeroId } ou { motivo } (a mensagem continua na fila).
+ */
+export async function canalDoWhatsapp(m) {
+  const [oficial, web] = await Promise.all([oficialAtiva(), integracaoWhatsapp()]);
+  const pelaWeb = async () => {
+    if (web !== "uazap") return { modo: web, numeroId: null };
+    const escolha = await numeroParaEnviar(m);
+    return escolha.numero ? { modo: "uazap", numeroId: escolha.numero.id } : { motivo: escolha.motivo };
+  };
+  const pelaOficial = async () => ({ modo: "oficial", numeroId: (await numeroOficialParaEnviar(m))?.id ?? null });
+  if (!oficial) return web ? pelaWeb() : { modo: "manual", numeroId: null };
+  if (!web) return pelaOficial();
+
+  const doLead = m.numero_wa_lead !== undefined ? m.numero_wa_lead : (await db.buscarLead(m.lead_id))?.numero_wa;
+  const oficiais = await numerosOficiais({ ativos: true });
+  if (ehNumeroOficial(doLead)) {
+    const dono = oficiais.find((n) => n.id === doLead);
+    if (dono) return { modo: "oficial", numeroId: dono.id };
+  } else if (doLead && web === "uazap" && (await uazap.numeros()).some((n) => n.id === doLead)) {
+    return pelaWeb();
+  }
+  // Conversa que já existia antes (resposta ou etapa 2 e 3 sem número guardado) continua pela UAZap, como começou.
+  if (!doLead && (m.tipo === "resposta" || m.etapa > 1) && (await db.whatsappJaEnviado(m.lead_id))) return pelaWeb();
+  if (web !== "uazap") return pelaOficial();
+
+  // Empresa nova: entre todos os números ligados das duas, o que mandou menos primeiros contatos hoje.
+  // Número oficial que a Meta ainda não liberou (ex.: de outra BM sem pagamento) não recebe empresa nova.
+  const comAgente = await numerosComAgente();
+  const oficiaisProntos = [];
+  for (const n of oficiais) if (!comAgente.has(n.id) && (await prontoParaEmpresaNova(n.id))) oficiaisProntos.push(n);
+  const candidatos = [
+    ...oficiaisProntos.map((n) => ({ modo: "oficial", numeroId: n.id })),
+    ...(await uazap.conectados()).filter((n) => !comAgente.has(n.id)).map((n) => ({ modo: "uazap", numeroId: n.id })),
+  ];
+  if (!candidatos.length) return pelaOficial();
+  const enviadas = await Promise.all(candidatos.map((c) => db.enviadasHoje("whatsapp", { primeiroContato: true, numero: c.numeroId })));
+  return candidatos[enviadas.indexOf(Math.min(...enviadas))];
 }
 
 /** Minutos que faltam para o fim do horário comercial de hoje (negativo depois dele). */
@@ -800,7 +847,7 @@ export async function enviarMensagem(m, campanha) {
   if (m.status !== "aprovada") return { enviada: false, motivo: `mensagem está como ${m.status}` };
   // A Meta não deixa a API mandar o primeiro direct: quem envia é você, pelo botão do painel.
   if (m.canal === "instagram" && m.tipo !== "resposta") return { enviada: false, manual: true, motivo: "direct do Instagram: envie pelo botão Abrir direct" };
-  const modo = m.canal === "whatsapp" ? await modoWhatsapp() : null;
+  let modo = m.canal === "whatsapp" ? await modoWhatsapp() : null;
   if (modo === "manual") return { enviada: false, motivo: "WhatsApp manual: envie pelo botão do painel" };
 
   const bloqueio = await bloqueioDeEnvio(m);
@@ -822,12 +869,12 @@ export async function enviarMensagem(m, campanha) {
     }
   }
   let numeroId = null;
-  if (m.canal === "whatsapp" && modo === "uazap") {
-    const escolha = await numeroParaEnviar(m);
-    if (!escolha.numero) return { enviada: false, naFila: true, motivo: escolha.motivo };
-    numeroId = escolha.numero.id;
-  } else if (m.canal === "whatsapp" && modo === "oficial") {
-    numeroId = (await numeroOficialParaEnviar(m))?.id ?? null;
+  if (m.canal === "whatsapp") {
+    // API oficial e UAZap juntas: cada empresa sai pelo número dela, de uma ou da outra.
+    const escolha = await canalDoWhatsapp(m);
+    if (!escolha.modo) return { enviada: false, naFila: true, motivo: escolha.motivo };
+    modo = escolha.modo;
+    numeroId = escolha.numeroId;
   }
 
   // Outra execução (os dois agendadores, ou um clique no painel) pode já estar enviando esta mensagem.

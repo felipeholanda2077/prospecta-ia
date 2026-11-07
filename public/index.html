@@ -1142,7 +1142,7 @@
             <div class="campo"><label for="oficial-idioma">Idioma do template</label><input id="oficial-idioma" name="idioma" placeholder="pt_BR"></div>
             <div class="campo" style="grid-column:1/-1"><label for="oficial-segredo">Chave secreta do app (App Secret), para receber as respostas</label><input id="oficial-segredo" name="appSecret" type="password" autocomplete="off"></div>
             <label class="chave" style="grid-column:1/-1"><input type="checkbox" name="ativo" id="oficial-ativo"><div><b>Enviar o WhatsApp pela API oficial</b>
-              <span>Ligado, as etapas e as respostas saem por este número em vez da UAZap. O primeiro contato usa o template aprovado; as respostas às conversas saem como texto normal (a Meta só aceita até 24 h depois da última mensagem do cliente).</span></div></label>
+              <span>Ligado, a API oficial trabalha junto com a UAZap: as empresas se dividem entre os números das duas, e cada empresa fica sempre no número que já fala com ela. Na API oficial, o primeiro contato usa o template aprovado; as respostas às conversas saem como texto normal (a Meta só aceita até 24 h depois da última mensagem do cliente).</span></div></label>
             <div style="grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
               <button class="btn primario" type="submit"><span data-ic="save"></span>Salvar e testar com a Meta</button>
               <button class="btn fantasma" type="button" id="oficial-atualizar"><span data-ic="refresh"></span>Atualizar status</button>
@@ -1162,7 +1162,7 @@
             </form>
             <div id="oficial-webhook"></div>
             <div id="oficial-numeros-bloco" style="display:grid;gap:10px" hidden>
-              <div><b>Números oficiais</b><div class="muted" style="font-size:13px">A IA usa todos os números ligados. Cada empresa fica sempre no mesmo número; as novas vão para o que mandou menos no dia. O mesmo webhook recebe as respostas de todos.</div></div>
+              <div><b>Números oficiais</b><div class="muted" style="font-size:13px">A IA usa todos os números ligados, estes e os da UAZap. Cada empresa fica sempre no mesmo número; as novas vão para o que mandou menos no dia, seja da API oficial ou da UAZap. O mesmo webhook recebe as respostas de todos os números oficiais.</div></div>
               <div id="oficial-numeros" style="display:grid;gap:8px"></div>
               <details id="oficial-novo-det"><summary class="btn" style="width:max-content;list-style:none"><span data-ic="plus"></span>Adicionar outro número</summary>
                 <div class="novo-numero" style="margin-top:12px;display:grid;gap:14px">
@@ -4303,7 +4303,7 @@ $("#form-oficial").addEventListener("submit", async (ev) => {
 // A chave liga/desliga salva na hora quando a conexão já existe (sem precisar colar o token de novo).
 $("#oficial-ativo").addEventListener("change", async (ev) => {
   if ($("#oficial-token").required) return;
-  if (ev.target.checked && oficialNaoLiberada && !confirm("A Meta ainda não liberou este número e as mensagens podem não sair, porque o envio deixa de usar a UAZap. Ligar mesmo assim?")) {
+  if (ev.target.checked && oficialNaoLiberada && !confirm("A Meta ainda não liberou este número: as empresas que caírem nele podem não receber as mensagens (as da UAZap continuam saindo normalmente). Ligar mesmo assim?")) {
     ev.target.checked = false;
     return;
   }
@@ -4311,7 +4311,7 @@ $("#oficial-ativo").addEventListener("change", async (ev) => {
     await api("/api/whatsapp-oficial/ativo", { method: "PUT", body: JSON.stringify({ ativo: ev.target.checked }) });
     await atualizarSessao();
     await carregarStatusOficial();
-    avisar(ev.target.checked ? "WhatsApp passa a sair pela API oficial da Meta" : "API oficial desligada: o WhatsApp volta a sair pela UAZap", "ok");
+    avisar(ev.target.checked ? "API oficial ligada: o WhatsApp sai pelos números dela e da UAZap juntos" : "API oficial desligada: o WhatsApp sai só pela UAZap", "ok");
   } catch (e) {
     ev.target.checked = !ev.target.checked;
     avisar(e.message, "perigo");

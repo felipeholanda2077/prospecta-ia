@@ -325,6 +325,23 @@ async function situacaoDoNumero(c) {
   };
 }
 
+// Se cada número oficial pode receber empresas novas (pronto na Meta), lido no máximo a cada 10 minutos.
+const prontoPorNumero = new Map();
+const PRONTO_VALE_MS = 10 * 60_000;
+
+/**
+ * O número oficial está pronto para mandar o primeiro contato (conectado e não bloqueado na Meta)? Número que ainda
+ * não foi liberado, ou que não deu para ler, fica fora da divisão de empresas novas; as conversas dele continuam nele.
+ */
+export async function prontoParaEmpresaNova(numeroId) {
+  const guardado = prontoPorNumero.get(numeroId);
+  if (guardado && guardado.ate > Date.now()) return guardado.pronto;
+  const c = await numeroParaGerenciar(numeroId).catch(() => null);
+  const pronto = Boolean(c?.token && c?.phoneNumberId && (await situacaoDoNumero(c))?.pronto);
+  prontoPorNumero.set(numeroId, { pronto, ate: Date.now() + PRONTO_VALE_MS });
+  return pronto;
+}
+
 const ERROS_DO_REGISTRO = {
   190: "A Meta recusou o token de acesso (inválido ou vencido). Gere um token permanente de usuário do sistema.",
   200: "Este token não tem permissão para registrar o número. Ele precisa de whatsapp_business_management e whatsapp_business_messaging.",
