@@ -900,7 +900,10 @@
   .meta-mes form .campo{max-width:320px}
   .meta-mes form .acoes{display:flex;gap:8px;flex-wrap:wrap}
   .bloco-entradas{display:grid;gap:8px;padding:12px;border:1px solid var(--border);border-radius:12px}
-  .linha-entrada{display:grid;grid-template-columns:minmax(120px,1fr) minmax(140px,1.4fr) minmax(130px,1fr) auto;gap:8px;align-items:center}
+  .linha-entrada{display:grid;grid-template-columns:minmax(120px,1fr) minmax(140px,1.3fr) minmax(120px,.9fr) auto auto;gap:8px;align-items:center}
+  .recorrencia{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .recorrencia button{border:0;background:transparent;color:var(--muted);padding:8px 10px;font:inherit;font-size:12.5px;cursor:pointer}
+  .recorrencia button[aria-pressed="true"]{background:var(--accent);color:#fff;font-weight:600}
   .linha-entrada.auto{grid-template-columns:minmax(0,2.4fr) minmax(130px,1fr) 38px}
   .linha-entrada.auto small{display:block;font-size:12px;color:var(--muted)}
   .total-ao-vivo{font-size:14px;padding-top:6px;border-top:1px dashed var(--border)}
@@ -910,7 +913,7 @@
   .entradas-caixa li{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:13.5px;padding:6px 0;border-bottom:1px solid var(--border)}
   .entradas-caixa li small{display:block;font-size:12px;color:var(--muted)}
   .entradas-caixa li.total{border-bottom:0;font-size:15px}
-  @media (max-width:640px){.linha-entrada{grid-template-columns:1fr 1fr}.linha-entrada [name=descricao]{grid-column:1/-1;order:3}.linha-entrada.auto{grid-template-columns:1fr 1fr}}
+  @media (max-width:640px){.linha-entrada{grid-template-columns:1fr 1fr;padding-bottom:8px;border-bottom:1px dashed var(--border)}.linha-entrada [name=descricao]{grid-column:1/-1;order:3}.linha-entrada .recorrencia{order:4}.linha-entrada [data-tirar-entrada]{order:5;justify-self:end}.linha-entrada.auto{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
@@ -2243,10 +2246,12 @@ function desenharMeta(m) {
     return;
   }
   const pct = m.porcentagem ?? 0;
+  const listaAberta = el.querySelector("details.entradas-caixa")?.open ?? false; // a atualização de cada minuto não fecha a lista
   const linhas = [
-    ...m.fontes.map((f) => ({ nome: f.nome, detalhe: f.ajustado ? `ajustado por você${f.automatico != null ? ` · automático ${formatoReais(f.automatico)}` : ""}` : "automático", valor: f.valor })),
-    ...m.entradas.map((e) => ({ nome: e.tipo, detalhe: e.descricao, valor: e.valor })),
+    ...m.fontes.filter((f) => f.valor || f.ajustado).map((f) => ({ nome: f.nome, detalhe: f.ajustado ? `ajustado por você${f.automatico != null ? ` · automático ${formatoReais(f.automatico)}` : ""}` : "automático", valor: f.valor, recorrente: f.recorrente })),
+    ...m.entradas.map((e) => ({ nome: e.tipo, detalhe: [e.descricao, e.repetida ? "repetida do mês passado" : ""].filter(Boolean).join(" · "), valor: e.valor, recorrente: e.recorrente })),
   ];
+  const marca = (r) => `<span class="pilula ${r ? "acc" : ""}" style="font-size:11px">${r ? "Recorrente" : "Avulsa"}</span>`;
   el.innerHTML = `<article class="cartao meta-mes">
     <div class="cartao-cab"><h3>${ic("target")}Meta de ${esc(m.nomeDoMes)}</h3>
       <span class="pilula ${m.bateu ? "ok" : pct >= 70 ? "acc" : "atencao"}">${m.bateu ? "Meta batida!" : `${pct}% da meta`}</span>
@@ -2254,23 +2259,31 @@ function desenharMeta(m) {
     <div class="cartao-corpo">
       <div class="numeros">
         <div class="numero"><small>Meta do mês${m.metaDoMesAnterior ? " (a mesma do mês passado)" : ""}</small><b>${formatoReais(m.meta)}</b></div>
-        <div class="numero"><small>Caixa geral (soma das entradas)</small><b>${formatoReais(m.caixa)}</b></div>
+        <div class="numero"><small>Caixa geral (soma das entradas)</small><b>${formatoReais(m.caixa)}</b>
+          <div class="ed muted" style="font-size:12px">Recorrente ${formatoReais(m.recorrente ?? 0)} · Avulso ${formatoReais(m.avulso ?? 0)}</div></div>
         <div class="numero"><small>${m.bateu ? "Passou da meta" : "Falta para bater a meta"}</small><b style="color:var(${m.bateu ? "--ok" : "--text"})">${formatoReais(m.bateu ? m.caixa - m.meta : m.falta)}</b></div>
       </div>
       <div class="barra" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100, pct)}" aria-label="Quanto da meta já entrou"><i class="${m.bateu ? "ok" : ""}" style="width:${Math.min(100, pct)}%"></i></div>
       <div class="muted" style="font-size:13px">${m.bateu ? "Parabéns: a meta do mês já foi batida." : `${m.diasRestantes === 1 ? "Último dia do mês" : `Faltam ${m.diasRestantes} dias para o fim do mês`} · precisa entrar <b>${formatoReais(m.porDia)}</b> por dia para bater a meta.`}</div>
-      <details class="entradas-caixa"><summary>Entradas do caixa (${linhas.length})</summary>
-        <ul>${linhas.map((l) => `<li><span><b>${esc(l.nome)}</b>${l.detalhe ? `<small>${esc(l.detalhe)}</small>` : ""}</span><b>${formatoReais(l.valor)}</b></li>`).join("")}
+      <details class="entradas-caixa" ${listaAberta ? "open" : ""}><summary>Entradas do caixa (${linhas.length})</summary>
+        <ul>${linhas.length ? "" : `<li><span class="muted">Nenhuma entrada neste mês ainda.</span></li>`}${linhas.map((l) => `<li><span><b>${esc(l.nome)}</b> ${marca(l.recorrente)}${l.detalhe ? `<small>${esc(l.detalhe)}</small>` : ""}</span><b>${formatoReais(l.valor)}</b></li>`).join("")}
+          <li><span>Recorrente (entra todo mês)</span><b>${formatoReais(m.recorrente ?? 0)}</b></li>
+          <li><span>Avulso</span><b>${formatoReais(m.avulso ?? 0)}</b></li>
           <li class="total"><span><b>Caixa geral</b></span><b>${formatoReais(m.caixa)}</b></li></ul>
       </details>
     </div></article>`;
 }
 
-function linhaDeEntrada(e = {}, tipos = []) {
-  return `<div class="linha-entrada" data-entrada="${esc(e.id ?? "")}">
-    <input name="tipo" list="tipos-de-entrada" placeholder="Tipo (ex.: Pix)" aria-label="Tipo da entrada" value="${esc(e.tipo ?? "")}" maxlength="40">
+function linhaDeEntrada(e = {}) {
+  const recorrente = Boolean(e.recorrente);
+  return `<div class="linha-entrada" data-entrada="${esc(e.repetida ? "" : e.id ?? "")}">
+    <input name="tipo" list="tipos-de-entrada" placeholder="Tipo (ex.: Venda, Mensalidade)" aria-label="Tipo da entrada" value="${esc(e.tipo ?? "")}" maxlength="40">
     <input name="descricao" placeholder="Descrição (opcional)" aria-label="Descrição da entrada" value="${esc(e.descricao ?? "")}" maxlength="80">
     <input name="valor" data-dinheiro inputmode="numeric" placeholder="R$ 0,00" aria-label="Valor da entrada" value="${e.valor != null ? esc(String(e.valor)) : ""}">
+    <div class="recorrencia" role="radiogroup" aria-label="Recorrência da entrada">
+      <button type="button" data-recorrencia="nao" aria-pressed="${!recorrente}">Avulsa</button>
+      <button type="button" data-recorrencia="sim" aria-pressed="${recorrente}">Recorrente</button>
+    </div>
     <button class="btn fantasma sm" type="button" data-tirar-entrada title="Tirar esta entrada" aria-label="Tirar esta entrada">${ic("trash")}</button>
   </div>`;
 }
@@ -2280,14 +2293,15 @@ function formMeta(m) {
     <div class="campo"><label for="meta-valor">Meta do mês</label><input id="meta-valor" name="meta" data-dinheiro inputmode="numeric" placeholder="R$ 20.000,00" value="${m.meta != null ? esc(String(m.meta)) : ""}" required></div>
     <div class="bloco-entradas">
       <b>Entradas do caixa</b>
-      <div class="muted" style="font-size:12.5px">Cada tipo de entrada soma no caixa geral. As automáticas vêm das cobranças e vendas pagas no mês; deixe vazio para manter o valor automático.</div>
+      <div class="muted" style="font-size:12.5px">Cada tipo de entrada soma no caixa geral. As automáticas vêm das cobranças e vendas pagas no mês (deixe vazio para manter o valor automático). Nas que você lança, marque se é <b>avulsa</b> ou <b>recorrente</b>: as recorrentes já aparecem no mês seguinte.</div>
       ${m.fontes.map((f) => `<div class="linha-entrada auto">
-        <span><b>${esc(f.nome)}</b><small>${f.automatico != null ? `Automático: ${formatoReais(f.automatico)}` : "Não deu para ler agora"}</small></span>
+        <span><b>${esc(f.nome)}</b> <span class="pilula ${f.recorrente ? "acc" : ""}" style="font-size:11px">${f.recorrente ? "Recorrente" : "Avulsa"}</span><small>${f.automatico != null ? `Automático: ${formatoReais(f.automatico)}` : "Não deu para ler agora"}</small></span>
         <input data-fonte="${esc(f.id)}" data-dinheiro inputmode="numeric" placeholder="${f.automatico != null ? esc(formatoReais(f.automatico)) : "R$ 0,00"}" aria-label="${esc(f.nome)}" value="${f.ajustado ? esc(String(f.valor)) : ""}">
       </div>`).join("")}
       <div id="meta-entradas" style="display:grid;gap:8px">${m.entradas.map((e) => linhaDeEntrada(e)).join("")}</div>
       <datalist id="tipos-de-entrada">${(m.tipos ?? []).map((t) => `<option value="${esc(t)}">`).join("")}</datalist>
       <button class="btn sm" type="button" id="meta-nova-entrada" style="width:max-content">${ic("plus")}Adicionar entrada</button>
+      ${m.entradas.some((e) => e.repetida) ? `<div class="muted" style="font-size:12.5px">As entradas recorrentes do mês passado já estão aqui. Confira os valores e salve.</div>` : ""}
       <div class="total-ao-vivo">Caixa geral: <b id="meta-total">${formatoReais(m.caixa)}</b></div>
     </div>
     <div class="acoes"><button class="btn primario" type="submit">${ic("save")}Salvar</button>${m.meta != null ? `<button class="btn fantasma" type="button" id="meta-cancelar">Cancelar</button>` : ""}</div>
@@ -2322,6 +2336,8 @@ $("#dash-meta").addEventListener("click", (ev) => {
     $("#meta-entradas").insertAdjacentHTML("beforeend", linhaDeEntrada());
     $("#meta-entradas .linha-entrada:last-child [name=tipo]").focus();
   }
+  const rec = ev.target.closest("[data-recorrencia]");
+  if (rec) rec.parentElement.querySelectorAll("[data-recorrencia]").forEach((b) => b.setAttribute("aria-pressed", String(b === rec)));
   const tirar = ev.target.closest("[data-tirar-entrada]");
   if (tirar) { tirar.closest(".linha-entrada").remove(); somarCaixaDoForm(); }
 });
@@ -2336,6 +2352,7 @@ $("#dash-meta").addEventListener("submit", async (ev) => {
     const fontes = Object.fromEntries(metaAtual.fontes.map((x) => [x.id, f.querySelector(`[data-fonte="${x.id}"]`)?.value.trim() || null]));
     const entradas = [...f.querySelectorAll("#meta-entradas .linha-entrada")].map((l) => ({
       id: l.dataset.entrada || undefined, tipo: l.querySelector("[name=tipo]").value, descricao: l.querySelector("[name=descricao]").value, valor: l.querySelector("[name=valor]").value,
+      recorrente: l.querySelector('[data-recorrencia="sim"]').getAttribute("aria-pressed") === "true",
     }));
     const m = await api("/api/meta-do-mes", { method: "PUT", body: JSON.stringify({ meta: $("#meta-valor").value, fontes, entradas }) });
     $("#dash-meta").innerHTML = "";

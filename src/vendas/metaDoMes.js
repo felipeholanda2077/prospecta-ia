@@ -1,7 +1,5 @@
 import crypto from "node:crypto";
 import * as db from "../db.js";
-import * as cobrancas from "../contratos/cobranca.js";
-import * as entrada from "./entrada.js";
 import { lerValor, MESES } from "../contratos/valores.js";
 
 // Meta de faturamento do mês, editada na Dashboard. O caixa geral é a soma das entradas, cada tipo
@@ -11,14 +9,16 @@ import { lerValor, MESES } from "../contratos/valores.js";
 const chaveDoMes = (mes) => `meta_mes:${mes}`;
 const ULTIMA_META = "meta_mes:ultima";
 
-/** Entradas que o sistema soma sozinho. */
+/** Entradas que o sistema soma sozinho, já separadas em recorrentes (todo mês) e avulsas. */
 export const FONTES_AUTOMATICAS = [
-  { id: "cobrancas", nome: "Cobranças pagas (Asaas)" },
-  { id: "vendas", nome: "Vendas pagas" },
+  { id: "contratos_mensais", nome: "Mensalidades de contratos (Asaas)", recorrente: true },
+  { id: "contratos_avulsos", nome: "Parcelas avulsas de contratos (Asaas)", recorrente: false },
+  { id: "assinaturas", nome: "Assinaturas (vendas mensais)", recorrente: true },
+  { id: "vendas_avulsas", nome: "Vendas avulsas", recorrente: false },
 ];
 
-/** Sugestões de tipo para as entradas lançadas à mão. */
-export const TIPOS_DE_ENTRADA = ["Pix", "Dinheiro", "Transferência", "Cartão", "Boleto", "Mensalidade", "Projeto avulso", "Outro"];
+/** Tipos de entrada para lançar à mão (dá para escrever outro). */
+export const TIPOS_DE_ENTRADA = ["Venda", "Mensalidade", "Projeto", "Manutenção", "Consultoria", "Pix", "Dinheiro", "Transferência", "Cartão", "Boleto", "Investimento", "Reembolso", "Outro"];
 
 /** "2026-11" no horário de Brasília. */
 export function mesDe(agora = new Date()) {
@@ -27,13 +27,47 @@ export function mesDe(agora = new Date()) {
   return { mes: `${v("year")}-${v("month")}`, ano: Number(v("year")), numero: Number(v("month")), dia: Number(v("day")) };
 }
 
-/** Quanto cada fonte automática recebeu neste mês. Fonte que não deu para ler fica null. */
-async function recebidoAutomatico() {
-  const [parcelas, vendas] = await Promise.all([
-    cobrancas.painelDeCobrancas().catch(() => null),
-    entrada.painelDeVendas().catch(() => null),
-  ]);
-  return { cobrancas: parcelas ? parcelas.resumo?.recebidoNoMes ?? 0 : null, vendas: vendas ? vendas.recebidoNoMes ?? 0 : null };
+/** Contrato pago por mês em mais de uma parcela ("R$ 500,00 ... por mês, 12 meses") é recorrente. */
+export const contratoRecorrente = (resumo) => {
+  const m = String(resumo ?? "").match(/por mês, (\d+) m/);
+  return Boolean(m && Number(m[1]) > 1);
+};
+
+/** Quanto cada fonte automática recebeu no mês. Fonte que não deu para ler fica null. */
+async function recebidoAutomatico(mes) {
+  const soma = (lista) => Math.round(lista.reduce((t, x) => t + Number(x.valor || 0), 0) * 100) / 100;
+  const doMes = (x) => x.status === "paga" && String(x.pago_em ?? "").startsWith(mes);
+  let contratosMensais = null, contratosAvulsos = null, assinaturas = null, vendasAvulsas = null;
+  try {
+    const [parcelas, contratos] = await Promise.all([db.listarCobrancas(), db.listarContratos(1000)]);
+    const recorrente = new Map(contratos.map((c) => [c.id, contratoRecorrente(c.resumo)]));
+    const pagas = parcelas.filter(doMes);
+    contratosMensais = soma(pagas.filter((p) => recorrente.get(p.contrato_id)));
+    contratosAvulsos = soma(pagas.filter((p) => !recorrente.get(p.contrato_id)));
+  } catch { /* fica sem valor automático */ }
+  try {
+    const pagas = (await db.listarVendas()).filter(doMes);
+    assinaturas = soma(pagas.filter((v) => v.mensal));
+    vendasAvulsas = soma(pagas.filter((v) => !v.mensal));
+  } catch { /* fica sem valor automático */ }
+  return { contratos_mensais: contratosMensais, contratos_avulsos: contratosAvulsos, assinaturas, vendas_avulsas: vendasAvulsas };
+}
+
+/** O mês anterior a "2026-11": "2026-10". */
+const mesAnterior = (mes) => {
+  const [a, m] = mes.split("-").map(Number);
+  return m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, "0")}`;
+};
+
+/** Entradas recorrentes do último mês que tem entradas salvas (até 12 meses para trás), para repetir neste. */
+async function recorrentesAnteriores(mes) {
+  let m = mes;
+  for (let i = 0; i < 12; i++) {
+    m = mesAnterior(m);
+    const salvo = await lerDoMes(m);
+    if (Array.isArray(salvo.entradas)) return salvo.entradas.filter((e) => e.recorrente);
+  }
+  return [];
 }
 
 async function lerDoMes(mes) {
@@ -51,14 +85,19 @@ export async function metaDoMes({ agora = new Date(), automatico = recebidoAutom
   const salvo = await lerDoMes(mes);
   const ultima = lerValor(await db.lerEstado(ULTIMA_META));
   const meta = salvo.meta ?? ultima ?? null;
-  const auto = await automatico();
+  const auto = await automatico(mes);
   const ajustes = salvo.fontes ?? {};
   const fontes = FONTES_AUTOMATICAS.map((f) => {
     const ajustado = typeof ajustes[f.id] === "number";
     return { ...f, automatico: auto?.[f.id] ?? null, ajustado, valor: ajustado ? ajustes[f.id] : auto?.[f.id] ?? 0 };
   });
-  const entradas = (Array.isArray(salvo.entradas) ? salvo.entradas : []).map((e) => ({ id: e.id, tipo: e.tipo, descricao: e.descricao ?? "", valor: e.valor }));
-  const caixa = centavos([...fontes, ...entradas].reduce((t, e) => t + (e.valor || 0), 0));
+  // Mês ainda sem entradas salvas: as recorrentes do mês anterior já aparecem (dá para editar ou tirar).
+  const repetidas = !Array.isArray(salvo.entradas);
+  const base = repetidas ? await recorrentesAnteriores(mes) : salvo.entradas;
+  const entradas = base.map((e) => ({ id: e.id, tipo: e.tipo, descricao: e.descricao ?? "", valor: e.valor, recorrente: Boolean(e.recorrente), repetida: repetidas }));
+  const todas = [...fontes, ...entradas];
+  const caixa = centavos(todas.reduce((t, e) => t + (e.valor || 0), 0));
+  const recorrente = centavos(todas.filter((e) => e.recorrente).reduce((t, e) => t + (e.valor || 0), 0));
   const diasNoMes = new Date(ano, numero, 0).getDate();
   const diasRestantes = diasNoMes - dia + 1;
   const falta = meta == null ? null : Math.max(0, centavos(meta - caixa));
@@ -71,6 +110,8 @@ export async function metaDoMes({ agora = new Date(), automatico = recebidoAutom
     entradas,
     tipos: TIPOS_DE_ENTRADA,
     caixa,
+    recorrente,
+    avulso: centavos(caixa - recorrente),
     falta,
     porcentagem: meta ? Math.min(999, Math.round((caixa / meta) * 100)) : null,
     bateu: meta != null && caixa >= meta,
@@ -93,8 +134,8 @@ function reais(v, rotulo, { obrigatorio = true, zero = true } = {}) {
 /**
  * Salva o que foi editado. Só muda o que vier:
  * - `meta`: o valor da meta do mês;
- * - `fontes`: `{ cobrancas, vendas }`, cada uma com um valor ajustado à mão ou vazio para voltar ao automático;
- * - `entradas`: a lista inteira das entradas lançadas à mão, `{ id?, tipo, descricao?, valor }`.
+ * - `fontes`: `{ contratos_mensais, contratos_avulsos, assinaturas, vendas_avulsas }`, cada uma com um valor ajustado à mão ou vazio para voltar ao automático;
+ * - `entradas`: a lista inteira das entradas lançadas à mão, `{ id?, tipo, descricao?, valor, recorrente }`.
  */
 export async function salvarMetaDoMes({ meta, fontes, entradas } = {}, { agora = new Date(), automatico } = {}) {
   const { mes } = mesDe(agora);
@@ -127,6 +168,7 @@ export async function salvarMetaDoMes({ meta, fontes, entradas } = {}, { agora =
           tipo,
           descricao: String(e.descricao ?? "").trim().slice(0, 80),
           valor: reais(e.valor, `o valor de "${tipo}"`),
+          recorrente: e.recorrente === true || e.recorrente === "true",
         };
       });
   }
