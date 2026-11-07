@@ -53,5 +53,10 @@ export async function buscarAnunciantesNoGoogle({ nicho, cidade, agora = new Dat
     engine: "google", q: consulta, ...(local ? { location: local } : {}), gl: "br", hl: "pt-br", google_domain: "google.com.br",
   }, { fonte: "googleads", agora });
   if (!dados) return { empresas: [], buscas: 0, avisos: [aviso] };
-  return { empresas: anunciantesDaBusca(dados.ads, consulta), buscas: 1, avisos: [] };
+  // O Google põe anúncio em mais de um bloco (topo, rodapé, "local_ads"); junta todos.
+  const ads = [...(dados.ads ?? []), ...(dados.local_ads?.ads ?? []), ...(dados.shopping_ads ?? [])];
+  return {
+    empresas: anunciantesDaBusca(ads, consulta), buscas: 1, avisos: [],
+    vistos: { anuncios: ads.length, blocos: Object.keys(dados).filter((k) => /ads|sponsor|patrocin/i.test(k)) },
+  };
 }
