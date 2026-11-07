@@ -939,6 +939,10 @@ export async function propor(campanha, { ate = prazoPadrao(), limite = campanha.
 
   for (const lead of leads) {
     if (semTempo(ate)) break;
+    // Duas rodadas ao mesmo tempo (os dois agendadores, ou um clique no painel) não escrevem a sequência duas vezes:
+    // a empresa fica reservada para uma só, e a outra confere de novo se ela ainda está esperando proposta.
+    if (!(await db.travar(`propor_lead:${lead.id}`, 5 * 60_000))) continue;
+    if ((await db.buscarLead(lead.id))?.status !== lead.status) continue;
     const canais = [];
     if (campanha.canais.includes("email") && lead.email) canais.push(["email", lead.email]);
     if (campanha.canais.includes("whatsapp") && lead.whatsapp) canais.push(["whatsapp", lead.whatsapp]);
