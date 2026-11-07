@@ -142,13 +142,45 @@ function linhaDoAnuncio(lead) {
   Use isto: abra mostrando que viu o anúncio (com naturalidade, citando algo dele) e ligue a oportunidade ao dinheiro que ela já investe em anúncio (ex.: quem clica cai numa página lenta, sem botão de WhatsApp, ou numa conversa que demora a ser respondida). Não critique o anúncio em si.`;
 }
 
+/** As avaliações recentes do Google sem resposta da empresa, para a IA citar. */
+function linhaDasAvaliacoes(lead) {
+  let a = null;
+  try { a = JSON.parse(lead.analise ?? "{}").avaliacoes; } catch {}
+  if (!a?.recentes || !(a.semResposta >= 3 || a.negativasSemResposta >= 1)) return "";
+  return `
+- Avaliações no Google: das ${a.recentes} dos últimos 3 meses, ${a.semResposta} estão sem resposta da empresa${a.negativasSemResposta ? ` (${a.negativasSemResposta} negativas)` : ""}.
+  Se usar, cite como algo que você notou e que acontece com muita gente ocupada, sem expor nem constranger a empresa e sem citar o texto de nenhuma avaliação.`;
+}
+
+/** A vaga aberta da empresa (achada nas vagas do Google), para a IA citar. */
+function linhaDaVaga(lead) {
+  let v = null;
+  try { v = JSON.parse(lead.vaga ?? "null"); } catch {}
+  if (!v?.cargo) return "";
+  return `
+- Está contratando agora: vaga de "${v.cargo}"${v.publicada ? ` (publicada ${v.publicada})` : ""}${v.onde ? `, no ${v.onde}` : ""}. Ela quer ${v.dor}.
+  Use isto: mostre que viu a vaga, sem parecer vigilância, e pergunte como está sendo dar conta disso hoje. Ofereça a tecnologia como
+  forma de resolver isso (ou de o contratado render mais), sem dizer que ela não precisa contratar ninguém e sem falar mal de contratar.`;
+}
+
+// Escritório de contabilidade: a conversa é de parceria de indicação, não de venda para ele.
+const PARCERIA_CONTADOR = `ATENÇÃO, ISTO MUDA A ABORDAGEM: este contato é um ESCRITÓRIO DE CONTABILIDADE, e a proposta é de PARCERIA, não de venda para ele.
+- O escritório atende empresas que estão abrindo ou se organizando e que muitas vezes precisam de site, sistema ou automação. A ideia:
+  ele indica esses clientes para a FluxDeck e recebe uma comissão por cliente que fechar.
+- NÃO cite valor nem percentual de comissão (isso se combina na conversa) e NÃO ofereça site ou serviço para o próprio escritório.
+- Etapa 1: apresente-se em poucas palavras e pergunte se os clientes deles costumam pedir indicação de quem faça site ou sistema.
+- Etapas 2 e 3: explique a parceria em 1 ou 2 frases e convide para uma conversa rápida.
+- Esta instrução vale acima das outras sobre oportunidades e abordagem.
+
+`;
+
 function montarPedido(lead, oportunidades) {
-  return `Dados da empresa prospectada:
+  return `${lead.origem === "contador" ? PARCERIA_CONTADOR : ""}Dados da empresa prospectada:
 - Nome: ${lead.nome}
 - Segmento: ${lead.nicho ?? "não informado"}
 - Cidade: ${lead.cidade ?? "não informada"}
 - Site: ${lead.site ?? SEM_SITE_CONHECIDO(lead)}
-- Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "sem dados"}${linhaDoInstagram(lead)}${linhaDoAnuncio(lead)}${lead.responsavel ? `
+- Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "sem dados"}${linhaDoInstagram(lead)}${linhaDoAnuncio(lead)}${linhaDaVaga(lead)}${linhaDasAvaliacoes(lead)}${lead.responsavel ? `
 - Sócio que administra (cadastro do CNPJ, em maiúsculas e sem acento): ${lead.responsavel}` : ""}
 
 Oportunidades encontradas na análise (da mais para a menos relevante):

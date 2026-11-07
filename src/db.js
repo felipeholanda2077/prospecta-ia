@@ -430,15 +430,15 @@ const COLUNAS_LEAD = new Set([
 export async function inserirLead(lead) {
   const linhas = await q(
     `INSERT INTO leads (place_id, nome, nicho, cidade, endereco, telefone, site, maps_url,
-                        avaliacao, total_avaliacoes, origem, token, email, instagram, instagram_dados, responsavel, anuncio)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                        avaliacao, total_avaliacoes, origem, token, email, instagram, instagram_dados, responsavel, anuncio, vaga)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
      ON CONFLICT (place_id) DO NOTHING RETURNING id`,
     [
       lead.place_id, lead.nome, lead.nicho, lead.cidade, lead.endereco, lead.telefone, lead.site,
       lead.maps_url, lead.avaliacao, lead.total_avaliacoes, lead.origem ?? "campanha",
       crypto.randomBytes(16).toString("hex"), lead.email ?? null, lead.instagram ?? null,
       lead.instagram_dados ? JSON.stringify(lead.instagram_dados) : null, lead.responsavel ?? null,
-      lead.anuncio ? JSON.stringify(lead.anuncio) : null,
+      lead.anuncio ? JSON.stringify(lead.anuncio) : null, lead.vaga ? JSON.stringify(lead.vaga) : null,
     ]
   );
   return linhas.length > 0;

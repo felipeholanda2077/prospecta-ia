@@ -18,6 +18,8 @@ export const AUTOMACAO_PADRAO = {
   buscarNoInstagram: true, // com o Instagram conectado pela página do Facebook, busca lá também
   buscarPorCnpj: true, // busca também pelos dados abertos do CNPJ (Receita Federal)
   buscarEmAnuncios: true, // com a SerpApi conectada, busca também quem anuncia no Instagram e no Facebook
+  buscarContadores: true, // uma vez por dia, escritórios de contabilidade das cidades da campanha, para parceria de indicação
+  buscarEmVagas: true, // com a SerpApi conectada, busca também empresas contratando para funções que a FluxDeck resolve
   buscas: null, // null = usa as do campanha.json
   testarRamos: true, // a IA escolhe ramos novos, testa na captação e fica com os que respondem bem
 };

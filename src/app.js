@@ -958,6 +958,38 @@ app.post("/api/anuncios/capturar", async (req, res) => {
   res.json(await pipeline.capturarDosAnuncios(empresas.slice(0, 100), String(nicho ?? ""), String(cidade ?? "")));
 });
 
+// Empresas contratando (vagas do Google, pela SerpApi) para uma função que a FluxDeck resolve.
+app.post("/api/vagas/buscar", async (req, res) => {
+  const { cidade, funcao } = req.body ?? {};
+  if (!String(cidade ?? "").trim()) return res.status(400).json({ erro: "Informe a cidade" });
+  try {
+    res.json(await pipeline.buscarNasVagas(cidade.trim(), { funcao }));
+  } catch (e) {
+    res.status(502).json({ erro: e.message });
+  }
+});
+app.post("/api/vagas/capturar", async (req, res) => {
+  const { empresas, nicho, cidade } = req.body ?? {};
+  if (!Array.isArray(empresas) || !empresas.length) return res.status(400).json({ erro: "Selecione ao menos uma empresa" });
+  res.json(await pipeline.capturarDasVagas(empresas.slice(0, 100), String(nicho ?? ""), String(cidade ?? "")));
+});
+
+// Escritórios de contabilidade (Google Maps) para a parceria de indicação.
+app.post("/api/contadores/buscar", async (req, res) => {
+  const { cidade, quantidade } = req.body ?? {};
+  if (!String(cidade ?? "").trim()) return res.status(400).json({ erro: "Informe a cidade" });
+  try {
+    res.json(await pipeline.buscarContadores(cidade.trim(), quantidade));
+  } catch (e) {
+    res.status(502).json({ erro: e.message });
+  }
+});
+app.post("/api/contadores/capturar", async (req, res) => {
+  const { empresas, cidade } = req.body ?? {};
+  if (!Array.isArray(empresas) || !empresas.length) return res.status(400).json({ erro: "Selecione ao menos uma empresa" });
+  res.json(await pipeline.capturarContadores(empresas.slice(0, 100), String(cidade ?? "")));
+});
+
 app.post("/api/maps/capturar", async (req, res) => {
   const { empresas, nicho, cidade } = req.body ?? {};
   if (!Array.isArray(empresas) || !empresas.length) return res.status(400).json({ erro: "Selecione ao menos uma empresa" });
@@ -1369,6 +1401,8 @@ app.put("/api/config/automacao", async (req, res) => {
     buscarNoInstagram: b.buscarNoInstagram !== false,
     buscarPorCnpj: b.buscarPorCnpj !== false,
     buscarEmAnuncios: b.buscarEmAnuncios !== false,
+    buscarEmVagas: b.buscarEmVagas !== false,
+    buscarContadores: b.buscarContadores !== false,
     testarRamos: b.testarRamos !== false,
     buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,
   };

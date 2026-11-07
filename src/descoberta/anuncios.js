@@ -16,7 +16,13 @@ const mesAtual = (agora = new Date()) => new Date(agora).toLocaleDateString("en-
 const chaveDoMes = (agora) => `anuncios_buscas:${mesAtual(agora)}`;
 /** Corta o texto sem partir emoji ao meio (meio emoji vira um JSON que a IA recusa). */
 export const cortar = (s, n) => [...String(s ?? "").toWellFormed()].slice(0, n).join("");
-const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "");
+export const semAcento = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "");
+/** "Osasco - SP" vira "Osasco". */
+export const cidadeSemUf = (cidade) => String(cidade ?? "").split(/\s+-\s+|,|\//)[0].trim();
+const chaveDaFonte = (fonte, agora) => `serpapi:${fonte}:${mesAtual(agora)}`;
+// A mesma chave da SerpApi serve a três buscas automáticas; cada uma gasta no máximo esta parte do limite do mês
+// (a busca feita no painel só respeita o limite total).
+export const COTA_AUTOMATICA = { anuncios: 0.4, vagas: 0.3, avaliacoes: 0.3 };
 
 async function chaveAberta() {
   const c = (await db.lerConfig(CHAVE_CONFIG)) ?? {};
@@ -133,12 +139,14 @@ export function empresaDoAnuncio(ad) {
  * A busca automática gasta o limite do mês aos poucos: até hoje, no máximo a parte proporcional dos dias que já
  * passaram (o limite não acaba na primeira semana).
  */
-export async function podeBuscarSozinho(agora = new Date()) {
+export async function podeBuscarSozinho(agora = new Date(), fonte = "anuncios") {
   const s = await situacao(agora);
   if (!s.conectado || !s.limiteMensal) return false;
   const [ano, mes, dia] = new Date(agora).toLocaleDateString("en-CA", { timeZone: config.timezone }).split("-").map(Number);
   const diasNoMes = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
-  return s.buscasNoMes < Math.ceil((s.limiteMensal * dia) / diasNoMes);
+  if (s.buscasNoMes >= Math.ceil((s.limiteMensal * dia) / diasNoMes)) return false;
+  const daFonte = Number(await db.lerEstado(chaveDaFonte(fonte, agora))) || 0;
+  return daFonte < Math.ceil(s.limiteMensal * (COTA_AUTOMATICA[fonte] ?? 0.3));
 }
 
 /** O nome da página no Facebook (facebook.com/nome): muitas vezes é o mesmo @ do Instagram. */
@@ -165,7 +173,7 @@ export function mesmoNome(daPagina, doMaps) {
  * Muda as empresas no lugar; `instagram` e `maps` são as consultas (para o teste).
  */
 export async function completarContatos(empresas, cidade, { instagram = null, maps = null, maximo = 15 } = {}) {
-  const cidadeSemUf = String(cidade ?? "").split(/\s+-\s+|,|\//)[0].trim();
+  const cidadeCurta = cidadeSemUf(cidade);
   let feitas = 0;
   for (const e of empresas) {
     if (e.site || e.telefone || feitas >= maximo) continue;
@@ -182,7 +190,7 @@ export async function completarContatos(empresas, cidade, { instagram = null, ma
       }
     }
     if (!e.telefone && !e.site && maps) {
-      const achados = await maps(`${e.nome} ${cidadeSemUf}`).catch(() => []);
+      const achados = await maps(`${e.nome} ${cidadeCurta}`).catch(() => []);
       const lugar = achados.find((l) => mesmoNome(e.nome, l.nome));
       if (lugar) {
         Object.assign(e, {
@@ -197,12 +205,26 @@ export async function completarContatos(empresas, cidade, { instagram = null, ma
 }
 
 /** Reserva uma busca do mês (no banco, para dois agendadores não passarem do limite juntos). */
-async function reservarBusca(limite, agora) {
+async function reservarBusca(limite, agora, fonte = "anuncios") {
   const chave = chaveDoMes(agora);
   const feitas = Number(await db.lerEstado(chave)) || 0;
   if (feitas >= limite) return false;
   await db.gravarEstado(chave, feitas + 1);
+  const daFonte = chaveDaFonte(fonte, agora);
+  await db.gravarEstado(daFonte, (Number(await db.lerEstado(daFonte)) || 0) + 1);
   return true;
+}
+
+/**
+ * Uma busca na SerpApi por outra fonte (vagas, avaliações), gastando 1 do limite do mês. Sem chave, sem limite
+ * ou com o limite atingido, devolve null (com o motivo em `aviso`) em vez de falhar.
+ */
+export async function buscarNaSerpApi(parametros, { fonte, agora = new Date() } = {}) {
+  const { c, chave } = await chaveAberta();
+  if (!chave) return { dados: null, aviso: "SerpApi não conectada (Configurações → Anúncios da Meta)" };
+  const limite = c.limiteMensal ?? LIMITE_PADRAO;
+  if (!(await reservarBusca(limite, agora, fonte))) return { dados: null, aviso: `O limite de ${limite} buscas por mês na SerpApi foi atingido` };
+  return { dados: await pedir("/search.json", { ...parametros, api_key: chave }) };
 }
 
 /**
@@ -213,14 +235,14 @@ export async function buscarAnunciantes({ nicho, cidade, quantidade = 20, maxBus
   const { c, chave } = await chaveAberta();
   if (!chave) throw new Error(c.chave ? "A chave da SerpApi guardada não abre mais (a senha do painel mudou). Cole de novo em Configurações → Anúncios da Meta." : "Conecte a SerpApi para buscar nos anúncios da Meta: cole a chave em Configurações → Anúncios da Meta.");
   const limite = c.limiteMensal ?? LIMITE_PADRAO;
-  const cidadeSemUf = String(cidade ?? "").split(/\s+-\s+|,|\//)[0].trim();
-  const q = `${String(nicho ?? "").trim()} ${cidadeSemUf}`.trim();
+  const cidadeCurta = cidadeSemUf(cidade);
+  const q = `${String(nicho ?? "").trim()} ${cidadeCurta}`.trim();
   const porPagina = new Map();
   let token = null;
   let buscas = 0;
   const avisos = [];
   while (buscas < maxBuscas && porPagina.size < quantidade) {
-    if (!(await reservarBusca(limite, agora))) {
+    if (!(await reservarBusca(limite, agora, "anuncios"))) {
       avisos.push(`O limite de ${limite} buscas por mês nos anúncios foi atingido; ajuste em Anúncios da Meta.`);
       break;
     }
@@ -238,7 +260,7 @@ export async function buscarAnunciantes({ nicho, cidade, quantidade = 20, maxBus
     token = dados.serpapi_pagination?.next_page_token ?? dados.next_page_token ?? null;
     if (!token) break;
   }
-  const cidadeNormal = semAcento(cidadeSemUf).toLowerCase();
+  const cidadeNormal = semAcento(cidadeCurta).toLowerCase();
   const citaCidade = (e) => cidadeNormal && semAcento(`${e.nome} ${e.anuncio.texto}`).toLowerCase().includes(cidadeNormal);
   const empresas = [...porPagina.values()]
     .map((e) => ({ ...e, citaCidade: Boolean(citaCidade(e)) }))

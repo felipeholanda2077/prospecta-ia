@@ -83,6 +83,8 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS instagram text;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS instagram_dados text;
 -- Empresa achada pelos anúncios da Meta: o anúncio ativo dela (texto, desde quando, para onde leva), em JSON.
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS anuncio text;
+-- Empresa achada por uma vaga aberta (cargo, quando e onde foi publicada, o serviço que resolve), em JSON.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS vaga text;
 -- Resposta automática: qual mensagem a IA mandou e se a conversa precisa de você.
 ALTER TABLE respostas ADD COLUMN IF NOT EXISTS mensagem_id integer;
 ALTER TABLE respostas ADD COLUMN IF NOT EXISTS precisa_humano text;

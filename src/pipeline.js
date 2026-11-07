@@ -5,6 +5,8 @@ import { buscarEmpresas } from "./descoberta/googlePlaces.js";
 import { buscaNoInstagram, buscarEmpresasNoInstagram, instagramDaEmpresa, perfilDoInstagram, contatosDoPerfil } from "./descoberta/instagram.js";
 import { buscarEmpresasPorCnpj, contatoDoCnpj, emailDeContador } from "./descoberta/cnpj.js";
 import { buscarAnunciantes, podeBuscarSozinho, completarContatos, cortar } from "./descoberta/anuncios.js";
+import { buscarEmpresasContratando, FUNCOES } from "./descoberta/vagas.js";
+import { avaliacoesDoGoogle, oportunidadeDasAvaliacoes } from "./analise/avaliacoes.js";
 import { escolherAbordagem } from "./ia/abordagens.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
@@ -399,10 +401,126 @@ export async function descobrirProxima(campanha, { tentativas = 3 } = {}) {
   const instagram = await descobrirNoInstagram(campanha, combinacoes[inicio % combinacoes.length]);
   const cnpj = await descobrirPorCnpj(campanha, combinacoes[inicio % combinacoes.length]);
   const anuncios = await descobrirNosAnuncios(campanha, combinacoes[inicio % combinacoes.length]);
+  const vagas = await descobrirNasVagas(campanha, combinacoes[inicio % combinacoes.length]);
+  const contadores = await descobrirContadores(campanha, combinacoes[inicio % combinacoes.length]);
   return {
-    novas: novas + (instagram?.novas ?? 0) + (cnpj?.novas ?? 0) + (anuncios?.novas ?? 0), buscas: feitas,
-    ...(instagram ? { instagram } : {}), ...(cnpj ? { cnpj } : {}), ...(anuncios ? { anuncios } : {}),
+    novas: novas + (instagram?.novas ?? 0) + (cnpj?.novas ?? 0) + (anuncios?.novas ?? 0) + (vagas?.novas ?? 0) + (contadores?.novas ?? 0), buscas: feitas,
+    ...(instagram ? { instagram } : {}), ...(cnpj ? { cnpj } : {}), ...(anuncios ? { anuncios } : {}), ...(vagas ? { vagas } : {}),
+    ...(contadores ? { contadores } : {}),
   };
+}
+
+// ---------- Contadores: parceria de indicação ----------
+
+export const NICHO_CONTADOR = "escritório de contabilidade";
+
+/**
+ * Uma vez por dia, a busca automática também pega escritórios de contabilidade da cidade da rodada: eles atendem
+ * empresas que estão abrindo e precisam de site e sistema. A abordagem com eles é de parceria (indicação), não de venda.
+ */
+export async function descobrirContadores(campanha, { cidade }, { agora = new Date() } = {}) {
+  if (campanha.automacao?.buscarContadores === false) return null;
+  const hoje = new Date(agora).toLocaleDateString("en-CA", { timeZone: config.timezone });
+  if ((await db.lerEstado("contadores_ultimo_dia")) === hoje) return null;
+  await db.gravarEstado("contadores_ultimo_dia", hoje);
+  try {
+    const empresas = await buscarEmpresas(`${NICHO_CONTADOR} em ${cidade}`, 20);
+    const novas = (await capturarContadores(empresas, cidade)).novas;
+    log(`🤝 Busca automática de contadores em ${cidade}: ${novas} novos para parceria`);
+    return { novas };
+  } catch (e) {
+    log(`⚠️  Falha na busca de contadores em ${cidade}: ${e.message}`);
+    return { novas: 0, erro: e.message };
+  }
+}
+
+/** Escritórios de contabilidade da cidade no Google Maps, sem salvar. */
+export async function buscarContadores(cidade, quantidade = 20) {
+  const empresas = await buscarEmpresas(`${NICHO_CONTADOR} em ${cidade}`, Math.min(Number(quantidade) || 20, 60));
+  const capturados = await db.placeIdsCapturados(empresas.map((e) => e.place_id));
+  log(`🤝 Busca de contadores em ${cidade}: ${empresas.length} escritórios`);
+  return { empresas: empresas.map((e) => ({ ...e, jaCapturado: capturados.has(e.place_id), celular: ehCelularBR(e.telefone), semSite: semSiteProprio(e.site), contador: true })) };
+}
+
+/** Salva os escritórios de contabilidade como leads de parceria (origem "contador"). */
+export async function capturarContadores(empresas, cidade) {
+  let novas = 0;
+  for (const e of empresas) {
+    if (!e?.place_id || !e?.nome) continue;
+    const lead = {
+      place_id: String(e.place_id), nome: String(e.nome).slice(0, 120), endereco: e.endereco ?? null, telefone: e.telefone ?? null,
+      site: e.site ?? null, maps_url: e.maps_url ?? null, avaliacao: e.avaliacao ?? null, total_avaliacoes: e.total_avaliacoes ?? null,
+      nicho: NICHO_CONTADOR, cidade, origem: "contador",
+    };
+    if (await db.inserirLead(lead)) novas++;
+  }
+  if (novas) log(`🤝 ${novas} escritórios de contabilidade capturados para parceria`);
+  return { novas };
+}
+
+/**
+ * Com a SerpApi conectada, a busca automática também procura empresas contratando, na cidade da rodada, para uma
+ * função que a FluxDeck resolve (uma função por rodada, em rodízio). Gasta no máximo 1 busca, dentro da cota das vagas.
+ */
+export async function descobrirNasVagas(campanha, { cidade }, { agora = new Date() } = {}) {
+  if (campanha.automacao?.buscarEmVagas === false) return null;
+  if (!(await podeBuscarSozinho(agora, "vagas"))) return null;
+  const vez = Number(await db.lerEstado("vagas_rotacao")) || 0;
+  await db.gravarEstado("vagas_rotacao", (vez + 1) % FUNCOES.length);
+  try {
+    const r = await buscarNasVagas(cidade, { funcao: vez % FUNCOES.length, agora });
+    const novas = (await capturarDasVagas(r.empresas.filter((e) => !e.jaCapturado), "", cidade)).novas;
+    log(`💼 Busca automática nas vagas "${FUNCOES[vez % FUNCOES.length].cargo} em ${cidade}": ${novas} novas${r.avisos.length ? ` · ${r.avisos.join(" · ")}` : ""}`);
+    return { novas };
+  } catch (e) {
+    log(`⚠️  Falha na busca automática nas vagas em ${cidade}: ${e.message}`);
+    return { novas: 0, erro: e.message };
+  }
+}
+
+/** Empresas contratando numa cidade, com o contato do Google Maps (sem ele, não dá para chamar). Não salva. */
+export async function buscarNasVagas(cidade, { funcao = 0, agora = new Date() } = {}) {
+  const r = await buscarEmpresasContratando({ cidade, funcoes: [Number(funcao) || 0], maxBuscas: 1, agora });
+  await completarContatos(r.empresas, cidade, { maps: (consulta) => buscarEmpresas(consulta, 3), maximo: 20 });
+  const capturados = await db.placeIdsCapturados(r.empresas.map((e) => e.mapsPlaceId).filter(Boolean));
+  log(`💼 Busca nas vagas "${FUNCOES[Number(funcao) || 0]?.cargo} em ${cidade}": ${r.empresas.length} empresas contratando`);
+  return {
+    ...r,
+    empresas: r.empresas.map((e) => ({
+      ...e, jaCapturado: capturados.has(e.mapsPlaceId), celular: ehCelularBR(e.telefone),
+      semSite: !e.site, semContato: !e.mapsPlaceId || (!e.telefone && !e.site),
+    })),
+  };
+}
+
+/** Salva como leads as empresas contratando (com o contato do Google Maps), com a vaga delas. */
+export async function capturarDasVagas(empresas, nicho, cidade) {
+  let novas = 0;
+  for (const e of empresas) {
+    // Sem a empresa no Google Maps não há contato confiável; e o place_id do Maps evita repetir quem já veio por lá.
+    if (!e?.mapsPlaceId || !e?.nome || (!e.telefone && !e.site)) continue;
+    const v = e.vaga ?? {};
+    const lead = {
+      place_id: String(e.mapsPlaceId),
+      nome: String(e.nome).slice(0, 120),
+      endereco: e.endereco ?? null,
+      telefone: e.telefone ? String(e.telefone).replace(/\D/g, "").slice(0, 15) : null,
+      site: e.site ? String(e.site).slice(0, 500) : null,
+      maps_url: e.maps_url ?? null,
+      avaliacao: e.avaliacao ?? null,
+      total_avaliacoes: e.total_avaliacoes ?? null,
+      nicho: String(nicho ?? "").trim() || null,
+      cidade,
+      origem: "vaga",
+      vaga: {
+        cargo: cortar(v.cargo, 120), funcao: v.funcao ?? null, servico: v.servico ?? null, dor: v.dor ?? null,
+        publicada: v.publicada ?? null, onde: v.onde ?? null, link: v.link ? String(v.link).slice(0, 500) : null,
+      },
+    };
+    if (await db.inserirLead(lead)) novas++;
+  }
+  if (novas) log(`💼 ${novas} empresas capturadas pelas vagas abertas`);
+  return { novas };
 }
 
 /**
@@ -732,9 +850,20 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
       analise.instagram = { usuario: insta.usuario, seguidores: insta.seguidores, posts: insta.posts, ultimoPost: insta.ultimoPost };
       analise.whatsapp ??= insta.contatos.whatsapp;
     }
+    // Avaliações recentes do Google sem resposta da empresa (pela SerpApi, dentro da cota do mês).
+    const avaliacoes = await avaliacoesDoGoogle(lead).catch((e) => { log(`⚠️  Avaliações de ${lead.nome}: ${e.message}`); return null; });
+    if (avaliacoes) analise.avaliacoes = avaliacoes;
     let oportunidades = identificarOportunidades(analise, lead.nicho);
     // Empresa com site bom não é descartada: a abordagem muda para automação e sistema.
     if (!oportunidades.length) oportunidades = oportunidadesParaSiteBom(lead.nicho);
+    const pelasAvaliacoes = oportunidadeDasAvaliacoes(analise.avaliacoes);
+    if (pelasAvaliacoes) oportunidades = [...oportunidades, pelasAvaliacoes].sort((a, b) => (b.peso ?? 0) - (a.peso ?? 0));
+    // Achada por uma vaga aberta: a função que ela quer contratar é a oportunidade principal.
+    const vaga = (() => { try { return JSON.parse(lead.vaga ?? "null"); } catch { return null; } })();
+    if (vaga?.servico) {
+      oportunidades = [{ servico: vaga.servico, motivo: `a empresa está contratando "${vaga.cargo}" (quer ${vaga.dor}); dá para resolver isso com tecnologia, sem depender só de contratar`, peso: 20 },
+        ...oportunidades.filter((o) => o.servico !== vaga.servico)];
+    }
     const email = analise.emails?.[0] ?? insta?.contatos.email ?? lead.email ?? null;
     const telefone = lead.telefone ?? insta?.contatos.telefone ?? null;
     const { whatsapp, whatsapp_status } = await descobrirWhatsapp({ ...lead, telefone }, analise);
@@ -748,7 +877,8 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
       observacao = whatsapp_status === "sem_whatsapp"
         ? "sem e-mail no site e o telefone não tem WhatsApp"
         : lead.origem === "instagram" ? "sem e-mail nem WhatsApp na bio do Instagram"
-          : lead.origem === "anuncio" ? "o anúncio não leva a site, WhatsApp ou Instagram com contato" : "sem e-mail no site e sem telefone no Google";
+          : lead.origem === "anuncio" ? "o anúncio não leva a site, WhatsApp ou Instagram com contato"
+            : "sem e-mail no site e sem telefone no Google";
       status = "descartado";
     } else if (!oportunidades.length) [status, observacao] = ["descartado", "nenhuma oportunidade clara"];
 
