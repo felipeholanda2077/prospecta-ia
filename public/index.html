@@ -996,7 +996,7 @@
           </div>
           <div id="campos-anuncios" style="grid-column:1/-1;display:grid;gap:10px" hidden>
             <span class="muted" style="font-size:12.5px">Empresas com anúncio ativo no Instagram e no Facebook que citam o segmento e a cidade, pela Biblioteca de Anúncios da Meta. Quem anuncia já tem verba e quer cliente: a IA abre a conversa citando o anúncio e o que a página dele tem de fraco. Marcas grandes (mais de 100 mil curtidas) ficam de fora. Cada busca gasta 1 do plano da SerpApi (o grátis tem 250 por mês, com até 30 anúncios em cada).</span>
-            <div id="anuncios-conexao"></div>
+            <div id="anuncios-resumo"></div>
           </div>
           <div class="campo" id="campo-termos" style="grid-column:1/-1" hidden><label for="termos">Hashtags ou @perfis (opcional)</label>
             <input id="termos" placeholder="Ex.: #petshopfortaleza #banhoetosa @petconcorrente">
@@ -1025,7 +1025,7 @@
             <label class="chave"><input type="checkbox" name="buscarPorCnpj"><div><b>Buscar empresas também pelo CNPJ</b>
               <span>Pelos dados abertos da Receita Federal: empresas ativas do mesmo segmento e cidade, sem MEI, com o telefone e o e-mail do cadastro (sem os do contador). Grátis.</span></div></label>
             <label class="chave"><input type="checkbox" name="buscarEmAnuncios"><div><b>Buscar também quem está anunciando</b>
-              <span>Com a SerpApi conectada em Buscar empresas → Anúncios da Meta, a busca automática procura quem tem anúncio ativo no Instagram e no Facebook no mesmo segmento e cidade. Gasta o limite de buscas do mês aos poucos, no máximo 1 por rodada.</span></div></label>
+              <span>Com a SerpApi conectada em Configurações → Anúncios da Meta, a busca automática procura quem tem anúncio ativo no Instagram e no Facebook no mesmo segmento e cidade. Gasta o limite de buscas do mês aos poucos, no máximo 1 por rodada.</span></div></label>
             <label class="chave"><input type="checkbox" name="testarRamos"><div><b>A IA testa ramos novos</b>
               <span>Uma vez por dia a IA escolhe ramos que combinam com os seus serviços (2 por vez), busca nas mesmas cidades e compara com os seus. Fica com os que respondem bem (20% ou mais em 20 contatadas) e pausa os outros. O resultado aparece em Respostas.</span></div></label>
             <label class="chave"><input type="checkbox" name="respostaAutomatica"><div><b>IA responde as conversas sozinha</b>
@@ -1137,6 +1137,13 @@
           <div class="acoes"><button class="btn primario" type="submit"><span data-ic="check"></span>Conectar Calendly</button>
             <span class="muted" style="font-size:13px">Funciona no plano grátis: o sistema confere as reuniões a cada rodada. Nos planos pagos o aviso chega na hora.</span></div>
         </form>
+
+        <div class="cartao" id="cartao-anuncios" style="margin-top:16px">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="spark"></span><div class="titulos"><h3>Anúncios da Meta (SerpApi) <span id="anuncios-status"></span></h3>
+            <div class="meta">Para buscar quem está anunciando no Instagram e no Facebook (Buscar empresas → Anúncios da Meta, e a busca automática).
+              A API da Meta só mostra anúncios políticos no Brasil; a SerpApi lê a Biblioteca de Anúncios pública. O plano grátis tem 250 buscas por mês, com até 30 anúncios em cada.</div></div></div>
+          <div class="cartao-corpo" id="anuncios-conexao"></div>
+        </div>
 
         <div class="cartao" id="cartao-oficial" style="margin-top:16px">
           <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="message"></span><div class="titulos"><h3>WhatsApp oficial da Meta <span id="oficial-status"></span></h3>
@@ -2421,8 +2428,13 @@ async function mostrarConexaoAnuncios() {
   const alvo = $("#anuncios-conexao");
   try {
     const s = await api("/api/anuncios");
+    const pilula = s.trancada ? `<span class="pilula perigo">Cole de novo</span>` : s.conectado ? `<span class="pilula ok">Conectada</span>` : `<span class="pilula">Não conectada</span>`;
+    $("#anuncios-status").innerHTML = pilula;
+    $("#anuncios-resumo").innerHTML = `<div class="alerta ${s.conectado ? "info" : "atencao"}">${ic(s.conectado ? "checkCircle" : "alert")}<div>${s.conectado
+      ? `SerpApi conectada: ${s.buscasNoMes} de ${s.limiteMensal} buscas usadas este mês.`
+      : `${s.trancada ? "A chave da SerpApi precisa ser colada de novo." : "Para buscar aqui, conecte a SerpApi."}`} <a href="#configuracoes" data-ir-anuncios>Configurar em Configurações</a></div></div>`;
     alvo.innerHTML = `<form id="form-anuncios" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;align-items:end">
-        <div class="campo"><label for="an-chave">Chave da SerpApi ${s.trancada ? `<span class="pilula perigo">Cole de novo</span>` : s.conectado ? `<span class="pilula ok">Conectada</span>` : `<span class="pilula">Não conectada</span>`}</label>
+        <div class="campo"><label for="an-chave">Chave da SerpApi (Api Key) ${pilula}</label>
           <input id="an-chave" name="chave" type="password" autocomplete="new-password" spellcheck="false" placeholder="${s.conectado ? "•••••••• já salva (preencha só para trocar)" : "Cole a Api Key de serpapi.com"}"></div>
         <div class="campo"><label for="an-limite">Buscas por mês (no máximo)</label><input id="an-limite" name="limiteMensal" type="number" min="0" max="100000" value="${s.limiteMensal}"></div>
         <button class="btn" type="submit">${ic("save")}Salvar</button>
@@ -2432,6 +2444,10 @@ async function mostrarConexaoAnuncios() {
     alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
 }
+$("#anuncios-resumo").addEventListener("click", (ev) => {
+  if (!ev.target.closest("[data-ir-anuncios]")) return;
+  setTimeout(() => $("#cartao-anuncios").scrollIntoView({ behavior: "smooth", block: "start" }), 400);
+});
 $("#anuncios-conexao").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const f = ev.target;
@@ -4189,6 +4205,7 @@ async function carregarConfiguracoes() {
   carregarEmail();
   carregarCron();
   carregarFormulario();
+  mostrarConexaoAnuncios();
   api("/api/calendly/status").then((c) => {
     $("#calendly-status").innerHTML = c.conectado ? pilulaCalendly(c) : `<span class="pilula">Não conectado</span>`;
     $("#calendly-token").required = !c.conectado;

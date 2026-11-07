@@ -153,7 +153,7 @@ async function reservarBusca(limite, agora) {
  */
 export async function buscarAnunciantes({ nicho, cidade, quantidade = 20, maxBuscas = 2, agora = new Date() } = {}) {
   const { c, chave } = await chaveAberta();
-  if (!chave) throw new Error(c.chave ? "A chave da SerpApi guardada não abre mais (a senha do painel mudou). Cole de novo em Buscar empresas → Anúncios da Meta." : "Conecte a SerpApi para buscar nos anúncios da Meta: cole a chave em Buscar empresas → Anúncios da Meta.");
+  if (!chave) throw new Error(c.chave ? "A chave da SerpApi guardada não abre mais (a senha do painel mudou). Cole de novo em Configurações → Anúncios da Meta." : "Conecte a SerpApi para buscar nos anúncios da Meta: cole a chave em Configurações → Anúncios da Meta.");
   const limite = c.limiteMensal ?? LIMITE_PADRAO;
   const cidadeSemUf = String(cidade ?? "").split(/\s+-\s+|,|\//)[0].trim();
   const q = `${String(nicho ?? "").trim()} ${cidadeSemUf}`.trim();
