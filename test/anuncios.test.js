@@ -134,3 +134,9 @@ test("anúncios: cortar o texto não parte emoji ao meio", () => {
   assert.equal(cortado.isWellFormed(), true);
   assert.equal(anuncios.cortar("x\uD83D", 10).isWellFormed(), true); // meio emoji que já veio partido
 });
+
+test("anúncios: a empresa que já veio pelo Google Maps não entra de novo pelo anúncio", async () => {
+  await db.inserirLead({ place_id: "maps-jaba", nome: "Jaba Automoveis", nicho: "concessionária", cidade: "Osasco - SP", endereco: null, telefone: "+55 11 3683-4600", site: null, maps_url: null, avaliacao: null, total_avaliacoes: null });
+  const e = { ...anuncios.empresaDoAnuncio(anuncio("50", "5000", { link: "https://api.whatsapp.com/send" })), telefone: "551136834600", contatoDe: "maps", mapsPlaceId: "maps-jaba" };
+  assert.equal((await pipeline.capturarDosAnuncios([e], "concessionária", "Osasco - SP")).novas, 0);
+});

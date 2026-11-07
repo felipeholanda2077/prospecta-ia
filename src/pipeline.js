@@ -440,12 +440,13 @@ async function completarContatosDosAnunciantes(empresas, cidade) {
 export async function buscarNosAnuncios(nicho, cidade, { quantidade = 20 } = {}) {
   const r = await buscarAnunciantes({ nicho, cidade, quantidade: Math.min(Number(quantidade) || 20, 60), maxBuscas: Number(quantidade) > 30 ? 2 : 1 });
   await completarContatosDosAnunciantes(r.empresas, cidade);
-  const capturados = await db.placeIdsCapturados(r.empresas.map((e) => `ad:${e.page_id}`));
+  // A mesma empresa já capturada pelo Google Maps (achada pelo nome) conta como capturada.
+  const capturados = await db.placeIdsCapturados(r.empresas.flatMap((e) => [`ad:${e.page_id}`, e.mapsPlaceId].filter(Boolean)));
   log(`📣 Busca no painel nos anúncios "${nicho} em ${cidade}": ${r.empresas.length} anunciantes (${r.buscas} ${r.buscas === 1 ? "busca" : "buscas"})`);
   return {
     ...r,
     empresas: r.empresas.map((e) => ({
-      ...e, jaCapturado: capturados.has(`ad:${e.page_id}`), celular: ehCelularBR(e.telefone),
+      ...e, jaCapturado: capturados.has(`ad:${e.page_id}`) || capturados.has(e.mapsPlaceId), celular: ehCelularBR(e.telefone),
       semSite: !e.site, semContato: !e.site && !e.telefone && !e.instagram,
     })),
   };
@@ -454,7 +455,9 @@ export async function buscarNosAnuncios(nicho, cidade, { quantidade = 20 } = {})
 /** Salva como leads os anunciantes escolhidos (ou achados pela busca automática), com o anúncio deles. */
 export async function capturarDosAnuncios(empresas, nicho, cidade) {
   let novas = 0;
+  const peloMaps = await db.placeIdsCapturados(empresas.map((e) => e?.mapsPlaceId).filter(Boolean));
   for (const e of empresas) {
+    if (e?.mapsPlaceId && peloMaps.has(e.mapsPlaceId)) continue; // já está no funil pelo Google Maps
     const pagina = String(e?.page_id ?? "").replace(/\D/g, "");
     if (!pagina || !e?.nome || (!e.site && !e.telefone && !e.instagram)) continue;
     const instagram = /^[a-z0-9._]{2,30}$/.test(String(e.instagram ?? "")) ? e.instagram : null;

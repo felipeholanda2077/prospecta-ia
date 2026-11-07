@@ -188,7 +188,7 @@ export async function completarContatos(empresas, cidade, { instagram = null, ma
         Object.assign(e, {
           telefone: lugar.telefone ? String(lugar.telefone).replace(/\D/g, "") : null, site: lugar.site ?? e.site ?? null,
           endereco: lugar.endereco ?? null, maps_url: lugar.maps_url ?? null, avaliacao: lugar.avaliacao ?? null, total_avaliacoes: lugar.total_avaliacoes ?? null,
-          contatoDe: "maps",
+          contatoDe: "maps", mapsPlaceId: lugar.place_id ?? null,
         });
       }
     }
