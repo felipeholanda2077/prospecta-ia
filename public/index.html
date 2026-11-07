@@ -4333,8 +4333,17 @@ function checklistDoNumero(n) {
   const itens = [];
   const item = (ok, titulo, detalhe = "", acao = "") => itens.push(`<li class="${ok ? "ok" : "falta"}"><span class="marca">${ok ? "✓" : "!"}</span><div style="flex:1"><b>${titulo}</b>${detalhe ? `<br><span class="muted">${detalhe}</span>` : ""}${!ok && acao ? `<div class="acao">${acao}</div>` : ""}</div></li>`);
 
-  if (!conta) item(false, "Conta do WhatsApp Business", "O sistema não conseguiu achar sozinho a conta deste número na Meta, e sem ela não consegue corrigir o fuso nem montar os links certos. Cole aqui o ID da conta do WhatsApp (Configurações do negócio → Contas → Contas do WhatsApp, o número abaixo do nome) ou o ID da BM, que o sistema acha a conta sozinho.",
-    `<form data-oficial-conta="${esc(n.id)}" style="display:flex;gap:6px;flex-wrap:wrap"><input name="conta" inputmode="numeric" placeholder="ID da conta ou da BM" aria-label="ID da conta do WhatsApp Business ou da BM" required style="max-width:220px"><button class="btn" type="submit">Salvar</button></form>`);
+  if (!conta) {
+    // Número principal: a BM é conhecida. Número de outra BM: a Meta abre na BM selecionada por último.
+    const bm = n.principal ? "?business_id=1787845715800909" : "";
+    item(false, "Conta do WhatsApp Business", `O sistema não conseguiu achar sozinho a conta deste número na Meta, e sem ela não consegue corrigir o fuso nem montar os links certos.${n.principal ? "" : " <b>Na Meta, selecione no topo a BM deste número</b> antes de copiar."}`,
+    `<div style="display:flex;gap:6px;flex-wrap:wrap;flex-basis:100%">
+      <a class="btn fantasma" href="https://business.facebook.com/settings/whatsapp-business-accounts${bm}" target="_blank" rel="noopener">1. Abrir Contas do WhatsApp na Meta</a>
+      <a class="btn fantasma" href="https://business.facebook.com/settings/info${bm}" target="_blank" rel="noopener">ou pegar o ID da BM</a>
+    </div>
+    <span class="muted" style="flex-basis:100%">2. Clique na conta onde está este número e copie o número que aparece embaixo do nome (é o ID). Ou, no link da BM, copie o "ID do Gerenciador de Negócios". 3. Cole aqui e salve:</span>
+    <form data-oficial-conta="${esc(n.id)}" style="display:flex;gap:6px;flex-wrap:wrap"><input name="conta" inputmode="numeric" placeholder="ID da conta ou da BM" aria-label="ID da conta do WhatsApp Business ou da BM" required style="max-width:220px"><button class="btn" type="submit">Salvar</button></form>`);
+  }
   const semFuso = tem(141007) || (conta && !conta.fuso);
   if (conta || tem(141007)) item(!semFuso, "Fuso horário da conta", semFuso ? "A Meta não deixa enviar enquanto a conta não tiver fuso. O sistema define o de São Paulo." : "",
     `<button class="btn primario" type="button" data-oficial-corrigir="${esc(n.id)}">Corrigir agora</button>`);
