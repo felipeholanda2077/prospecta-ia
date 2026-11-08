@@ -2460,8 +2460,17 @@ const MAPA_LIBS = {
   texturaDia: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-blue-marble.jpg",
   relevo: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-topology.png",
 };
-const mapa = { dados: null, carregadoEm: 0, modo: "3d", camada: "clientes", globo: null, mundo: null, carregando: false };
-try { mapa.modo = localStorage.getItem("mapaModo") === "2d" ? "2d" : "3d"; } catch {}
+const mapa = { dados: null, carregadoEm: 0, modo: "3d", camada: "tudo", visual: "dia", globo: null, mundo: null, carregando: false };
+try {
+  mapa.modo = localStorage.getItem("mapaModo") === "2d" ? "2d" : "3d";
+  mapa.camada = ["clientes", "prospeccao", "tudo"].includes(localStorage.getItem("mapaCamada")) ? localStorage.getItem("mapaCamada") : "tudo";
+  mapa.visual = localStorage.getItem("mapaVisual") === "noite" ? "noite" : "dia";
+} catch {}
+// Cores do mapa 2D em cada visual (o globo usa a foto de dia ou a noturna, com as luzes das cidades).
+const VISUAL_2D = {
+  dia: { oceano: "#bfdcf2", terra: "#e9e4d4", borda: "#b9b2a0", grade: "#a9c9e3", texto: "#14151f", contorno: "#ffffff" },
+  noite: { oceano: "#0b1530", terra: "#1f2a44", borda: "#34416a", grade: "#16224a", texto: "#eceef8", contorno: "#0b1530" },
+};
 const scriptsCarregados = {};
 const carregarScript = (src) => (scriptsCarregados[src] ??= new Promise((ok, falha) => {
   const s = document.createElement("script");
@@ -2472,10 +2481,12 @@ const corDoTema = (nome) => getComputedStyle(document.documentElement).getProper
 const temaEscuro = () => { const c = corDoTema("--bg"); return /^#0|^#1/.test(c); };
 
 /** Os pontos da camada escolhida: clientes (verde, com pulso) ou cidades da prospecção (tamanho pela quantidade). */
-function pontosDoMapa() {
+function pontosDoMapa(camada = mapa.camada) {
   const d = mapa.dados ?? { clientes: [], prospeccao: [] };
-  if (mapa.camada === "clientes") {
-    return d.clientes.map((c) => ({ ...c, cor: c.origem === "stripe" ? "#a78bfa" : "#22e07a", raio: 0.9, altura: 0.08,
+  // Os dois juntos: as cidades da prospecção embaixo e os clientes por cima.
+  if (camada === "tudo") return [...pontosDoMapa("prospeccao"), ...pontosDoMapa("clientes")];
+  if (camada === "clientes") {
+    return d.clientes.map((c) => ({ cliente: true, ...c, cor: c.origem === "stripe" ? "#a78bfa" : "#22e07a", raio: 0.9, altura: 0.08,
       texto: `<b>${esc(c.nome)}</b><br>${esc(c.cidade)}${c.projeto ? ` · ${esc(c.projeto)}` : ""}${c.origem === "stripe" ? " · pagou pelo Stripe" : ""}` }));
   }
   const max = Math.max(1, ...d.prospeccao.map((p) => p.empresas));
@@ -2486,25 +2497,26 @@ function pontosDoMapa() {
 function cartaoDoMapa() {
   const d = mapa.dados;
   const r = d?.resumo;
-  const meta = !d ? "Carregando…" : mapa.camada === "clientes"
-    ? (r.clientes ? `${r.clientes} ${r.clientes === 1 ? "cliente" : "clientes"} em ${r.cidades} ${r.cidades === 1 ? "cidade" : "cidades"}${r.paises > 1 ? ` de ${r.paises} países (${r.nomesDosPaises.map(esc).join(", ")})` : ""}` : "Nenhum cliente com cidade conhecida ainda")
-    : `${d.prospeccao.length} cidades com empresas contatadas`;
-  const botao = (grupo, valor, texto) => `<button type="button" data-mapa-${grupo}="${valor}" aria-pressed="${mapa[grupo === "modo" ? "modo" : "camada"] === valor}">${texto}</button>`;
+  const textoClientes = !d ? "" : r.clientes ? `${r.clientes} ${r.clientes === 1 ? "cliente" : "clientes"} em ${r.cidades} ${r.cidades === 1 ? "cidade" : "cidades"}${r.paises > 1 ? ` de ${r.paises} países (${r.nomesDosPaises.map(esc).join(", ")})` : ""}` : "nenhum cliente com cidade conhecida ainda";
+  const textoProspeccao = !d ? "" : `${d.prospeccao.length} ${d.prospeccao.length === 1 ? "cidade" : "cidades"} em prospecção (${d.prospeccao.reduce((s, p) => s + p.empresas, 0)} empresas contatadas)`;
+  const meta = !d ? "Carregando…" : mapa.camada === "clientes" ? textoClientes : mapa.camada === "prospeccao" ? textoProspeccao : `${textoClientes} · ${textoProspeccao}`;
+  const botao = (grupo, valor, texto) => `<button type="button" data-mapa-${grupo}="${valor}" aria-pressed="${mapa[grupo] === valor}">${texto}</button>`;
   return `<section class="cartao dash-mapa">
-    <div class="cartao-cab"><span class="kpi-ic ok">${ic("globe")}</span><div class="titulos"><h3>Onde estão os clientes</h3><div class="meta" id="mapa-meta">${meta}</div></div>
+    <div class="cartao-cab"><span class="kpi-ic ok">${ic("globe")}</span><div class="titulos"><h3>${mapa.camada === "prospeccao" ? "Onde está a prospecção" : mapa.camada === "clientes" ? "Onde estão os clientes" : "Clientes e prospecção no mapa"}</h3><div class="meta" id="mapa-meta">${meta}</div></div>
       <div class="mapa-controles">
-        <span class="grupo" role="group" aria-label="O que mostrar">${botao("camada", "clientes", "Clientes")}${botao("camada", "prospeccao", "Prospecção")}</span>
+        <span class="grupo" role="group" aria-label="O que mostrar">${botao("camada", "tudo", "Os dois")}${botao("camada", "clientes", "Clientes")}${botao("camada", "prospeccao", "Prospecção")}</span>
         <span class="grupo" role="group" aria-label="Tipo de mapa">${botao("modo", "3d", "Globo 3D")}${botao("modo", "2d", "Mapa 2D")}</span>
+        <span class="grupo" role="group" aria-label="Visual do mapa">${botao("visual", "dia", `${ic("sun", "sm")} Dia`)}${botao("visual", "noite", `${ic("moon", "sm")} Noite`)}</span>
       </div></div>
     <div class="mapa-area" id="mapa-area"></div>
-    <div class="mapa-rodape">${mapa.camada === "clientes"
-      ? `<span><i class="ponto" style="background:#22e07a"></i>Contrato ou fechado</span><span><i class="ponto" style="background:#a78bfa"></i>Pagou pelo Stripe</span>`
-      : `<span><i class="ponto" style="background:#fbbf24"></i>Brasil</span><span><i class="ponto" style="background:#22d3ee"></i>Fora do Brasil</span><span>O tamanho é a quantidade de empresas contatadas.</span>`}
-      ${d?.pendentes?.length && mapa.camada === "clientes" ? `<span>Sem cidade conhecida: ${d.pendentes.map(esc).join(", ")}</span>` : ""}
+    <div class="mapa-rodape">${mapa.camada !== "prospeccao"
+      ? `<span><i class="ponto" style="background:#22e07a"></i>Cliente (contrato ou fechado)</span><span><i class="ponto" style="background:#a78bfa"></i>Cliente que pagou pelo Stripe</span>` : ""}
+      ${mapa.camada !== "clientes"
+      ? `<span><i class="ponto" style="background:#fbbf24"></i>Prospecção no Brasil</span><span><i class="ponto" style="background:#22d3ee"></i>Prospecção fora do Brasil</span><span>O tamanho é a quantidade de empresas contatadas.</span>` : ""}
+      ${d?.pendentes?.length && mapa.camada !== "prospeccao" ? `<span>Sem cidade conhecida: ${d.pendentes.map(esc).join(", ")}</span>` : ""}
       ${mapa.modo === "3d" ? "<span>Arraste para girar, role para aproximar.</span>" : "<span>Arraste para mover, role para aproximar.</span>"}</div>
-    <div class="mapa-lista">${mapa.camada === "clientes"
-      ? (d?.clientes ?? []).map((c) => `<span class="pilula">${ic("pin", "sm")}${esc(c.nome)} · ${esc(c.cidade)}</span>`).join("")
-      : (d?.prospeccao ?? []).slice(0, 12).map((p) => `<span class="pilula">${esc(p.cidade)} · ${p.empresas}</span>`).join("")}</div>
+    <div class="mapa-lista">${mapa.camada !== "prospeccao" ? (d?.clientes ?? []).map((c) => `<span class="pilula ok">${ic("pin", "sm")}${esc(c.nome)} · ${esc(c.cidade)}</span>`).join("") : ""}${mapa.camada !== "clientes"
+      ? (d?.prospeccao ?? []).slice(0, 12).map((p) => `<span class="pilula">${esc(p.cidade)} · ${p.empresas} ${p.empresas === 1 ? "empresa" : "empresas"}${p.responderam ? ` · ${p.responderam} ${p.responderam === 1 ? "respondeu" : "responderam"}` : ""}</span>`).join("") : ""}</div>
   </section>`;
 }
 
@@ -2561,14 +2573,14 @@ async function desenharGlobo(area, globoEl) {
   const corDoAnel = "#22e07a";
   mapa.globo
     .width(area.clientWidth).height(area.clientHeight)
-    // A foto de satélite em cores: os pontos aparecem bem nos dois temas (a noturna fica escura demais).
-    .globeImageUrl(MAPA_LIBS.texturaDia)
+    // Dia: a foto de satélite em cores. Noite: a Terra à noite, com as luzes das cidades.
+    .globeImageUrl(mapa.visual === "noite" ? MAPA_LIBS.texturaNoite : MAPA_LIBS.texturaDia)
     .bumpImageUrl(MAPA_LIBS.relevo)
     .atmosphereColor(corDoTema("--accent"))
     .pointsData(pontos)
-    .ringsData(mapa.camada === "clientes" ? pontos : [])
+    .ringsData(pontos.filter((p) => p.cliente))
     .ringColor(() => (t) => `${corDoAnel}${Math.round((1 - t) * 200).toString(16).padStart(2, "0")}`)
-    .labelsData(mapa.camada === "clientes" ? pontos : [])
+    .labelsData(pontos.filter((p) => p.cliente))
     .labelColor(() => "rgba(255,255,255,.95)");
   mapa.globo.resumeAnimation();
   if (!pontos.length) area.insertAdjacentHTML("beforeend", `<div class="mapa-vazio" style="pointer-events:none;align-items:end;padding-bottom:24px">Nenhum ponto nesta camada ainda.</div>`);
@@ -2584,12 +2596,13 @@ async function desenharMapa2D(area) {
     const paises = window.topojson.feature(mapa.mundo, mapa.mundo.objects.countries);
     const projecao = d3.geoNaturalEarth1().fitExtent([[8, 8], [largura - 8, altura - 8]], { type: "Sphere" });
     const caminho = d3.geoPath(projecao);
+    const cor = VISUAL_2D[mapa.visual];
     area.innerHTML = "";
     const svg = d3.select(area).append("svg").attr("viewBox", `0 0 ${largura} ${altura}`).attr("role", "img").attr("aria-label", "Mapa do mundo com os pontos");
     const g = svg.append("g");
-    g.append("path").attr("class", "mapa-esfera").attr("d", caminho({ type: "Sphere" }));
-    g.append("path").attr("class", "mapa-grade").attr("d", caminho(d3.geoGraticule10()));
-    g.append("g").selectAll("path").data(paises.features).join("path").attr("class", "mapa-pais").attr("d", caminho);
+    g.append("path").attr("d", caminho({ type: "Sphere" })).attr("fill", cor.oceano);
+    g.append("path").attr("d", caminho(d3.geoGraticule10())).attr("fill", "none").attr("stroke", cor.grade).attr("stroke-width", 0.4);
+    g.append("g").selectAll("path").data(paises.features).join("path").attr("d", caminho).attr("fill", cor.terra).attr("stroke", cor.borda).attr("stroke-width", 0.5);
     const pontos = pontosDoMapa().map((p) => ({ ...p, xy: projecao([p.lng, p.lat]) })).filter((p) => p.xy);
     const dica = document.createElement("div");
     dica.className = "mapa-dica";
@@ -2597,16 +2610,15 @@ async function desenharMapa2D(area) {
     area.appendChild(dica);
     const bolas = g.append("g").selectAll("circle").data(pontos).join("circle")
       .attr("cx", (p) => p.xy[0]).attr("cy", (p) => p.xy[1]).attr("r", (p) => 4 + p.raio * 7)
-      .attr("fill", (p) => p.cor).attr("fill-opacity", 0.85).attr("stroke", corDoTema("--surface")).attr("stroke-width", 1.5)
+      .attr("fill", (p) => p.cor).attr("fill-opacity", 0.9).attr("stroke", cor.contorno).attr("stroke-width", 1.5)
       .style("cursor", "pointer")
       .on("mouseenter", (ev, p) => { dica.innerHTML = p.texto; dica.hidden = false; })
       .on("mousemove", (ev) => { const r = area.getBoundingClientRect(); dica.style.left = `${ev.clientX - r.left}px`; dica.style.top = `${ev.clientY - r.top}px`; })
       .on("mouseleave", () => (dica.hidden = true));
-    if (mapa.camada === "clientes") {
-      g.append("g").selectAll("text").data(pontos).join("text")
-        .attr("x", (p) => p.xy[0] + 10).attr("y", (p) => p.xy[1] + 4).text((p) => p.nome)
-        .attr("fill", corDoTema("--text")).attr("font-size", 11).attr("font-weight", 600).style("pointer-events", "none");
-    }
+    g.append("g").selectAll("text").data(pontos.filter((p) => p.cliente)).join("text")
+      .attr("x", (p) => p.xy[0] + 10).attr("y", (p) => p.xy[1] + 4).text((p) => p.nome)
+      .attr("fill", cor.texto).attr("font-size", 11).attr("font-weight", 700).attr("paint-order", "stroke").attr("stroke", cor.oceano).attr("stroke-width", 3)
+      .style("pointer-events", "none");
     svg.call(d3.zoom().scaleExtent([1, 12]).translateExtent([[0, 0], [largura, altura]]).on("zoom", (ev) => {
       g.attr("transform", ev.transform);
       bolas.attr("r", (p) => (4 + p.raio * 7) / Math.sqrt(ev.transform.k));
@@ -2621,12 +2633,16 @@ async function desenharMapa2D(area) {
 $("#dash-mapa").addEventListener("click", (ev) => {
   const modo = ev.target.closest("[data-mapa-modo]")?.dataset.mapaModo;
   const camada = ev.target.closest("[data-mapa-camada]")?.dataset.mapaCamada;
-  if (modo && modo !== mapa.modo) {
-    mapa.modo = modo;
-    try { localStorage.setItem("mapaModo", modo); } catch {}
+  const visual = ev.target.closest("[data-mapa-visual]")?.dataset.mapaVisual;
+  const trocar = (campo, valor, chaveSalva) => {
+    if (!valor || valor === mapa[campo]) return;
+    mapa[campo] = valor;
+    try { localStorage.setItem(chaveSalva, valor); } catch {}
     desenharMapa();
-  }
-  if (camada && camada !== mapa.camada) { mapa.camada = camada; desenharMapa(); }
+  };
+  trocar("modo", modo, "mapaModo");
+  trocar("camada", camada, "mapaCamada");
+  trocar("visual", visual, "mapaVisual");
 });
 window.addEventListener("resize", () => mapa.modo === "2d" && viewAtual === "dashboard" && mapa.redesenhar2D?.());
 // Fora do Dashboard o globo para de girar (não gasta o computador).
