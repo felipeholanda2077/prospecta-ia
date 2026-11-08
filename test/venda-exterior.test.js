@@ -90,3 +90,64 @@ test("pagamento: sem Stripe o marcador sai e a conversa passa para você; com St
     globalThis.fetch = antes;
   }
 });
+
+const pipeline = await import("../src/pipeline.js");
+const crypto = await import("node:crypto");
+
+test("busca: cidades de fora usam os segmentos de fora; as do Brasil, os daqui", () => {
+  const campanha = { buscas: [{ nicho: "Concessionária", cidades: ["Osasco - SP", "Lisboa, Portugal", "Miami, EUA"] }],
+    automacao: { nichosExterior: ["clínica odontológica", "salão de beleza"] }, ramosExtras: ["pet shop"] };
+  const combos = pipeline.combinacoesDeBusca(campanha).map((c) => `${c.nicho} @ ${c.cidade}`);
+  assert.deepEqual(combos, [
+    "Concessionária @ Osasco - SP",
+    "clínica odontológica @ Lisboa, Portugal", "clínica odontológica @ Miami, EUA",
+    "salão de beleza @ Lisboa, Portugal", "salão de beleza @ Miami, EUA",
+    "pet shop @ Osasco - SP",
+  ]);
+  // Sem segmentos de fora, as cidades de fora usam os mesmos daqui.
+  const iguais = pipeline.combinacoesDeBusca({ ...campanha, automacao: {}, ramosExtras: [] }).map((c) => c.cidade);
+  assert.deepEqual(iguais, ["Osasco - SP", "Lisboa, Portugal", "Miami, EUA"]);
+});
+
+test("número de fora: com a chave ligada, cada lado tem o seu número", async () => {
+  assert.equal(pipeline.numeroServeParaEmpresa("n2", { pais: "US" }, null), true);
+  assert.equal(pipeline.numeroServeParaEmpresa("n2", { pais: "US" }, "n2"), true);
+  assert.equal(pipeline.numeroServeParaEmpresa("n1", { pais: "US" }, "n2"), false);
+  assert.equal(pipeline.numeroServeParaEmpresa("n2", { pais: null }, "n2"), false);
+  assert.equal(pipeline.numeroServeParaEmpresa("n1", { pais: "BR" }, "n2"), true);
+  assert.equal(await pipeline.numeroDeFora({ numeroExterior: { ativo: false, numeroId: "n2" } }), null);
+  assert.equal(await pipeline.numeroDeFora({ numeroExterior: { ativo: true, numeroId: "n2" } }), "n2");
+});
+
+test("pagamento confirmado: a empresa vira fechada, a fila é cancelada e a IA para; repetir não duplica", async () => {
+  await db.inserirLead({ place_id: "ChIJmiamiPago000000000001", nome: "Ocean Auto Sales", cidade: "Miami, EUA", pais: "US", idioma: "en-US", fuso: "America/New_York" });
+  const [lead] = await db.consultar("SELECT * FROM leads WHERE place_id = $1", ["ChIJmiamiPago000000000001"]);
+  const pendente = await db.criarMensagem({ lead_id: lead.id, canal: "whatsapp", destino: "13055550123", corpo: "Hi", status: "aprovada", etapa: 2 });
+  await db.gravarEstado("stripe_link_lead:plink_1", JSON.stringify({ leadId: lead.id, nome: "Professional", valor: 910, moeda: "USD" }));
+  const sessao = { id: "cs_1", status: "complete", payment_link: "plink_1", customer_details: { email: "owner@ocean.example" } };
+  const r = await stripe.registrarPagamento(sessao);
+  assert.deepEqual([r.empresa, r.plano, r.valor], ["Ocean Auto Sales", "Professional", 910]);
+  const depois = await db.buscarLead(lead.id);
+  assert.equal(depois.status, "fechado");
+  assert.match(depois.observacao, /Pagou pelo Stripe: Professional, US\$\s?910,00 por mês \(owner@ocean.example\)/);
+  assert.equal((await db.buscarMensagem(pendente)).status, "rejeitada");
+  const { iaPausada } = await import("../src/respostas/processar.js");
+  assert.ok(await iaPausada(lead.id));
+  assert.equal(await stripe.registrarPagamento(sessao), null);
+  // Link que não é do sistema não muda nada.
+  assert.equal(await stripe.registrarPagamento({ id: "cs_2", status: "complete", payment_link: "plink_outro" }), null);
+});
+
+test("aviso do Stripe: só vale com a assinatura certa", async () => {
+  const c = await db.lerConfig("stripe");
+  const { cifrar } = await import("../src/segredos.js");
+  await db.gravarConfig("stripe", { ...c, webhookId: "we_1", webhookSegredo: cifrar("whsec_teste") });
+  const corpo = Buffer.from(JSON.stringify({ type: "checkout.session.completed", data: { object: { id: "cs_9", status: "complete", payment_link: "plink_nenhum" } } }));
+  const t = Math.floor(Date.now() / 1000);
+  const v1 = crypto.createHmac("sha256", "whsec_teste").update(`${t}.${corpo.toString("utf8")}`).digest("hex");
+  assert.equal(await stripe.assinaturaValida(corpo, `t=${t},v1=${v1}`), true);
+  assert.equal(await stripe.assinaturaValida(corpo, `t=${t},v1=${"0".repeat(64)}`), false);
+  assert.equal(await stripe.assinaturaValida(corpo, `t=${t - 1000},v1=${v1}`), false);
+  assert.deepEqual(await stripe.processarAviso(corpo, `t=${t},v1=${v1}`), { aceito: true, pagamento: null });
+  assert.deepEqual(await stripe.processarAviso(corpo, "t=1,v1=x"), { aceito: false });
+});

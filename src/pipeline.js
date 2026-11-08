@@ -204,8 +204,14 @@ export async function numeroParaEnviar(m) {
   // Número com agente de atendimento não manda prospecção para empresas novas.
   const comAgente = await numerosComAgente();
   const conectados = await uazap.conectados();
-  const ativos = conectados.filter((n) => !comAgente.has(n.id));
+  const deFora = await numeroDeFora();
+  const ativos = conectados.filter((n) => !comAgente.has(n.id) && numeroServeParaEmpresa(n.id, m, deFora));
   if (!conectados.length) return { motivo: "WhatsApp desconectado; sai quando você reconectar o número em Configurações" };
+  if (!ativos.length && deFora) {
+    return { motivo: m.pais && m.pais !== "BR"
+      ? "o número das empresas de fora está desconectado; sai quando você reconectar em Configurações"
+      : "o único número conectado está reservado para as empresas de fora; desligue a chave em Automação ou conecte outro" };
+  }
   if (!ativos.length) return { motivo: "os números conectados têm agente de atendimento e não mandam prospecção; conecte outro número em Configurações" };
   // Empresa nova vai para o número que mandou menos hoje, para dividir o volume entre eles.
   const enviadas = await Promise.all(ativos.map((n) => db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id })));
@@ -250,6 +256,12 @@ export async function canalDoWhatsapp(m) {
   if (!oficial) return web ? pelaWeb() : { modo: "manual", numeroId: null };
   // Empresa de fora do Brasil não começa pela API oficial: o primeiro contato lá é o modelo aprovado, em português.
   const doLeadAntes = m.numero_wa_lead !== undefined ? m.numero_wa_lead : (await db.buscarLead(m.lead_id))?.numero_wa;
+  // Chave do número de fora ligada: empresa nova de fora sai só por ele.
+  const deFora = await numeroDeFora();
+  if (deFora && !doLeadAntes && m.pais && m.pais !== "BR") {
+    if (!(await uazap.numeros()).some((n) => n.id === deFora)) return { motivo: "o número escolhido para as empresas de fora não existe mais; escolha outro em Automação" };
+    return (await uazap.conectadoAgora(deFora)) ? { modo: "uazap", numeroId: deFora } : { motivo: "o número das empresas de fora está desconectado; sai quando você reconectar em Configurações" };
+  }
   if (m.pais && m.pais !== "BR" && !ehNumeroOficial(doLeadAntes)) {
     return web ? pelaWeb() : { motivo: "empresa de fora do Brasil: a API oficial só começa a conversa com o modelo aprovado, em português; conecte um número pela UAZap" };
   }
@@ -274,7 +286,7 @@ export async function canalDoWhatsapp(m) {
   for (const n of oficiais) if (!comAgente.has(n.id) && (await prontoParaEmpresaNova(n.id))) oficiaisProntos.push(n);
   const candidatos = [
     ...oficiaisProntos.map((n) => ({ modo: "oficial", numeroId: n.id })),
-    ...(await uazap.conectados()).filter((n) => !comAgente.has(n.id)).map((n) => ({ modo: "uazap", numeroId: n.id })),
+    ...(await uazap.conectados()).filter((n) => !comAgente.has(n.id) && numeroServeParaEmpresa(n.id, m, deFora)).map((n) => ({ modo: "uazap", numeroId: n.id })),
   ];
   if (!candidatos.length) return pelaOficial();
   const enviadas = await Promise.all(candidatos.map((c) => db.enviadasHoje("whatsapp", { primeiroContato: true, numero: c.numeroId })));
@@ -389,14 +401,32 @@ export async function buscarEInserir({ nicho, cidade }, campanha, maximo = 60, {
 }
 
 export function combinacoesDeBusca(campanha) {
-  const fixas = campanha.buscas.flatMap(({ nicho, cidades }) => cidades.map((cidade) => ({ nicho, cidade })));
-  // Os ramos que a IA está testando entram nas mesmas cidades (sem repetir um ramo que já é fixo).
+  const doBrasil = (cidade) => cidadeEPais(cidade).pais === "BR";
+  // As cidades de fora do Brasil usam os segmentos de fora (se você definiu); as daqui, os segmentos daqui.
+  const deFora = (campanha.automacao?.nichosExterior ?? []).filter(Boolean);
+  const cidadesDeFora = [...new Set(campanha.buscas.flatMap((b) => b.cidades).filter((c) => !doBrasil(c)))];
+  const fixas = campanha.buscas.flatMap(({ nicho, cidades }) => cidades
+    .filter((cidade) => doBrasil(cidade) || !deFora.length).map((cidade) => ({ nicho, cidade })));
+  const foraDoBrasil = deFora.flatMap((nicho) => cidadesDeFora.map((cidade) => ({ nicho, cidade })));
+  // Os ramos que a IA está testando entram nas mesmas cidades do Brasil (sem repetir um ramo que já é fixo).
   const jaTem = new Set(campanha.buscas.map((b) => b.nicho.trim().toLowerCase()));
-  const cidades = [...new Set(campanha.buscas.flatMap((b) => b.cidades))];
+  const cidades = [...new Set(campanha.buscas.flatMap((b) => b.cidades))].filter(doBrasil);
   const extras = (campanha.ramosExtras ?? []).filter((n) => !jaTem.has(n.trim().toLowerCase()))
     .flatMap((nicho) => cidades.map((cidade) => ({ nicho, cidade })));
-  return [...fixas, ...extras];
+  return [...fixas, ...foraDoBrasil, ...extras];
 }
+
+/**
+ * O número escolhido para as empresas de fora do Brasil (chave ligada em Automação), ou null.
+ * Com ele ligado, só ele começa conversa com empresa de fora, e ele não começa conversa com empresa daqui.
+ */
+export async function numeroDeFora(automacao = null) {
+  const a = automacao ?? (await db.lerConfig("automacao")) ?? {};
+  return a.numeroExterior?.ativo && a.numeroExterior?.numeroId ? String(a.numeroExterior.numeroId) : null;
+}
+
+/** A empresa nova pode sair por este número? (Com a chave do número de fora ligada, cada lado tem o seu.) */
+export const numeroServeParaEmpresa = (numeroId, m, deFora) => !deFora || (String(numeroId) === deFora) === Boolean(m?.pais && m.pais !== "BR");
 
 /**
  * Busca automática: pega a próxima combinação segmento × cidade da rotação. Se ela não
@@ -1738,13 +1768,15 @@ export async function escolherVezes(enviaveis, vagas, pistas, campanha) {
     vezes.push({ chave, mensagens: [m] });
   }
   const restam = { ...vagas };
+  const deFora = await numeroDeFora(campanha.automacao);
   const novas = enviaveis.filter((m) => m.tipo !== "resposta" && m.etapa <= 1);
   const enviadasHoje = new Map();
   for (const p of pistas) enviadasHoje.set(p, p.numeroId ? await db.enviadasHoje("whatsapp", { primeiroContato: true, numero: p.numeroId }) : 0);
   for (const p of [...pistas].sort((a, b) => enviadasHoje.get(a) - enviadasHoje.get(b))) {
     if (decididas.has(p.chave)) continue;
     // Número da API oficial não começa conversa com empresa de fora do Brasil (o modelo aprovado é em português).
-    const lead = novas.find((m) => !leads.has(m.lead_id) && restam[m.canal] > 0 && !(p.modo === "oficial" && m.pais && m.pais !== "BR"))?.lead_id;
+    const lead = novas.find((m) => !leads.has(m.lead_id) && restam[m.canal] > 0 && !(p.modo === "oficial" && m.pais && m.pais !== "BR")
+      && (!p.numeroId || m.canal !== "whatsapp" || numeroServeParaEmpresa(p.numeroId, m, deFora)))?.lead_id;
     if (lead === undefined) break;
     if (!(await reservar(p.chave))) continue;
     const mensagens = novas.filter((m) => m.lead_id === lead && restam[m.canal] > 0);

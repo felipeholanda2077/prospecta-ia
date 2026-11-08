@@ -1068,9 +1068,19 @@
             <div class="config-grade">
               <div class="campo"><label for="auto-idioma-exterior">Empresas de fora do Brasil: a IA fala em</label>
                 <select id="auto-idioma-exterior" name="idiomaExterior"><option value="local">Idioma do país (alemão na Alemanha, espanhol na Espanha…)</option><option value="en">Inglês, em todos os países</option></select></div>
+              <div class="campo"><label for="auto-nichos-exterior">Segmentos para fora do Brasil (um por linha)</label>
+                <textarea id="auto-nichos-exterior" name="nichosExterior" style="min-height:96px" placeholder="clínica odontológica&#10;salão de beleza"></textarea>
+                <span class="muted" style="font-size:12.5px">Só para as cidades de fora. Vazio: usa os mesmos segmentos daqui. Pode escrever em português: a busca traduz para o idioma de lá.</span></div>
               <div class="campo"><label for="auto-ajuste-exterior">Preço lá fora: ajuste sobre o valor convertido (%)</label>
                 <input id="auto-ajuste-exterior" name="ajusteExterior" type="number" min="-50" max="500" step="5">
                 <span class="muted" id="auto-cotacao" style="font-size:12.5px"></span></div>
+            </div>
+            <div class="config-grade">
+              <label class="chave"><input type="checkbox" name="numeroExteriorAtivo"><div><b>Um número só para as empresas de fora</b>
+                <span>Ligado: só o número escolhido ao lado começa conversa com empresa de fora do Brasil, e ele não manda para empresa daqui. Desligado: as de fora saem pelos mesmos números das daqui.</span></div></label>
+              <div class="campo"><label for="auto-numero-exterior">Número das empresas de fora</label>
+                <select id="auto-numero-exterior" name="numeroExterior"><option value="">Escolha um número da UAZap</option></select>
+                <span class="muted" style="font-size:12.5px">Só números da UAZap (a API oficial começa a conversa com o modelo em português). Conecte um número novo em Configurações.</span></div>
             </div>
             <div class="campo"><label for="auto-apresentacao">Apresentação que a IA manda para quem se interessar</label>
               <textarea id="auto-apresentacao" name="apresentacao" style="min-height:220px"></textarea>
@@ -2016,6 +2026,9 @@ const VIEWS = {
   aprovada:  { grupo: "Prospecção", nome: "Fila de envio", icone: "clock", titulo: "Fila de envio",
                sub: "Uma empresa por cartão, das mais importantes para as menos: conversas com mais chance de fechar primeiro, depois as empresas novas com mais potencial.",
                contador: () => stats?.filaEmpresas ?? stats?.mensagens.aprovada },
+  exterior:  { grupo: "Prospecção", nome: "Fila fora do Brasil", icone: "globe", titulo: "Fila de envio · fora do Brasil",
+               sub: "As empresas dos países do euro e dos Estados Unidos, separadas das daqui. Cada mensagem sai no horário comercial do país dela, no idioma de lá.",
+               contador: () => stats?.filaExterior },
   enviada:   { grupo: "Prospecção", nome: "Enviadas", icone: "send", titulo: "Mensagens enviadas", sub: "Tudo o que já saiu, por e-mail e WhatsApp." },
   erro:      { grupo: "Prospecção", nome: "Com erro", icone: "alert", titulo: "Mensagens com erro",
                sub: "Corrija e tente de novo, ou descarte.", contador: () => stats?.mensagens.erro, perigo: true },
@@ -3947,6 +3960,7 @@ const VAZIOS = {
   rascunho: ["checkCircle", "Tudo revisado por aqui", "Capture empresas no Google Maps e a IA escreve uma sequência gradual de mensagens para você aprovar.",
              `<a class="btn primario" href="#maps">${ic("pin")}Buscar no Google Maps</a>`],
   aprovada: ["clock", "A fila está vazia", "Etapas aprovadas aparecem aqui com a data em que vão sair, sempre em horário comercial."],
+  exterior: ["globe", "Nenhuma empresa de fora na fila", "Quando a busca automática achar empresas nas cidades de fora do Brasil (como Lisboa e Miami), as mensagens aparecem aqui, separadas das daqui."],
   enviada: ["send", "Nenhuma mensagem enviada ainda", "Assim que você aprovar as primeiras propostas, elas aparecem aqui."],
   erro: ["checkCircle", "Nenhum erro", "Se algum envio falhar, ele aparece aqui para você tentar de novo."],
   respostas: ["inbox", "Nenhuma resposta ainda", "Quando as empresas responderem, a IA classifica cada resposta e sugere um retorno."],
@@ -3991,7 +4005,8 @@ async function carregarLista() {
         </div>
         ${lista.length ? `<div class="grade" style="grid-template-columns:repeat(auto-fill,minmax(330px,1fr))">${lista.map(cardLead).join("")}</div>` : vazio(...VAZIOS.leads)}`;
     } else {
-      const lista = await api(`/api/mensagens?status=${view}`);
+      const lista = await api(view === "exterior" ? "/api/mensagens?status=aprovada&exterior=1"
+        : view === "aprovada" ? "/api/mensagens?status=aprovada&exterior=0" : `/api/mensagens?status=${view}`);
       const doCanal = (canal) => filtroCanal === "todos" || canal === filtroCanal;
       const semNada = (n) => (filtroCanal === "todos" || !n ? vazio(...VAZIOS[view])
         : `<div class="alerta info">${ic("alert")}<div>Nada ${filtroCanal === "email" ? "por e-mail" : "por WhatsApp"} aqui. Veja a aba <b>Todos</b>.</div></div>`);
@@ -4003,15 +4018,19 @@ async function carregarLista() {
         html = lista.length
           ? abasDeCanal(sequencias, (ms) => ms[0].canal) + (visiveis.length ? avisoPerfil + visiveis.map(cardSequencia).join("") : semNada(lista.length))
           : vazio(...VAZIOS[view]);
-      } else if (view === "aprovada") {
-        const previsao = await api("/api/fila/previsao").catch(() => null);
+      } else if (view === "aprovada" || view === "exterior") {
+        const previsao = view === "aprovada" ? await api("/api/fila/previsao").catch(() => null) : null;
         // Fila: um cartão por empresa; o filtro de canal mostra só as etapas daquele canal.
         const empresas = agruparPorEmpresa(lista);
         const visiveis = agruparPorEmpresa(lista.filter((m) => doCanal(m.canal)));
         const avisoWhatsapp = sessao.whatsappDesconectado
           ? `<div class="alerta perigo" style="margin-bottom:16px">${ic("alert")}<div><b>WhatsApp desconectado.</b> As mensagens de WhatsApp ficam aqui na fila e saem sozinhas assim que você reconectar o número em <a href="#configuracoes">Configurações</a>. Os e-mails continuam saindo.</div></div>` : "";
+        // Fora do Brasil: em que país está cada empresa e quando abre o horário de lá.
+        const paises = [...new Set(lista.map((m) => m.pais).filter(Boolean))];
+        const avisoExterior = view === "exterior" && lista.length
+          ? `<div class="alerta info" style="margin-bottom:16px">${ic("globe")}<div>${agruparPorEmpresa(lista).length} ${agruparPorEmpresa(lista).length === 1 ? "empresa" : "empresas"} de fora (${paises.map(esc).join(", ")}). Cada mensagem sai das 9h às 18h do país dela, de segunda a sexta: Europa das 5h às 14h de Brasília, Estados Unidos a partir das 11h. Fora de Portugal, a venda é sem reunião: slides em inglês e link de pagamento.</div></div>` : "";
         html = lista.length
-          ? previsaoDaFila(previsao) + abasDeCanal(empresas, (ms) => ms.map((m) => m.canal)) + avisoWhatsapp + (visiveis.length ? visiveis.map(cardFilaEmpresa).join("") : semNada(lista.length))
+          ? (view === "aprovada" ? previsaoDaFila(previsao) : avisoExterior) + abasDeCanal(empresas, (ms) => ms.map((m) => m.canal)) + avisoWhatsapp + (visiveis.length ? visiveis.map(cardFilaEmpresa).join("") : semNada(lista.length))
           : vazio(...VAZIOS[view]);
       } else {
         const visiveis = lista.filter((m) => doCanal(m.canal));
@@ -7807,6 +7826,14 @@ async function carregarAutomacao() {
     f.nichos.value = [...new Set((a.buscas ?? []).map((b) => b.nicho))].join("\n");
     f.cidades.value = [...new Set((a.buscas ?? []).flatMap((b) => b.cidades))].join("\n");
     f.idiomaExterior.value = a.idiomaExterior === "en" ? "en" : "local";
+    f.nichosExterior.value = (a.nichosExterior ?? []).join("\n");
+    f.numeroExteriorAtivo.checked = Boolean(a.numeroExterior?.ativo);
+    api("/api/uazap/numeros").then((lista) => {
+      const numeros = Array.isArray(lista) ? lista : lista.numeros ?? [];
+      const escolhido = a.numeroExterior?.numeroId ?? "";
+      f.numeroExterior.innerHTML = `<option value="">Escolha um número da UAZap</option>` + numeros.map((n) =>
+        `<option value="${esc(n.id)}" ${n.id === escolhido ? "selected" : ""}>${esc(n.nome ?? n.id)}${n.numero ? ` · ${esc(n.numero)}` : ""}${n.conectado === false ? " (desconectado)" : ""}</option>`).join("");
+    }).catch(() => {});
     api("/api/internacional").then((r) => {
       f.ajusteExterior.value = r.ajustePct;
       $("#auto-cotacao").textContent = `Cotação${r.cotacao.data ? ` de ${new Date(`${r.cotacao.data}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}: R$ 1 = € ${r.cotacao.EUR.toFixed(3)} = US$ ${r.cotacao.USD.toFixed(3)}. Hoje, R$ 4.500 viram ${r.exemplo.EUR} ou ${r.exemplo.USD}.`;
@@ -7842,6 +7869,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
       metaEmail: f.metaEmail.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,
       calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value, idiomaExterior: f.idiomaExterior.value,
+      nichosExterior: f.nichosExterior.value, numeroExteriorAtivo: f.numeroExteriorAtivo.checked, numeroExterior: f.numeroExterior.value,
     }) });
     await api("/api/internacional", { method: "PUT", body: JSON.stringify({ ajustePct: f.ajusteExterior.value || 0 }) });
     await iniciar();

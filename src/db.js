@@ -1360,7 +1360,10 @@ export async function estatisticas() {
                OR (l.status NOT IN ('sem_interesse', 'descadastrado', 'descartado')
                    AND EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IN ('interessado', 'quer_informacoes'))))`
     )).n,
-    filaEmpresas: (await um("SELECT count(DISTINCT lead_id)::int AS n FROM mensagens WHERE status = 'aprovada'")).n,
+    filaEmpresas: (await um(`SELECT count(DISTINCT m.lead_id)::int AS n FROM mensagens m JOIN leads l ON l.id = m.lead_id
+                              WHERE m.status = 'aprovada' AND (l.pais IS NULL OR l.pais = 'BR')`)).n,
+    filaExterior: (await um(`SELECT count(DISTINCT m.lead_id)::int AS n FROM mensagens m JOIN leads l ON l.id = m.lead_id
+                               WHERE m.status = 'aprovada' AND l.pais IS NOT NULL AND l.pais <> 'BR'`)).n,
     enviadasHojePorCanal: { email: await enviadasHoje("email"), whatsapp: await enviadasHoje("whatsapp") },
     // Mesma regra da página de Respostas: a última resposta pediu você e ninguém respondeu depois dela.
     precisamDeVoce: (await um(

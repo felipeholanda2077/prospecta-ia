@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import * as db from "../db.js";
 import { cifrar, decifrar } from "../segredos.js";
 import { PAISES, arredondarPreco, configInternacional, cotacoes } from "../internacional.js";
@@ -32,7 +33,8 @@ export async function situacao() {
   const c = await db.lerConfig(CONFIG);
   if (!c?.chave) return { conectado: false };
   const aberta = decifrar(c.chave);
-  return { conectado: Boolean(aberta), trancada: !aberta, conta: c.conta ?? "", teste: Boolean(c.teste), conectadoEm: c.conectadoEm ?? null };
+  return { conectado: Boolean(aberta), trancada: !aberta, conta: c.conta ?? "", teste: Boolean(c.teste), conectadoEm: c.conectadoEm ?? null,
+    avisoDePagamento: Boolean(c.webhookId && c.webhookSegredo) };
 }
 
 /** Confere a chave no Stripe e guarda criptografada. `chave: null` desconecta. */
@@ -47,7 +49,9 @@ export async function conectar({ chave: nova }) {
   const info = { chave: cifrar(segredo), conta: conta.settings?.dashboard?.display_name || conta.business_profile?.name || conta.email || conta.id,
     teste: segredo.includes("_test_"), conectadoEm: new Date().toISOString() };
   await db.gravarConfig(CONFIG, info);
-  return { conectado: true, conta: info.conta, teste: info.teste, podeCobrar: conta.charges_enabled !== false };
+  const { config } = await import("../config.js");
+  const webhook = await configurarWebhook(config.painel.urlPublica).catch((e) => ({ configurado: false, erro: e.message }));
+  return { conectado: true, conta: info.conta, teste: info.teste, podeCobrar: conta.charges_enabled !== false, webhook };
 }
 
 /** Os planos da apresentação com o valor por mês em reais ("Professional (R$ 2.500/mês, ...)"). */
@@ -100,7 +104,96 @@ export async function linkDePagamento({ lead, nome, valor, moeda }) {
     "subscription_data[metadata][lead_id]": String(lead.id), "billing_address_collection": "auto",
   } });
   await db.gravarEstado(guarda, link.url);
+  // Para reconhecer o pagamento: o link aponta para a empresa, o plano e o valor.
+  await db.gravarEstado(`stripe_link_lead:${link.id}`, JSON.stringify({ leadId: lead.id, nome, valor, moeda }));
   return link.url;
+}
+
+// ---------- Pagamento confirmado ----------
+
+const EVENTO_PAGO = "checkout.session.completed";
+const enderecoDoWebhook = (base) => `${String(base).replace(/\/$/, "")}/webhooks/stripe`;
+
+/**
+ * Cadastra no Stripe o aviso de pagamento (webhook) para o endereço do sistema e guarda o segredo dele
+ * criptografado. Se já existe um para o mesmo endereço e o segredo está guardado, não faz nada.
+ */
+export async function configurarWebhook(base) {
+  const url = enderecoDoWebhook(base);
+  const c = (await db.lerConfig(CONFIG)) ?? {};
+  const existentes = (await chamar("/webhook_endpoints?limit=100")).data ?? [];
+  const nosso = existentes.find((w) => w.url === url);
+  if (nosso && c.webhookSegredo && decifrar(c.webhookSegredo) && c.webhookId === nosso.id) {
+    if (nosso.status !== "enabled") await chamar(`/webhook_endpoints/${nosso.id}`, { metodo: "POST", campos: { disabled: "false" } });
+    return { configurado: true, novo: false };
+  }
+  // Sem o segredo guardado não dá para conferir a assinatura: troca por um novo.
+  if (nosso) await chamar(`/webhook_endpoints/${nosso.id}`, { metodo: "DELETE" });
+  const novo = await chamar("/webhook_endpoints", { metodo: "POST", campos: {
+    url, "enabled_events[0]": EVENTO_PAGO, description: "Prospecta IA: pagamento das empresas de fora do Brasil",
+  } });
+  await db.gravarConfig(CONFIG, { ...c, webhookId: novo.id, webhookSegredo: cifrar(novo.secret) });
+  return { configurado: true, novo: true };
+}
+
+/** A assinatura do aviso (cabeçalho Stripe-Signature: t=...,v1=...) confere com o segredo guardado? */
+export async function assinaturaValida(corpoBruto, cabecalho, agora = Date.now()) {
+  const c = await db.lerConfig(CONFIG);
+  const segredo = c?.webhookSegredo ? decifrar(c.webhookSegredo) : null;
+  if (!segredo || !corpoBruto || !cabecalho) return false;
+  const pares = String(cabecalho).split(",").map((p) => p.trim().split("="));
+  const t = pares.find(([k]) => k === "t")?.[1];
+  const v1 = pares.filter(([k]) => k === "v1").map(([, v]) => v ?? "");
+  if (!t || !v1.length || Math.abs(agora / 1000 - Number(t)) > 300) return false;
+  const esperado = crypto.createHmac("sha256", segredo).update(`${t}.${Buffer.from(corpoBruto).toString("utf8")}`).digest("hex");
+  return v1.some((v) => v.length === esperado.length && crypto.timingSafeEqual(Buffer.from(v), Buffer.from(esperado)));
+}
+
+/**
+ * Pagamento confirmado: a empresa vira "fechado", as mensagens de venda que ainda iam sair são canceladas, a IA
+ * para de responder (a conversa fica com você) e chega o aviso por e-mail. Repetir o mesmo pagamento não duplica.
+ */
+export async function registrarPagamento(sessao) {
+  if (!sessao?.id || sessao.status !== "complete" || !sessao.payment_link) return null;
+  if (await db.lerEstado(`stripe_pago:${sessao.id}`)) return null;
+  const salvo = await db.lerEstado(`stripe_link_lead:${sessao.payment_link}`);
+  if (!salvo) return null;
+  const { leadId, nome, valor, moeda } = JSON.parse(salvo);
+  const lead = await db.buscarLead(leadId);
+  if (!lead) return null;
+  await db.gravarEstado(`stripe_pago:${sessao.id}`, new Date().toISOString());
+  const preco = new Intl.NumberFormat("pt-BR", { style: "currency", currency: moeda }).format(valor);
+  const quem = sessao.customer_details?.email ? ` (${sessao.customer_details.email})` : "";
+  const resumo = `Pagou pelo Stripe: ${nome}, ${preco} por mês${quem}`;
+  await db.atualizarLead(lead.id, { status: "fechado", observacao: resumo });
+  await db.cancelarPendentes(lead.id, "a empresa pagou pelo Stripe");
+  const { pausarIA } = await import("../respostas/processar.js");
+  await pausarIA(lead.id, `${resumo}: a conversa agora é com você (próximos passos do projeto)`);
+  const { enviarNotificacao } = await import("../envio/email.js");
+  await enviarNotificacao(`${lead.nome} pagou: ${nome} (${preco}/mês)`,
+    `${lead.nome}${lead.cidade ? `, de ${lead.cidade}` : ""}, pagou o primeiro mês do plano ${nome} (${preco} por mês) pelo Stripe${quem}.\n\nA empresa foi marcada como fechada no painel, as mensagens de venda foram canceladas e a IA parou de responder: mande os próximos passos.`).catch(() => {});
+  return { leadId: lead.id, empresa: lead.nome, plano: nome, valor, moeda };
+}
+
+/** O aviso do Stripe (webhook): só aceita com a assinatura certa. */
+export async function processarAviso(corpoBruto, cabecalho) {
+  if (!(await assinaturaValida(corpoBruto, cabecalho))) return { aceito: false };
+  const evento = JSON.parse(Buffer.from(corpoBruto).toString("utf8"));
+  if (evento.type !== EVENTO_PAGO) return { aceito: true };
+  return { aceito: true, pagamento: await registrarPagamento(evento.data?.object) };
+}
+
+/** Conferência de cada hora (reserva do aviso): os pagamentos dos últimos dias pelos links do sistema. */
+export async function conferirPagamentos(agora = new Date()) {
+  if (!(await situacao()).conectado) return { conferidos: 0 };
+  const desde = Math.floor(+agora / 1000) - 3 * 86_400;
+  const sessoes = (await chamar(`/checkout/sessions?status=complete&limit=100&created[gte]=${desde}`)).data ?? [];
+  const novos = [];
+  for (const s of sessoes) {
+    const r = await registrarPagamento(s);
+    if (r) novos.push(r);
+  }
+  return { conferidos: sessoes.length, novos };
 }
 
 /**

@@ -317,6 +317,17 @@ app.post("/webhooks/calendly", async (req, res) => {
 
 // ---------- Webhook do Asaas (público, validado pelo token) ----------
 
+// Stripe: pagamento confirmado de empresa de fora do Brasil (assinado com o segredo do aviso).
+app.post("/webhooks/stripe", async (req, res) => {
+  try {
+    const r = await stripe.processarAviso(req.corpoBruto, req.get("stripe-signature"));
+    if (!r.aceito) return res.sendStatus(400);
+  } catch (e) {
+    console.error("Erro no webhook do Stripe:", e.message);
+  }
+  res.sendStatus(200);
+});
+
 app.post("/webhooks/asaas", async (req, res) => {
   if (!(await asaas.tokenValido(req.get("asaas-access-token")))) return res.sendStatus(401);
   // Processa antes de responder: em ambiente serverless nada roda depois da resposta. Se falhar, a
@@ -362,7 +373,8 @@ const TAREFAS_CRON = {
   // A cada 10 minutos: as perguntas novas do Mercado Livre, com a resposta sugerida.
   mercadolivre: (c) => rodadaDoMercadoLivre(c),
   // A cada hora: as parcelas perto de vencer e o que já foi pago, inclusive pelos links de pagamento.
-  cobrancas: async () => ({ ...(await cobrancas.rodadaDeCobrancas()), ...(await entrada.conferirVendas()) }),
+  cobrancas: async () => ({ ...(await cobrancas.rodadaDeCobrancas()), ...(await entrada.conferirVendas()),
+    stripe: await stripe.conferirPagamentos().catch((e) => ({ erro: e.message })) }),
 };
 
 const resumoChave = (v) => crypto.createHash("sha256").update(`prospecta-cron:${v}`).digest("hex");
@@ -1040,6 +1052,15 @@ app.put("/api/stripe", async (req, res) => {
   }
 });
 
+// Liga (ou confere) o aviso de pagamento do Stripe para este sistema.
+app.post("/api/stripe/webhook", async (req, res) => {
+  try {
+    res.json(await stripe.configurarWebhook(config.painel.urlPublica));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.post("/api/stripe/teste", async (req, res) => {
   try {
     res.json(await stripe.testar({ desativar: req.body?.desativar ?? null }));
@@ -1088,8 +1109,11 @@ app.get("/api/mensagens", async (req, res) => {
   const status = req.query.status || "rascunho";
   // Com ?lead=ID, as mensagens de uma empresa só (as etapas de e-mail e de WhatsApp), em qualquer situação.
   const lead = Number.parseInt(req.query.lead, 10);
-  const mensagens = lead ? [...await db.mensagensDaSequencia(lead, "whatsapp"), ...await db.mensagensDaSequencia(lead, "email")]
+  const todas = lead ? [...await db.mensagensDaSequencia(lead, "whatsapp"), ...await db.mensagensDaSequencia(lead, "email")]
     : await db.mensagensPorStatus(status, 300);
+  // Fila separada: ?exterior=1 só as empresas de fora do Brasil; ?exterior=0 só as daqui.
+  const deFora = (m) => Boolean(m.pais && m.pais !== "BR");
+  const mensagens = req.query.exterior === "1" ? todas.filter(deFora) : req.query.exterior === "0" ? todas.filter((m) => !deFora(m)) : todas;
   const modo = await pipeline.modoWhatsapp();
   // Nas enviadas, mostra qual etapa vem depois e quando (se a empresa não responder).
   const proximas = status === "enviada" ? await db.proximasEtapas([...new Set(mensagens.map((m) => m.lead_id))]) : [];
@@ -1476,6 +1500,10 @@ app.put("/api/config/automacao", async (req, res) => {
     testarRamos: b.testarRamos !== false,
     // Empresas de fora do Brasil (cidade com o país no fim): a IA fala no idioma de lá ou em inglês.
     idiomaExterior: b.idiomaExterior === "en" ? "en" : "local",
+    // Segmentos só para as cidades de fora do Brasil (vazio = os mesmos daqui).
+    nichosExterior: lista(b.nichosExterior),
+    // Chave do número de fora: com ela ligada, só esse número começa conversa com empresa de fora.
+    numeroExterior: { ativo: Boolean(b.numeroExteriorAtivo) && Boolean(String(b.numeroExterior ?? "").trim()), numeroId: String(b.numeroExterior ?? "").trim().slice(0, 80) },
     buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,
   };
   await db.gravarConfig("automacao", novo);
