@@ -62,6 +62,7 @@ import { fotoDoLead } from "./respostas/fotos.js";
 import { enviarParaNumero, rascunhoParaNumero } from "./respostas/conversarComNumero.js";
 import { lerRamos } from "./descoberta/ramos.js";
 import * as internacional from "./internacional.js";
+import { previaParaEmpresaDeFora } from "./vendas/previaInternacional.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -1026,6 +1027,15 @@ app.get("/api/internacional", async (req, res) => {
     paises: Object.entries(internacional.PAISES).map(([codigo, p]) => ({ codigo, nome: p.nome, moeda: p.moeda, idioma: internacional.nomeDoIdioma(p.idioma) })),
     cotacao, ...conf, exemplo: { EUR: exemplo("EUR"), USD: exemplo("USD") },
   });
+});
+
+// Prévia das mensagens para uma empresa de fora do Brasil, sem salvar nada (nem no funil, nem na fila).
+app.post("/api/internacional/previa", async (req, res) => {
+  try {
+    res.json(await previaParaEmpresaDeFora(req.body ?? {}, await carregarCampanhaCompleta()));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
 });
 
 app.put("/api/internacional", async (req, res) => {
