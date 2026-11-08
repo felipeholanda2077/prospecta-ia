@@ -2468,6 +2468,15 @@ const ETAPAS_DO_MAPA = {
   negociacao: { nome: "Em negociação (agendou)", cor: "#f472b6", raio: 0.32, altura: 0.06, r2d: 5 },
   sem_interesse: { nome: "Sem interesse", cor: "#f87171", raio: 0.12, altura: 0.004, r2d: 2.2 },
 };
+/** As regiões dos botões de aproximação: centro e tamanho (graus) de cada uma. */
+function regiaoDoMapa(qual) {
+  if (qual === "brasil") return { lat: -14, lng: -52, graus: 40 };
+  if (qual === "denso") {
+    const topo = mapa.dados?.prospeccao?.[0];
+    if (topo) return { lat: topo.lat, lng: topo.lng, graus: 0.8 };
+  }
+  return { lat: 10, lng: -30, graus: 360 };
+}
 const mapa = { dados: null, carregadoEm: 0, modo: "3d", camada: "tudo", visual: "dia", globo: null, mundo: null, carregando: false };
 try {
   mapa.modo = localStorage.getItem("mapaModo") === "2d" ? "2d" : "3d";
@@ -2522,6 +2531,7 @@ function cartaoDoMapa() {
         <span class="grupo" role="group" aria-label="O que mostrar">${botao("camada", "tudo", "Os dois")}${botao("camada", "clientes", "Clientes")}${botao("camada", "prospeccao", "Prospecção")}</span>
         <span class="grupo" role="group" aria-label="Tipo de mapa">${botao("modo", "3d", "Globo 3D")}${botao("modo", "2d", "Mapa 2D")}</span>
         <span class="grupo" role="group" aria-label="Visual do mapa">${botao("visual", "dia", `${ic("sun", "sm")} Dia`)}${botao("visual", "noite", `${ic("moon", "sm")} Noite`)}</span>
+        <span class="grupo" role="group" aria-label="Aproximar">${["mundo", "brasil", "denso"].map((v) => `<button type="button" data-mapa-zoom="${v}">${{ mundo: "Mundo", brasil: "Brasil", denso: "Onde há mais empresas" }[v]}</button>`).join("")}</span>
       </div></div>
     <div class="mapa-area" id="mapa-area"></div>
     <div class="mapa-rodape">${mapa.camada !== "prospeccao"
@@ -2635,11 +2645,24 @@ async function desenharMapa2D(area) {
       .attr("x", (p) => p.xy[0] + 10).attr("y", (p) => p.xy[1] + 4).text((p) => p.nome)
       .attr("fill", cor.texto).attr("font-size", 11).attr("font-weight", 700).attr("paint-order", "stroke").attr("stroke", cor.oceano).attr("stroke-width", 3)
       .style("pointer-events", "none");
-    svg.call(d3.zoom().scaleExtent([1, 12]).translateExtent([[0, 0], [largura, altura]]).on("zoom", (ev) => {
+    const zoom = d3.zoom().scaleExtent([1, 400]).translateExtent([[0, 0], [largura, altura]]).on("zoom", (ev) => {
       g.attr("transform", ev.transform);
-      bolas.attr("r", (p) => (p.r2d ?? 4) / Math.sqrt(ev.transform.k)).attr("stroke-width", 1.2 / Math.sqrt(ev.transform.k));
-      g.selectAll("text").attr("font-size", 11 / ev.transform.k);
-    }));
+      // Aproximando, os pontos crescem só um pouco na tela (senão cobririam a cidade).
+      const k = ev.transform.k;
+      bolas.attr("r", (p) => ((p.r2d ?? 4) * k ** 0.18) / k).attr("stroke-width", 1 / k);
+      g.selectAll("text").attr("font-size", 11 / ev.transform.k).attr("stroke-width", 3 / ev.transform.k);
+    });
+    svg.call(zoom);
+    // Botões de aproximação: encaixa a região na tela.
+    mapa.aproximar2D = (qual) => {
+      const r = regiaoDoMapa(qual);
+      if (r.graus >= 360) return svg.transition().duration(700).call(zoom.transform, d3.zoomIdentity);
+      const [x0, y0] = projecao([r.lng - r.graus / 2, r.lat + r.graus / 2]);
+      const [x1, y1] = projecao([r.lng + r.graus / 2, r.lat - r.graus / 2]);
+      const k = Math.min(400, 0.9 / Math.max((x1 - x0) / largura, (y1 - y0) / altura));
+      const t = d3.zoomIdentity.translate(largura / 2, altura / 2).scale(k).translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
+      svg.transition().duration(900).call(zoom.transform, t);
+    };
     if (!pontos.length) area.insertAdjacentHTML("beforeend", `<div class="mapa-vazio" style="pointer-events:none;align-items:end;padding-bottom:24px">Nenhum ponto nesta camada ainda.</div>`);
   };
   desenhar();
@@ -2659,6 +2682,15 @@ $("#dash-mapa").addEventListener("click", (ev) => {
   trocar("modo", modo, "mapaModo");
   trocar("camada", camada, "mapaCamada");
   trocar("visual", visual, "mapaVisual");
+  const zoom = ev.target.closest("[data-mapa-zoom]")?.dataset.mapaZoom;
+  if (zoom) {
+    if (mapa.modo === "2d") mapa.aproximar2D?.(zoom);
+    else if (mapa.globo) {
+      const r = regiaoDoMapa(zoom);
+      mapa.globo.controls().autoRotate = false;
+      mapa.globo.pointOfView({ lat: r.lat, lng: r.lng, altitude: r.graus >= 360 ? 2 : r.graus >= 30 ? 0.9 : 0.06 }, 1200);
+    }
+  }
 });
 window.addEventListener("resize", () => mapa.modo === "2d" && viewAtual === "dashboard" && mapa.redesenhar2D?.());
 // Fora do Dashboard o globo para de girar (não gasta o computador).
