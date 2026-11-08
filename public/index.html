@@ -342,6 +342,7 @@
   /* Mapa dos clientes (globo 3D e mapa 2D) */
   .dash-mapa { margin-bottom: 16px; overflow: hidden; }
   .dash-mapa .cartao-cab { flex-wrap: wrap; gap: 12px; }
+  .dash-mapa .cartao-cab .titulos { min-width: 240px; }
   .mapa-controles { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
   .mapa-controles .grupo { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 3px; background: var(--surface-2); }
   .mapa-controles button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
@@ -2462,18 +2463,18 @@ const MAPA_LIBS = {
 };
 // As etapas da prospecção no mapa: cor, tamanho no globo (raio e altura) e no 2D.
 const ETAPAS_DO_MAPA = {
-  capturada: { nome: "Capturada (ainda não contatada)", cor: "#94a3b8", raio: 0.12, altura: 0.004, r2d: 2.2 },
-  contatada: { nome: "Contatada", cor: "#fbbf24", raio: 0.16, altura: 0.012, r2d: 2.8 },
-  respondeu: { nome: "Respondeu", cor: "#22d3ee", raio: 0.24, altura: 0.04, r2d: 4 },
-  negociacao: { nome: "Em negociação (agendou)", cor: "#f472b6", raio: 0.32, altura: 0.06, r2d: 5 },
-  sem_interesse: { nome: "Sem interesse", cor: "#f87171", raio: 0.12, altura: 0.004, r2d: 2.2 },
+  capturada: { nome: "Capturada (ainda não contatada)", cor: "#94a3b8", raio: 0.035, altura: 0.002, r2d: 2.2 },
+  contatada: { nome: "Contatada", cor: "#fbbf24", raio: 0.045, altura: 0.006, r2d: 2.8 },
+  respondeu: { nome: "Respondeu", cor: "#22d3ee", raio: 0.06, altura: 0.02, r2d: 4 },
+  negociacao: { nome: "Em negociação (agendou)", cor: "#f472b6", raio: 0.08, altura: 0.03, r2d: 5 },
+  sem_interesse: { nome: "Sem interesse", cor: "#f87171", raio: 0.035, altura: 0.002, r2d: 2.2 },
 };
 /** As regiões dos botões de aproximação: centro e tamanho (graus) de cada uma. */
 function regiaoDoMapa(qual) {
   if (qual === "brasil") return { lat: -14, lng: -52, graus: 40 };
   if (qual === "denso") {
     const topo = mapa.dados?.prospeccao?.[0];
-    if (topo) return { lat: topo.lat, lng: topo.lng, graus: 0.8 };
+    if (topo) return { lat: topo.lat, lng: topo.lng, graus: 1.6 };
   }
   return { lat: 10, lng: -30, graus: 360 };
 }
@@ -2659,7 +2660,7 @@ async function desenharMapa2D(area) {
       if (r.graus >= 360) return svg.transition().duration(700).call(zoom.transform, d3.zoomIdentity);
       const [x0, y0] = projecao([r.lng - r.graus / 2, r.lat + r.graus / 2]);
       const [x1, y1] = projecao([r.lng + r.graus / 2, r.lat - r.graus / 2]);
-      const k = Math.min(400, 0.9 / Math.max((x1 - x0) / largura, (y1 - y0) / altura));
+      const k = Math.min(160, 0.9 / Math.max((x1 - x0) / largura, (y1 - y0) / altura));
       const t = d3.zoomIdentity.translate(largura / 2, altura / 2).scale(k).translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
       svg.transition().duration(900).call(zoom.transform, t);
     };
@@ -2688,7 +2689,7 @@ $("#dash-mapa").addEventListener("click", (ev) => {
     else if (mapa.globo) {
       const r = regiaoDoMapa(zoom);
       mapa.globo.controls().autoRotate = false;
-      mapa.globo.pointOfView({ lat: r.lat, lng: r.lng, altitude: r.graus >= 360 ? 2 : r.graus >= 30 ? 0.9 : 0.06 }, 1200);
+      mapa.globo.pointOfView({ lat: r.lat, lng: r.lng, altitude: r.graus >= 360 ? 2 : r.graus >= 30 ? 0.9 : 0.12 }, 1200);
     }
   }
 });
