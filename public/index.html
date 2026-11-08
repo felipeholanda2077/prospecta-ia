@@ -2458,6 +2458,7 @@ const MAPA_LIBS = {
   mundo: "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json",
   texturaNoite: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-night.jpg",
   texturaDia: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-blue-marble.jpg",
+  relevo: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-topology.png",
 };
 const mapa = { dados: null, carregadoEm: 0, modo: "3d", camada: "clientes", globo: null, mundo: null, carregando: false };
 try { mapa.modo = localStorage.getItem("mapaModo") === "2d" ? "2d" : "3d"; } catch {}
@@ -2474,11 +2475,11 @@ const temaEscuro = () => { const c = corDoTema("--bg"); return /^#0|^#1/.test(c)
 function pontosDoMapa() {
   const d = mapa.dados ?? { clientes: [], prospeccao: [] };
   if (mapa.camada === "clientes") {
-    return d.clientes.map((c) => ({ ...c, cor: c.origem === "stripe" ? corDoTema("--accent") : corDoTema("--ok"), raio: 0.55, altura: 0.06,
+    return d.clientes.map((c) => ({ ...c, cor: c.origem === "stripe" ? "#a78bfa" : "#22e07a", raio: 0.9, altura: 0.08,
       texto: `<b>${esc(c.nome)}</b><br>${esc(c.cidade)}${c.projeto ? ` · ${esc(c.projeto)}` : ""}${c.origem === "stripe" ? " · pagou pelo Stripe" : ""}` }));
   }
   const max = Math.max(1, ...d.prospeccao.map((p) => p.empresas));
-  return d.prospeccao.map((p) => ({ ...p, cor: p.pais !== "BR" ? corDoTema("--cyan") : corDoTema("--accent"), raio: 0.25 + 0.75 * Math.sqrt(p.empresas / max), altura: 0.02 + 0.18 * (p.empresas / max),
+  return d.prospeccao.map((p) => ({ ...p, cor: p.pais !== "BR" ? "#22d3ee" : "#fbbf24", raio: 0.35 + 0.9 * Math.sqrt(p.empresas / max), altura: 0.02 + 0.25 * (p.empresas / max),
     texto: `<b>${esc(p.cidade)}</b><br>${p.empresas} ${p.empresas === 1 ? "empresa contatada" : "empresas contatadas"} · ${p.responderam} ${p.responderam === 1 ? "respondeu" : "responderam"}` }));
 }
 
@@ -2497,8 +2498,8 @@ function cartaoDoMapa() {
       </div></div>
     <div class="mapa-area" id="mapa-area"></div>
     <div class="mapa-rodape">${mapa.camada === "clientes"
-      ? `<span><i class="ponto" style="background:var(--ok)"></i>Contrato ou fechado</span><span><i class="ponto" style="background:var(--accent)"></i>Pagou pelo Stripe</span>`
-      : `<span><i class="ponto" style="background:var(--accent)"></i>Brasil</span><span><i class="ponto" style="background:var(--cyan)"></i>Fora do Brasil</span><span>O tamanho é a quantidade de empresas contatadas.</span>`}
+      ? `<span><i class="ponto" style="background:#22e07a"></i>Contrato ou fechado</span><span><i class="ponto" style="background:#a78bfa"></i>Pagou pelo Stripe</span>`
+      : `<span><i class="ponto" style="background:#fbbf24"></i>Brasil</span><span><i class="ponto" style="background:#22d3ee"></i>Fora do Brasil</span><span>O tamanho é a quantidade de empresas contatadas.</span>`}
       ${d?.pendentes?.length && mapa.camada === "clientes" ? `<span>Sem cidade conhecida: ${d.pendentes.map(esc).join(", ")}</span>` : ""}
       ${mapa.modo === "3d" ? "<span>Arraste para girar, role para aproximar.</span>" : "<span>Arraste para mover, role para aproximar.</span>"}</div>
     <div class="mapa-lista">${mapa.camada === "clientes"
@@ -2549,7 +2550,7 @@ async function desenharGlobo(area, globoEl) {
     mapa.globo.controls().autoRotateSpeed = 0.35;
     el.addEventListener("pointerdown", () => (mapa.globo.controls().autoRotate = false), { once: true });
     const primeiro = pontos[0];
-    mapa.globo.pointOfView({ lat: primeiro?.lat ?? -15, lng: primeiro?.lng ?? -45, altitude: 2.1 }, 0);
+    mapa.globo.pointOfView({ lat: primeiro?.lat ?? -15, lng: primeiro?.lng ?? -45, altitude: 1.55 }, 0);
     new ResizeObserver(() => {
       const a = mapa.globo._el.parentElement;
       if (a) mapa.globo.width(a.clientWidth).height(a.clientHeight);
@@ -2557,16 +2558,18 @@ async function desenharGlobo(area, globoEl) {
   }
   area.appendChild(mapa.globo._el);
   const escuro = temaEscuro();
-  const corDoAnel = corDoTema("--ok");
+  const corDoAnel = "#22e07a";
   mapa.globo
     .width(area.clientWidth).height(area.clientHeight)
-    .globeImageUrl(escuro ? MAPA_LIBS.texturaNoite : MAPA_LIBS.texturaDia)
+    // A foto de satélite em cores: os pontos aparecem bem nos dois temas (a noturna fica escura demais).
+    .globeImageUrl(MAPA_LIBS.texturaDia)
+    .bumpImageUrl(MAPA_LIBS.relevo)
     .atmosphereColor(corDoTema("--accent"))
     .pointsData(pontos)
     .ringsData(mapa.camada === "clientes" ? pontos : [])
     .ringColor(() => (t) => `${corDoAnel}${Math.round((1 - t) * 200).toString(16).padStart(2, "0")}`)
     .labelsData(mapa.camada === "clientes" ? pontos : [])
-    .labelColor(() => (escuro ? "rgba(255,255,255,.85)" : "rgba(20,21,31,.85)"));
+    .labelColor(() => "rgba(255,255,255,.95)");
   mapa.globo.resumeAnimation();
   if (!pontos.length) area.insertAdjacentHTML("beforeend", `<div class="mapa-vazio" style="pointer-events:none;align-items:end;padding-bottom:24px">Nenhum ponto nesta camada ainda.</div>`);
 }
