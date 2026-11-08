@@ -2629,8 +2629,8 @@ async function desenharMapa2D(area) {
     const svg = d3.select(area).append("svg").attr("viewBox", `0 0 ${largura} ${altura}`).attr("role", "img").attr("aria-label", "Mapa do mundo com os pontos");
     const g = svg.append("g");
     g.append("path").attr("d", caminho({ type: "Sphere" })).attr("fill", cor.oceano);
-    g.append("path").attr("d", caminho(d3.geoGraticule10())).attr("fill", "none").attr("stroke", cor.grade).attr("stroke-width", 0.4);
-    g.append("g").selectAll("path").data(paises.features).join("path").attr("d", caminho).attr("fill", cor.terra).attr("stroke", cor.borda).attr("stroke-width", 0.5);
+    g.append("path").attr("d", caminho(d3.geoGraticule10())).attr("fill", "none").attr("stroke", cor.grade).attr("stroke-width", 0.5).attr("vector-effect", "non-scaling-stroke");
+    g.append("g").selectAll("path").data(paises.features).join("path").attr("d", caminho).attr("fill", cor.terra).attr("stroke", cor.borda).attr("stroke-width", 0.6).attr("vector-effect", "non-scaling-stroke");
     const pontos = pontosDoMapa().map((p) => ({ ...p, xy: projecao([p.lng, p.lat]) })).filter((p) => p.xy);
     const dica = document.createElement("div");
     dica.className = "mapa-dica";
@@ -2690,7 +2690,7 @@ $("#dash-mapa").addEventListener("click", (ev) => {
     else if (mapa.globo) {
       const r = regiaoDoMapa(zoom);
       mapa.globo.controls().autoRotate = false;
-      mapa.globo.pointOfView({ lat: r.lat, lng: r.lng, altitude: r.graus >= 360 ? 2 : r.graus >= 30 ? 0.9 : 0.045 }, 1200);
+      mapa.globo.pointOfView({ lat: r.lat, lng: r.lng, altitude: r.graus >= 360 ? 2 : r.graus >= 30 ? 0.9 : 0.16 }, 1200);
     }
   }
 });
