@@ -2460,6 +2460,14 @@ const MAPA_LIBS = {
   texturaDia: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-blue-marble.jpg",
   relevo: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-topology.png",
 };
+// As etapas da prospecção no mapa: cor, tamanho no globo (raio e altura) e no 2D.
+const ETAPAS_DO_MAPA = {
+  capturada: { nome: "Capturada (ainda não contatada)", cor: "#94a3b8", raio: 0.12, altura: 0.004, r2d: 2.2 },
+  contatada: { nome: "Contatada", cor: "#fbbf24", raio: 0.16, altura: 0.012, r2d: 2.8 },
+  respondeu: { nome: "Respondeu", cor: "#22d3ee", raio: 0.24, altura: 0.04, r2d: 4 },
+  negociacao: { nome: "Em negociação (agendou)", cor: "#f472b6", raio: 0.32, altura: 0.06, r2d: 5 },
+  sem_interesse: { nome: "Sem interesse", cor: "#f87171", raio: 0.12, altura: 0.004, r2d: 2.2 },
+};
 const mapa = { dados: null, carregadoEm: 0, modo: "3d", camada: "tudo", visual: "dia", globo: null, mundo: null, carregando: false };
 try {
   mapa.modo = localStorage.getItem("mapaModo") === "2d" ? "2d" : "3d";
@@ -2486,19 +2494,26 @@ function pontosDoMapa(camada = mapa.camada) {
   // Os dois juntos: as cidades da prospecção embaixo e os clientes por cima.
   if (camada === "tudo") return [...pontosDoMapa("prospeccao"), ...pontosDoMapa("clientes")];
   if (camada === "clientes") {
-    return d.clientes.map((c) => ({ cliente: true, ...c, cor: c.origem === "stripe" ? "#a78bfa" : "#22e07a", raio: 0.9, altura: 0.08,
+    return d.clientes.map((c) => ({ cliente: true, r2d: 8, ...c, cor: c.origem === "stripe" ? "#a78bfa" : "#22e07a", raio: 0.9, altura: 0.08,
       texto: `<b>${esc(c.nome)}</b><br>${esc(c.cidade)}${c.projeto ? ` · ${esc(c.projeto)}` : ""}${c.origem === "stripe" ? " · pagou pelo Stripe" : ""}` }));
   }
-  const max = Math.max(1, ...d.prospeccao.map((p) => p.empresas));
-  return d.prospeccao.map((p) => ({ ...p, cor: p.pais !== "BR" ? "#22d3ee" : "#fbbf24", raio: 0.35 + 0.9 * Math.sqrt(p.empresas / max), altura: 0.02 + 0.25 * (p.empresas / max),
-    texto: `<b>${esc(p.cidade)}</b><br>${p.empresas} ${p.empresas === 1 ? "empresa contatada" : "empresas contatadas"} · ${p.responderam} ${p.responderam === 1 ? "respondeu" : "responderam"}` }));
+  // Cada empresa no endereço dela, com a cor da etapa; as cidades-alvo sem empresa ainda, em branco.
+  const empresas = (d.empresas ?? []).filter((e) => e.etapa !== "cliente").map((e) => {
+    const etapa = ETAPAS_DO_MAPA[e.etapa] ?? ETAPAS_DO_MAPA.capturada;
+    return { ...e, cor: etapa.cor, raio: etapa.raio, altura: etapa.altura, r2d: etapa.r2d,
+      texto: `<b>${esc(e.nome)}</b><br>${esc(etapa.nome)}${e.nicho ? ` · ${esc(e.nicho)}` : ""}<br>${esc(e.cidade ?? "")}${e.aproximado ? " (perto do centro da cidade)" : ""}` };
+  });
+  const alvos = (d.alvos ?? []).map((a) => ({ ...a, alvo: true, nome: a.cidade, cor: "#f8fafc", raio: 0.7, altura: 0.02, r2d: 7,
+    texto: `<b>${esc(a.cidade)}</b><br>Cidade-alvo da Automação: a busca automática ainda vai procurar empresas aqui` }));
+  return [...empresas, ...alvos];
 }
 
 function cartaoDoMapa() {
   const d = mapa.dados;
   const r = d?.resumo;
   const textoClientes = !d ? "" : r.clientes ? `${r.clientes} ${r.clientes === 1 ? "cliente" : "clientes"} em ${r.cidades} ${r.cidades === 1 ? "cidade" : "cidades"}${r.paises > 1 ? ` de ${r.paises} países (${r.nomesDosPaises.map(esc).join(", ")})` : ""}` : "nenhum cliente com cidade conhecida ainda";
-  const textoProspeccao = !d ? "" : `${d.prospeccao.length} ${d.prospeccao.length === 1 ? "cidade" : "cidades"} em prospecção (${d.prospeccao.reduce((s, p) => s + p.empresas, 0)} empresas contatadas)`;
+  const naProspeccao = (d?.empresas ?? []).filter((e) => e.etapa !== "cliente").length;
+  const textoProspeccao = !d ? "" : `${naProspeccao} ${naProspeccao === 1 ? "empresa" : "empresas"} na prospecção${d.alvos?.length ? ` · ${d.alvos.length} ${d.alvos.length === 1 ? "cidade-alvo" : "cidades-alvo"}` : ""}${d.localizando ? " · localizando mais empresas…" : ""}`;
   const meta = !d ? "Carregando…" : mapa.camada === "clientes" ? textoClientes : mapa.camada === "prospeccao" ? textoProspeccao : `${textoClientes} · ${textoProspeccao}`;
   const botao = (grupo, valor, texto) => `<button type="button" data-mapa-${grupo}="${valor}" aria-pressed="${mapa[grupo] === valor}">${texto}</button>`;
   return `<section class="cartao dash-mapa">
@@ -2512,7 +2527,8 @@ function cartaoDoMapa() {
     <div class="mapa-rodape">${mapa.camada !== "prospeccao"
       ? `<span><i class="ponto" style="background:#22e07a"></i>Cliente (contrato ou fechado)</span><span><i class="ponto" style="background:#a78bfa"></i>Cliente que pagou pelo Stripe</span>` : ""}
       ${mapa.camada !== "clientes"
-      ? `<span><i class="ponto" style="background:#fbbf24"></i>Prospecção no Brasil</span><span><i class="ponto" style="background:#22d3ee"></i>Prospecção fora do Brasil</span><span>O tamanho é a quantidade de empresas contatadas.</span>` : ""}
+      ? Object.entries(ETAPAS_DO_MAPA).filter(([k]) => d?.etapas?.[k]).map(([k, e]) => `<span><i class="ponto" style="background:${e.cor}"></i>${esc(e.nome)}: ${d.etapas[k]}</span>`).join("")
+        + (d?.alvos?.length ? `<span><i class="ponto" style="background:#f8fafc;outline:1px solid var(--border)"></i>Cidade-alvo (ainda sem empresas)</span>` : "") : ""}
       ${d?.pendentes?.length && mapa.camada !== "prospeccao" ? `<span>Sem cidade conhecida: ${d.pendentes.map(esc).join(", ")}</span>` : ""}
       ${mapa.modo === "3d" ? "<span>Arraste para girar, role para aproximar.</span>" : "<span>Arraste para mover, role para aproximar.</span>"}</div>
     <div class="mapa-lista">${mapa.camada !== "prospeccao" ? (d?.clientes ?? []).map((c) => `<span class="pilula ok">${ic("pin", "sm")}${esc(c.nome)} · ${esc(c.cidade)}</span>`).join("") : ""}${mapa.camada !== "clientes"
@@ -2578,9 +2594,9 @@ async function desenharGlobo(area, globoEl) {
     .bumpImageUrl(MAPA_LIBS.relevo)
     .atmosphereColor(corDoTema("--accent"))
     .pointsData(pontos)
-    .ringsData(pontos.filter((p) => p.cliente))
-    .ringColor(() => (t) => `${corDoAnel}${Math.round((1 - t) * 200).toString(16).padStart(2, "0")}`)
-    .labelsData(pontos.filter((p) => p.cliente))
+    .ringsData(pontos.filter((p) => p.cliente || p.alvo))
+    .ringColor((p) => (t) => `${p.alvo ? "#f8fafc" : corDoAnel}${Math.round((1 - t) * 200).toString(16).padStart(2, "0")}`)
+    .labelsData(pontos.filter((p) => p.cliente || p.alvo))
     .labelColor(() => "rgba(255,255,255,.95)");
   mapa.globo.resumeAnimation();
   if (!pontos.length) area.insertAdjacentHTML("beforeend", `<div class="mapa-vazio" style="pointer-events:none;align-items:end;padding-bottom:24px">Nenhum ponto nesta camada ainda.</div>`);
@@ -2609,19 +2625,19 @@ async function desenharMapa2D(area) {
     dica.hidden = true;
     area.appendChild(dica);
     const bolas = g.append("g").selectAll("circle").data(pontos).join("circle")
-      .attr("cx", (p) => p.xy[0]).attr("cy", (p) => p.xy[1]).attr("r", (p) => 4 + p.raio * 7)
-      .attr("fill", (p) => p.cor).attr("fill-opacity", 0.9).attr("stroke", cor.contorno).attr("stroke-width", 1.5)
+      .attr("cx", (p) => p.xy[0]).attr("cy", (p) => p.xy[1]).attr("r", (p) => p.r2d ?? 4)
+      .attr("fill", (p) => p.cor).attr("fill-opacity", (p) => (p.cliente || p.alvo ? 0.95 : 0.8)).attr("stroke", cor.contorno).attr("stroke-width", 1.2)
       .style("cursor", "pointer")
       .on("mouseenter", (ev, p) => { dica.innerHTML = p.texto; dica.hidden = false; })
       .on("mousemove", (ev) => { const r = area.getBoundingClientRect(); dica.style.left = `${ev.clientX - r.left}px`; dica.style.top = `${ev.clientY - r.top}px`; })
       .on("mouseleave", () => (dica.hidden = true));
-    g.append("g").selectAll("text").data(pontos.filter((p) => p.cliente)).join("text")
+    g.append("g").selectAll("text").data(pontos.filter((p) => p.cliente || p.alvo)).join("text")
       .attr("x", (p) => p.xy[0] + 10).attr("y", (p) => p.xy[1] + 4).text((p) => p.nome)
       .attr("fill", cor.texto).attr("font-size", 11).attr("font-weight", 700).attr("paint-order", "stroke").attr("stroke", cor.oceano).attr("stroke-width", 3)
       .style("pointer-events", "none");
     svg.call(d3.zoom().scaleExtent([1, 12]).translateExtent([[0, 0], [largura, altura]]).on("zoom", (ev) => {
       g.attr("transform", ev.transform);
-      bolas.attr("r", (p) => (4 + p.raio * 7) / Math.sqrt(ev.transform.k));
+      bolas.attr("r", (p) => (p.r2d ?? 4) / Math.sqrt(ev.transform.k)).attr("stroke-width", 1.2 / Math.sqrt(ev.transform.k));
       g.selectAll("text").attr("font-size", 11 / ev.transform.k);
     }));
     if (!pontos.length) area.insertAdjacentHTML("beforeend", `<div class="mapa-vazio" style="pointer-events:none;align-items:end;padding-bottom:24px">Nenhum ponto nesta camada ainda.</div>`);

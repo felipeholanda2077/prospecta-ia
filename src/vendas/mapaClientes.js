@@ -1,7 +1,8 @@
 import * as db from "../db.js";
 import { config } from "../config.js";
 import { dadosDoCnpj } from "../descoberta/cnpj.js";
-import { PAISES } from "../internacional.js";
+import { PAISES, cidadeEPais } from "../internacional.js";
+import { ehLugarDoGoogle } from "../analise/avaliacoes.js";
 
 // Mapa do Dashboard: onde estão os clientes (contratos assinados e empresas fechadas, inclusive as que pagaram
 // pelo Stripe) e, numa segunda camada, as cidades onde a prospecção está acontecendo. A cidade de cada um vem
@@ -77,10 +78,60 @@ async function cidadeDoContrato(c) {
   }
 }
 
+/** A etapa da empresa no mapa (cada uma tem uma cor). */
+export function etapaNoMapa(status) {
+  if (status === "fechado") return "cliente";
+  if (status === "agendado") return "negociacao";
+  if (status === "respondeu") return "respondeu";
+  if (status === "contatado") return "contatada";
+  if (status === "sem_interesse") return "sem_interesse";
+  return "capturada";
+}
+
+/**
+ * Localiza as empresas que ainda não têm o ponto no mapa: as do Google Maps pelo próprio lugar no Google
+ * (consulta barata, só a localização); as outras ficam no centro da cidade (sem consulta). Guarda no banco.
+ */
+export async function localizarEmpresas({ limite = 150, buscar = fetch } = {}) {
+  if (!config.googlePlacesApiKey) return { localizadas: 0 };
+  const leads = await db.consultar(
+    `SELECT id, place_id FROM leads WHERE localizado_em IS NULL AND status <> 'descartado' AND place_id ~ '^[A-Za-z0-9_-]{20,}$'
+      ORDER BY (status IN ('fechado', 'agendado', 'respondeu', 'contatado')) DESC, id DESC LIMIT $1`, [limite]
+  );
+  let localizadas = 0;
+  for (const l of leads) {
+    if (!ehLugarDoGoogle(l.place_id)) continue;
+    let lat = null;
+    let lng = null;
+    try {
+      const r = await buscar(`https://places.googleapis.com/v1/places/${encodeURIComponent(l.place_id)}`, {
+        headers: { "X-Goog-Api-Key": config.googlePlacesApiKey, "X-Goog-FieldMask": "location" }, signal: AbortSignal.timeout(8000),
+      });
+      if (r.status === 429 || r.status >= 500) break; // tenta de novo depois
+      const p = r.ok ? await r.json() : null;
+      lat = p?.location?.latitude ?? null;
+      lng = p?.location?.longitude ?? null;
+    } catch {
+      break;
+    }
+    await db.atualizarLead(l.id, { lat, lng, localizado_em: new Date().toISOString() });
+    if (lat != null) localizadas++;
+  }
+  return { localizadas, consultadas: leads.length };
+}
+
+// Empresa sem o ponto exato fica perto do centro da cidade, espalhada um pouco (sempre no mesmo lugar).
+const espalhar = (id, ponto) => {
+  const a = (Number(id) * 2654435761 % 4294967296) / 4294967296 * 2 * Math.PI;
+  const r = 0.012 + ((Number(id) * 40503) % 1000) / 1000 * 0.03;
+  return { lat: ponto.lat + Math.sin(a) * r, lng: ponto.lng + Math.cos(a) * r, aproximado: true };
+};
+
 /** Os pontos do mapa: clientes (um por empresa) e cidades da prospecção, com as coordenadas. */
-export async function dadosDoMapa({ buscar = fetch } = {}) {
+export async function dadosDoMapa({ buscar = fetch, automacao = null } = {}) {
   const cache = (await db.lerConfig(CACHE)) ?? {};
   const vez = { restam: NOVAS_POR_VEZ, mudou: false };
+  const faltam = await localizarEmpresas({ limite: 80, buscar }).catch(() => ({ consultadas: 0 }));
   const clientes = [];
   const pendentes = [];
   const leadsComContrato = new Set();
@@ -116,14 +167,43 @@ export async function dadosDoMapa({ buscar = fetch } = {}) {
     if (ponto) prospeccao.push({ cidade: c.cidade, pais: c.pais, empresas: c.empresas, responderam: c.responderam, ...ponto });
   }
 
+  // Cada empresa da prospecção no endereço dela (ou perto do centro da cidade), com a etapa.
+  const linhas = await db.consultar(
+    `SELECT id, nome, cidade, COALESCE(pais, 'BR') AS pais, status, lat, lng, nicho FROM leads
+      WHERE status <> 'descartado' ORDER BY id DESC LIMIT 6000`
+  );
+  const empresas = [];
+  for (const l of linhas) {
+    let ponto = Number.isFinite(l.lat) && Number.isFinite(l.lng) ? { lat: l.lat, lng: l.lng } : null;
+    if (!ponto && l.cidade) {
+      const centro = await coordenadas(lugarParaBuscar(l.cidade, l.pais), cache, vez, buscar);
+      if (centro) ponto = espalhar(l.id, centro);
+    }
+    if (ponto) empresas.push({ id: l.id, nome: l.nome, cidade: l.cidade, pais: l.pais, nicho: l.nicho, etapa: etapaNoMapa(l.status), ...ponto });
+  }
+  const etapas = {};
+  for (const e of empresas) etapas[e.etapa] = (etapas[e.etapa] ?? 0) + 1;
+
+  // Cidades-alvo da Automação que ainda não têm empresa no mapa (ex.: Lisboa e Miami, antes da primeira busca).
+  const auto = automacao ?? (await db.lerConfig("automacao")) ?? {};
+  const comEmpresa = new Set(linhas.map((l) => chave(l.cidade)));
+  const alvos = [];
+  for (const cidade of [...new Set((auto.buscas ?? []).flatMap((b) => b.cidades ?? []))]) {
+    if (comEmpresa.has(chave(cidade))) continue;
+    const { pais } = cidadeEPais(cidade);
+    const ponto = await coordenadas(lugarParaBuscar(cidade, pais), cache, vez, buscar);
+    if (ponto) alvos.push({ cidade, pais, ...ponto });
+  }
+
   if (vez.mudou) await db.gravarConfig(CACHE, cache);
   const paises = [...new Set(clientes.map((c) => c.pais))];
   return {
-    clientes, prospeccao, pendentes,
+    clientes, prospeccao, pendentes, empresas, etapas, alvos,
+    localizando: (faltam.consultadas ?? 0) >= 80,
     resumo: {
       clientes: clientes.length, cidades: new Set(clientes.map((c) => chave(c.cidade))).size, paises: paises.length,
       nomesDosPaises: paises.map((p) => PAISES[p]?.nome ?? p),
     },
-    incompleto: vez.restam <= 0,
+    incompleto: vez.restam <= 0 || (faltam.consultadas ?? 0) >= 80,
   };
 }

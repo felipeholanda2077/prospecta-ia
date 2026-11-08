@@ -64,7 +64,7 @@ import { lerRamos } from "./descoberta/ramos.js";
 import * as internacional from "./internacional.js";
 import { previaParaEmpresaDeFora } from "./vendas/previaInternacional.js";
 import * as stripe from "./vendas/stripe.js";
-import { dadosDoMapa } from "./vendas/mapaClientes.js";
+import { dadosDoMapa, localizarEmpresas } from "./vendas/mapaClientes.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -375,7 +375,9 @@ const TAREFAS_CRON = {
   mercadolivre: (c) => rodadaDoMercadoLivre(c),
   // A cada hora: as parcelas perto de vencer e o que já foi pago, inclusive pelos links de pagamento.
   cobrancas: async () => ({ ...(await cobrancas.rodadaDeCobrancas()), ...(await entrada.conferirVendas()),
-    stripe: await stripe.conferirPagamentos().catch((e) => ({ erro: e.message })) }),
+    stripe: await stripe.conferirPagamentos().catch((e) => ({ erro: e.message })),
+    // E localiza no mapa do Dashboard as empresas que ainda não têm o ponto.
+    mapa: await localizarEmpresas({ limite: 300 }).catch((e) => ({ erro: e.message })) }),
 };
 
 const resumoChave = (v) => crypto.createHash("sha256").update(`prospecta-cron:${v}`).digest("hex");

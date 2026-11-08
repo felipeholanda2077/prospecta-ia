@@ -423,7 +423,7 @@ export async function descadastrar(contato, motivo = "pedido do contato") {
 const COLUNAS_LEAD = new Set([
   "nome", "nicho", "cidade", "endereco", "telefone", "whatsapp", "whatsapp_status", "email", "site", "maps_url",
   "avaliacao", "total_avaliacoes", "analise", "oportunidades", "status", "observacao", "instagram", "instagram_dados",
-  "numero_wa", "agente_id", "agente_delegou_em", "responsavel", "abordagem", "pais", "idioma", "fuso",
+  "numero_wa", "agente_id", "agente_delegou_em", "responsavel", "abordagem", "pais", "idioma", "fuso", "lat", "lng", "localizado_em",
 ]);
 
 /** Insere a empresa se ainda não existir. Retorna true se for nova. */
@@ -431,8 +431,8 @@ export async function inserirLead(lead) {
   const linhas = await q(
     `INSERT INTO leads (place_id, nome, nicho, cidade, endereco, telefone, site, maps_url,
                         avaliacao, total_avaliacoes, origem, token, email, instagram, instagram_dados, responsavel, anuncio, vaga,
-                        pais, idioma, fuso)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+                        pais, idioma, fuso, lat, lng, localizado_em)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
      ON CONFLICT (place_id) DO NOTHING RETURNING id`,
     [
       lead.place_id, lead.nome, lead.nicho, lead.cidade, lead.endereco, lead.telefone, lead.site,
@@ -442,6 +442,8 @@ export async function inserirLead(lead) {
       lead.anuncio ? JSON.stringify(lead.anuncio) : null, lead.vaga ? JSON.stringify(lead.vaga) : null,
       lead.pais && lead.pais !== "BR" ? lead.pais : null, lead.pais && lead.pais !== "BR" ? lead.idioma ?? null : null,
       lead.pais && lead.pais !== "BR" ? lead.fuso ?? null : null,
+      Number.isFinite(lead.lat) ? lead.lat : null, Number.isFinite(lead.lng) ? lead.lng : null,
+      Number.isFinite(lead.lat) ? new Date().toISOString() : null,
     ]
   );
   return linhas.length > 0;

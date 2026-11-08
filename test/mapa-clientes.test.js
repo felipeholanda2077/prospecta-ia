@@ -25,7 +25,14 @@ test("mapa: clientes (fechados) e cidades da prospecção com coordenadas guarda
   await db.atualizarLead(b.id, { status: "fechado", observacao: "Pagou pelo Stripe: Professional" });
   await db.atualizarLead(c.id, { status: "contatado" });
   const consultas = [];
+  const detalhes = [];
   const buscar = async (url, op) => {
+    // Lugar do Google: a localização exata da empresa (a terceira não é achada).
+    if (!op?.body) {
+      detalhes.push(url);
+      if (/000003$/.test(url)) return new Response("{}", { status: 404 });
+      return new Response(JSON.stringify({ location: { latitude: -23.5, longitude: -46.8 } }));
+    }
     const q = JSON.parse(op.body).textQuery;
     consultas.push(q);
     const lugar = /Miami/.test(q) ? { latitude: 25.76, longitude: -80.19 } : { latitude: -23.53, longitude: -46.79 };
@@ -36,9 +43,20 @@ test("mapa: clientes (fechados) e cidades da prospecção com coordenadas guarda
   assert.deepEqual(d.resumo.nomesDosPaises.sort(), ["Brasil", "Estados Unidos"]);
   const osasco = d.prospeccao.find((p) => p.cidade === "Osasco - SP");
   assert.deepEqual([osasco.empresas, osasco.responderam], [2, 1]);
+  // Cada empresa no mapa, com a etapa; a do Google Maps no ponto exato, a sem ponto perto do centro da cidade.
+  assert.equal(detalhes.length, 3);
+  const pet = d.empresas.find((e) => e.nome === "Pet Osasco");
+  assert.equal(pet.etapa, "contatada");
+  assert.equal(pet.aproximado, true);
+  assert.ok(Math.abs(pet.lat - -23.53) < 0.05);
+  assert.deepEqual(d.empresas.find((e) => e.nome === "Clínica Sorriso").lat, -23.5);
+  assert.deepEqual(d.etapas, { cliente: 2, contatada: 1 });
   // Cada cidade é consultada uma vez só; na próxima abertura vem do cache.
   const n = consultas.length;
   assert.equal(new Set(consultas).size, n);
-  await mapa.dadosDoMapa({ buscar });
-  assert.equal(consultas.length, n);
+  const de2 = await mapa.dadosDoMapa({ buscar, automacao: { buscas: [{ nicho: "x", cidades: ["Osasco - SP", "Lisboa, Portugal"] }] } });
+  assert.equal(consultas.length, n + 1); // só Lisboa, a cidade-alvo nova
+  assert.equal(detalhes.length, 3); // empresas já localizadas não são consultadas de novo
+  assert.deepEqual(de2.alvos.map((a) => a.cidade), ["Lisboa, Portugal"]);
+  assert.equal(mapa.etapaNoMapa("agendado"), "negociacao");
 });

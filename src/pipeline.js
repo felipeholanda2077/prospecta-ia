@@ -895,6 +895,8 @@ export async function capturarDoMaps(empresas, nicho, cidade, { pais = "BR", idi
       maps_url: e.maps_url ?? null,
       avaliacao: e.avaliacao ?? null,
       total_avaliacoes: e.total_avaliacoes ?? null,
+      lat: Number.isFinite(e.lat) ? e.lat : null,
+      lng: Number.isFinite(e.lng) ? e.lng : null,
       nicho,
       cidade,
       origem: "maps",

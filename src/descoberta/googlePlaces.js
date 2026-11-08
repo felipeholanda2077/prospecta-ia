@@ -13,6 +13,7 @@ const CAMPOS = [
   "places.rating",
   "places.userRatingCount",
   "places.businessStatus",
+  "places.location",
   "nextPageToken",
 ].join(",");
 
@@ -62,6 +63,8 @@ export async function buscarEmpresas(consulta, maxResultados = 20, { pais = "BR"
         maps_url: p.googleMapsUri ?? null,
         avaliacao: p.rating ?? null,
         total_avaliacoes: p.userRatingCount ?? null,
+        lat: p.location?.latitude ?? null,
+        lng: p.location?.longitude ?? null,
       });
     }
     pageToken = dados.nextPageToken;

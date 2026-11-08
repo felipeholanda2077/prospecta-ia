@@ -355,6 +355,10 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS abordagem text;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS pais text;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS idioma text;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS fuso text;
+-- Onde fica a empresa (do Google Maps), para o mapa do Dashboard; localizado_em evita consultar de novo.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS lat double precision;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS lng double precision;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS localizado_em timestamptz;
 CREATE INDEX IF NOT EXISTS idx_leads_agente ON leads(agente_id) WHERE agente_id IS NOT NULL;
 -- Logins do CRM externo de cada agente (/crm): quem entra vê só as conversas desse agente.
 CREATE TABLE IF NOT EXISTS agente_acessos (
