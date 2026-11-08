@@ -204,7 +204,7 @@ export async function localizarParaEmpresa(system, lead) {
   const pais = PAISES[lead.pais];
   const [cot, conf] = await Promise.all([cotacoes(), configInternacional()]);
   const idioma = lead.idioma || pais.idioma;
-  const convertido = converterValores(system, { moeda: pais.moeda, idioma, taxa: cot[pais.moeda], ajustePct: conf.ajustePct });
+  const convertido = telefoneComDdi(converterValores(system, { moeda: pais.moeda, idioma, taxa: cot[pais.moeda], ajustePct: conf.ajustePct }));
   const nomeMoeda = pais.moeda === "EUR" ? "euros (€)" : "dólares americanos (US$)";
   return `${convertido}
 
@@ -214,7 +214,21 @@ IDIOMA, PAÍS E MOEDA (esta regra vale acima de qualquer outra sobre idioma nest
 - Todos os valores já estão em ${nomeMoeda}: use exatamente como estão. Nunca cite reais, R$ nem converta de novo.
 - Nada que só existe no Brasil: Pix, boleto, CNPJ, DDD, feriados ou cidades brasileiras como referência.
 - Se perguntarem de onde vocês são: uma empresa brasileira que atende clientes de outros países, com reuniões online e no idioma do cliente.
-- Horários citados na conversa são no fuso de lá (${fusoDaEmpresa(lead)}).`;
+- Horários citados na conversa são no fuso de lá (${fusoDaEmpresa(lead)}).
+- Use um único tratamento do começo ao fim, sem misturar: ${TRATAMENTO[idioma.split("-")[0]] ?? "o tratamento educado de negócios do país"}.${idioma === "pt-PT" ? `
+- Português de Portugal de verdade: nada de "bate-papo", "Fala o", "a gente", "legal", "contato" (é "contacto") nem gerúndio ("estou vendo" → "estou a ver"); trate por "vocês" ou pelo nome, sem misturar com "vós".` : ""}
+- Na assinatura e quando citar o seu telefone, use o formato internacional (com +55).`;
+}
+
+// Como tratar a pessoa em cada idioma (formal nos negócios, onde o idioma distingue).
+const TRATAMENTO = {
+  de: 'o formal "Sie" (nunca "du"/"euer")', fr: 'o formal "vous"', it: 'o formal "Lei"', es: 'o formal "usted" na primeira mensagem (pode ficar mais próximo se a pessoa usar "tú")',
+  nl: 'o formal "u"', pt: '"vocês" (ou o nome da pessoa)', en: '"you", em tom cordial e direto',
+};
+
+/** O telefone da assinatura ("Assinatura dos e-mails: Felipe · FluxDeck · 11953528042") com o +55 para quem é de fora. */
+function telefoneComDdi(texto) {
+  return String(texto).replace(/^(Assinatura dos e-mails:.*?)(?<![+\d])\(?(\d{2})\)?\s?(9?\d{4})[-\s]?(\d{4})(?!\d)/m, (_, antes, ddd, a, b) => `${antes}+55 ${ddd} ${a}-${b}`);
 }
 
 // ---------- Busca ----------

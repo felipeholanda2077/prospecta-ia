@@ -143,3 +143,12 @@ test("conversa: pergunta de preço em outros idiomas, valores em euro e pedido p
   assert.match(rodapeDescadastro("abc", "de-DE"), /reply "STOP"/);
   assert.match(rodapeDescadastro("abc"), /responda "SAIR"/);
 });
+
+test("IA: telefone da assinatura com +55 e tratamento formal no alemão", async () => {
+  const system = "Assinatura dos e-mails: Felipe · FluxDeck · 11953528042\nOutro texto 11953528042.";
+  const de = await intl.localizarParaEmpresa(system, { pais: "DE", idioma: "de-DE", cidade: "Berlin" });
+  assert.match(de, /Assinatura dos e-mails: Felipe · FluxDeck · \+55 11 95352-8042/);
+  assert.match(de, /"Sie"/);
+  const pt = await intl.localizarParaEmpresa(system, { pais: "PT", idioma: "pt-PT", cidade: "Lisboa" });
+  assert.match(pt, /bate-papo/);
+});
