@@ -84,8 +84,8 @@ const CLASSIFICACAO_JSON_SCHEMA = {
   additionalProperties: false,
 };
 
-const PEDIDO_SAIR = /^\s*(sair|parar|pare|stop|remover|descadastrar|cancelar)\s*[.!]*\s*$/i;
-const NAO_QUERO = /n[aã]o (quero|desejo) (mais )?receber|me (tire|remova|exclua) d[ae]|parem de (me )?(mandar|enviar)/i;
+const PEDIDO_SAIR = /^\s*(sair|parar|pare|stop|remover|descadastrar|cancelar|unsubscribe|remove me|baja|darse de baja|stopp|abmelden|d[ée]sabonner|disiscrivi|afmelden)\s*[.!]*\s*$/i;
+const NAO_QUERO = /n[aã]o (quero|desejo) (mais )?receber|me (tire|remova|exclua) d[ae]|parem de (me )?(mandar|enviar)|stop (messaging|texting|contacting) me|do not (contact|message) me|remove me from/i;
 const AUTOMATICA = /resposta autom[aá]tica|mensagem autom[aá]tica|estou (de f[eé]rias|ausente|fora do escrit[oó]rio)|out of office|auto-?reply/i;
 
 /** Remove o histórico citado ("Em ... escreveu:", linhas com ">") e deixa só o que a pessoa escreveu. */
@@ -148,7 +148,8 @@ export function semCumprimentoRepetido(texto, historico) {
 }
 
 // A pessoa perguntou de preço? ("quanto custa", "qual o valor", "orçamento", "mensalidade", "quais os planos?"...)
-const PERGUNTOU_VALOR = /\b(pre[çc]os?|valor(es)?|custos?|custa|investimento|or[çc]amento|mensalidade|tabela)\b|quanto\s+(custa|cobra|fica|sai|seria|vale|é|e)\b|r\$|\bplanos?\b[^.!\n]*\?/i;
+// (Também em inglês, espanhol, francês, alemão, italiano e holandês, para as empresas de fora do Brasil.)
+const PERGUNTOU_VALOR = /\b(pre[çc]os?|valor(es)?|custos?|custa|investimento|or[çc]amento|mensalidade|tabela)\b|quanto\s+(custa|cobra|fica|sai|seria|vale|é|e)\b|r\$|\bplanos?\b[^.!\n]*\?|\b(prices?|pricing|cost|costs|quote|fees?|precio|cu[aá]nto|presupuesto|prix|tarif|combien|devis|preis|kosten|kostet|angebot|prezzo|costo|preventivo|prijs|kost|offerte)\b|how much|\bplans?\b[^.!\n]*\?/i;
 
 /** Valores só entram na conversa depois que a pessoa pergunta (agora ou antes, na mesma conversa). */
 export function pediuValor(texto, historico = []) {
@@ -156,7 +157,7 @@ export function pediuValor(texto, historico = []) {
     .some((t) => PERGUNTOU_VALOR.test(String(t ?? "").replace(/^\[áudio\]\s*/, "")));
 }
 
-const TEM_VALOR = /r\$\s*\d|\d+(?:[.,]\d+)?\s*reais\b/i;
+const TEM_VALOR = /r\$\s*\d|\d+(?:[.,]\d+)?\s*reais\b|(?:€|US\$|\$)\s?\d|\d(?:[\d.,\s]*\d)?\s?€|\b\d+(?:[.,]\d+)?\s?(?:eur|euros?|usd|dollars?)\b/i;
 const ITEM_DE_LISTA = /^\s*([-•*]|\d+[.)])\s/;
 
 /**
@@ -262,7 +263,7 @@ export async function classificarResposta({ texto, assunto, lead, historico, cam
 
   const limite = canal === "email" ? "até 100 palavras, com assinatura curta" : "no máximo 3 frases curtas (até ~400 caracteres), sem assinatura";
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
-  return gerarJson({
+  return gerarJson({ lead,
     system: `${contextoEmpresa(campanha, { semValores: Boolean(apresentacao) })}
 
 Você conduz, aos poucos e com naturalidade, uma conversa com uma empresa (de prospecção, ou de alguém que chamou
@@ -367,7 +368,7 @@ const APRESENTACAO_JSON_SCHEMA = {
  */
 export async function escreverEnvioDaApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", link }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
-  const r = await gerarJson({
+  const r = await gerarJson({ lead,
     system: `${contextoEmpresa(campanha, { semValores: true })}
 
 A pessoa pediu uma apresentação comercial (ou um material, portfólio, algo para ver). Escreva a próxima mensagem da
@@ -398,7 +399,7 @@ ${(historico ?? []).slice(-12).map((h) => `${h.autor === "nos" ? quem : lead.nom
 export async function escreverApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", apresentacao, linkAgendamento = "", horarios = [], linkPrevia = "" }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const podeValores = pediuValor(texto, historico);
-  const r = await gerarJson({
+  const r = await gerarJson({ lead,
     system: `${contextoEmpresa(campanha, { semValores: true })}
 
 A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa (${NOME_DO_CANAL[canal] ?? "WhatsApp"}), como ${quem}, em primeira pessoa:
@@ -460,7 +461,7 @@ export async function escreverFollowup({ lead, historico, campanha, canal = "wha
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const ultimaDela = [...(historico ?? [])].reverse().find((h) => h.autor === "lead");
   const podeValores = pediuValor(ultimaDela?.texto, historico);
-  const r = await gerarJson({
+  const r = await gerarJson({ lead,
     system: `${contextoEmpresa(campanha, { semValores: true })}
 
 Você é ${quem}. Esta empresa conversou com você (mostrou interesse, ficou de ver ou de repassar), mas não responde há
@@ -521,7 +522,7 @@ const REATIVACAO_JSON_SCHEMA = {
  */
 export async function escreverReativacao({ lead, canal, campanha, historico = [], dor = "", pontos = [], linkGuia = "" }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
-  const r = await gerarJson({
+  const r = await gerarJson({ lead,
     system: `${contextoEmpresa(campanha, { semValores: true })}
 
 Você é ${quem}. Há mais de um mês a ${lead.nome} recebeu algumas mensagens suas e não respondeu. Escreva UMA mensagem de
@@ -573,7 +574,7 @@ export async function mensagemParaIndicado({ lead, contato, canal = "whatsapp", 
     ? `E-mail em texto simples, 60 a 110 palavras, com saudação, e assinatura curta (${identidade(campanha.empresa).assinatura}).
 - Assunto curto e pessoal citando a indicação (ex.: "Indicação da recepção da ${lead.nome}"), sem caixa alta.`
     : "WhatsApp: no máximo 3 frases curtas (até ~350 caracteres), sem assinatura. Assunto vazio.";
-  return gerarJson({
+  return gerarJson({ lead,
     system: `${contextoEmpresa(campanha)}
 
 Você (${quem}) estava conversando com a ${lead.nome} e eles indicaram outra pessoa para tratar do assunto.
@@ -611,7 +612,7 @@ const PRIMEIRO_CONTATO_JSON_SCHEMA = {
 export async function escreverPrimeiroContato({ lead, nome = "", empresa = "", contexto = "", historico = [], campanha }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const jaConversou = historico.length > 0;
-  const r = await gerarJson({
+  const r = await gerarJson({ lead,
     system: `${contextoEmpresa(campanha, { semValores: true })}
 
 Você é ${quem}. ${jaConversou

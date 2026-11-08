@@ -980,6 +980,10 @@
         <form class="cartao cartao-corpo busca" id="form-maps">
           <div class="campo"><label for="onde">Onde buscar</label>
             <select id="onde"><option value="maps">Google Maps</option><option value="instagram">Instagram</option><option value="cnpj">CNPJ (Receita Federal)</option><option value="anuncios">Anúncios da Meta (quem está anunciando)</option><option value="vagas">Vagas abertas (quem está contratando)</option><option value="contadores">Contadores (parceria de indicação)</option><option value="googleads">Anúncios no Google (quem paga para aparecer)</option></select></div>
+          <div class="campo"><label for="pais">País</label>
+            <select id="pais"><option value="BR">Brasil</option><option value="US">Estados Unidos (dólar)</option><optgroup label="Países do euro"><option value="PT">Portugal</option><option value="ES">Espanha</option><option value="FR">França</option><option value="DE">Alemanha</option><option value="IT">Itália</option><option value="NL">Holanda</option><option value="BE">Bélgica</option><option value="AT">Áustria</option><option value="IE">Irlanda</option><option value="LU">Luxemburgo</option><option value="FI">Finlândia</option><option value="GR">Grécia</option><option value="MT">Malta</option><option value="CY">Chipre</option><option value="SK">Eslováquia</option><option value="SI">Eslovênia</option><option value="EE">Estônia</option><option value="LV">Letônia</option><option value="LT">Lituânia</option><option value="HR">Croácia</option><option value="BG">Bulgária</option></optgroup></select></div>
+          <div class="campo" id="campo-idioma" hidden><label for="idioma-ia">A IA fala em</label>
+            <select id="idioma-ia"><option value="local">Idioma do país</option><option value="en">Inglês</option></select></div>
           <div class="campo"><label for="nicho">Segmento</label>
             <div class="com-icone"><span data-ic="search"></span><input id="nicho" list="nichos" placeholder="Ex.: pet shop, clínica odontológica" required></div></div>
           <div class="campo"><label for="cidade">Cidade</label>
@@ -1004,6 +1008,7 @@
                 <option value="3">Desenvolvedor web</option><option value="4">Analista de sistemas</option><option value="5">Pré-vendas (SDR)</option></select></div>
             <span class="muted" style="font-size:12.5px;grid-column:1/-1">Empresas da cidade com vaga aberta no Google para uma função que a FluxDeck resolve: a dor está na própria vaga. O contato vem do Google Maps, pelo nome da empresa; agências de emprego ficam de fora. O segmento é opcional aqui. Cada busca gasta 1 do plano da SerpApi.</span>
           </div>
+          <div id="campos-exterior" style="grid-column:1/-1" hidden></div>
           <span class="muted" id="campos-googleads" style="font-size:12.5px;grid-column:1/-1" hidden>Quem aparece patrocinado no topo do Google quando alguém da cidade procura pelo segmento. Já paga por clique: a IA fala do que acontece depois do clique (a página e o atendimento). Portais e marketplaces ficam de fora; o e-mail e o WhatsApp saem do site, na análise. Cada busca gasta 1 do plano da SerpApi.</span>
           <span class="muted" id="campos-contadores" style="font-size:12.5px;grid-column:1/-1" hidden>Escritórios de contabilidade da cidade, pelo Google Maps. Eles atendem empresas que estão abrindo e precisam de site e sistema: a IA propõe uma parceria de indicação (eles indicam e ganham 10% do primeiro pagamento de cada cliente fechado; o percentual só é dito se perguntarem), e não vende para eles. O segmento é ignorado aqui.</span>
           <div class="campo" id="campo-termos" style="grid-column:1/-1" hidden><label for="termos">Hashtags ou @perfis (opcional)</label>
@@ -1057,7 +1062,15 @@
             </div>
             <div class="config-grade">
               <div class="campo"><label for="auto-nichos">Segmentos para buscar (um por linha)</label><textarea id="auto-nichos" name="nichos" style="min-height:120px" placeholder="clínica odontológica&#10;pet shop&#10;construtora"></textarea></div>
-              <div class="campo"><label for="auto-cidades">Cidades (uma por linha)</label><textarea id="auto-cidades" name="cidades" style="min-height:120px" placeholder="Barueri - SP&#10;Osasco - SP"></textarea></div>
+              <div class="campo"><label for="auto-cidades">Cidades (uma por linha)</label><textarea id="auto-cidades" name="cidades" style="min-height:120px" placeholder="Barueri - SP&#10;Osasco - SP&#10;Lisboa, Portugal&#10;Miami, EUA"></textarea>
+                <span class="muted" style="font-size:12.5px">Para buscar fora do Brasil, escreva a cidade com o país no fim: "Lisboa, Portugal", "Berlim, Alemanha", "Miami, EUA". Vale para os países do euro e os Estados Unidos, só pelo Google Maps.</span></div>
+            </div>
+            <div class="config-grade">
+              <div class="campo"><label for="auto-idioma-exterior">Empresas de fora do Brasil: a IA fala em</label>
+                <select id="auto-idioma-exterior" name="idiomaExterior"><option value="local">Idioma do país (alemão na Alemanha, espanhol na Espanha…)</option><option value="en">Inglês, em todos os países</option></select></div>
+              <div class="campo"><label for="auto-ajuste-exterior">Preço lá fora: ajuste sobre o valor convertido (%)</label>
+                <input id="auto-ajuste-exterior" name="ajusteExterior" type="number" min="-50" max="500" step="5">
+                <span class="muted" id="auto-cotacao" style="font-size:12.5px"></span></div>
             </div>
             <div class="campo"><label for="auto-apresentacao">Apresentação que a IA manda para quem se interessar</label>
               <textarea id="auto-apresentacao" name="apresentacao" style="min-height:220px"></textarea>
@@ -2474,6 +2487,24 @@ $("#anuncios-conexao").addEventListener("submit", async (ev) => {
   }
 });
 
+// Fora do Brasil: só o Google Maps (Instagram, CNPJ, anúncios, vagas e contadores são buscas daqui).
+$("#pais").addEventListener("change", async () => {
+  const pais = $("#pais").value;
+  const fora = pais !== "BR";
+  $("#campo-idioma").hidden = !fora;
+  for (const o of $("#onde").options) o.disabled = fora && o.value !== "maps";
+  if (fora && $("#onde").value !== "maps") { $("#onde").value = "maps"; $("#onde").dispatchEvent(new Event("change")); }
+  $("#cidade").placeholder = fora ? "Ex.: Lisboa, Miami, Berlim" : "Ex.: Fortaleza - CE";
+  $("#campos-exterior").hidden = !fora;
+  if (!fora) return;
+  try {
+    const r = await api("/api/internacional");
+    const p = r.paises.find((x) => x.codigo === pais);
+    $("#campos-exterior").innerHTML = `<span class="muted" style="font-size:12.5px">Busca no Google Maps de ${esc(p.nome)}, com o segmento traduzido para o idioma de lá. A IA escreve as mensagens em ${$("#idioma-ia").value === "en" ? "inglês" : esc(p.idioma)}, e os valores da apresentação vão em ${p.moeda === "EUR" ? "euro" : "dólar"} pela cotação do dia${r.ajustePct ? `, com ${r.ajustePct > 0 ? "+" : ""}${r.ajustePct}%` : ""} (R$ 4.500 = ${esc(r.exemplo[p.moeda])}). As mensagens saem no horário comercial de lá. O WhatsApp vai pela UAZap (a API oficial só começa conversa com o modelo em português).</span>`;
+  } catch {}
+});
+$("#idioma-ia").addEventListener("change", () => $("#pais").dispatchEvent(new Event("change")));
+
 $("#onde").addEventListener("change", () => {
   const onde = $("#onde").value;
   $("#campo-termos").hidden = onde !== "instagram";
@@ -2491,14 +2522,15 @@ $("#onde").addEventListener("change", () => {
 $("#form-maps").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const btn = ev.submitter;
-  buscaMaps = { nicho: $("#nicho").value.trim(), cidade: $("#cidade").value.trim() };
+  buscaMaps = { nicho: $("#nicho").value.trim(), cidade: $("#cidade").value.trim(), pais: $("#pais").value, idioma: $("#idioma-ia").value };
   const onde = $("#onde").value;
   filtroMaps = "todas";
   btn.disabled = true;
   selecionadas.clear();
   atualizarSelecao();
   $("#pos-captura").innerHTML = "";
-  $("#resultado-maps").innerHTML = `<div class="resultados-cab"><h2>Buscando "${esc(buscaMaps.nicho)}" em ${esc(buscaMaps.cidade)}…</h2></div>
+  const nomeDoPais = buscaMaps.pais !== "BR" ? ` (${$("#pais").selectedOptions[0].textContent})` : "";
+  $("#resultado-maps").innerHTML = `<div class="resultados-cab"><h2>Buscando "${esc(buscaMaps.nicho)}" em ${esc(buscaMaps.cidade)}${esc(nomeDoPais)}…</h2></div>
     <div class="grade">${'<div class="esqueleto"></div>'.repeat(6)}</div>`;
   try {
     avisosBusca = [];
@@ -3836,7 +3868,7 @@ function cardLead(l) {
       <span class="avatar">${inicial(l.nome)}${fotoLead(l.id)}</span>
       <div class="titulos">
         <h3>${esc(l.nome)}</h3>
-        <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}${l.origem === "instagram" ? `<span class="pilula">${ic("camera", "sm")}Instagram</span>` : ""}${l.origem === "instagram_direct" ? `<span class="pilula">${ic("camera", "sm")}Chamou no direct</span>` : ""}${l.origem === "cnpj" ? `<span class="pilula">${ic("building", "sm")}CNPJ</span>` : ""}${l.origem === "anuncio" ? `<span class="pilula acc">${ic("spark", "sm")}Anunciando na Meta</span>` : ""}${l.origem === "vaga" ? `<span class="pilula acc">${ic("users", "sm")}Contratando</span>` : ""}${l.origem === "contador" ? `<span class="pilula ok">${ic("users", "sm")}Contador · parceria</span>` : ""}${l.origem === "google_ads" ? `<span class="pilula acc">${ic("search", "sm")}Anunciando no Google</span>` : ""}${l.origem === "formulario" ? `<span class="pilula ok">${ic("inbox", "sm")}Formulário do site</span>` : ""}</div>
+        <div class="pilulas" style="margin-top:6px"><span class="pilula ${cor}">${rotulo}</span>${l.origem === "maps" ? `<span class="pilula">${ic("pin", "sm")}Google Maps</span>` : ""}${l.origem === "instagram" ? `<span class="pilula">${ic("camera", "sm")}Instagram</span>` : ""}${l.origem === "instagram_direct" ? `<span class="pilula">${ic("camera", "sm")}Chamou no direct</span>` : ""}${l.origem === "cnpj" ? `<span class="pilula">${ic("building", "sm")}CNPJ</span>` : ""}${l.origem === "anuncio" ? `<span class="pilula acc">${ic("spark", "sm")}Anunciando na Meta</span>` : ""}${l.origem === "vaga" ? `<span class="pilula acc">${ic("users", "sm")}Contratando</span>` : ""}${l.origem === "contador" ? `<span class="pilula ok">${ic("users", "sm")}Contador · parceria</span>` : ""}${l.origem === "google_ads" ? `<span class="pilula acc">${ic("search", "sm")}Anunciando no Google</span>` : ""}${l.origem === "formulario" ? `<span class="pilula ok">${ic("inbox", "sm")}Formulário do site</span>` : ""}${l.pais && l.pais !== "BR" ? `<span class="pilula acc" title="A IA fala no idioma ${esc(l.idioma ?? "")} e os valores vão na moeda de lá">${ic("pin", "sm")}${esc(l.pais)} · ${esc(String(l.idioma ?? "").split("-")[0])}</span>` : ""}</div>
         <div class="meta" style="margin-top:8px">
           ${l.nicho ? `<span>${ic("building", "sm")}${esc(l.nicho)}${l.cidade ? ` · ${esc(l.cidade)}` : ""}</span>` : ""}
           ${l.email ? `<span>${ic("mail", "sm")}${esc(l.email)}</span>` : ""}
@@ -7734,6 +7766,11 @@ async function carregarAutomacao() {
     f.calendly.value = a.calendly ?? "";
     f.nichos.value = [...new Set((a.buscas ?? []).map((b) => b.nicho))].join("\n");
     f.cidades.value = [...new Set((a.buscas ?? []).flatMap((b) => b.cidades))].join("\n");
+    f.idiomaExterior.value = a.idiomaExterior === "en" ? "en" : "local";
+    api("/api/internacional").then((r) => {
+      f.ajusteExterior.value = r.ajustePct;
+      $("#auto-cotacao").textContent = `Cotação${r.cotacao.data ? ` de ${new Date(`${r.cotacao.data}T12:00:00`).toLocaleDateString("pt-BR")}` : ""}: R$ 1 = € ${r.cotacao.EUR.toFixed(3)} = US$ ${r.cotacao.USD.toFixed(3)}. Hoje, R$ 4.500 viram ${r.exemplo.EUR} ou ${r.exemplo.USD}.`;
+    }).catch(() => {});
     $("#auto-status").innerHTML = a.ativo ? `<span class="pilula ok">Ligado</span>` : `<span class="pilula">Desligado</span>`;
     // Sem limite (o WhatsApp), só a contagem de hoje, sem barra.
     const barra = (nome, h) => `<div><div style="display:flex;justify-content:space-between;font-size:13.5px"><b>${nome}</b><span class="muted">${h.limite == null ? `${h.enviadas} hoje · sem limite por dia` : `${h.enviadas} de ${h.limite} hoje`}</span></div>
@@ -7764,8 +7801,9 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
       testarRamos: f.testarRamos.checked,
       metaEmail: f.metaEmail.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,
-      calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value,
+      calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value, idiomaExterior: f.idiomaExterior.value,
     }) });
+    await api("/api/internacional", { method: "PUT", body: JSON.stringify({ ajustePct: f.ajusteExterior.value || 0 }) });
     await iniciar();
     avisar(f.ativo.checked ? "Funil automático ligado. A próxima rodada começa em até 10 minutos." : "Automação salva.", "ok", 6000);
   } catch (e) {

@@ -61,6 +61,7 @@ import { previsaoDoFollowup, registrosDeFollowup } from "./respostas/followup.js
 import { fotoDoLead } from "./respostas/fotos.js";
 import { enviarParaNumero, rascunhoParaNumero } from "./respostas/conversarComNumero.js";
 import { lerRamos } from "./descoberta/ramos.js";
+import * as internacional from "./internacional.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -781,10 +782,11 @@ app.post("/api/diagnostico", (req, res) => {
 
 // Busca no Google Maps pelo painel: mostra o resultado sem salvar.
 app.post("/api/maps/buscar", async (req, res) => {
-  const { nicho, cidade, quantidade } = req.body ?? {};
+  const { nicho, cidade, quantidade, pais = "BR", idioma = "local" } = req.body ?? {};
   if (!nicho?.trim() || !cidade?.trim()) return res.status(400).json({ erro: "Informe o segmento e a cidade" });
+  if (!internacional.PAISES[pais]) return res.status(400).json({ erro: "País não atendido" });
   try {
-    res.json(await pipeline.buscarNoMaps(nicho.trim(), cidade.trim(), quantidade));
+    res.json(await pipeline.buscarNoMaps(nicho.trim(), cidade.trim(), quantidade, { pais, idioma: idioma === "en" ? "en" : "local" }));
   } catch (e) {
     res.status(502).json({ erro: e.message });
   }
@@ -1007,9 +1009,31 @@ app.post("/api/contadores/capturar", async (req, res) => {
 });
 
 app.post("/api/maps/capturar", async (req, res) => {
-  const { empresas, nicho, cidade } = req.body ?? {};
+  const { empresas, nicho, cidade, pais = "BR", idioma = "local" } = req.body ?? {};
   if (!Array.isArray(empresas) || !empresas.length) return res.status(400).json({ erro: "Selecione ao menos uma empresa" });
-  res.json(await pipeline.capturarDoMaps(empresas.slice(0, 100), String(nicho ?? ""), String(cidade ?? "")));
+  if (!internacional.PAISES[pais]) return res.status(400).json({ erro: "País não atendido" });
+  // Fora do Brasil, a cidade fica com o país junto ("Lisboa, Portugal"), que é o que a IA lê.
+  const semPais = internacional.cidadeEPais(String(cidade ?? "")).pais === "BR";
+  const nomeDaCidade = pais !== "BR" && semPais ? `${String(cidade ?? "").trim()}, ${internacional.PAISES[pais].nome}` : String(cidade ?? "");
+  res.json(await pipeline.capturarDoMaps(empresas.slice(0, 100), String(nicho ?? ""), nomeDaCidade, { pais, idioma: idioma === "en" ? "en" : "local" }));
+});
+
+// Empresas de fora do Brasil: os países, a cotação do dia e o ajuste do preço lá fora.
+app.get("/api/internacional", async (req, res) => {
+  const [cotacao, conf] = await Promise.all([internacional.cotacoes(), internacional.configInternacional()]);
+  const exemplo = (moeda) => internacional.converterValores("R$ 4.500", { moeda, idioma: moeda === "EUR" ? "pt-PT" : "en-US", taxa: cotacao[moeda], ajustePct: conf.ajustePct });
+  res.json({
+    paises: Object.entries(internacional.PAISES).map(([codigo, p]) => ({ codigo, nome: p.nome, moeda: p.moeda, idioma: internacional.nomeDoIdioma(p.idioma) })),
+    cotacao, ...conf, exemplo: { EUR: exemplo("EUR"), USD: exemplo("USD") },
+  });
+});
+
+app.put("/api/internacional", async (req, res) => {
+  try {
+    res.json(await internacional.gravarConfigInternacional(req.body ?? {}));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
 });
 
 /** O que a empresa vai receber de fato, com o rodapé que é adicionado no envio. */
@@ -1017,7 +1041,7 @@ function prepararMensagem({ token, ...m }, modo) {
   // O primeiro direct do Instagram sai sempre pela sua mão: o painel abre a conversa com a empresa.
   const directManual = m.canal === "instagram" && m.tipo !== "resposta";
   const automatico = !directManual && (m.canal !== "whatsapp" || modo !== "manual");
-  const rodape = m.tipo === "resposta" || m.canal === "instagram" ? "" : m.canal === "email" ? rodapeDescadastro(token) : RODAPE_WHATSAPP;
+  const rodape = m.tipo === "resposta" || m.canal === "instagram" ? "" : m.canal === "email" ? rodapeDescadastro(token, m.idioma) : RODAPE_WHATSAPP;
   return {
     ...m,
     oportunidades: JSON.parse(m.oportunidades || "[]"),
@@ -1421,6 +1445,8 @@ app.put("/api/config/automacao", async (req, res) => {
     buscarNoGoogleAds: b.buscarNoGoogleAds !== false,
     buscarContadores: b.buscarContadores !== false,
     testarRamos: b.testarRamos !== false,
+    // Empresas de fora do Brasil (cidade com o país no fim): a IA fala no idioma de lá ou em inglês.
+    idiomaExterior: b.idiomaExterior === "en" ? "en" : "local",
     buscas: nichos.length && cidades.length ? nichos.map((nicho) => ({ nicho, cidades })) : null,
   };
   await db.gravarConfig("automacao", novo);

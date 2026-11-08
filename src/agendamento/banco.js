@@ -11,9 +11,12 @@ const TEMPO_LIMITE_MS = 290_000;
 const JOBS = [
   // A rodada completa: minuto 3, 13, 23... das 9h às 20h UTC (6h às 17h53 em Brasília), segunda a sexta.
   { nome: NOME_JOB, agenda: "3-59/10 9-20 * * 1-5", tarefa: "envios" },
-  // A cada minuto do horário comercial (9h às 17h59 em Brasília): a próxima empresa nova, ou a
-  // etapa 2 ou 3 do WhatsApp, sai assim que termina o intervalo de 5 a 12 minutos desde a anterior.
-  { nome: "prospecta-ia-empresas-novas", agenda: "* 12-20 * * 1-5", tarefa: "novas" },
+  // A cada minuto: a próxima empresa nova, ou a etapa 2 ou 3 do WhatsApp, sai assim que termina o intervalo
+  // de 5 a 12 minutos desde a anterior. Das 7h às 01h59 UTC, para cobrir o horário comercial do Brasil, da
+  // Europa (a partir das 8h de Lisboa) e dos Estados Unidos (até as 17h59 da Califórnia); cada mensagem só
+  // sai no horário comercial do fuso da empresa, e fora do horário daqui a chamada termina na hora se não
+  // houver mensagem para fora do Brasil.
+  { nome: "prospecta-ia-empresas-novas", agenda: "* 0-1,7-23 * * 1-6", tarefa: "novas" },
   // A cada 15 minutos, todos os dias: cria o post de conteúdo do dia no horário escolhido.
   { nome: "prospecta-ia-conteudo", agenda: "*/15 * * * *", tarefa: "conteudo" },
   // A cada 2 minutos, todos os dias: as respostas da IA no direct do Instagram (a Meta só aceita até 24 h depois).

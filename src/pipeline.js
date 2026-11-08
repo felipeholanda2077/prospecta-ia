@@ -12,6 +12,7 @@ import { escolherAbordagem } from "./ia/abordagens.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR, variantesWhatsappBR } from "./analise/telefone.js";
+import { PAISES, cidadeEPais, dadosDoPais, ehExterior, segmentoNoIdioma, telefoneInternacional, podeSerCelular } from "./internacional.js";
 import { contatosLigados } from "./respostas/contatoNovo.js";
 import { gerarSequencia, escreverDirectDeProspeccao } from "./ia/proposta.js";
 import { enviarEmail, explicarErroEmail, enviarNotificacao } from "./envio/email.js";
@@ -155,18 +156,19 @@ async function avisarWhatsappDesconectado(modo) {
 
 // ---------- Datas e horário comercial ----------
 
-function partesNoFuso(data) {
+// `fuso`: o da empresa de fora do Brasil (o horário comercial é o de lá); sem ele, o do sistema.
+function partesNoFuso(data, fuso = config.timezone) {
   return Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", { timeZone: config.timezone, hour: "numeric", hourCycle: "h23", weekday: "short" })
+    new Intl.DateTimeFormat("en-US", { timeZone: fuso || config.timezone, hour: "numeric", hourCycle: "h23", weekday: "short" })
       .formatToParts(data)
       .map((p) => [p.type, p.value])
   );
 }
 
-const ehFimDeSemana = (data) => ["Sat", "Sun"].includes(partesNoFuso(data).weekday);
+const ehFimDeSemana = (data, fuso) => ["Sat", "Sun"].includes(partesNoFuso(data, fuso).weekday);
 
-export function dentroDoHorario(limites, agora = new Date()) {
-  const partes = partesNoFuso(agora);
+export function dentroDoHorario(limites, agora = new Date(), fuso = config.timezone) {
+  const partes = partesNoFuso(agora, fuso);
   const hora = Number(partes.hour);
   if (limites.somenteDiasUteis && ["Sat", "Sun"].includes(partes.weekday)) return false;
   return hora >= limites.horarioComercial.inicio && hora < limites.horarioComercial.fim;
@@ -246,6 +248,11 @@ export async function canalDoWhatsapp(m) {
   };
   const pelaOficial = async () => ({ modo: "oficial", numeroId: (await numeroOficialParaEnviar(m))?.id ?? null });
   if (!oficial) return web ? pelaWeb() : { modo: "manual", numeroId: null };
+  // Empresa de fora do Brasil não começa pela API oficial: o primeiro contato lá é o modelo aprovado, em português.
+  const doLeadAntes = m.numero_wa_lead !== undefined ? m.numero_wa_lead : (await db.buscarLead(m.lead_id))?.numero_wa;
+  if (m.pais && m.pais !== "BR" && !ehNumeroOficial(doLeadAntes)) {
+    return web ? pelaWeb() : { motivo: "empresa de fora do Brasil: a API oficial só começa a conversa com o modelo aprovado, em português; conecte um número pela UAZap" };
+  }
   if (!web) return pelaOficial();
 
   const doLead = m.numero_wa_lead !== undefined ? m.numero_wa_lead : (await db.buscarLead(m.lead_id))?.numero_wa;
@@ -275,9 +282,9 @@ export async function canalDoWhatsapp(m) {
 }
 
 /** Minutos que faltam para o fim do horário comercial de hoje (negativo depois dele). */
-export function minutosAteOFim(limites, agora = new Date()) {
+export function minutosAteOFim(limites, agora = new Date(), fuso = config.timezone) {
   const p = Object.fromEntries(
-    new Intl.DateTimeFormat("en-US", { timeZone: config.timezone, hour: "numeric", minute: "numeric", hourCycle: "h23" })
+    new Intl.DateTimeFormat("en-US", { timeZone: fuso || config.timezone, hour: "numeric", minute: "numeric", hourCycle: "h23" })
       .formatToParts(agora)
       .map((x) => [x.type, x.value])
   );
@@ -285,13 +292,13 @@ export function minutosAteOFim(limites, agora = new Date()) {
 }
 
 /** Início do horário comercial do próximo dia útil (com alguns minutos de folga, como uma pessoa; sem `folga`, na hora certa). */
-export function inicioDoProximoDiaUtil(limites, agora = new Date(), { folga = true } = {}) {
-  const minutosAgora = limites.horarioComercial.fim * 60 - minutosAteOFim(limites, agora);
+export function inicioDoProximoDiaUtil(limites, agora = new Date(), { folga = true, fuso = config.timezone } = {}) {
+  const minutosAgora = limites.horarioComercial.fim * 60 - minutosAteOFim(limites, agora, fuso);
   const inicio = limites.horarioComercial.inicio * 60;
   // Antes do expediente, o "próximo início" ainda é hoje.
   const minutos = (minutosAgora < inicio ? 0 : 24 * 60) - minutosAgora + inicio + (folga ? Math.floor(Math.random() * 30) : 0);
   const d = new Date(Math.floor(agora.getTime() / 60_000) * 60_000 + minutos * 60_000);
-  while (limites.somenteDiasUteis !== false && ehFimDeSemana(d)) d.setTime(d.getTime() + 24 * 3600 * 1000);
+  while (limites.somenteDiasUteis !== false && ehFimDeSemana(d, fuso)) d.setTime(d.getTime() + 24 * 3600 * 1000);
   return d;
 }
 
@@ -300,19 +307,19 @@ export function inicioDoProximoDiaUtil(limites, agora = new Date(), { folga = tr
  * encaixada até o fim do expediente (se não couber, no começo do próximo dia útil).
  * No e-mail, 1 a 2 dias úteis depois, no mesmo horário, para não lotar a caixa da empresa.
  */
-export function horarioDaProximaEtapa(etapaEnviada, campanha, agora = new Date(), canal = "whatsapp") {
+export function horarioDaProximaEtapa(etapaEnviada, campanha, agora = new Date(), canal = "whatsapp", fuso = config.timezone) {
   const { limites } = campanha;
   if (canal === "email") {
     const dias = campanha.cadencia?.diasEntreEmails ?? DIAS_ENTRE_EMAILS;
-    return somarDiasUteis(agora, dias[etapaEnviada - 1] ?? 2);
+    return somarDiasUteis(agora, dias[etapaEnviada - 1] ?? 2, fuso);
   }
   const horas = campanha.cadencia?.horasEntreEtapas ?? HORAS_ENTRE_ETAPAS;
   const ideal = (horas[etapaEnviada - 1] ?? 2) * 60 * (0.85 + Math.random() * 0.15);
   const faltam = 3 - etapaEnviada;
-  const cabe = (minutosAteOFim(limites, agora) - MARGEM_FIM_MIN) / faltam;
+  const cabe = (minutosAteOFim(limites, agora, fuso) - MARGEM_FIM_MIN) / faltam;
   const intervalo = Math.min(ideal, cabe);
-  if (dentroDoHorario(limites, agora) && intervalo >= INTERVALO_MINIMO_MIN) return new Date(agora.getTime() + intervalo * 60_000);
-  return inicioDoProximoDiaUtil(limites, agora);
+  if (dentroDoHorario(limites, agora, fuso) && intervalo >= INTERVALO_MINIMO_MIN) return new Date(agora.getTime() + intervalo * 60_000);
+  return inicioDoProximoDiaUtil(limites, agora, { fuso });
 }
 
 /** Etapas de e-mail que ficaram para o mesmo dia (regra antiga) passam para 1 a 2 dias úteis depois da anterior. */
@@ -328,15 +335,15 @@ export async function reagendarEmailsDoMesmoDia(campanha) {
 }
 
 /** Ainda dá tempo de começar uma sequência e as 3 etapas saírem hoje? */
-export const daTempoDeSequenciaHoje = (limites, agora = new Date()) => minutosAteOFim(limites, agora) >= TEMPO_PARA_SEQUENCIA_MIN;
+export const daTempoDeSequenciaHoje = (limites, agora = new Date(), fuso = config.timezone) => minutosAteOFim(limites, agora, fuso) >= TEMPO_PARA_SEQUENCIA_MIN;
 
 /** Soma dias úteis (segunda a sexta) mantendo o horário. */
-export function somarDiasUteis(data, dias) {
+export function somarDiasUteis(data, dias, fuso = config.timezone) {
   const resultado = new Date(data);
   let faltam = dias;
   while (faltam > 0) {
     resultado.setTime(resultado.getTime() + 24 * 3600 * 1000);
-    if (!ehFimDeSemana(resultado)) faltam--;
+    if (!ehFimDeSemana(resultado, fuso)) faltam--;
   }
   return resultado;
 }
@@ -351,9 +358,9 @@ export async function descobrir(campanha, { ate = prazoPadrao() } = {}) {
       if (Date.now() > ate) return { novas, interrompido: true };
       const consulta = `${nicho} em ${cidade}`;
       try {
-        const empresas = await buscarEmpresas(consulta, campanha.limites.maxEmpresasPorBusca);
-        for (const e of empresas) if (await db.inserirLead({ ...e, nicho, cidade })) novas++;
-        log(`🔎 "${consulta}": ${empresas.length} encontradas`);
+        const r = await buscarEInserir({ nicho, cidade }, campanha, campanha.limites.maxEmpresasPorBusca);
+        novas += r.novas;
+        log(`🔎 "${r.consulta}": ${r.encontradas} encontradas`);
       } catch (e) {
         log(`⚠️  Falha na busca "${consulta}": ${e.message}`);
       }
@@ -364,6 +371,23 @@ export async function descobrir(campanha, { ate = prazoPadrao() } = {}) {
 }
 
 /** Todas as combinações segmento × cidade da campanha, na ordem da rotação. */
+/**
+ * Busca no Google Maps e salva as empresas novas. Cidade com país no fim ("Lisboa, Portugal", "Miami, EUA")
+ * procura naquele país, com o segmento no idioma de lá, e a empresa fica marcada com país, idioma e fuso.
+ */
+export async function buscarEInserir({ nicho, cidade }, campanha, maximo = 60, { ordenar = false } = {}) {
+  const { cidade: local, pais } = cidadeEPais(cidade);
+  const { consulta, opcoes } = await consultaDoMaps(nicho, local, pais);
+  let empresas = await buscarEmpresas(consulta, maximo, opcoes);
+  if (ordenar) empresas = ordenarPorPrioridade(empresas);
+  let novas = 0;
+  for (const e of empresas) {
+    const exterior = dadosDoPais(pais, campanha.automacao?.idiomaExterior, { endereco: e.endereco, cidade: local });
+    if (await db.inserirLead({ ...e, nicho, cidade, ...exterior })) novas++;
+  }
+  return { novas, encontradas: empresas.length, consulta, pais };
+}
+
 export function combinacoesDeBusca(campanha) {
   const fixas = campanha.buscas.flatMap(({ nicho, cidades }) => cidades.map((cidade) => ({ nicho, cidade })));
   // Os ramos que a IA está testando entram nas mesmas cidades (sem repetir um ramo que já é fixo).
@@ -389,8 +413,7 @@ export async function descobrirProxima(campanha, { tentativas = 3 } = {}) {
     const { nicho, cidade } = combinacoes[indice % combinacoes.length];
     indice++;
     try {
-      const empresas = ordenarPorPrioridade(await buscarEmpresas(`${nicho} em ${cidade}`, 60));
-      for (const e of empresas) if (await db.inserirLead({ ...e, nicho, cidade })) novas++;
+      novas += (await buscarEInserir({ nicho, cidade }, campanha, 60, { ordenar: true })).novas;
       feitas.push(`${nicho} em ${cidade}`);
       log(`🔎 Busca automática "${nicho} em ${cidade}": ${novas} novas`);
     } catch (e) {
@@ -399,12 +422,16 @@ export async function descobrirProxima(campanha, { tentativas = 3 } = {}) {
     }
   }
   await db.gravarEstado("busca_rotacao", indice % combinacoes.length);
-  const instagram = await descobrirNoInstagram(campanha, combinacoes[inicio % combinacoes.length]);
-  const cnpj = await descobrirPorCnpj(campanha, combinacoes[inicio % combinacoes.length]);
-  const anuncios = await descobrirNosAnuncios(campanha, combinacoes[inicio % combinacoes.length]);
-  const vagas = await descobrirNasVagas(campanha, combinacoes[inicio % combinacoes.length]);
-  const contadores = await descobrirContadores(campanha, combinacoes[inicio % combinacoes.length]);
-  const googleAds = await descobrirNoGoogleAds(campanha, combinacoes[inicio % combinacoes.length]);
+  // Instagram, CNPJ, anúncios, vagas, contadores e Google Ads só no Brasil: fora, a busca é no Google Maps.
+  const base = combinacoes[inicio % combinacoes.length];
+  const noBrasil = cidadeEPais(base.cidade).pais === "BR";
+  const soNoBrasil = (fazer) => (noBrasil ? fazer(campanha, base) : null);
+  const instagram = await soNoBrasil(descobrirNoInstagram);
+  const cnpj = await soNoBrasil(descobrirPorCnpj);
+  const anuncios = await soNoBrasil(descobrirNosAnuncios);
+  const vagas = await soNoBrasil(descobrirNasVagas);
+  const contadores = await soNoBrasil(descobrirContadores);
+  const googleAds = await soNoBrasil(descobrirNoGoogleAds);
   return {
     novas: novas + (instagram?.novas ?? 0) + (cnpj?.novas ?? 0) + (anuncios?.novas ?? 0) + (vagas?.novas ?? 0) + (contadores?.novas ?? 0) + (googleAds?.novas ?? 0),
     buscas: feitas, ...(googleAds ? { googleAds } : {}),
@@ -753,18 +780,31 @@ export function ordenarPorPrioridade(empresas) {
 }
 
 /** Busca no Google Maps pelo painel, sem salvar: mostra o resultado para você escolher quem capturar. */
-export async function buscarNoMaps(nicho, cidade, quantidade = 20) {
-  const empresas = await buscarEmpresas(`${nicho} em ${cidade}`, Math.min(Number(quantidade) || 20, 60));
+export async function buscarNoMaps(nicho, cidade, quantidade = 20, { pais = "BR", idioma = "local" } = {}) {
+  const { consulta, opcoes } = await consultaDoMaps(nicho, cidade, pais);
+  const empresas = await buscarEmpresas(consulta, Math.min(Number(quantidade) || 20, 60), opcoes);
   const capturados = await db.placeIdsCapturados(empresas.map((e) => e.place_id));
-  log(`🔎 Busca no painel "${nicho} em ${cidade}": ${empresas.length} empresas`);
+  log(`🔎 Busca no painel "${consulta}"${pais !== "BR" ? ` (${pais})` : ""}: ${empresas.length} empresas`);
   return ordenarPorPrioridade(
     empresas.map((e) => ({
       ...e,
       jaCapturado: capturados.has(e.place_id),
-      celular: ehCelularBR(e.telefone),
+      celular: pais === "BR" ? ehCelularBR(e.telefone) : podeSerCelular(e.telefone, pais),
       semSite: semSiteProprio(e.site),
+      ...(pais !== "BR" ? { ...dadosDoPais(pais, idioma, { endereco: e.endereco, cidade }), consulta } : {}),
     }))
   );
+}
+
+/**
+ * O texto da busca no Google Maps. No Brasil, "dentista em Osasco"; fora, o segmento no idioma de lá
+ * ("Zahnarzt Berlin"), procurando só naquele país.
+ */
+export async function consultaDoMaps(nicho, cidade, pais = "BR") {
+  if (!pais || pais === "BR" || !PAISES[pais]) return { consulta: `${nicho} em ${cidade}`, opcoes: {} };
+  const idiomaLocal = PAISES[pais].idioma;
+  const segmento = await segmentoNoIdioma(nicho, idiomaLocal);
+  return { consulta: `${segmento} ${cidade}`, opcoes: { pais, idioma: idiomaLocal.split("-")[0] } };
 }
 
 /** Busca no Instagram pelo painel, sem salvar: mostra os perfis comerciais para você escolher. */
@@ -811,10 +851,11 @@ export async function capturarDoInstagram(empresas, nicho, cidade) {
 }
 
 /** Salva como leads as empresas escolhidas no painel. */
-export async function capturarDoMaps(empresas, nicho, cidade) {
+export async function capturarDoMaps(empresas, nicho, cidade, { pais = "BR", idioma = "local" } = {}) {
   let novas = 0;
   for (const e of empresas) {
     if (!e?.place_id || !e?.nome) continue;
+    const exterior = pais && pais !== "BR" && PAISES[pais] ? dadosDoPais(pais, idioma, { endereco: e.endereco, cidade }) : {};
     const lead = {
       place_id: String(e.place_id),
       nome: String(e.nome),
@@ -827,10 +868,11 @@ export async function capturarDoMaps(empresas, nicho, cidade) {
       nicho,
       cidade,
       origem: "maps",
+      ...exterior,
     };
     if (await db.inserirLead(lead)) novas++;
   }
-  log(`📍 ${novas} empresas capturadas do Google Maps`);
+  log(`📍 ${novas} empresas capturadas do Google Maps${pais && pais !== "BR" ? ` (${pais})` : ""}`);
   return { novas };
 }
 
@@ -843,7 +885,8 @@ export async function capturarDoMaps(empresas, nicho, cidade) {
  */
 export async function descobrirWhatsapp(lead, analise) {
   const doSite = analise.whatsapp ?? null;
-  const telefone = normalizarTelefoneBR(lead.telefone);
+  const exterior = ehExterior(lead);
+  const telefone = exterior ? telefoneInternacional(lead.telefone, lead.pais) : normalizarTelefoneBR(lead.telefone);
   const candidatos = [doSite, telefone].filter(Boolean);
   if (!candidatos.length) return { whatsapp: null, whatsapp_status: null };
 
@@ -859,7 +902,8 @@ export async function descobrirWhatsapp(lead, analise) {
     }
   }
   if (doSite) return { whatsapp: doSite, whatsapp_status: "site" };
-  return { whatsapp: telefone, whatsapp_status: ehCelularBR(telefone) ? "celular" : "fixo" };
+  const celular = exterior ? podeSerCelular(`+${telefone}`, lead.pais) : ehCelularBR(telefone);
+  return { whatsapp: telefone, whatsapp_status: celular ? "celular" : "fixo" };
 }
 
 const WEBMAIL = /^(gmail|googlemail|hotmail|outlook|live|msn|yahoo|ymail|icloud|me|uol|bol|terra|ig|globo|globomail|zipmail|r7|aol|protonmail|proton)\.(com|com\.br|me)(\.br)?$/i;
@@ -903,7 +947,8 @@ export async function analisar({ ate = prazoPadrao(), limite = 1000 } = {}) {
       analise.whatsapp ??= insta.contatos.whatsapp;
     }
     // Avaliações recentes do Google sem resposta da empresa (pela SerpApi, dentro da cota do mês).
-    const avaliacoes = await avaliacoesDoGoogle(lead).catch((e) => { log(`⚠️  Avaliações de ${lead.nome}: ${e.message}`); return null; });
+    // (Fora do Brasil, não: a leitura das reclamações é feita em português.)
+    const avaliacoes = ehExterior(lead) ? null : await avaliacoesDoGoogle(lead).catch((e) => { log(`⚠️  Avaliações de ${lead.nome}: ${e.message}`); return null; });
     if (avaliacoes) analise.avaliacoes = avaliacoes;
     let oportunidades = identificarOportunidades(analise, lead.nicho);
     // Empresa com site bom não é descartada: a abordagem muda para automação e sistema.
@@ -1109,14 +1154,14 @@ async function registrarEnvio(m, campanha, messageId = null, numeroId = null) {
   if (numeroId && m.numero_wa_lead !== numeroId) await db.atualizarLead(m.lead_id, { numero_wa: numeroId });
   if (m.tipo === "resposta") return;
   await db.atualizarLead(m.lead_id, { status: "contatado" });
-  if (m.etapa < 3) await db.agendarProximaEtapa(m, horarioDaProximaEtapa(m.etapa, campanha, new Date(), m.canal).toISOString());
+  if (m.etapa < 3) await db.agendarProximaEtapa(m, horarioDaProximaEtapa(m.etapa, campanha, new Date(), m.canal, m.fuso || config.timezone).toISOString());
 }
 
 /**
  * Envia uma mensagem aprovada, SOMENTE em horário comercial e dentro do limite diário.
  * Fora disso, ela fica na fila e sai na próxima janela. Retorna { enviada, naFila, motivo }.
  */
-export async function enviarMensagem(m, campanha) {
+export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
   if (m.status !== "aprovada") return { enviada: false, motivo: `mensagem está como ${m.status}` };
   // A Meta não deixa a API mandar o primeiro direct: quem envia é você, pelo botão do painel.
   if (m.canal === "instagram" && m.tipo !== "resposta") return { enviada: false, manual: true, motivo: "direct do Instagram: envie pelo botão Abrir direct" };
@@ -1129,7 +1174,7 @@ export async function enviarMensagem(m, campanha) {
     return { enviada: false, motivo: bloqueio };
   }
   // O direct do Instagram responde a qualquer hora: a Meta só aceita até 24 h depois da mensagem da pessoa.
-  if (m.canal !== "instagram" && !dentroDoHorario(campanha.limites)) {
+  if (m.canal !== "instagram" && !dentroDoHorario(campanha.limites, agora, fusoDaMensagem(m))) {
     return { enviada: false, naFila: true, motivo: "fora do horário comercial; sai no próximo horário de envio" };
   }
   if (m.canal === "whatsapp" && (await whatsappDesconectado(modo))) {
@@ -1170,6 +1215,7 @@ export async function enviarMensagem(m, campanha) {
         corpo: m.corpo,
         token: m.token,
         respondendoA: await threadDoEmail(m),
+        idioma: m.idioma,
       });
     } else if (m.canal === "instagram") {
       messageId = await enviarDirect({ para: m.destino, comentarioId: m.em_resposta_a, texto: m.corpo });
@@ -1561,9 +1607,12 @@ export async function previsaoDaFila(campanha, agora = new Date(), { mensagens =
 }
 
 /** Rodadas de 10 minutos que ainda restam no horário comercial de hoje. */
-export function rodadasRestantesHoje(limites, agora = new Date(), folgaMin = 0) {
-  return Math.max(1, Math.floor((minutosAteOFim(limites, agora) - folgaMin) / 10));
+export function rodadasRestantesHoje(limites, agora = new Date(), folgaMin = 0, fuso = config.timezone) {
+  return Math.max(1, Math.floor((minutosAteOFim(limites, agora, fuso) - folgaMin) / 10));
 }
+
+/** O fuso do horário comercial de uma mensagem: o da empresa de fora do Brasil, ou o do sistema. */
+export const fusoDaMensagem = (m) => (m?.pais && m.pais !== "BR" && m.fuso) || config.timezone;
 
 /**
  * O que sai numa chamada de envio sem esperar vez: as respostas da conversa e as etapas 2 e 3 de e-mail
@@ -1581,12 +1630,19 @@ export function conversaDaChamada(enviaveis, { somenteDaVez = false } = {}) {
  * Empresas novas e etapas 2 e 3 do WhatsApp saem uma por vez em cada número, com 5 a 12 minutos entre elas
  * no mesmo número (o agendador do banco chama `somenteDaVez` a cada minuto para respeitar esse intervalo).
  */
-export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false, somenteDaVez = false } = {}) {
+export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false, somenteDaVez = false, agora = new Date() } = {}) {
   const { limites } = campanha;
-  if (!dentroDoHorario(limites)) {
+  // Fora do horário daqui, só podem sair as mensagens para empresas de fora do Brasil (no horário de lá).
+  const aquiNoHorario = dentroDoHorario(limites, agora);
+  const foraDoHorario = () => {
     if (!somenteDaVez) log("📭 Fora do horário comercial; nada enviado");
     return { enviadas: 0, motivo: "fora do horário comercial" };
-  }
+  };
+  if (!aquiNoHorario && !(await db.temFilaNoExterior())) return foraDoHorario();
+  // Cada mensagem sai no horário comercial do fuso da empresa (o daqui, ou o do país dela).
+  const todas = ordenarFilaDeEnvio(await db.filaDeEnvio(400));
+  const noHorario = todas.filter((m) => m.canal === "instagram" || dentroDoHorario(limites, agora, fusoDaMensagem(m)));
+  if (!aquiNoHorario && !noHorario.some((m) => m.canal !== "instagram")) return foraDoHorario();
 
   const modo = await modoWhatsapp();
   // Manual ou desconectado: o WhatsApp fica na fila e só o e-mail sai nesta rodada.
@@ -1599,18 +1655,20 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   // A meta do dia é de empresas novas (etapa 1). No WhatsApp ela é espalhada até a hora em
   // que ainda dá para as 3 etapas saírem hoje; no e-mail, até o fim do expediente (as etapas
   // seguintes saem em outros dias). Etapas 2 e 3 e respostas da conversa não entram na conta.
+  const fusos = [...new Set([...(aquiNoHorario ? [config.timezone] : []), ...noHorario.map(fusoDaMensagem)])];
   const vagas = {};
   for (const canal of ["email", "whatsapp"]) {
-    const iniciaSequencias = canal === "email" || daTempoDeSequenciaHoje(limites);
-    const restante = iniciaSequencias
+    const comTempo = fusos.filter((f) => canal === "email" || daTempoDeSequenciaHoje(limites, agora, f));
+    const restante = comTempo.length
       ? (await limiteDoDia(campanha, canal)) - (await db.enviadasHoje(canal, { primeiroContato: true }))
       : 0;
-    const rodadas = rodadasRestantesHoje(limites, new Date(), canal === "email" ? 0 : TEMPO_PARA_SEQUENCIA_MIN);
+    const rodadas = Math.max(1, ...comTempo.map((f) => rodadasRestantesHoje(limites, agora, canal === "email" ? 0 : TEMPO_PARA_SEQUENCIA_MIN, f)));
     vagas[canal] = distribuir ? Math.min(restante, Math.max(LOTE_POR_RODADA, Math.ceil(restante / rodadas))) : restante;
   }
   const vagasDaRodada = { ...vagas };
-  const todas = ordenarFilaDeEnvio(await db.filaDeEnvio(400));
-  const enviaveis = todas.filter((m) => m.canal !== "whatsapp" || !semWhatsapp);
+  // Empresa nova no WhatsApp só começa se as 3 etapas ainda couberem hoje no horário dela.
+  const enviaveis = noHorario.filter((m) => (m.canal !== "whatsapp" || !semWhatsapp)
+    && !(m.canal === "whatsapp" && m.tipo !== "resposta" && m.etapa <= 1 && !daTempoDeSequenciaHoje(limites, agora, fusoDaMensagem(m))));
   const conversa = conversaDaChamada(enviaveis, { somenteDaVez });
   const naFila = { email: 0, whatsapp: 0, instagram: 0 };
   for (const m of todas) naFila[m.canal]++;
@@ -1628,7 +1686,7 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   const saiu = new Set();
   const porCanal = { email: 0, whatsapp: 0, instagram: 0 };
   for (const [i, m] of fila.entries()) {
-    const r = await enviarMensagem(m, campanha);
+    const r = await enviarMensagem(m, campanha, { agora });
     if (r.enviada) {
       enviadas++;
       porCanal[m.canal]++;
@@ -1683,7 +1741,8 @@ export async function escolherVezes(enviaveis, vagas, pistas, campanha) {
   for (const p of pistas) enviadasHoje.set(p, p.numeroId ? await db.enviadasHoje("whatsapp", { primeiroContato: true, numero: p.numeroId }) : 0);
   for (const p of [...pistas].sort((a, b) => enviadasHoje.get(a) - enviadasHoje.get(b))) {
     if (decididas.has(p.chave)) continue;
-    const lead = novas.find((m) => !leads.has(m.lead_id) && restam[m.canal] > 0)?.lead_id;
+    // Número da API oficial não começa conversa com empresa de fora do Brasil (o modelo aprovado é em português).
+    const lead = novas.find((m) => !leads.has(m.lead_id) && restam[m.canal] > 0 && !(p.modo === "oficial" && m.pais && m.pais !== "BR"))?.lead_id;
     if (lead === undefined) break;
     if (!(await reservar(p.chave))) continue;
     const mensagens = novas.filter((m) => m.lead_id === lead && restam[m.canal] > 0);

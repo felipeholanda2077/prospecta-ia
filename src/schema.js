@@ -351,6 +351,10 @@ ALTER TABLE leads ADD COLUMN IF NOT EXISTS agente_delegou_em timestamptz;
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS responsavel text;
 -- Abordagem da primeira mensagem (teste A/B): elogio, pergunta ou responsavel.
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS abordagem text;
+-- Empresa de fora do Brasil: país (PT, US...), idioma em que a IA fala com ela e fuso do horário comercial de lá.
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS pais text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS idioma text;
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS fuso text;
 CREATE INDEX IF NOT EXISTS idx_leads_agente ON leads(agente_id) WHERE agente_id IS NOT NULL;
 -- Logins do CRM externo de cada agente (/crm): quem entra vê só as conversas desse agente.
 CREATE TABLE IF NOT EXISTS agente_acessos (

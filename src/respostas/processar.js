@@ -7,6 +7,7 @@ import { linkAgendamento, horariosLivres } from "../agenda/calendly.js";
 import { momentoDaPrevia, previaSoNaHora } from "../vendas/previa.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
 import { lerApresentacao } from "./apresentacao.js";
+import { ehExterior } from "../internacional.js";
 import { responderComoAgente } from "../ia/agente.js";
 import { fontesDoAgente, PREFIXO_DELEGOU } from "./agentes.js";
 
@@ -216,7 +217,8 @@ function ajustarResposta(c, historico, texto) {
 async function pensarResposta(contexto, { classificar, apresentar, enviarSlides = escreverEnvioDaApresentacao }) {
   const c = await classificar(contexto);
   // Pediu uma apresentação comercial (material, portfólio, algo para ver): vai o link dos slides, sem valores.
-  if (pediuApresentacaoComercial(contexto.texto) && !c.precisa_humano && !c.robo && !c.encerrar && !["recusa", "descadastro"].includes(c.classificacao)
+  // (Os slides são em português e em reais: para empresa de fora do Brasil, a IA explica na conversa.)
+  if (!ehExterior(contexto.lead) && pediuApresentacaoComercial(contexto.texto) && !c.precisa_humano && !c.robo && !c.encerrar && !["recusa", "descadastro"].includes(c.classificacao)
       && !apresentacaoJaEnviada(contexto.historico)) {
     const link = linkDaApresentacao(contexto.lead);
     let mensagem = await enviarSlides({ ...contexto, link }).catch(() => "");
@@ -315,7 +317,8 @@ export async function registrarResposta({
       const contexto = {
         texto: limpo, assunto, lead, historico, campanha, canal,
         linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal),
-        horarios: await horariosLivres(campanha.automacao?.calendly),
+        // Fora do Brasil, vai só o link do Calendly (ele mostra os horários no fuso de quem abre).
+        horarios: ehExterior(lead) ? [] : await horariosLivres(campanha.automacao?.calendly),
         apresentacao: await lerApresentacao(),
         linkPrevia: momentoDaPrevia({ lead, historico, texto: limpo }),
       };
@@ -458,7 +461,7 @@ export async function continuarComIA(respostaId, campanha, {
   const historico = await db.historicoConversa(lead.id);
   const contexto = {
     texto: r.texto, assunto: r.assunto, lead, historico, campanha, canal: r.canal, linkPrevia: momentoDaPrevia({ lead, historico, texto: r.texto }),
-    linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, r.canal), horarios: await horariosLivres(campanha.automacao?.calendly),
+    linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, r.canal), horarios: ehExterior(lead) ? [] : await horariosLivres(campanha.automacao?.calendly),
     apresentacao: await lerApresentacao(),
     nota: String(nota ?? "").trim().slice(0, 500),
   };

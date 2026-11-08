@@ -24,7 +24,12 @@ export function linkDescadastro(token) {
   return `${config.painel.urlPublica}/descadastrar/${token}`;
 }
 
-export function rodapeDescadastro(token) {
+export function rodapeDescadastro(token, idioma = null) {
+  // Empresa de fora do Brasil: o rodapé vai em inglês.
+  if (idioma && !String(idioma).startsWith("pt")) {
+    return `\n\n—\nYou received this message because your business contact details are publicly listed online. ` +
+      `If you would rather not hear from us again, reply "STOP" or visit: ${linkDescadastro(token)}`;
+  }
   return (
     `\n\n—\nVocê recebeu esta mensagem porque o contato da sua empresa está publicado na internet. ` +
     `Se não quiser receber novos contatos, responda "SAIR" ou acesse: ${linkDescadastro(token)}`
@@ -41,7 +46,7 @@ function novoMessageId() {
  * `respondendoA` (Message-ID) faz o follow-up aparecer na mesma conversa do e-mail original.
  * Retorna o Message-ID gerado, usado depois para reconhecer as respostas.
  */
-export async function enviarEmail({ para, assunto, corpo, token, respondendoA = null }) {
+export async function enviarEmail({ para, assunto, corpo, token, respondendoA = null, idioma = null }) {
   if (config.modoTeste.email) {
     assunto = `[TESTE → ${para}] ${assunto}`;
     para = config.modoTeste.email;
@@ -60,7 +65,7 @@ export async function enviarEmail({ para, assunto, corpo, token, respondendoA = 
     from: config.smtp.remetente,
     to: para,
     subject: assunto,
-    text: corpo + rodapeDescadastro(token),
+    text: corpo + rodapeDescadastro(token, idioma),
     messageId,
     ...(respondendoA ? { inReplyTo: respondendoA, references: [respondendoA] } : {}),
     headers: {

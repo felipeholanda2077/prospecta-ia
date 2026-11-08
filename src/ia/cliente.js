@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { config } from "../config.js";
+import { localizarParaEmpresa } from "../internacional.js";
 
 let client;
 
@@ -12,7 +13,9 @@ const temReserva = (modelo) => !/haiku/i.test(modelo);
  * Chama o Claude pedindo uma resposta em JSON no formato de `jsonSchema`
  * e valida o resultado com o schema Zod `zodSchema`.
  */
-export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort = "medium", modelo = config.claude.model, maxTokens = 16000, limiteMs, tentativas }) {
+export async function gerarJson({ system, pedido, jsonSchema, zodSchema, effort = "medium", modelo = config.claude.model, maxTokens = 16000, limiteMs, tentativas, lead = null }) {
+  // Empresa de fora do Brasil: a IA escreve no idioma dela e os valores vão na moeda de lá.
+  if (lead) system = await localizarParaEmpresa(system, lead);
   if (!client && config.naVercel && !process.env.ANTHROPIC_API_KEY) {
     throw new Error("ANTHROPIC_API_KEY não configurada nas variáveis de ambiente da Vercel");
   }

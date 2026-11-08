@@ -38,6 +38,8 @@ export const jaOfereceuPrevia = (historico = []) => historico.some((h) => h.auto
  * sem ter dito que já tem site ou que não quer.
  */
 export function momentoDaPrevia({ lead, historico = [], texto = "" }) {
+  // A prévia do site é em português: não vai para empresa de fora do Brasil.
+  if (lead?.pais && lead.pais !== "BR") return "";
   if (!podeTerPrevia(lead) || jaOfereceuPrevia(historico)) return "";
   const dela = [...historico.filter((h) => h.autor === "lead").map((h) => h.texto ?? ""), texto ?? ""].join("\n");
   if (!FALA_DE_PRESENCA.test(dela) || JA_TEM_SITE.test(dela) || NAO_QUER.test(texto ?? "")) return "";

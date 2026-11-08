@@ -423,15 +423,16 @@ export async function descadastrar(contato, motivo = "pedido do contato") {
 const COLUNAS_LEAD = new Set([
   "nome", "nicho", "cidade", "endereco", "telefone", "whatsapp", "whatsapp_status", "email", "site", "maps_url",
   "avaliacao", "total_avaliacoes", "analise", "oportunidades", "status", "observacao", "instagram", "instagram_dados",
-  "numero_wa", "agente_id", "agente_delegou_em", "responsavel", "abordagem",
+  "numero_wa", "agente_id", "agente_delegou_em", "responsavel", "abordagem", "pais", "idioma", "fuso",
 ]);
 
 /** Insere a empresa se ainda não existir. Retorna true se for nova. */
 export async function inserirLead(lead) {
   const linhas = await q(
     `INSERT INTO leads (place_id, nome, nicho, cidade, endereco, telefone, site, maps_url,
-                        avaliacao, total_avaliacoes, origem, token, email, instagram, instagram_dados, responsavel, anuncio, vaga)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+                        avaliacao, total_avaliacoes, origem, token, email, instagram, instagram_dados, responsavel, anuncio, vaga,
+                        pais, idioma, fuso)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
      ON CONFLICT (place_id) DO NOTHING RETURNING id`,
     [
       lead.place_id, lead.nome, lead.nicho, lead.cidade, lead.endereco, lead.telefone, lead.site,
@@ -439,6 +440,8 @@ export async function inserirLead(lead) {
       crypto.randomBytes(16).toString("hex"), lead.email ?? null, lead.instagram ?? null,
       lead.instagram_dados ? JSON.stringify(lead.instagram_dados) : null, lead.responsavel ?? null,
       lead.anuncio ? JSON.stringify(lead.anuncio) : null, lead.vaga ? JSON.stringify(lead.vaga) : null,
+      lead.pais && lead.pais !== "BR" ? lead.pais : null, lead.pais && lead.pais !== "BR" ? lead.idioma ?? null : null,
+      lead.pais && lead.pais !== "BR" ? lead.fuso ?? null : null,
     ]
   );
   return linhas.length > 0;
@@ -596,7 +599,8 @@ export async function leadsParadosPorRobo() {
 
 const SELECT_MENSAGEM = `
   SELECT m.*, l.nome AS empresa, l.nicho, l.cidade, l.site, l.maps_url, l.token, l.oportunidades, l.whatsapp_status,
-         l.avaliacao, l.total_avaliacoes, l.status AS status_lead, l.numero_wa AS numero_wa_lead
+         l.avaliacao, l.total_avaliacoes, l.status AS status_lead, l.numero_wa AS numero_wa_lead,
+         l.pais, l.idioma, l.fuso
     FROM mensagens m JOIN leads l ON l.id = m.lead_id`;
 
 export async function mensagensPorStatus(status, limite = 1000) {
@@ -620,6 +624,15 @@ export async function proximaAgendadaNoCanal(canal) {
       WHERE m.status = 'aprovada' AND m.canal = $1 AND m.agendada_para > now() ORDER BY m.agendada_para LIMIT 1`,
     [canal]
   );
+}
+
+/** Há mensagem para empresa de fora do Brasil pronta para sair? (Fora do horário daqui, só elas podem sair.) */
+export async function temFilaNoExterior() {
+  return Boolean(await um(
+    `SELECT 1 AS ok FROM mensagens m JOIN leads l ON l.id = m.lead_id
+      WHERE m.status = 'aprovada' AND l.pais IS NOT NULL AND l.pais <> 'BR' AND m.canal <> 'instagram'
+        AND (m.agendada_para IS NULL OR m.agendada_para <= now()) LIMIT 1`
+  ));
 }
 
 export async function filaDeEnvio(limite = 100) {
@@ -931,7 +944,7 @@ export const vendasPagasRecentes = () => q(
 
 /** Quem demonstrou interesse e não encerrou a conversa, com o canal e o contato da resposta mais recente. */
 export const interessadosDaCampanha = () => q(
-  `SELECT DISTINCT ON (l.id) l.id, l.nome, l.token, l.email, l.whatsapp, r.canal, r.de, r.recebida_em,
+  `SELECT DISTINCT ON (l.id) l.id, l.nome, l.token, l.email, l.whatsapp, l.pais, r.canal, r.de, r.recebida_em,
           (SELECT max(x.recebida_em) FROM respostas x WHERE x.lead_id = l.id AND x.classificacao IS DISTINCT FROM 'automatica') AS ultima_resposta,
           (SELECT max(m.enviada_em) FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada') AS ultimo_envio
      FROM leads l JOIN respostas r ON r.lead_id = l.id AND r.classificacao IN ('interessado', 'quer_informacoes')

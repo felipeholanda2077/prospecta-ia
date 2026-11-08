@@ -201,7 +201,7 @@ Escreva a sequência.`;
  * Retorna `email` e `whatsapp` como listas na ordem das etapas.
  */
 export async function gerarSequencia(lead, oportunidades, campanha, { abordagem = ABORDAGEM_PADRAO } = {}) {
-  const r = await gerarJson({
+  const r = await gerarJson({ lead,
     system: montarSistema(campanha, abordagem),
     pedido: montarPedido(lead, oportunidades),
     jsonSchema: SEQUENCIA_JSON_SCHEMA,
@@ -239,7 +239,7 @@ function bioDoInstagram(lead) {
  */
 export async function escreverDirectDeProspeccao(lead, oportunidades, campanha) {
   const bio = bioDoInstagram(lead);
-  const r = await gerarJson({
+  const r = await gerarJson({ lead,
     system: `${contextoEmpresa(campanha)}
 
 Sua tarefa: escrever o PRIMEIRO direct no Instagram para uma empresa que ainda não conhece vocês. Ele vai ser enviado

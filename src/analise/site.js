@@ -65,7 +65,10 @@ export function extrairWhatsapp(html) {
     html.match(/wa\.me\/(\+?\d{10,15})/i) ||
     html.match(/api\.whatsapp\.com\/send\/?\?phone=(\+?\d{10,15})/i) ||
     html.match(/whatsapp\.com\/send\/?\?phone=(\+?\d{10,15})/i);
-  return m ? normalizarTelefoneBR(m[1]) : null;
+  if (!m) return null;
+  // O link do WhatsApp já vem com o código do país: de fora do Brasil, fica como está.
+  const d = m[1].replace(/\D/g, "");
+  return d.startsWith("55") ? normalizarTelefoneBR(d) : d;
 }
 
 /** O link do perfil do Instagram que o site aponta (ex.: o ícone no rodapé). */

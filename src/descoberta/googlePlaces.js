@@ -20,7 +20,7 @@ const CAMPOS = [
  * Busca empresas no Google Maps pela API oficial (Places API "New").
  * Ex.: buscarEmpresas("clínica odontológica em Fortaleza - CE", 20)
  */
-export async function buscarEmpresas(consulta, maxResultados = 20) {
+export async function buscarEmpresas(consulta, maxResultados = 20, { pais = "BR", idioma = "pt-BR" } = {}) {
   if (!config.googlePlacesApiKey) {
     throw new Error("GOOGLE_PLACES_API_KEY não configurada no .env");
   }
@@ -38,8 +38,9 @@ export async function buscarEmpresas(consulta, maxResultados = 20) {
       },
       body: JSON.stringify({
         textQuery: consulta,
-        languageCode: "pt-BR",
-        regionCode: "BR",
+        // Fora do Brasil, o Google procura no país escolhido e responde no idioma de lá.
+        languageCode: idioma || "pt-BR",
+        regionCode: pais || "BR",
         pageSize: Math.min(20, maxResultados - empresas.length),
         ...(pageToken ? { pageToken } : {}),
       }),

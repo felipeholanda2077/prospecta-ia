@@ -96,6 +96,10 @@ export async function prepararCampanha(campanha, agora = new Date()) {
   const fora = [];
   for (const i of await db.interessadosDaCampanha()) {
     if (await db.lerEstado(chaveDaCampanha(i.id))) continue;
+    if (i.pais && i.pais !== "BR") {
+      fora.push({ empresa: i.nome, motivo: "empresa de fora do Brasil (a mensagem da campanha é em português e em reais)" });
+      continue;
+    }
     if (!CANAIS.includes(i.canal)) {
       fora.push({ empresa: i.nome, motivo: "conversa pelo direct do Instagram, que só aceita resposta em até 24 horas" });
       continue;

@@ -4,6 +4,8 @@
  */
 export function normalizarTelefoneBR(telefone) {
   if (!telefone) return null;
+  // Com "+" e outro código de país (+49, +1...), não é do Brasil.
+  if (/^\s*\+/.test(String(telefone)) && !/^\s*\+\s*55/.test(String(telefone))) return null;
   let d = String(telefone).replace(/\D/g, "");
   if (d.startsWith("0")) d = d.replace(/^0+/, "");
   if (d.length === 10 || d.length === 11) d = "55" + d;
