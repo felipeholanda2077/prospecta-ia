@@ -339,6 +339,26 @@
   .fila-previsao { margin-bottom: 16px; }
   .fila-previsao small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; line-height: 1.45; }
   .dash-proximo small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  /* Mapa dos clientes (globo 3D e mapa 2D) */
+  .dash-mapa { margin-bottom: 16px; overflow: hidden; }
+  .dash-mapa .cartao-cab { flex-wrap: wrap; gap: 12px; }
+  .mapa-controles { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+  .mapa-controles .grupo { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 3px; background: var(--surface-2); }
+  .mapa-controles button { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+  .mapa-controles button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+  .mapa-area { position: relative; height: 440px; background: radial-gradient(ellipse at center, var(--surface-2), var(--surface)); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .mapa-area > div, .mapa-area > svg { position: absolute; inset: 0; }
+  .mapa-area svg { width: 100%; height: 100%; cursor: grab; }
+  .mapa-area .mapa-pais { fill: var(--surface-3); stroke: var(--border); stroke-width: .5; }
+  .mapa-area .mapa-grade { fill: none; stroke: var(--border); stroke-width: .4; opacity: .6; }
+  .mapa-area .mapa-esfera { fill: var(--surface-2); }
+  .mapa-vazio { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; text-align: center; padding: 16px; }
+  .mapa-rodape { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 12px 18px; font-size: 13px; color: var(--muted); }
+  .mapa-rodape .ponto { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; }
+  .mapa-lista { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 18px 16px; }
+  .mapa-lista .pilula { font-size: 12.5px; }
+  .mapa-dica { position: absolute; pointer-events: none; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 12.5px; box-shadow: var(--shadow); white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); z-index: 2; }
+  @media (max-width: 640px) { .mapa-area { height: 340px; } .mapa-controles { margin-left: 0; } }
   .dash-setores { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 16px; align-items: start; }
   .dash-setor .cartao-cab { padding: 14px 16px; align-items: center; }
   .dash-setor .cartao-cab h3 { flex: 1; min-width: 0; font-size: 15.5px; }
@@ -973,6 +993,7 @@
           <button type="button" class="btn" id="dash-atualizar"><span data-ic="refresh"></span>Atualizar</button>
         </div>
         <div id="dash-meta"></div>
+        <div id="dash-mapa"></div>
         <div id="dash-corpo"></div>
       </section>
 
@@ -2429,8 +2450,191 @@ $("#dash-meta").addEventListener("submit", async (ev) => {
 });
 
 let dashCarregando = false;
+// ===================== Mapa dos clientes =====================
+const MAPA_LIBS = {
+  globo: "https://cdn.jsdelivr.net/npm/globe.gl@2.46.2/dist/globe.gl.min.js",
+  d3: "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js",
+  topojson: "https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js",
+  mundo: "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json",
+  texturaNoite: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-night.jpg",
+  texturaDia: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-blue-marble.jpg",
+};
+const mapa = { dados: null, carregadoEm: 0, modo: "3d", camada: "clientes", globo: null, mundo: null, carregando: false };
+try { mapa.modo = localStorage.getItem("mapaModo") === "2d" ? "2d" : "3d"; } catch {}
+const scriptsCarregados = {};
+const carregarScript = (src) => (scriptsCarregados[src] ??= new Promise((ok, falha) => {
+  const s = document.createElement("script");
+  s.src = src; s.async = true; s.onload = ok; s.onerror = () => { delete scriptsCarregados[src]; falha(new Error("Não deu para carregar o mapa agora")); };
+  document.head.appendChild(s);
+}));
+const corDoTema = (nome) => getComputedStyle(document.documentElement).getPropertyValue(nome).trim();
+const temaEscuro = () => { const c = corDoTema("--bg"); return /^#0|^#1/.test(c); };
+
+/** Os pontos da camada escolhida: clientes (verde, com pulso) ou cidades da prospecção (tamanho pela quantidade). */
+function pontosDoMapa() {
+  const d = mapa.dados ?? { clientes: [], prospeccao: [] };
+  if (mapa.camada === "clientes") {
+    return d.clientes.map((c) => ({ ...c, cor: c.origem === "stripe" ? corDoTema("--accent") : corDoTema("--ok"), raio: 0.55, altura: 0.06,
+      texto: `<b>${esc(c.nome)}</b><br>${esc(c.cidade)}${c.projeto ? ` · ${esc(c.projeto)}` : ""}${c.origem === "stripe" ? " · pagou pelo Stripe" : ""}` }));
+  }
+  const max = Math.max(1, ...d.prospeccao.map((p) => p.empresas));
+  return d.prospeccao.map((p) => ({ ...p, cor: p.pais !== "BR" ? corDoTema("--cyan") : corDoTema("--accent"), raio: 0.25 + 0.75 * Math.sqrt(p.empresas / max), altura: 0.02 + 0.18 * (p.empresas / max),
+    texto: `<b>${esc(p.cidade)}</b><br>${p.empresas} ${p.empresas === 1 ? "empresa contatada" : "empresas contatadas"} · ${p.responderam} ${p.responderam === 1 ? "respondeu" : "responderam"}` }));
+}
+
+function cartaoDoMapa() {
+  const d = mapa.dados;
+  const r = d?.resumo;
+  const meta = !d ? "Carregando…" : mapa.camada === "clientes"
+    ? (r.clientes ? `${r.clientes} ${r.clientes === 1 ? "cliente" : "clientes"} em ${r.cidades} ${r.cidades === 1 ? "cidade" : "cidades"}${r.paises > 1 ? ` de ${r.paises} países (${r.nomesDosPaises.map(esc).join(", ")})` : ""}` : "Nenhum cliente com cidade conhecida ainda")
+    : `${d.prospeccao.length} cidades com empresas contatadas`;
+  const botao = (grupo, valor, texto) => `<button type="button" data-mapa-${grupo}="${valor}" aria-pressed="${mapa[grupo === "modo" ? "modo" : "camada"] === valor}">${texto}</button>`;
+  return `<section class="cartao dash-mapa">
+    <div class="cartao-cab"><span class="kpi-ic ok">${ic("globe")}</span><div class="titulos"><h3>Onde estão os clientes</h3><div class="meta" id="mapa-meta">${meta}</div></div>
+      <div class="mapa-controles">
+        <span class="grupo" role="group" aria-label="O que mostrar">${botao("camada", "clientes", "Clientes")}${botao("camada", "prospeccao", "Prospecção")}</span>
+        <span class="grupo" role="group" aria-label="Tipo de mapa">${botao("modo", "3d", "Globo 3D")}${botao("modo", "2d", "Mapa 2D")}</span>
+      </div></div>
+    <div class="mapa-area" id="mapa-area"></div>
+    <div class="mapa-rodape">${mapa.camada === "clientes"
+      ? `<span><i class="ponto" style="background:var(--ok)"></i>Contrato ou fechado</span><span><i class="ponto" style="background:var(--accent)"></i>Pagou pelo Stripe</span>`
+      : `<span><i class="ponto" style="background:var(--accent)"></i>Brasil</span><span><i class="ponto" style="background:var(--cyan)"></i>Fora do Brasil</span><span>O tamanho é a quantidade de empresas contatadas.</span>`}
+      ${d?.pendentes?.length && mapa.camada === "clientes" ? `<span>Sem cidade conhecida: ${d.pendentes.map(esc).join(", ")}</span>` : ""}
+      ${mapa.modo === "3d" ? "<span>Arraste para girar, role para aproximar.</span>" : "<span>Arraste para mover, role para aproximar.</span>"}</div>
+    <div class="mapa-lista">${mapa.camada === "clientes"
+      ? (d?.clientes ?? []).map((c) => `<span class="pilula">${ic("pin", "sm")}${esc(c.nome)} · ${esc(c.cidade)}</span>`).join("")
+      : (d?.prospeccao ?? []).slice(0, 12).map((p) => `<span class="pilula">${esc(p.cidade)} · ${p.empresas}</span>`).join("")}</div>
+  </section>`;
+}
+
+async function carregarMapa({ forcar = false } = {}) {
+  if (mapa.carregando || (!forcar && mapa.dados && Date.now() - mapa.carregadoEm < 5 * 60_000)) return;
+  mapa.carregando = true;
+  try {
+    mapa.dados = await api("/api/mapa");
+    mapa.carregadoEm = Date.now();
+    // Ficou cidade para localizar na próxima abertura: tenta de novo em alguns segundos.
+    if (mapa.dados.incompleto) setTimeout(() => dashboardVisivel() && carregarMapa({ forcar: true }), 4000);
+  } catch (e) {
+    if (!mapa.dados) { $("#dash-mapa").innerHTML = ""; return; }
+  } finally {
+    mapa.carregando = false;
+  }
+  desenharMapa();
+}
+
+function desenharMapa() {
+  const alvo = $("#dash-mapa");
+  // O globo é reaproveitado: só o cartão em volta é redesenhado.
+  const globoEl = mapa.globo?._el;
+  alvo.innerHTML = cartaoDoMapa();
+  const area = $("#mapa-area");
+  if (mapa.modo === "3d") desenharGlobo(area, globoEl).catch((e) => (area.innerHTML = `<div class="mapa-vazio">${esc(e.message)}</div>`));
+  else { mapa.globo?.pauseAnimation(); desenharMapa2D(area).catch((e) => (area.innerHTML = `<div class="mapa-vazio">${esc(e.message)}</div>`)); }
+}
+
+async function desenharGlobo(area, globoEl) {
+  await carregarScript(MAPA_LIBS.globo);
+  const pontos = pontosDoMapa();
+  if (!mapa.globo) {
+    const el = document.createElement("div");
+    mapa.globo = window.Globe({ animateIn: true })(el)
+      .backgroundColor("rgba(0,0,0,0)")
+      .showAtmosphere(true)
+      .pointLat("lat").pointLng("lng").pointColor("cor").pointRadius("raio").pointAltitude("altura").pointLabel("texto")
+      .ringLat("lat").ringLng("lng").ringMaxRadius(3.5).ringPropagationSpeed(1.6).ringRepeatPeriod(1400)
+      .labelLat("lat").labelLng("lng").labelText("nome").labelSize(0.55).labelDotRadius(0).labelAltitude(0.07).labelResolution(2);
+    mapa.globo._el = el;
+    mapa.globo.controls().autoRotate = true;
+    mapa.globo.controls().autoRotateSpeed = 0.35;
+    el.addEventListener("pointerdown", () => (mapa.globo.controls().autoRotate = false), { once: true });
+    const primeiro = pontos[0];
+    mapa.globo.pointOfView({ lat: primeiro?.lat ?? -15, lng: primeiro?.lng ?? -45, altitude: 2.1 }, 0);
+    new ResizeObserver(() => {
+      const a = mapa.globo._el.parentElement;
+      if (a) mapa.globo.width(a.clientWidth).height(a.clientHeight);
+    }).observe(area);
+  }
+  area.appendChild(mapa.globo._el);
+  const escuro = temaEscuro();
+  const corDoAnel = corDoTema("--ok");
+  mapa.globo
+    .width(area.clientWidth).height(area.clientHeight)
+    .globeImageUrl(escuro ? MAPA_LIBS.texturaNoite : MAPA_LIBS.texturaDia)
+    .atmosphereColor(corDoTema("--accent"))
+    .pointsData(pontos)
+    .ringsData(mapa.camada === "clientes" ? pontos : [])
+    .ringColor(() => (t) => `${corDoAnel}${Math.round((1 - t) * 200).toString(16).padStart(2, "0")}`)
+    .labelsData(mapa.camada === "clientes" ? pontos : [])
+    .labelColor(() => (escuro ? "rgba(255,255,255,.85)" : "rgba(20,21,31,.85)"));
+  mapa.globo.resumeAnimation();
+  if (!pontos.length) area.insertAdjacentHTML("beforeend", `<div class="mapa-vazio" style="pointer-events:none;align-items:end;padding-bottom:24px">Nenhum ponto nesta camada ainda.</div>`);
+}
+
+async function desenharMapa2D(area) {
+  await Promise.all([carregarScript(MAPA_LIBS.d3), carregarScript(MAPA_LIBS.topojson)]);
+  mapa.mundo ??= await fetch(MAPA_LIBS.mundo).then((r) => r.json());
+  const d3 = window.d3;
+  const desenhar = () => {
+    const largura = area.clientWidth || 800;
+    const altura = area.clientHeight || 440;
+    const paises = window.topojson.feature(mapa.mundo, mapa.mundo.objects.countries);
+    const projecao = d3.geoNaturalEarth1().fitExtent([[8, 8], [largura - 8, altura - 8]], { type: "Sphere" });
+    const caminho = d3.geoPath(projecao);
+    area.innerHTML = "";
+    const svg = d3.select(area).append("svg").attr("viewBox", `0 0 ${largura} ${altura}`).attr("role", "img").attr("aria-label", "Mapa do mundo com os pontos");
+    const g = svg.append("g");
+    g.append("path").attr("class", "mapa-esfera").attr("d", caminho({ type: "Sphere" }));
+    g.append("path").attr("class", "mapa-grade").attr("d", caminho(d3.geoGraticule10()));
+    g.append("g").selectAll("path").data(paises.features).join("path").attr("class", "mapa-pais").attr("d", caminho);
+    const pontos = pontosDoMapa().map((p) => ({ ...p, xy: projecao([p.lng, p.lat]) })).filter((p) => p.xy);
+    const dica = document.createElement("div");
+    dica.className = "mapa-dica";
+    dica.hidden = true;
+    area.appendChild(dica);
+    const bolas = g.append("g").selectAll("circle").data(pontos).join("circle")
+      .attr("cx", (p) => p.xy[0]).attr("cy", (p) => p.xy[1]).attr("r", (p) => 4 + p.raio * 7)
+      .attr("fill", (p) => p.cor).attr("fill-opacity", 0.85).attr("stroke", corDoTema("--surface")).attr("stroke-width", 1.5)
+      .style("cursor", "pointer")
+      .on("mouseenter", (ev, p) => { dica.innerHTML = p.texto; dica.hidden = false; })
+      .on("mousemove", (ev) => { const r = area.getBoundingClientRect(); dica.style.left = `${ev.clientX - r.left}px`; dica.style.top = `${ev.clientY - r.top}px`; })
+      .on("mouseleave", () => (dica.hidden = true));
+    if (mapa.camada === "clientes") {
+      g.append("g").selectAll("text").data(pontos).join("text")
+        .attr("x", (p) => p.xy[0] + 10).attr("y", (p) => p.xy[1] + 4).text((p) => p.nome)
+        .attr("fill", corDoTema("--text")).attr("font-size", 11).attr("font-weight", 600).style("pointer-events", "none");
+    }
+    svg.call(d3.zoom().scaleExtent([1, 12]).translateExtent([[0, 0], [largura, altura]]).on("zoom", (ev) => {
+      g.attr("transform", ev.transform);
+      bolas.attr("r", (p) => (4 + p.raio * 7) / Math.sqrt(ev.transform.k));
+      g.selectAll("text").attr("font-size", 11 / ev.transform.k);
+    }));
+    if (!pontos.length) area.insertAdjacentHTML("beforeend", `<div class="mapa-vazio" style="pointer-events:none;align-items:end;padding-bottom:24px">Nenhum ponto nesta camada ainda.</div>`);
+  };
+  desenhar();
+  mapa.redesenhar2D = desenhar;
+}
+
+$("#dash-mapa").addEventListener("click", (ev) => {
+  const modo = ev.target.closest("[data-mapa-modo]")?.dataset.mapaModo;
+  const camada = ev.target.closest("[data-mapa-camada]")?.dataset.mapaCamada;
+  if (modo && modo !== mapa.modo) {
+    mapa.modo = modo;
+    try { localStorage.setItem("mapaModo", modo); } catch {}
+    desenharMapa();
+  }
+  if (camada && camada !== mapa.camada) { mapa.camada = camada; desenharMapa(); }
+});
+window.addEventListener("resize", () => mapa.modo === "2d" && viewAtual === "dashboard" && mapa.redesenhar2D?.());
+// Fora do Dashboard o globo para de girar (não gasta o computador).
+window.addEventListener("hashchange", () => {
+  if (!mapa.globo) return;
+  if (viewAtual === "dashboard" && mapa.modo === "3d") mapa.globo.resumeAnimation(); else mapa.globo.pauseAnimation();
+});
+
 async function carregarDashboard() {
   carregarMeta();
+  carregarMapa();
   if (dashCarregando) return;
   dashCarregando = true;
   if (!dashDesenhado) $("#dash-corpo").innerHTML = `<div class="dash-setores">${'<div class="esqueleto"></div>'.repeat(6)}</div>`;

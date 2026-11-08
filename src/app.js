@@ -64,6 +64,7 @@ import { lerRamos } from "./descoberta/ramos.js";
 import * as internacional from "./internacional.js";
 import { previaParaEmpresaDeFora } from "./vendas/previaInternacional.js";
 import * as stripe from "./vendas/stripe.js";
+import { dadosDoMapa } from "./vendas/mapaClientes.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -1040,6 +1041,15 @@ app.get("/api/internacional", async (req, res) => {
     paises: Object.entries(internacional.PAISES).map(([codigo, p]) => ({ codigo, nome: p.nome, moeda: p.moeda, idioma: internacional.nomeDoIdioma(p.idioma) })),
     cotacao, ...conf, exemplo: { EUR: exemplo("EUR"), USD: exemplo("USD") },
   });
+});
+
+// Mapa do Dashboard: onde estão os clientes e as cidades da prospecção.
+app.get("/api/mapa", async (req, res) => {
+  try {
+    res.json(await dadosDoMapa());
+  } catch (e) {
+    res.status(500).json({ erro: e.message });
+  }
 });
 
 // Stripe: pagamento das empresas de fora do Brasil (a chave quem cola é você, no painel).
