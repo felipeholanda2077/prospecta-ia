@@ -12,7 +12,7 @@ import { escolherAbordagem } from "./ia/abordagens.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR, variantesWhatsappBR } from "./analise/telefone.js";
-import { PAISES, cidadeEPais, dadosDoPais, ehExterior, segmentoNoIdioma, telefoneInternacional, podeSerCelular } from "./internacional.js";
+import { PAISES, cidadeEPais, dadosDoPais, ehExterior, segmentoNoIdioma, telefoneInternacional, podeSerCelular, vendeSemReuniao, linkDosSlides } from "./internacional.js";
 import { contatosLigados } from "./respostas/contatoNovo.js";
 import { gerarSequencia, escreverDirectDeProspeccao } from "./ia/proposta.js";
 import { enviarEmail, explicarErroEmail, enviarNotificacao } from "./envio/email.js";
@@ -24,7 +24,7 @@ import { imagemDaMensagem, legendaDaArte, roteiroDoAudio } from "./vendas/campan
 import { audioDoTexto, oggDoAudio } from "./conteudo/narracao.js";
 import { falarPelaRunway, lerConfigAvatar } from "./conteudo/avatar.js";
 import { linkDaMidia } from "./conteudo/instagram.js";
-import { verificarAgendamentos, aplicarLinkAgendamento } from "./agenda/calendly.js";
+import { verificarAgendamentos, aplicarLinkAgendamento, MARCADOR_LINK } from "./agenda/calendly.js";
 import { semSiteProprio, potencialDaEmpresa } from "./analise/prioridade.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 import { numerosComAgente } from "./respostas/agentes.js";
@@ -1199,7 +1199,9 @@ export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
   if (!(await db.reservarParaEnvio(m.id))) return { enviada: false, motivo: "já está sendo enviada" };
 
   // O marcador da última etapa vira o link de agendamento desta empresa (e fica salvo no histórico).
-  const corpoFinal = aplicarLinkAgendamento(m.corpo, campanha.automacao?.calendly, { token: m.token, email: m.destino }, m.canal);
+  // Fora do Brasil e de Portugal não tem agendamento: o marcador que sobrar vira o link dos slides.
+  const corpoBase = vendeSemReuniao(m) ? String(m.corpo).split(MARCADOR_LINK).join(linkDosSlides({ nome: m.empresa })) : m.corpo;
+  const corpoFinal = aplicarLinkAgendamento(corpoBase, campanha.automacao?.calendly, { token: m.token, email: m.destino }, m.canal);
   if (corpoFinal !== m.corpo) {
     await db.atualizarMensagem(m.id, { corpo: corpoFinal });
     m = { ...m, corpo: corpoFinal };

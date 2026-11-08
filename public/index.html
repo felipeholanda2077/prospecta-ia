@@ -1172,6 +1172,12 @@
           <div class="cartao-corpo" id="anuncios-conexao"></div>
         </div>
 
+        <div class="cartao" id="cartao-stripe" style="margin-top:16px">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="globe"></span><div class="titulos"><h3>Pagamento fora do Brasil (Stripe) <span id="stripe-status"></span></h3>
+            <div class="meta">Para as empresas de fora do Brasil e de Portugal, que compram sem reunião: quando a pessoa quer contratar, a IA manda um link de pagamento do Stripe com a mensalidade do plano em euro ou dólar, no cartão, cobrada todo mês.</div></div></div>
+          <div class="cartao-corpo" id="stripe-conexao"></div>
+        </div>
+
         <div class="cartao" id="cartao-oficial" style="margin-top:16px">
           <div class="cartao-cab"><span class="kpi-ic ok" data-ic-span="message"></span><div class="titulos"><h3>WhatsApp oficial da Meta <span id="oficial-status"></span></h3>
             <div class="meta">A API oficial (WhatsApp Cloud API): sem risco de bloqueio por usar o WhatsApp Web. Quando ligada, tem prioridade sobre a UAZap e a Evolution.</div></div></div>
@@ -2471,6 +2477,39 @@ async function mostrarConexaoAnuncios() {
     alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
 }
+/** A conexão com o Stripe (pagamento das empresas de fora do Brasil). A chave quem cola é você. */
+async function mostrarStripe() {
+  const alvo = $("#stripe-conexao");
+  try {
+    const s = await api("/api/stripe");
+    const pilula = s.trancada ? `<span class="pilula perigo">Cole de novo</span>` : s.conectado ? `<span class="pilula ok">Conectado${s.teste ? " · teste" : ""}</span>` : `<span class="pilula">Não conectado</span>`;
+    $("#stripe-status").innerHTML = pilula;
+    alvo.innerHTML = `<form id="form-stripe" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:end">
+        <div class="campo" style="grid-column:span 2"><label for="stripe-chave">Chave secreta do Stripe ${pilula}</label>
+          <input id="stripe-chave" type="password" autocomplete="new-password" spellcheck="false" placeholder="${s.conectado ? `•••••••• conectado${s.conta ? ` (${esc(s.conta)})` : ""} (preencha só para trocar)` : "Cole a chave que começa com sk_live_ ou rk_live_"}"></div>
+        <button class="btn" type="submit">${ic("save")}Salvar</button>
+        <span class="muted" style="font-size:12.5px;grid-column:1/-1">${s.conectado
+          ? "Os links saem com o valor do plano na moeda da empresa (a mesma conversão e o mesmo ajuste de Automação). O Stripe avisa você por e-mail a cada pagamento."
+          : `Crie a conta em <a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener">stripe.com</a> (dá para receber em reais na sua conta do Brasil). Depois, em Desenvolvedores → Chaves de API, copie a chave secreta e cole aqui. Sem o Stripe, a IA avisa que vai mandar o link e a conversa passa para você.`}</span>
+      </form>`;
+  } catch (e) {
+    alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+$("#stripe-conexao").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const campo = $("#stripe-chave");
+  if (!campo.value.trim()) return avisar("Cole a chave secreta do Stripe", "atencao");
+  try {
+    const r = await api("/api/stripe", { method: "PUT", body: JSON.stringify({ chave: campo.value.trim() }) });
+    campo.value = "";
+    avisar(`Stripe conectado${r.conta ? `: ${r.conta}` : ""}${r.teste ? " (modo teste)" : ""}`, "ok", 6000);
+    await mostrarStripe();
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  }
+});
+
 $("#anuncios-resumo").addEventListener("click", (ev) => {
   if (!ev.target.closest("[data-ir-anuncios]")) return;
   setTimeout(() => $("#cartao-anuncios").scrollIntoView({ behavior: "smooth", block: "start" }), 400);
@@ -4285,6 +4324,7 @@ async function carregarConfiguracoes() {
   carregarCron();
   carregarFormulario();
   mostrarConexaoAnuncios();
+  mostrarStripe();
   api("/api/calendly/status").then((c) => {
     $("#calendly-status").innerHTML = c.conectado ? pilulaCalendly(c) : `<span class="pilula">Não conectado</span>`;
     $("#calendly-token").required = !c.conectado;

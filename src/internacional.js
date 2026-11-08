@@ -65,6 +65,21 @@ export function cidadeEPais(texto) {
 
 export const ehExterior = (lead) => Boolean(lead?.pais) && lead.pais !== "BR";
 
+/**
+ * Fora do Brasil e de Portugal, a venda é sem reunião: no lugar do convite para agendar vai o link dos slides
+ * de projetos (em inglês) e, quando a pessoa quer contratar, o link de pagamento. Portugal fala português e
+ * segue com o convite para a conversa, como no Brasil.
+ */
+export const vendeSemReuniao = (lead) => ehExterior(lead) && lead.pais !== "PT";
+
+const SLIDES_EM_INGLES = "https://fluxdeck.com.br/apresentacao?lang=en";
+
+/** Os slides de projetos em inglês, com o nome da empresa na capa. */
+export function linkDosSlides(lead) {
+  const nome = String(lead?.nome ?? "").trim().slice(0, 80);
+  return nome ? `${SLIDES_EM_INGLES}&para=${encodeURIComponent(nome)}` : SLIDES_EM_INGLES;
+}
+
 // Nos EUA o fuso depende do estado (vem no endereço do Google: "Miami, FL 33101, USA").
 const FUSOS_EUA = {
   "America/New_York": "CT DE DC FL GA IN KY ME MD MA MI NH NJ NY NC OH PA RI SC VT VA WV",
@@ -217,7 +232,22 @@ IDIOMA, PAÍS E MOEDA (esta regra vale acima de qualquer outra sobre idioma nest
 - Horários citados na conversa são no fuso de lá (${fusoDaEmpresa(lead)}).
 - Use um único tratamento do começo ao fim, sem misturar: ${TRATAMENTO[idioma.split("-")[0]] ?? "o tratamento educado de negócios do país"}.${idioma === "pt-PT" ? `
 - Português de Portugal de verdade: nada de "bate-papo", "Fala o", "a gente", "legal", "contato" (é "contacto") nem gerúndio ("estou vendo" → "estou a ver"); trate por "vocês" ou pelo nome, sem misturar com "vós".` : ""}
-- Na assinatura e quando citar o seu telefone, use o formato internacional (com +55).`;
+- Na assinatura e quando citar o seu telefone, use o formato internacional (com +55).${vendeSemReuniao(lead) ? await vendaSemReuniao(lead) : ""}`;
+}
+
+/** As regras da venda sem reunião (fora do Brasil e de Portugal): slides no lugar do convite e link de pagamento. */
+async function vendaSemReuniao(lead) {
+  const stripe = Boolean((await db.lerConfig("stripe").catch(() => null))?.chave);
+  return `
+
+VENDA SEM REUNIÃO (esta regra vale acima de todas as instruções sobre bate-papo, call, reunião, conversa de 15 minutos e agendamento):
+- Com esta empresa NÃO existe call, reunião, videochamada nem agendamento. Nunca convide, nunca ofereça horários e nunca use o marcador {{link_agendamento}}. A venda acontece toda por mensagem.
+- No lugar do convite, mande a apresentação com os projetos da empresa (os slides, em inglês), por este link, exatamente como está: ${linkDosSlides(lead)}
+- Na sequência de prospecção, a etapa 3 é: diga que é a última mensagem e deixe a apresentação de projetos para ela ver quando puder, com o link sozinho na última linha.
+- Na conversa, tire as dúvidas por mensagem, mostre o plano que resolve o problema dela e o valor por mês, se ela perguntar.
+- ${stripe
+    ? `Quando a pessoa disser que quer contratar ou seguir com um plano: confirme em uma frase o plano e o valor por mês e escreva, sozinho na última linha, o marcador {{pagamento:NOME EXATO DO PLANO|VALOR POR MÊS}} (ex.: {{pagamento:Professional|910}}). Ele vira o link de pagamento seguro, no cartão, cobrado todo mês na moeda dela. Diga que, assim que o pagamento for confirmado, vocês começam e mandam os próximos passos por aqui. Só mande o link quando ela pedir para contratar ou pagar.`
+    : `Quando a pessoa disser que quer contratar ou pagar: confirme o plano e o valor e diga que vai mandar o link de pagamento em seguida (não invente link).`}`;
 }
 
 // Como tratar a pessoa em cada idioma (formal nos negócios, onde o idioma distingue).

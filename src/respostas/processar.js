@@ -7,7 +7,8 @@ import { linkAgendamento, horariosLivres } from "../agenda/calendly.js";
 import { momentoDaPrevia, previaSoNaHora } from "../vendas/previa.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
 import { lerApresentacao } from "./apresentacao.js";
-import { ehExterior } from "../internacional.js";
+import { ehExterior, vendeSemReuniao } from "../internacional.js";
+import { aplicarLinkDePagamento } from "../vendas/stripe.js";
 import { responderComoAgente } from "../ia/agente.js";
 import { fontesDoAgente, PREFIXO_DELEGOU } from "./agentes.js";
 
@@ -188,6 +189,12 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
  * Em qualquer resposta humana, as etapas pendentes são canceladas e, com a resposta
  * automática ligada, a IA continua a conversa rumo ao agendamento.
  */
+/** O link de agendamento da conversa: fora do Brasil e de Portugal não tem (a venda é sem reunião). */
+const agendaDa = (campanha, lead, canal) => (vendeSemReuniao(lead) ? "" : linkAgendamento(campanha.automacao?.calendly, lead, canal));
+
+/** Venda sem reunião: o marcador de pagamento que a IA escreveu vira o link do Stripe. */
+const comPagamento = (c, lead, apresentacao) => (vendeSemReuniao(lead) ? aplicarLinkDePagamento(c, lead, { apresentacao }) : c);
+
 /**
  * Últimos acertos antes de a resposta sair: sem "Bom dia!" de novo se a conversa já começou, e sem valores (R$)
  * se a pessoa ainda não perguntou de preço. Vale para todas as partes da resposta do agente também.
@@ -316,7 +323,7 @@ export async function registrarResposta({
     } else {
       const contexto = {
         texto: limpo, assunto, lead, historico, campanha, canal,
-        linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal),
+        linkAgendamento: agendaDa(campanha, lead, canal),
         // Fora do Brasil, vai só o link do Calendly (ele mostra os horários no fuso de quem abre).
         horarios: ehExterior(lead) ? [] : await horariosLivres(campanha.automacao?.calendly),
         apresentacao: await lerApresentacao(),
@@ -328,7 +335,7 @@ export async function registrarResposta({
     c = { classificacao: "outro", resumo: forcarHumano ? "Mandou um áudio." : `Não foi possível classificar automaticamente: ${e.message}`,
           sugestao_resposta: "", precisa_humano: true, motivo_humano: forcarHumano || "a IA não conseguiu ler esta resposta" };
   }
-  c = ajustarResposta(c, historico, limpo);
+  c = await comPagamento(ajustarResposta(c, historico, limpo), lead);
 
   const id = await db.criarResposta({
     lead_id: lead.id,
@@ -461,13 +468,13 @@ export async function continuarComIA(respostaId, campanha, {
   const historico = await db.historicoConversa(lead.id);
   const contexto = {
     texto: r.texto, assunto: r.assunto, lead, historico, campanha, canal: r.canal, linkPrevia: momentoDaPrevia({ lead, historico, texto: r.texto }),
-    linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, r.canal), horarios: ehExterior(lead) ? [] : await horariosLivres(campanha.automacao?.calendly),
+    linkAgendamento: agendaDa(campanha, lead, r.canal), horarios: ehExterior(lead) ? [] : await horariosLivres(campanha.automacao?.calendly),
     apresentacao: await lerApresentacao(),
     nota: String(nota ?? "").trim().slice(0, 500),
   };
   const pensado = await pensarResposta(contexto, { classificar, apresentar });
   const { apresentou } = pensado;
-  const c = ajustarResposta(pensado.c, contexto.historico, r.texto);
+  const c = await comPagamento(ajustarResposta(pensado.c, contexto.historico, r.texto), lead, contexto.apresentacao);
   if (!c.sugestao_resposta?.trim()) throw new Error("A IA não escreveu uma resposta para esta conversa");
   await db.atualizarResposta(r.id, {
     precisa_humano: null, classificacao: c.classificacao, resumo: c.resumo, sugestao: c.sugestao_resposta,
@@ -544,12 +551,12 @@ export async function revisarParadasPorRobo(campanha, { classificar = classifica
     let c;
     try {
       c = await classificar({ texto, lead, historico: antes, campanha, canal, apresentacao,
-        linkAgendamento: linkAgendamento(campanha.automacao?.calendly, lead, canal) });
+        linkAgendamento: agendaDa(campanha, lead, canal) });
     } catch (e) {
       itens.push({ ...base, decisao: "erro", ultima: texto.slice(0, 300), resumo: `A IA não conseguiu ler: ${e.message}`, texto: "" });
       continue;
     }
-    c = ajustarResposta(c, antes, texto);
+    c = await comPagamento(ajustarResposta(c, antes, texto), lead, apresentacao);
     const sugestao = String(c.sugestao_resposta ?? "").trim();
     let decisao = "responder";
     if (c.classificacao === "descadastro") decisao = "descadastro";

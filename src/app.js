@@ -63,6 +63,7 @@ import { enviarParaNumero, rascunhoParaNumero } from "./respostas/conversarComNu
 import { lerRamos } from "./descoberta/ramos.js";
 import * as internacional from "./internacional.js";
 import { previaParaEmpresaDeFora } from "./vendas/previaInternacional.js";
+import * as stripe from "./vendas/stripe.js";
 
 export const app = express();
 app.set("trust proxy", true);
@@ -1027,6 +1028,16 @@ app.get("/api/internacional", async (req, res) => {
     paises: Object.entries(internacional.PAISES).map(([codigo, p]) => ({ codigo, nome: p.nome, moeda: p.moeda, idioma: internacional.nomeDoIdioma(p.idioma) })),
     cotacao, ...conf, exemplo: { EUR: exemplo("EUR"), USD: exemplo("USD") },
   });
+});
+
+// Stripe: pagamento das empresas de fora do Brasil (a chave quem cola é você, no painel).
+app.get("/api/stripe", async (req, res) => res.json(await stripe.situacao()));
+app.put("/api/stripe", async (req, res) => {
+  try {
+    res.json(await stripe.conectar({ chave: req.body?.chave === null ? null : String(req.body?.chave ?? "") }));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
 });
 
 // Prévia das mensagens para uma empresa de fora do Brasil, sem salvar nada (nem no funil, nem na fila).

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { gerarJson } from "./cliente.js";
 import { MARCADOR_LINK } from "../agenda/calendly.js";
 import { ABORDAGENS, ABORDAGEM_PADRAO } from "./abordagens.js";
+import { vendeSemReuniao, linkDosSlides } from "../internacional.js";
 
 const Etapas = z.object({ etapa1: z.string(), etapa2: z.string(), etapa3: z.string() });
 
@@ -197,6 +198,18 @@ Escreva a sequência.`;
 }
 
 /**
+ * Venda sem reunião (fora do Brasil e de Portugal): a última etapa leva os slides de projetos, nunca o link
+ * de agendamento (se a IA deixou o marcador, ele vira o link dos slides; se esqueceu o link, ele vai no fim).
+ */
+export function comSlidesNoLugarDoConvite(texto, lead) {
+  if (!vendeSemReuniao(lead)) return texto;
+  const slides = linkDosSlides(lead);
+  let t = String(texto ?? "").split(MARCADOR_LINK).join(slides);
+  if (!t.includes(slides)) t = `${t.trim()}\n${slides}`;
+  return t;
+}
+
+/**
  * Gera as 3 etapas (e-mail e WhatsApp) da abordagem gradual para um lead.
  * Retorna `email` e `whatsapp` como listas na ordem das etapas.
  */
@@ -207,7 +220,7 @@ export async function gerarSequencia(lead, oportunidades, campanha, { abordagem 
     jsonSchema: SEQUENCIA_JSON_SCHEMA,
     zodSchema: SequenciaSchema,
   });
-  const lista = (e) => [e.etapa1, e.etapa2, e.etapa3];
+  const lista = (e) => [e.etapa1, e.etapa2, e.etapa3].map((t, i) => (i === 2 ? comSlidesNoLugarDoConvite(t, lead) : t));
   return { ...r, email: lista(r.email), whatsapp: lista(r.whatsapp) };
 }
 
