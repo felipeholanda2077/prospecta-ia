@@ -2456,7 +2456,8 @@ const MAPA_LIBS = {
   globo: "https://cdn.jsdelivr.net/npm/globe.gl@2.46.2/dist/globe.gl.min.js",
   d3: "https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js",
   topojson: "https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js",
-  mundo: "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json",
+  // Contornos com mais detalhe (50 m): de perto, a costa não fica quadrada.
+  mundo: "https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-50m.json",
   texturaNoite: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-night.jpg",
   texturaDia: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-blue-marble.jpg",
   relevo: "https://cdn.jsdelivr.net/npm/three-globe@2.45.6/example/img/earth-topology.png",
@@ -2504,7 +2505,7 @@ function pontosDoMapa(camada = mapa.camada) {
   // Os dois juntos: as cidades da prospecção embaixo e os clientes por cima.
   if (camada === "tudo") return [...pontosDoMapa("prospeccao"), ...pontosDoMapa("clientes")];
   if (camada === "clientes") {
-    return d.clientes.map((c) => ({ cliente: true, r2d: 8, ...c, cor: c.origem === "stripe" ? "#a78bfa" : "#22e07a", raio: 0.9, altura: 0.08,
+    return d.clientes.map((c) => ({ cliente: true, r2d: 8, ...c, cor: c.origem === "stripe" ? "#a78bfa" : "#22e07a", raio: 0.3, altura: 0.05,
       texto: `<b>${esc(c.nome)}</b><br>${esc(c.cidade)}${c.projeto ? ` · ${esc(c.projeto)}` : ""}${c.origem === "stripe" ? " · pagou pelo Stripe" : ""}` }));
   }
   // Cada empresa no endereço dela, com a cor da etapa; as cidades-alvo sem empresa ainda, em branco.
@@ -2689,7 +2690,7 @@ $("#dash-mapa").addEventListener("click", (ev) => {
     else if (mapa.globo) {
       const r = regiaoDoMapa(zoom);
       mapa.globo.controls().autoRotate = false;
-      mapa.globo.pointOfView({ lat: r.lat, lng: r.lng, altitude: r.graus >= 360 ? 2 : r.graus >= 30 ? 0.9 : 0.12 }, 1200);
+      mapa.globo.pointOfView({ lat: r.lat, lng: r.lng, altitude: r.graus >= 360 ? 2 : r.graus >= 30 ? 0.9 : 0.045 }, 1200);
     }
   }
 });
