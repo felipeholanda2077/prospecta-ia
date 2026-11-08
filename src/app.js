@@ -1040,6 +1040,14 @@ app.put("/api/stripe", async (req, res) => {
   }
 });
 
+app.post("/api/stripe/teste", async (req, res) => {
+  try {
+    res.json(await stripe.testar({ desativar: req.body?.desativar ?? null }));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 // Prévia das mensagens para uma empresa de fora do Brasil, sem salvar nada (nem no funil, nem na fila).
 app.post("/api/internacional/previa", async (req, res) => {
   try {

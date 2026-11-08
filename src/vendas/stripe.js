@@ -128,3 +128,21 @@ export async function aplicarLinkDePagamento(c, lead, { apresentacao } = {}) {
   if (motivo) Object.assign(novo, { precisa_humano: true, motivo_humano: motivo });
   return novo;
 }
+
+/**
+ * Teste da conexão sem cobrar ninguém: a conta pode cobrar? E cria um link de exemplo (Professional, em dólar)
+ * para conferir a página de pagamento. Com `desativar`, desliga o link de exemplo (ninguém consegue pagar).
+ */
+export async function testar({ desativar = null } = {}) {
+  if (desativar) {
+    await chamar(`/payment_links/${encodeURIComponent(desativar)}`, { metodo: "POST", campos: { active: "false" } });
+    return { desativado: desativar };
+  }
+  const conta = await chamar("/account");
+  const plano = await valorDoPlano({ plano: "Professional", lead: { pais: "US" } });
+  const preco = await chamar("/prices", { metodo: "POST", campos: {
+    currency: "usd", unit_amount: String(Math.round(plano.valor * 100)), "recurring[interval]": "month", "product_data[name]": "FluxDeck · Professional (exemplo)",
+  } });
+  const link = await chamar("/payment_links", { metodo: "POST", campos: { "line_items[0][price]": preco.id, "line_items[0][quantity]": "1", "metadata[teste]": "sim" } });
+  return { podeCobrar: conta.charges_enabled !== false, podeReceber: conta.payouts_enabled !== false, pendencias: conta.requirements?.currently_due ?? [], plano, link: link.url, id: link.id };
+}
