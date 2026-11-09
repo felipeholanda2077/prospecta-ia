@@ -19,6 +19,7 @@ import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as whatsappOficial from "./envio/whatsapp.js";
 import * as propostaSlides from "./vendas/propostaSlides.js";
 import { gerarSequencia } from "./ia/proposta.js";
+import { classificarResposta } from "./ia/resposta.js";
 import { ABORDAGENS } from "./ia/abordagens.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
@@ -1408,6 +1409,24 @@ async function enviarFoto(leadId, res) {
 app.get("/api/foto/:leadId", (req, res, next) => (/^\d+$/.test(req.params.leadId) ? enviarFoto(req.params.leadId, res) : next()));
 
 // As empresas de uma ou mais etapas do funil (clicar numa etapa da tela Respostas mostra quem são).
+// Simula a próxima resposta da IA numa conversa (a partir da última mensagem da empresa), sem salvar nem enviar.
+app.post("/api/conversas/:leadId/simular", async (req, res) => {
+  try {
+    const lead = await db.buscarLead(Number(req.params.leadId));
+    if (!lead) return res.status(404).json({ erro: "Empresa não encontrada" });
+    const historico = await db.historicoConversa(lead.id);
+    const ultima = historico.findLastIndex((h) => h.autor !== "nos");
+    if (ultima < 0) return res.status(400).json({ erro: "A empresa ainda não respondeu" });
+    const c = await classificarResposta({
+      texto: historico[ultima].texto, lead, historico: historico.slice(0, ultima), campanha: await carregarCampanhaCompleta(),
+      canal: historico[ultima].canal, apresentacao: await lerApresentacao(),
+    });
+    res.json({ ultima: historico[ultima].texto, sugestao: c.sugestao_resposta, precisa_humano: c.precisa_humano, chegaDePerguntas: c.chegaDePerguntas });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 // Teste A/B da primeira mensagem: as duas versões (A e B) para uma empresa, sem salvar nada.
 app.post("/api/abordagem/previa", async (req, res) => {
   try {
