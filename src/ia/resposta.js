@@ -200,7 +200,7 @@ export function semConviteCedo(texto) {
 }
 
 // A pessoa não entendeu, perguntou quem é ou do que se trata, ou cansou das perguntas: hora de explicar, não de perguntar.
-const CONFUSA_OU_CANSADA = /n[aã]o entendi|tantas perguntas|quantas perguntas|(j[aá]|vai) acabar (as|com as) perguntas|s[oó] pergunta|quem (é|e|eh) (vc|voc[eê]|o senhor|a senhora)|n[aã]o sei quem|quem fala|do que se trata|sobre o que (é|e|seria)|qual (é |e )?o assunto|o que (vc|voc[eê]) (quer|deseja|vende|faz)|pq (vc|voc[eê]) (est[aá]|t[aá]) perguntando|por ?que (est[aá]|t[aá]) perguntando|fala logo|direto ao (ponto|assunto)|n[aã]o sei (pq|por ?que) (estou|t[oô]) (te )?respond/i;
+const CONFUSA_OU_CANSADA = /n[aã]o entendi|tantas perguntas|quantas perguntas|(j[aá]|vai) acabar (as|com as) perguntas|s[oó] pergunta|quem (é|e|eh) (vc|voc[eê]|o senhor|a senhora)|n[aã]o sei quem|quem fala|do que se trata|sobre o que (é|e|seria)|qual (é |e )?o assunto|o que (vc|voc[eê]) (quer|deseja|vende|faz)|pq (vc|voc[eê]) (est[aá]|t[aá]) perguntando|por ?que (est[aá]|t[aá]) perguntando|fala logo|direto ao (ponto|assunto)|seu trabalho (é|e)|(vc|voc[eê]) trabalha com o qu|n[aã]o sei (pq|por ?que) (estou|t[oô]) (te )?respond/i;
 
 /** A última mensagem mostra que a pessoa não entendeu ou cansou das perguntas. */
 export const confusaOuCansada = (texto) => CONFUSA_OU_CANSADA.test(String(texto ?? "").replace(/^\[áudio\]\s*/, ""));
@@ -308,12 +308,12 @@ Como conduzir (tom humano, como ${quem} escrevendo do próprio celular, em prime
   pergunta em cima de pergunta: conversa que vira interrogatório irrita e a pessoa some.
 - Use o que ela já contou (e a dor comum desse tipo de negócio) para mostrar que aquilo é um problema real da empresa e
   o que ele custa (cliente que vai para o concorrente, tempo da equipe), e que tem solução. É isso que gera confiança.
-${chegaDePerguntas ? `- AGORA PARE DE PERGUNTAR. Nesta mensagem NÃO faça pergunta de descoberta. ${confusa ? `A pessoa não entendeu, perguntou
-  quem é você ou cansou das perguntas: peça desculpa em meia frase, diga com clareza quem você é (seu nome e a
-  ${campanha.empresa.nome}), o que a ${campanha.empresa.nome} faz em UMA frase ligada ao ramo dela, e por que procurou a
-  empresa (a dor comum desse tipo de negócio). ` : ""}Diga em 1 ou 2 frases como vocês resolvem o que ela contou (ou a dor do
-  ramo) e proponha UM próximo passo concreto, fácil de responder com sim ou não (ex.: "Posso te mandar uma proposta
-  rapidinha mostrando como ficaria aí?").` : ""}
+${chegaDePerguntas ? `- AGORA PARE DE PERGUNTAR. Esta mensagem NÃO tem pergunta de descoberta e segue esta ordem:
+  ${confusa ? `1) desculpa em meia frase; 2) quem você é (seu nome e a ${campanha.empresa.nome}) e o que a ${campanha.empresa.nome} faz, em UMA
+  frase ligada ao ramo dela; 3) por que procurou a empresa: a dor comum desse tipo de negócio (nunca as avaliações do
+  Google); 4)` : "1)"} em 1 frase, como vocês resolvem o que ela contou (ou essa dor); ${confusa ? "5)" : "2)"} UM próximo passo concreto,
+  fácil de responder com sim ou não (ex.: "Posso te mandar uma proposta rapidinha mostrando como ficaria aí?").
+  Se a pessoa falou das avaliações do Google, NÃO fale delas: explique o que você faz.` : ""}
 ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com o que está na apresentação.
 ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, como estão escritos. Orçamento exato, desconto ou
   condição especial: diga que isso vocês fecham no bate-papo, conforme o que ela precisa.` : `- Valores: a pessoa AINDA NÃO perguntou de preço. NÃO cite nenhum valor, preço ou R$, nem "a partir de". Se falar de
@@ -378,7 +378,8 @@ ${texto}${nota ? `
 Observação de ${quem} sobre esta conversa (use para entender; não cite): ${nota}` : ""}`,
     jsonSchema: CLASSIFICACAO_JSON_SCHEMA,
     zodSchema: ClassificacaoSchema,
-    effort: "low",
+    // Hora de explicar e propor (a conversa está em risco): pensa um pouco mais.
+    effort: chegaDePerguntas ? "medium" : "low",
   });
   // Se escapou um "sou uma IA", a mensagem não sai: vai para você responder.
   if (DISSE_QUE_E_IA.test(r.sugestao_resposta ?? "")) {
