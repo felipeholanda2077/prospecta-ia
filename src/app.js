@@ -1323,8 +1323,36 @@ app.get("/api/conversas", async (req, res) => {
   // `busca`: os outros números e nomes da conversa (ex.: a pessoa indicada), para a barra de pesquisa do painel.
   const conversas = (await conversasAvaliadas()).map((c) => ({ ...c, followup: followupDaConversa(c, registros), busca: (extras.get(c.id) ?? "").trim() }));
   const funil = { ...(await db.funilDeConversas()), ramos_teste: await lerRamos() };
-  res.json({ indicadores: indicadoresDasConversas(conversas, funil), conversas });
+  res.json({ indicadores: indicadoresDasConversas(conversas, funil), conversas, numeros: await numerosDasConversas(conversas) });
 });
+
+/**
+ * Os números de WhatsApp (API oficial da Meta e instâncias da UAZap) com quantas conversas e não lidas cada um
+ * tem, para ver as mensagens de cada número separadas na tela Respostas. Número que saiu de Configurações mas
+ * ainda tem conversa aparece como "removido"; conversa só por e-mail ou direct fica em "Sem WhatsApp".
+ */
+async function numerosDasConversas(conversas) {
+  const [oficiais, instancias] = await Promise.all([
+    whatsappOficial.numerosOficiais().catch(() => []), uazap.numeros().catch(() => []),
+  ]);
+  const lista = [
+    ...oficiais.map((n) => ({ id: n.id, nome: n.nome, tipo: "oficial", ativo: n.ativo !== false })),
+    ...(await Promise.all(instancias.map(async (n) => ({ id: n.id, nome: n.nome, tipo: "uazap", conectado: await uazap.conectadoAgora(n.id).catch(() => false) })))),
+  ];
+  const contagem = new Map();
+  for (const c of conversas) {
+    const id = c.numero_conversa ?? "sem";
+    const k = contagem.get(id) ?? { conversas: 0, nao_lidas: 0 };
+    k.conversas++;
+    k.nao_lidas += c.nao_lidas ? 1 : 0;
+    contagem.set(id, k);
+  }
+  for (const id of contagem.keys()) {
+    if (id !== "sem" && !lista.some((n) => n.id === id)) lista.push({ id, nome: "Número removido", tipo: whatsappOficial.ehNumeroOficial(id) ? "oficial" : "uazap", removido: true });
+  }
+  if (contagem.has("sem")) lista.push({ id: "sem", nome: "Sem WhatsApp", tipo: "outro" });
+  return lista.map((n) => ({ ...n, conversas: 0, nao_lidas: 0, ...contagem.get(n.id) }));
+}
 
 /** Manda a foto de perfil da empresa (ou 204, sem foto: o painel mostra a inicial). */
 async function enviarFoto(leadId, res) {

@@ -442,6 +442,14 @@
               border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
   .chat-lista { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
   .chat-lista .filtros { padding: 10px 12px; margin: 0; border-bottom: 1px solid var(--border); }
+  .chat-lista .numeros-conversa { flex-wrap: wrap; overflow: visible; align-items: center; gap: 6px; }
+  .numeros-conversa[hidden] { display: none; }
+  .aba-numero { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 13px; }
+  .aba-numero .muted { font-weight: 600; }
+  .aba-numero .badge-nl { margin: 0; }
+  .aba-numero .ponto-off { width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
+  .numeros-grupo { flex-basis: 100%; font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
+  .numero-pilula .icon { width: 12px; height: 12px; }
   .chat-itens { overflow-y: auto; flex: 1; }
   .chat-item { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 11px 14px;
                border: 0; border-bottom: 1px solid var(--border); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
@@ -3644,6 +3652,8 @@ function cardResposta(r) {
 // ===================== Respostas em formato de chat =====================
 let conversaAberta = null;
 let filtroConversa = "todas";
+// O número de WhatsApp cujas conversas aparecem (cada número com as suas mensagens); "todos" junta tudo.
+let numeroConversa = (() => { try { return localStorage.getItem("respostas_numero") || "todos"; } catch { return "todos"; } })();
 let buscaConversa = "";
 let dadosConversas = null;
 const FILTROS_CONVERSA = [
@@ -3882,7 +3892,7 @@ function itemConversa(c) {
     ${avatarConversa(c.nome, c.interessado, c.id)}
     <span class="meio"><span class="nome">${esc(c.nome)}</span>
       <span class="previa">${u ? ic(icCanal(u.canal), "sm") : ""} ${esc(previa)}</span>
-      <span>${c.followup?.quando ? `<span class="pilula" title="${esc(textoDoFollowup(c.followup))}">${ic("bell", "sm")}follow-up ${emQuantoTempo(c.followup.quando)}</span> ` : ""}${c.agente_nome ? `<span class="pilula">${ic("users", "sm")}${esc(c.agente_nome)}</span> ` : ""}${c.interessado ? `${pilulaInteresse()} ` : ""}${pilulaChance(c.andamento)}${c.andamento.precisaDeVoce ? ` <span class="pilula perigo">${ic("alert", "sm")}Você</span>` : ""}</span></span>
+      <span>${numeroConversa === "todos" && c.numero_conversa && nomeDoNumero(c.numero_conversa) ? `<span class="pilula numero-pilula" title="Sai por este número">${ic("phone", "sm")}${esc(nomeDoNumero(c.numero_conversa))}</span> ` : ""}${c.followup?.quando ? `<span class="pilula" title="${esc(textoDoFollowup(c.followup))}">${ic("bell", "sm")}follow-up ${emQuantoTempo(c.followup.quando)}</span> ` : ""}${c.agente_nome ? `<span class="pilula">${ic("users", "sm")}${esc(c.agente_nome)}</span> ` : ""}${c.interessado ? `${pilulaInteresse()} ` : ""}${pilulaChance(c.andamento)}${c.andamento.precisaDeVoce ? ` <span class="pilula perigo">${ic("alert", "sm")}Você</span>` : ""}</span></span>
     <span class="lado"><span>${horaCurta(u?.quando)}</span>${c.nao_lidas ? `<span class="badge-nl">${c.nao_lidas}</span>` : ""}</span>
   </button>`;
 }
@@ -3900,8 +3910,44 @@ function bateComBusca(c, termo) {
   return numeros.some((n) => n.includes(digitos) || (digitos.length >= 8 && n.replace(/^(55\d{2})9/, "$1").includes(digitos.replace(/^((?:55)?\d{2})9(\d{8})$/, "$1$2"))));
 }
 
+/** "Principal · API oficial" / "Bruno · UAZap": o nome do número com de onde ele é (os dois lados podem ter um Principal). */
+const ORIGEM_NUMERO = { oficial: "API oficial", uazap: "UAZap" };
+function nomeDoNumero(id) {
+  const n = (dadosConversas?.numeros ?? []).find((x) => x.id === id);
+  if (!n) return null;
+  return ORIGEM_NUMERO[n.tipo] ? `${n.nome} · ${ORIGEM_NUMERO[n.tipo]}` : n.nome;
+}
+
+const numeroDaConversa = (c) => c.numero_conversa ?? "sem";
+
+/** As abas dos números, acima dos filtros: cada uma com quantas conversas e quantas não lidas. */
+function htmlNumerosDaConversa() {
+  const numeros = (dadosConversas?.numeros ?? []).filter((n) => n.conversas || !n.removido);
+  if (numeros.filter((n) => n.conversas).length < 1) return "";
+  const total = (dadosConversas?.conversas ?? []).length;
+  const naoLidas = (dadosConversas?.conversas ?? []).filter((c) => c.nao_lidas).length;
+  const aba = (id, rotulo, n, nl, extra = "") => `<button class="filtro aba-numero" data-numero-conversa="${esc(id)}" aria-pressed="${id === numeroConversa}"${extra}>
+      ${rotulo}<span class="muted">${n}</span>${nl ? `<span class="badge-nl" title="${nl} com mensagem não lida">${nl}</span>` : ""}</button>`;
+  const grupos = [
+    ["oficial", "API oficial da Meta", "check"], ["uazap", "Instâncias da UAZap", "phone"], ["outro", "", "mail"],
+  ];
+  const partes = [aba("todos", "Todos os números", total, naoLidas)];
+  for (const [tipo, titulo, icone] of grupos) {
+    const doTipo = numeros.filter((n) => n.tipo === tipo);
+    if (!doTipo.length) continue;
+    if (titulo) partes.push(`<span class="numeros-grupo">${esc(titulo)}</span>`);
+    for (const n of doTipo) {
+      const estado = n.removido ? "removido de Configurações" : n.tipo === "uazap" && !n.conectado ? "desconectado" : n.tipo === "oficial" && n.ativo === false ? "desligado" : "";
+      partes.push(aba(n.id, `${ic(icone, "sm")}${esc(n.nome)}${estado ? `<span class="ponto-off" aria-hidden="true"></span>` : ""}`, n.conversas, n.nao_lidas,
+        ` title="${esc(nomeDoNumero(n.id) ?? n.nome)}${estado ? ` (${estado})` : ""}"`));
+    }
+  }
+  return partes.join("");
+}
+
 function conversasFiltradas() {
-  const lista = (dadosConversas?.conversas ?? []).filter((c) => bateComBusca(c, buscaConversa));
+  const lista = (dadosConversas?.conversas ?? []).filter((c) => bateComBusca(c, buscaConversa)
+    && (numeroConversa === "todos" || numeroDaConversa(c) === numeroConversa));
   if (filtroConversa === "todas") return lista;
   if (filtroConversa === "precisa") return lista.filter((c) => c.andamento.precisaDeVoce);
   if (filtroConversa === "interessados") return lista.filter((c) => c.interessado);
@@ -3915,11 +3961,16 @@ document.addEventListener("input", (ev) => {
 });
 
 function desenharListaConversas() {
+  // Número escolhido que não existe mais (ou sem conversa): volta para todos.
+  if (numeroConversa !== "todos" && !(dadosConversas?.numeros ?? []).some((n) => n.id === numeroConversa && n.conversas)) numeroConversa = "todos";
+  const abas = htmlNumerosDaConversa();
+  $("#chat-numeros").hidden = !abas;
+  $("#chat-numeros").innerHTML = abas;
   const lista = conversasFiltradas();
   $("#chat-filtros").innerHTML = FILTROS_CONVERSA.map(([v, t]) =>
     `<button class="filtro" data-filtro-conversa="${v}" aria-pressed="${v === filtroConversa}">${t}</button>`).join("");
   $("#chat-itens").innerHTML = lista.length ? lista.map(itemConversa).join("")
-    : `<p class="muted" style="padding:20px;text-align:center">${buscaConversa.trim() ? `Nenhuma conversa com "${esc(buscaConversa.trim())}"${filtroConversa !== "todas" ? " neste filtro" : ""}.` : "Nenhuma conversa neste filtro."}</p>`;
+    : `<p class="muted" style="padding:20px;text-align:center">${buscaConversa.trim() ? `Nenhuma conversa com "${esc(buscaConversa.trim())}"${filtroConversa !== "todas" || numeroConversa !== "todos" ? " neste filtro" : ""}.` : numeroConversa !== "todos" && filtroConversa === "todas" ? "Nenhuma conversa neste número." : "Nenhuma conversa neste filtro."}</p>`;
 }
 
 /** Monta a página (indicadores + lista + chat). Com `manterChat`, só atualiza o que mudou. */
@@ -4018,6 +4069,7 @@ async function carregarRespostas(alvo, { manterChat = false } = {}) {
     <div class="chat-app" id="chat-app">
       <aside class="chat-lista" aria-label="Conversas">
         <div class="chat-busca">${ic("search", "sm")}<input id="chat-busca" type="search" placeholder="Buscar por nome ou telefone" aria-label="Buscar conversa por nome ou telefone" value="${esc(buscaConversa)}" autocomplete="off"></div>
+        <div class="filtros numeros-conversa" id="chat-numeros" aria-label="Ver as conversas de cada número" hidden></div>
         <div class="filtros" id="chat-filtros"></div><div class="chat-itens" id="chat-itens"></div></aside>
       <section class="chat-painel" id="chat-painel"><div class="chat-vazio">${ic("message")}<p>Escolha uma conversa para ver tudo o que foi falado.</p></div></section>
     </div>`;
@@ -8348,7 +8400,7 @@ document.addEventListener("change", async (ev) => {
       await api(`/api/leads/${sel.dataset.lead}/numero-whatsapp`, { method: "PUT", body: JSON.stringify({ numeroId: sel.value }) });
       avisar(`Esta conversa agora sai pelo ${nome}. A empresa passa a receber deste número.`, "ok", 7000);
       const texto = $("#chat-texto")?.value;
-      await abrirConversa(conversaAberta);
+      await carregarRespostas($("#view-lista"), { manterChat: true });
       if (texto != null && $("#chat-texto")) $("#chat-texto").value = texto;
     } catch (e) {
       avisar(e.message, "perigo", 7000);
@@ -8386,6 +8438,14 @@ document.addEventListener("click", async (ev) => {
     else if ("responder" in btn.dataset) await responder(btn);
     else if (btn.dataset.conversaId) await abrirConversa(btn.dataset.conversaId);
     else if (btn.dataset.filtroConversa) { filtroConversa = btn.dataset.filtroConversa; desenharListaConversas(); }
+    else if (btn.dataset.numeroConversa) {
+      numeroConversa = btn.dataset.numeroConversa;
+      try { localStorage.setItem("respostas_numero", numeroConversa); } catch {}
+      desenharListaConversas();
+      // A conversa aberta é de outro número: abre a primeira deste.
+      const visiveis = conversasFiltradas();
+      if (conversaAberta && !visiveis.some((c) => c.id === conversaAberta) && window.matchMedia("(min-width: 1241px)").matches && visiveis[0]) await abrirConversa(visiveis[0].id);
+    }
     else if ("voltarLista" in btn.dataset) $("#chat-app").classList.remove("com-conversa");
     else if ("enviarConversa" in btn.dataset) await enviarNaConversa(btn);
     else if ("iaContinua" in btn.dataset) await iaContinua(btn);

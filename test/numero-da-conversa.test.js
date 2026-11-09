@@ -17,3 +17,22 @@ test("janela de 24 h da Meta: aberta só se a pessoa escreveu no WhatsApp há me
   // Número que não está ligado em Configurações não pode ser escolhido.
   await assert.rejects(pipeline.trocarNumeroDaConversa(lead.id, "meta-999"), /não está ligado/);
 });
+
+test("cada conversa sabe por qual número sai (para ver as mensagens de cada número separadas)", async () => {
+  const criar = async (place, nome) => {
+    await db.inserirLead({ place_id: place, nome, cidade: "Osasco - SP" });
+    const [l] = await db.consultar("SELECT id FROM leads WHERE place_id = $1", [place]);
+    await db.consultar("INSERT INTO respostas (lead_id, canal, texto, recebida_em, classificacao) VALUES ($1, 'whatsapp', 'Oi', now(), 'interessado')", [l.id]);
+    return l.id;
+  };
+  const meta = await criar("ChIJnumero000000000000000001", "Pela Meta");
+  await db.atualizarLead(meta, { numero_wa: "meta-123" });
+  const antiga = await criar("ChIJnumero000000000000000002", "Conversa Antiga");
+  await db.consultar("INSERT INTO mensagens (lead_id, canal, etapa, destino, corpo, status, enviada_em) VALUES ($1, 'whatsapp', 1, '5511999990000', 'Olá', 'enviada', now())", [antiga]);
+  const soEmail = await criar("ChIJnumero000000000000000003", "Só E-mail");
+  const lista = await db.conversas();
+  const de = (id) => lista.find((c) => c.id === id)?.numero_conversa;
+  assert.equal(de(meta), "meta-123");
+  assert.equal(de(antiga), "principal"); // de antes de existirem vários números: o principal da UAZap
+  assert.equal(de(soEmail), null);
+});

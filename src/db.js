@@ -1141,6 +1141,9 @@ export async function conversas() {
   const linhas = await q(
     `SELECT l.id, l.nome, l.status, l.nicho, l.cidade, l.whatsapp, l.email, l.agente_id,
             (SELECT a.nome FROM agentes a WHERE a.id = l.agente_id) AS agente_nome,
+            -- Por qual número de WhatsApp a conversa sai: o guardado na empresa; conversa de antes de existirem
+            -- vários números (já recebeu WhatsApp sem número guardado) é do principal; sem WhatsApp, nenhum.
+            COALESCE(l.numero_wa, (SELECT 'principal' FROM mensagens m WHERE m.lead_id = l.id AND m.canal = 'whatsapp' AND m.status = 'enviada' LIMIT 1)) AS numero_conversa,
             (SELECT e.valor FROM estado e WHERE e.chave = 'ia_pausada:' || l.id) AS ia_pausada,
             count(r.id)::int AS respostas,
             count(r.id) FILTER (WHERE NOT r.lida)::int AS nao_lidas,
