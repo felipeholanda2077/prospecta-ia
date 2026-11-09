@@ -18,16 +18,16 @@ const ESQUEMA = {
   properties: {
     titulo: { ...texto(90), description: "Título do slide da dor: a dor principal da empresa numa frase forte (até 90 caracteres)" },
     resumo: { ...texto(280), description: "O que entendemos da operação deles, com os fatos ditos na conversa (até 280 caracteres)" },
-    dores: { type: "array", minItems: 2, maxItems: 3, items: { type: "object", additionalProperties: false, required: ["titulo", "texto"], properties: { titulo: texto(50), texto: texto(180) } } },
+    dores: { type: "array", description: "2 ou 3 dores", items: { type: "object", additionalProperties: false, required: ["titulo", "texto"], properties: { titulo: texto(50), texto: texto(180) } } },
     solucao: {
       type: "object", additionalProperties: false, required: ["titulo", "itens"],
       properties: {
         titulo: texto(90),
-        itens: { type: "array", minItems: 3, maxItems: 5, items: { type: "object", additionalProperties: false, required: ["titulo", "texto"], properties: { titulo: texto(50), texto: texto(180) } } },
+        itens: { type: "array", description: "3 a 5 partes da solução", items: { type: "object", additionalProperties: false, required: ["titulo", "texto"], properties: { titulo: texto(50), texto: texto(180) } } },
       },
     },
-    passos: { type: "array", minItems: 3, maxItems: 5, items: texto(160) },
-    resultados: { type: "array", minItems: 3, maxItems: 3, items: texto(120) },
+    passos: { type: "array", description: "3 a 5 passos", items: texto(160) },
+    resultados: { type: "array", description: "exatamente 3 resultados", items: texto(120) },
     proximoPasso: texto(140),
     mensagem: { type: "string", description: "A mensagem de WhatsApp que leva o link, como Felipe; use {{link}} onde vai o link (até 500 caracteres)" },
   },
@@ -58,7 +58,11 @@ export async function gerarPropostaSlides(leadId, { gerar = gerarJson } = {}) {
     maxTokens: 4000,
   });
   const codigo = (await db.lerEstado(chaveDoLead(lead.id))) || crypto.randomBytes(12).toString("base64url");
-  const proposta = { empresa: lead.nome, ...dados };
+  const proposta = {
+    empresa: lead.nome, ...dados,
+    dores: (dados.dores ?? []).slice(0, 3), passos: (dados.passos ?? []).slice(0, 5), resultados: (dados.resultados ?? []).slice(0, 3),
+    solucao: { titulo: dados.solucao?.titulo ?? "", itens: (dados.solucao?.itens ?? []).slice(0, 5) },
+  };
   delete proposta.mensagem;
   await db.gravarConfig(chaveDoCodigo(codigo), { leadId: lead.id, proposta, criadaEm: new Date().toISOString() });
   await db.gravarEstado(chaveDoLead(lead.id), codigo);
