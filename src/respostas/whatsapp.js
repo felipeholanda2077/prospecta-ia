@@ -36,6 +36,28 @@ export function extrairMensagens(payload) {
   return mensagens;
 }
 
+// Avisos de entrega da Meta ("statuses" do webhook) na situação que o painel mostra.
+const ENTREGA_DA_META = { sent: "enviada", delivered: "entregue", read: "lida", failed: "falhou" };
+
+/** Os avisos de entrega do webhook da Meta: { id (da mensagem na Meta), entrega, quando, erro }. */
+export function extrairEntregas(payload) {
+  const avisos = [];
+  for (const entrada of payload?.entry ?? []) {
+    for (const mudanca of entrada.changes ?? []) {
+      for (const s of mudanca.value?.statuses ?? []) {
+        const entrega = ENTREGA_DA_META[s.status];
+        if (!s.id || !entrega) continue;
+        const e = s.errors?.[0];
+        avisos.push({
+          id: s.id, entrega, quando: s.timestamp ? new Date(Number(s.timestamp) * 1000) : new Date(),
+          erro: e ? `Meta ${e.code ?? ""}: ${e.error_data?.details ?? e.message ?? e.title ?? "não entregue"}`.trim() : null,
+        });
+      }
+    }
+  }
+  return avisos;
+}
+
 /** Encontra a última proposta nossa enviada para esse número. */
 export async function mensagemOriginalWhatsapp(numero) {
   // Contato @lid (sem telefone) é procurado como veio.
@@ -49,6 +71,8 @@ export async function mensagemOriginalWhatsapp(numero) {
 
 export async function processarWebhookWhatsapp(payload, campanha) {
   let registradas = 0;
+  // Enviada, entregue, lida ou falhou: a situação de cada mensagem nossa que saiu pelo número oficial.
+  for (const a of extrairEntregas(payload)) await db.atualizarEntrega(a.id, a.entrega, a.quando, a.erro);
   for (const m of extrairMensagens(payload)) {
     const original = await mensagemOriginalWhatsapp(m.de);
     // Conversa que não veio de uma proposta nossa nem de um contato ligado a uma empresa (ex.: alguém indicado) fica de fora.

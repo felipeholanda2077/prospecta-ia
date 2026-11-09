@@ -582,6 +582,25 @@ export async function atualizarMensagem(id, campos) {
 
 /** Cancela mensagens ainda não enviadas do lead (ex.: ele respondeu antes do follow-up sair). */
 /** Cancela o que ainda ia sair para a empresa; `exceto` = uma mensagem que deve continuar na fila. */
+// Ordem da entrega: um aviso atrasado da Meta (ex.: "entregue" depois de "lida") não faz a situação voltar.
+const ORDEM_DA_ENTREGA = { enviada: 1, entregue: 2, lida: 3, falhou: 4 };
+
+/**
+ * Aviso da Meta sobre uma mensagem enviada pelo WhatsApp oficial (pelo id dela na Meta): enviada, entregue, lida ou
+ * falhou (com o motivo). Retorna quantas mensagens mudaram.
+ */
+export async function atualizarEntrega(messageId, entrega, quando = new Date(), erro = null) {
+  if (!messageId || !ORDEM_DA_ENTREGA[entrega]) return 0;
+  const linhas = await q(
+    `UPDATE mensagens SET entrega = $2, entrega_em = $3${erro ? ", erro = $5" : ""}
+      WHERE message_id = $1 AND (entrega IS NULL OR $4 > CASE entrega WHEN 'enviada' THEN 1 WHEN 'entregue' THEN 2 WHEN 'lida' THEN 3 ELSE 4 END)
+      RETURNING id`,
+    erro ? [messageId, entrega, new Date(quando).toISOString(), ORDEM_DA_ENTREGA[entrega], String(erro).slice(0, 300)]
+      : [messageId, entrega, new Date(quando).toISOString(), ORDEM_DA_ENTREGA[entrega]]
+  );
+  return linhas.length;
+}
+
 export async function cancelarPendentes(leadId, motivo, exceto = null, { manterDestinos = [] } = {}) {
   const params = [leadId, motivo];
   let filtro = "";
@@ -736,10 +755,12 @@ export async function resumoDosDirects() {
 
 export async function historicoConversa(leadId) {
   return q(
-    `SELECT 'nos' AS autor, canal, assunto, corpo AS texto, enviada_em AS quando, etapa, destino AS contato, tipo, followup
+    `SELECT 'nos' AS autor, canal, assunto, corpo AS texto, enviada_em AS quando, etapa, destino AS contato, tipo, followup,
+            numero_wa, entrega, erro
        FROM mensagens WHERE lead_id = $1 AND status = 'enviada'
      UNION ALL
-     SELECT 'lead' AS autor, canal, assunto, texto, recebida_em AS quando, NULL AS etapa, de AS contato, classificacao AS tipo, NULL AS followup
+     SELECT 'lead' AS autor, canal, assunto, texto, recebida_em AS quando, NULL AS etapa, de AS contato, classificacao AS tipo, NULL AS followup,
+            NULL AS numero_wa, NULL AS entrega, NULL AS erro
        FROM respostas WHERE lead_id = $1 AND classificacao IS DISTINCT FROM 'automatica'
      ORDER BY quando`,
     [leadId]

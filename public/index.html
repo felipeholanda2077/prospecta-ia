@@ -498,6 +498,9 @@
   .bolha .assunto-b { font-weight: 650; font-size: 12.5px; margin-bottom: 3px; }
   .bolha .rodape-b { display: flex; flex-wrap: wrap; gap: 4px 8px; justify-content: flex-end; align-items: center; font-size: 11px; color: var(--muted); margin-top: 3px; white-space: normal; }
   .bolha .rodape-b .icon { width: 12px; height: 12px; }
+  .bolha .entrega { white-space: nowrap; }
+  .bolha .entrega.lida { color: #53bdeb; font-weight: 700; }
+  .bolha .entrega.falhou { color: var(--danger); font-weight: 700; }
   .bolha button.link { font: inherit; font-size: 11px; color: var(--danger); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
   .troca-canal { align-self: stretch; display: flex; align-items: center; justify-content: center; gap: 8px; margin: 10px 0; color: var(--accent-text, var(--accent)); font-size: 12.5px; font-weight: 700; text-align: center; }
   .troca-canal::before, .troca-canal::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: .35; min-width: 16px; }
@@ -3406,7 +3409,7 @@ function cardMensagem(m) {
     return `<article class="cartao">${cabecalhoMensagem(m)}${erro}
       <div class="cartao-corpo">
         <details class="ver-msg"><summary>${ic("mail", "sm")}Ver mensagem enviada</summary>${previaHtml(m)}</details>
-        <div class="meta" style="margin-top:8px"><span>${ic("checkCircle", "sm")}${m.status === "enviada" ? `Enviada em ${dataHora(m.enviada_em)}` : esc(m.status)}</span>${m.numero ? `<span class="pilula ${m.numero.tipo === "oficial" ? "ok" : ""}">${ic(m.numero.tipo === "oficial" ? "check" : "phone", "sm")}Saiu pelo ${esc(nomeComOrigem(m.numero))}</span>` : ""}</div>
+        <div class="meta" style="margin-top:8px"><span>${ic("checkCircle", "sm")}${m.status === "enviada" ? `Enviada em ${dataHora(m.enviada_em)}` : esc(m.status)}</span>${m.numero ? `<span class="pilula ${m.numero.tipo === "oficial" ? "ok" : ""}">${ic(m.numero.tipo === "oficial" ? "check" : "phone", "sm")}Saiu pelo ${esc(nomeComOrigem(m.numero))}</span>` : ""}${m.entrega ? `<span class="pilula ${{ lida: "ok", entregue: "acc", falhou: "perigo" }[m.entrega] ?? ""}" title="${esc(m.entrega === "falhou" ? m.erro ?? "" : "Aviso da Meta")}">${{ lida: "✓✓ Lida", entregue: "✓✓ Entregue", enviada: "✓ Enviada", falhou: "⚠ Não entregue" }[m.entrega]}</span>` : ""}</div>
         ${m.status === "enviada" ? linhaProxima(m) : ""}
       </div></article>`;
   }
@@ -4143,6 +4146,19 @@ function nomeDoContatoNaConversa(d, contato) {
   return esc(contato);
 }
 
+/**
+ * A situação de uma mensagem nossa. Pelo número oficial da Meta vem o aviso de verdade: ✓ enviada, ✓✓ entregue,
+ * ✓✓ azul lida, ou não entregue (com o motivo). Pela UAZap e pelo e-mail não há esse aviso: só ✓ enviada.
+ */
+function marcaDeEntrega(m) {
+  const oficial = String(m.numero_wa ?? "").startsWith("meta-");
+  if (m.entrega === "lida") return ` <span class="entrega lida" title="Lida (aviso da Meta)">✓✓ lida</span>`;
+  if (m.entrega === "entregue") return ` <span class="entrega" title="Entregue no celular (aviso da Meta)">✓✓ entregue</span>`;
+  if (m.entrega === "falhou") return ` <span class="entrega falhou" title="${esc(m.erro ?? "A Meta não entregou")}">⚠ não entregue</span>`;
+  if (m.entrega === "enviada" || oficial) return ` <span class="entrega" title="Enviada pela API oficial da Meta; ainda sem aviso de entrega">✓ enviada</span>`;
+  return ` <span class="entrega" title="Enviada${m.canal === "whatsapp" ? " pela UAZap (ela não avisa entrega nem leitura)" : ""}">✓</span>`;
+}
+
 function bolhasDaConversa(d, { somenteLer = false } = {}) {
   const contatoPrincipal = [d.lead.whatsapp, d.lead.email].filter(Boolean);
   let diaAnterior = "";
@@ -4166,7 +4182,7 @@ function bolhasDaConversa(d, { somenteLer = false } = {}) {
       ic(icCanal(m.canal), "sm"),
       m.autor === "nos" ? (m.followup ? `${ic("bell", "sm")}follow-up ${m.followup} de 2 · ${horasDepois ?? "?"} h sem resposta` : m.tipo === "reativacao" ? "reativação" : m.etapa >= 1 ? `etapa ${m.etapa}` : "resposta") : (ROTULOS_RESPOSTA[m.tipo]?.[0] ?? ""),
       outroContato ? `${m.autor === "nos" ? "para" : "de"} ${esc(m.contato)}` : "",
-      new Date(m.quando).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) + (m.autor === "nos" ? " ✓✓" : ""),
+      new Date(m.quando).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) + (m.autor === "nos" ? marcaDeEntrega(m) : ""),
     ].filter(Boolean).join(" · ");
     partes.push(`<div class="bolha ${m.autor}">${m.assunto && m.canal === "email" ? `<div class="assunto-b">${esc(m.assunto)}</div>` : ""}${esc(m.texto)}<div class="rodape-b">${detalhes}</div></div>`);
   }

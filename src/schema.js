@@ -102,6 +102,9 @@ ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS reservada_em timestamptz;
 -- Vários números de WhatsApp (UAZap): o número que cuida da conversa com a empresa e o que enviou cada mensagem.
 ALTER TABLE leads ADD COLUMN IF NOT EXISTS numero_wa text;
 ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS numero_wa text;
+-- Situação da entrega no WhatsApp oficial (avisos da Meta): enviada, entregue, lida ou falhou.
+ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS entrega text;
+ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS entrega_em timestamptz;
 -- Follow-up automático da IA para interessados que pararam de responder: 1, 2... (vazio nas outras mensagens).
 ALTER TABLE mensagens ADD COLUMN IF NOT EXISTS followup integer;
 

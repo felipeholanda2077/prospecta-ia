@@ -1250,6 +1250,19 @@ async function registrarEnvio(m, campanha, messageId = null, numeroId = null) {
  * Envia uma mensagem aprovada, SOMENTE em horário comercial e dentro do limite diário.
  * Fora disso, ela fica na fila e sai na próxima janela. Retorna { enviada, naFila, motivo }.
  */
+/** Bom dia (5h às 11h59), boa tarde (12h às 17h59) ou boa noite, pela hora no fuso informado. */
+export function saudacaoDoHorario(agora = new Date(), fuso = config.timezone) {
+  const hora = Number(new Intl.DateTimeFormat("en-US", { hour: "numeric", hourCycle: "h23", timeZone: fuso }).format(agora));
+  return hora >= 5 && hora < 12 ? "Bom dia" : hora >= 12 && hora < 18 ? "Boa tarde" : "Boa noite";
+}
+
+/** Troca o "Oi"/"Olá" do começo da mensagem pela saudação do horário ("Oi, tudo bem?" → "Boa tarde, tudo bem?"). */
+export function comSaudacaoDoHorario(texto, agora = new Date(), fuso = config.timezone) {
+  const t = String(texto ?? "");
+  const inicio = t.match(/^(oi+e?|ol[aá]|e a[ií])(?=[\s,!.?]|$)/i);
+  return inicio ? saudacaoDoHorario(agora, fuso) + t.slice(inicio[0].length) : t;
+}
+
 export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
   if (m.status !== "aprovada") return { enviada: false, motivo: `mensagem está como ${m.status}` };
   // A Meta não deixa a API mandar o primeiro direct: quem envia é você, pelo botão do painel.
@@ -1291,9 +1304,17 @@ export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
   // Fora do Brasil e de Portugal não tem agendamento: o marcador que sobrar vira o link dos slides.
   const corpoBase = vendeSemReuniao(m) ? String(m.corpo).split(MARCADOR_LINK).join(linkDosSlides({ nome: m.empresa })) : m.corpo;
   const corpoFinal = aplicarLinkAgendamento(corpoBase, campanha.automacao?.calendly, { token: m.token, email: m.destino }, m.canal);
-  if (corpoFinal !== m.corpo) {
-    await db.atualizarMensagem(m.id, { corpo: corpoFinal });
-    m = { ...m, corpo: corpoFinal };
+  // Primeira mensagem do WhatsApp para alguém (etapa 1, ou a primeira para um contato indicado): o "Oi" vira bom dia,
+  // boa tarde ou boa noite, pela hora em que sai no fuso da empresa (o texto foi escrito antes, sem saber a hora).
+  let corpoComSaudacao = corpoFinal;
+  const emPortugues = !m.pais || ["BR", "PT"].includes(m.pais);
+  // (A campanha com arte e áudio fica como está: o áudio é gravado a partir do texto.)
+  if (m.canal === "whatsapp" && emPortugues && !imagemDaMensagem(m) && (m.tipo === "resposta" ? !(await db.contatoJaUsado(m.destino, ["enviada"])) : m.tipo === "inicial" && m.etapa <= 1)) {
+    corpoComSaudacao = comSaudacaoDoHorario(corpoFinal, agora, fusoDaMensagem(m));
+  }
+  if (corpoComSaudacao !== m.corpo) {
+    await db.atualizarMensagem(m.id, { corpo: corpoComSaudacao });
+    m = { ...m, corpo: corpoComSaudacao };
   }
 
   try {
