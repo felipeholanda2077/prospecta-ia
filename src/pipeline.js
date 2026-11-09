@@ -9,7 +9,7 @@ import { buscarAnunciantes, podeBuscarSozinho, completarContatos, cortar } from 
 import { buscarEmpresasContratando, FUNCOES } from "./descoberta/vagas.js";
 import { buscarAnunciantesNoGoogle } from "./descoberta/googleAds.js";
 import { avaliacoesDoGoogle, oportunidadeDasAvaliacoes } from "./analise/avaliacoes.js";
-import { escolherAbordagem } from "./ia/abordagens.js";
+import { escolherAbordagem, ABORDAGENS } from "./ia/abordagens.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR, variantesWhatsappBR } from "./analise/telefone.js";
@@ -1945,6 +1945,7 @@ async function rodada(campanha) {
   await conferirWebhookWhatsapp();
   const resultado = { respostas: await verificarRespostas(campanha) };
   resultado.reescritas = await reescreverSequenciasComPreco(campanha, { ate });
+  resultado.novaAbordagem = await reescreverAbordagensAntigas(campanha, { ate }).catch((e) => ({ erro: e.message }));
   // Antes dos envios, para quem acabou de marcar a reunião não receber a próxima etapa.
   resultado.agendamentos = await verificarAgendamentos().catch((e) => {
     log(`⚠️  Falha ao conferir o Calendly: ${e.message}`);
@@ -2015,6 +2016,45 @@ export async function reescreverSequenciasComPreco(campanha, { ate = prazoPadrao
       log(`✍️  Sequência de ${lead.nome} reescrita sem preço, com convite para o bate-papo`);
     } catch (e) {
       log(`⚠️  Não foi possível reescrever a sequência de ${lead.nome}: ${e.message}`);
+    }
+  }
+  return { reescritas };
+}
+
+/**
+ * A primeira mensagem passou a falar da dor da empresa (teste A/B novo, ver ia/abordagens.js). As sequências que já
+ * estavam na fila com a abordagem antiga (elogio às avaliações etc.) são reescritas aos poucos, a cada rodada, na
+ * ordem em que vão sair: só as que ainda não mandaram a etapa 1 do WhatsApp. As etapas já enviadas ficam como estão.
+ */
+export async function reescreverAbordagensAntigas(campanha, { ate = prazoPadrao(), limite = 3 } = {}) {
+  const fila = ordenarFilaDeEnvio(await db.filaDeEnvio(400));
+  const novas = new Set(Object.keys(ABORDAGENS));
+  const antigas = [];
+  for (const m of fila) {
+    if (m.canal !== "whatsapp" || m.tipo !== "inicial" || m.etapa > 1 || antigas.includes(m.lead_id)) continue;
+    const lead = await db.buscarLead(m.lead_id);
+    if (lead && !novas.has(lead.abordagem) && lead.origem !== "contador") antigas.push(m.lead_id);
+    if (antigas.length >= limite) break;
+  }
+  if (!antigas.length) return { reescritas: 0 };
+  const contagem = Object.fromEntries((await db.resultadoPorAbordagem()).map((r) => [r.abordagem, r]));
+  let reescritas = 0;
+  for (const leadId of antigas) {
+    if (semTempo(ate)) break;
+    const lead = await db.buscarLead(leadId);
+    try {
+      const abordagem = escolherAbordagem(contagem);
+      const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades || "[]"), campanha, { abordagem });
+      for (const m of await db.etapasPendentes(leadId)) {
+        const corpo = (m.canal === "email" ? s.email : s.whatsapp)[m.etapa - 1];
+        if (!corpo) continue;
+        await db.atualizarMensagem(m.id, { corpo, assunto: m.canal === "email" ? (m.etapa === 1 ? s.assunto_email : `Re: ${s.assunto_email}`) : null });
+      }
+      await db.atualizarLead(leadId, { abordagem, observacao: s.resumo_interno });
+      reescritas++;
+      log(`✍️  Primeira mensagem de ${lead.nome} reescrita pela dor (${ABORDAGENS[abordagem].nome})`);
+    } catch (e) {
+      log(`⚠️  Não foi possível reescrever a primeira mensagem de ${lead?.nome ?? leadId}: ${e.message}`);
     }
   }
   return { reescritas };

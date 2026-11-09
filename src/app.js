@@ -18,6 +18,8 @@ import { rodapeDescadastro } from "./envio/email.js";
 import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as whatsappOficial from "./envio/whatsapp.js";
 import * as propostaSlides from "./vendas/propostaSlides.js";
+import { gerarSequencia } from "./ia/proposta.js";
+import { ABORDAGENS } from "./ia/abordagens.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
@@ -1406,6 +1408,23 @@ async function enviarFoto(leadId, res) {
 app.get("/api/foto/:leadId", (req, res, next) => (/^\d+$/.test(req.params.leadId) ? enviarFoto(req.params.leadId, res) : next()));
 
 // As empresas de uma ou mais etapas do funil (clicar numa etapa da tela Respostas mostra quem são).
+// Teste A/B da primeira mensagem: as duas versões (A e B) para uma empresa, sem salvar nada.
+app.post("/api/abordagem/previa", async (req, res) => {
+  try {
+    const lead = await db.buscarLead(Number(req.body?.leadId));
+    if (!lead) return res.status(404).json({ erro: "Empresa não encontrada" });
+    const campanha = await carregarCampanhaCompleta();
+    const versoes = {};
+    for (const abordagem of Object.keys(ABORDAGENS)) {
+      const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades || "[]"), campanha, { abordagem });
+      versoes[abordagem] = { nome: ABORDAGENS[abordagem].nome, whatsapp: s.whatsapp };
+    }
+    res.json({ empresa: lead.nome, versoes });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 // Escreve a proposta em slides desta empresa pela conversa (a dor e a solução). Não envia: a mensagem com o link vai
 // para a caixa de resposta, para revisar e enviar.
 app.post("/api/leads/:id/proposta-slides", async (req, res) => {

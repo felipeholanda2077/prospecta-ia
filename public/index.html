@@ -3815,18 +3815,22 @@ function htmlFunilVisual(f) {
 }
 
 // Teste A/B da primeira mensagem do WhatsApp (ver src/ia/abordagens.js).
-const NOMES_DAS_ABORDAGENS = { elogio: "Elogio e pergunta", pergunta: "Pergunta direta", responsavel: "Pergunta pelo responsável" };
+// A e B falam da dor da empresa; as antigas (elogio etc.) saíram do teste e só aparecem embaixo, para comparar.
+const NOMES_DAS_ABORDAGENS = { dor_na_pratica: "A · A dor na prática", dor_custo: "B · O que a dor custa" };
+const NOMES_ANTIGOS = { elogio: "Elogio e pergunta (antiga)", pergunta: "Pergunta direta (antiga)", responsavel: "Pergunta pelo responsável (antiga)" };
 const MIN_POR_ABORDAGEM = 30;
-function htmlTesteDeAbordagem(linhas = []) {
-  if (!linhas?.length) return "";
+function htmlTesteDeAbordagem(todas = []) {
+  if (!todas?.length) return "";
+  const atuais = Object.keys(NOMES_DAS_ABORDAGENS).map((k) => todas.find((r) => r.abordagem === k) ?? { abordagem: k, contatadas: 0, responderam: 0, interessadas: 0 });
+  const linhas = [...atuais, ...todas.filter((r) => NOMES_ANTIGOS[r.abordagem])];
   const taxa = (r) => (r.contatadas ? r.interessadas / r.contatadas : 0);
   const todasMedidas = Object.keys(NOMES_DAS_ABORDAGENS).every((k) => (linhas.find((r) => r.abordagem === k)?.contatadas ?? 0) >= MIN_POR_ABORDAGEM);
-  const melhor = todasMedidas ? [...linhas].sort((a, b) => taxa(b) - taxa(a))[0]?.abordagem : null;
+  const melhor = todasMedidas ? [...atuais].sort((a, b) => taxa(b) - taxa(a))[0]?.abordagem : null;
   return `<div class="fv-bloco"><b>Primeira mensagem (teste A/B)</b><span class="muted">${todasMedidas
     ? "a IA usa mais a que gera mais interesse, e de vez em quando as outras"
-    : `cada jeito de abrir a conversa vai para ${MIN_POR_ABORDAGEM} empresas antes de a IA escolher`}</span>
+    : `as duas abrem pela dor da empresa; cada uma vai para ${MIN_POR_ABORDAGEM} empresas (pelos números da UAZap) antes de a IA escolher`}</span>
     <table class="fv-ramos"><thead><tr><th>Abordagem</th><th>Contatadas</th><th>Responderam</th><th>Interessadas</th></tr></thead><tbody>
-    ${linhas.map((r) => `<tr><td>${esc(NOMES_DAS_ABORDAGENS[r.abordagem] ?? r.abordagem)}${r.abordagem === melhor ? ' <span class="pilula ok">Na frente</span>' : ""}</td><td>${r.contatadas}</td>
+    ${linhas.map((r) => `<tr${NOMES_ANTIGOS[r.abordagem] ? ' class="muted"' : ""}><td>${esc(NOMES_DAS_ABORDAGENS[r.abordagem] ?? NOMES_ANTIGOS[r.abordagem] ?? r.abordagem)}${r.abordagem === melhor ? ' <span class="pilula ok">Na frente</span>' : ""}</td><td>${r.contatadas}</td>
       <td><b>${pctDe(r.responderam, r.contatadas)}%</b> <span class="muted">(${r.responderam})</span></td>
       <td><b>${pctDe(r.interessadas, r.contatadas)}%</b> <span class="muted">(${r.interessadas})</span></td></tr>`).join("")}
     </tbody></table></div>`;

@@ -76,6 +76,15 @@ Sua tarefa: escrever uma SEQUÊNCIA de 3 mensagens para iniciar contato com uma 
 A abordagem é gradual, como uma pessoa de verdade puxando conversa: a informação vai sendo revelada aos poucos.
 Cada etapa só é enviada se a anterior não teve resposta; quando a empresa responder, a sequência para.
 
+O objetivo da sequência é elevar o nível de consciência da pessoa sobre uma DOR real da empresa dela: primeiro ela
+reconhece a situação ("isso acontece aqui"), depois percebe o que isso custa, depois vê que tem solução e que vocês
+entendem do assunto. É isso que gera confiança para ela querer conversar e fechar.
+- A dor vem da oportunidade observada na análise e do tipo de negócio (ex.: demora para responder no WhatsApp, cliente
+  que pesquisa no Google e não acha a empresa, agenda e pedidos feitos à mão, equipe presa em tarefa repetitiva).
+- Fale da dor como algo comum nesse tipo de negócio, que você conhece de perto, nunca como acusação ou defeito da empresa.
+- PROIBIDO elogiar ou citar a nota ou a quantidade de avaliações do Google (isso não diz nada para quem lê), e
+  PROIBIDO abrir com "vi que vocês..." sobre o perfil ou as avaliações.
+
 Etapa 1 — primeiro contato (curtíssima e leve):
 - WhatsApp, abordagem "${ABORDAGENS[abordagem].nome}": ${ABORDAGENS[abordagem].instrucao}
 - E-mail: ${ABORDAGENS[ABORDAGEM_PADRAO].instrucao}
@@ -88,12 +97,14 @@ No e-mail cada etapa sai em outro dia (a 2 um dia útil depois da 1, a 3 dois di
 quem dá sequência ao e-mail anterior, sem citar o dia exato (nada de "ontem" ou "semana passada").
 
 Se os dados trazem o sócio que administra a empresa: use o PRIMEIRO nome dele, com a grafia certa em português (ex.:
-JOSE CARLOS DA SILVA → José). Na abordagem "${ABORDAGENS.responsavel.nome}", pergunte por ele ("Falo com o José?"); nas
-outras e no e-mail, cumprimente pelo nome ("Oi, José, tudo bem?"). Não diga de onde tirou o nome.
+JOSE CARLOS DA SILVA → José) e cumprimente pelo nome ("Oi, José, tudo bem?"). Não diga de onde tirou o nome.
 
 Etapa 2 — se não houver resposta (WhatsApp: ~2 horas depois; e-mail: 1 dia útil depois):
 - Volte com naturalidade, sem cobrar resposta.
-- Compartilhe UMA observação concreta da análise e o impacto prático para o negócio (ex.: muita gente pesquisa no Google antes de escolher, e sem site esse cliente vai para quem aparece).
+- Aprofunde a MESMA dor: o que ela custa na prática (cliente perdido, tempo da equipe, venda que não volta), ligado a UMA
+  observação concreta da análise, sem inventar números.
+- Mostre em uma frase que isso tem solução e como empresas parecidas resolvem (ex.: o WhatsApp respondido na hora, a
+  qualquer hora, com a equipe entrando só quando precisa), para ela ver que vocês entendem do assunto.
 - Ainda sem preço. Pergunte se faz sentido mostrar um exemplo de como ficaria para eles.
 - WhatsApp: até ~350 caracteres. E-mail: 60 a 100 palavras.
 
@@ -188,7 +199,7 @@ function montarPedido(lead, oportunidades) {
 - Segmento: ${lead.nicho ?? "não informado"}
 - Cidade: ${lead.cidade ?? "não informada"}
 - Site: ${lead.site ?? SEM_SITE_CONHECIDO(lead)}
-- Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "sem dados"}${linhaDoInstagram(lead)}${linhaDoAnuncio(lead)}${linhaDaVaga(lead)}${linhaDasAvaliacoes(lead)}${lead.responsavel ? `
+- Avaliação no Google (só para você saber; não cite nas mensagens): ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "sem dados"}${linhaDoInstagram(lead)}${linhaDoAnuncio(lead)}${linhaDaVaga(lead)}${linhaDasAvaliacoes(lead)}${lead.responsavel ? `
 - Sócio que administra (cadastro do CNPJ, em maiúsculas e sem acento): ${lead.responsavel}` : ""}
 
 Oportunidades encontradas na análise (da mais para a menos relevante):

@@ -1288,6 +1288,9 @@ export async function resultadoPorAbordagem() {
             count(*) FILTER (WHERE e.etapa IN ('interessadas', 'agendaram', 'fecharam'))::int AS interessadas
        FROM etapas e JOIN leads l ON l.id = e.id
       WHERE l.abordagem IS NOT NULL
+        -- A primeira mensagem que saiu pelo número oficial da Meta é o modelo aprovado, não a da IA: fica fora do teste.
+        AND NOT EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.canal = 'whatsapp' AND m.etapa <= 1
+                          AND m.status = 'enviada' AND m.numero_wa LIKE 'meta-%')
       GROUP BY l.abordagem ORDER BY l.abordagem`
   );
 }
