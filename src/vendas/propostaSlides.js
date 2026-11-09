@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { z } from "zod";
 import * as db from "../db.js";
 import { gerarJson } from "../ia/cliente.js";
 import { lerApresentacao } from "../respostas/apresentacao.js";
@@ -33,6 +34,12 @@ const ESQUEMA = {
   },
 };
 
+const item = z.object({ titulo: z.string(), texto: z.string() });
+const ZOD = z.object({
+  titulo: z.string(), resumo: z.string(), dores: z.array(item), solucao: z.object({ titulo: z.string(), itens: z.array(item) }),
+  passos: z.array(z.string()), resultados: z.array(z.string()), proximoPasso: z.string(), mensagem: z.string(),
+});
+
 const SISTEMA = `Você é o Felipe, da FluxDeck (software house de Osasco: sites, sistemas, apps, automações e IA no WhatsApp).
 Escreva uma proposta comercial em slides para a empresa da conversa, personalizada para a dor que ela mostrou.
 Regras:
@@ -54,6 +61,7 @@ export async function gerarPropostaSlides(leadId, { gerar = gerarJson } = {}) {
     system: SISTEMA,
     pedido: `Empresa: ${lead.nome}\nSegmento: ${lead.nicho ?? "-"}\nCidade: ${lead.cidade ?? "-"}\nAvaliações no Google: ${lead.avaliacao ?? "-"} (${lead.total_avaliacoes ?? 0})\n\nServiços da FluxDeck:\n${(await lerApresentacao()).slice(0, 2500)}\n\nConversa:\n${conversa}`,
     jsonSchema: ESQUEMA,
+    zodSchema: ZOD,
     effort: "medium",
     maxTokens: 4000,
   });
