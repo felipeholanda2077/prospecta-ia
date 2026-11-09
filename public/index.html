@@ -4114,6 +4114,7 @@ async function abrirConversa(id, { atualizar = false } = {}) {
   const atual = numeros.find((n) => n.id === d.numeroAtual);
   const rotuloNumero = (n) => `${n.nome} · ${n.tipo === "oficial" ? "API oficial da Meta" : `UAZap${n.conectado ? "" : " (desconectado)"}`}`;
   const avisoDoNumero = !atual ? (numeros.length ? "Ainda sem número fixo: sai pelo que estiver livre." : "")
+    : d.numeroDeduzido ? `Conversa antiga: hoje sai por este número.${atual.tipo === "uazap" && !atual.conectado ? " Ele está desconectado." : ""}`
     : atual.tipo === "oficial" ? (atual.janela ? "Janela de 24 h aberta: vai como mensagem normal." : "Fora da janela de 24 h da Meta: vai pelo modelo aprovado.")
     : atual.conectado ? "" : "Este número está desconectado: a mensagem espera na fila até reconectar.";
   const seletorDeNumero = numeros.length > 1 || (numeros.length && !atual) ? `<label class="para-quem">${ic("phone", "sm")}Enviar pelo número

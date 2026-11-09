@@ -1370,7 +1370,10 @@ app.get("/api/conversas/:leadId", async (req, res) => {
       : (await uazap.numero(lead.numero_wa))?.nome ?? null,
     agente: lead.agente_id ? (await db.buscarAgente(lead.agente_id))?.nome ?? null : null,
     // Por qual número a conversa pode sair (API oficial da Meta ou instâncias da UAZap) e qual está nela.
-    numeroAtual: lead.numero_wa ?? null,
+    // Conversa de antes de existirem vários números: o número por onde ela sai hoje (sem gravar nada).
+    numeroAtual: lead.numero_wa ?? (await pipeline.canalDoWhatsapp({ lead_id: lead.id, tipo: "resposta", etapa: 0, numero_wa_lead: null, pais: lead.pais })
+      .catch(() => null))?.numeroId ?? null,
+    numeroDeduzido: !lead.numero_wa,
     numerosDisponiveis: await pipeline.numerosParaConversa(lead.id).catch(() => []),
     mensagens,
     agendadas: await db.agendadasDaConversa(lead.id),
