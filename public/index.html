@@ -2783,6 +2783,19 @@ const SITUACAO_MODELO = { APPROVED: ["ok", "Aprovado", "checkCircle"], PENDING: 
   REJECTED: ["perigo", "Recusado", "alert"], PAUSED: ["perigo", "Pausado pela Meta", "alert"], DISABLED: ["perigo", "Desativado pela Meta", "alert"], ERRO: ["perigo", "Erro", "alert"] };
 // Enquanto a Meta analisa, o cartão confere sozinho a cada minuto (só com Configurações aberta) e avisa cada aprovação.
 let modeloForaVigia = null;
+/** O que o número oficial faz com as empresas do Brasil enquanto os idiomas de fora não são aprovados. */
+function textoDoBrasilNoModelo(n, porIdioma, aprovados, total) {
+  const pt = porIdioma.pt_BR;
+  const hoje = n.hoje ? ` Hoje ele já chamou ${n.hoje} ${n.hoje === 1 ? "empresa nova" : "empresas novas"}.` : "";
+  if (pt === "APPROVED" && n.prontoBrasil) {
+    const fora = aprovados < total ? " Enquanto os idiomas de fora estão em análise, as empresas de fora saem pela UAZap e cada idioma passa para este número quando a Meta aprovar." : "";
+    return `<div class="alerta ok">${ic("check")}<div><b>Brasil (português): aprovado.</b> Este número segue mandando para as empresas do Brasil.${hoje}${fora}</div></div>`;
+  }
+  if (pt === "APPROVED") return `<div class="alerta atencao">${ic("alert")}<div><b>Brasil (português): aprovado</b>, mas a Meta ainda não liberou este número para empresas novas.${hoje}</div></div>`;
+  if (pt) return `<div class="alerta atencao">${ic("clock")}<div><b>Brasil (português): ${esc((SITUACAO_MODELO[pt] ?? ["", pt])[1])}.</b> As empresas do Brasil saem pela UAZap até a aprovação.</div></div>`;
+  return "";
+}
+
 let modeloForaAntes = null;
 async function mostrarModeloFora() {
   const alvo = $("#modelo-fora");
@@ -2816,6 +2829,7 @@ async function mostrarModeloFora() {
       return `<div style="display:grid;gap:10px;margin-bottom:14px">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(n.nome ?? "Número")}${n.modelo ? ` · modelo "${esc(n.modelo)}"` : ""}</b>${resumo}</div>
         ${n.erro ? `<div class="alerta perigo">${ic("alert")}<div>${esc(n.erro)}</div></div>` : `<div class="pilulas">${linhas}</div>`}
+        ${!n.erro ? textoDoBrasilNoModelo(n, porIdioma, aprovados, total) : ""}
         ${!n.erro && faltam ? `<div><button class="btn primario" type="button" data-criar-modelos="${esc(n.numeroId ?? "")}">${ic("globe")}Criar as ${faltam} ${faltam === 1 ? "versão que falta" : "versões que faltam"} e mandar para a Meta</button></div>` : ""}
       </div>`;
     }).join("") + (emAnalise ? `<p class="muted" style="font-size:12.5px;margin:0">Conferindo com a Meta a cada minuto enquanto esta tela estiver aberta. Última conferência às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.</p>` : "");

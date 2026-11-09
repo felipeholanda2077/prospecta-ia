@@ -1053,7 +1053,10 @@ app.get("/api/whatsapp/modelo-fora", async (req, res) => {
     for (const n of numeros.length ? numeros : [{ id: null, nome: "Principal" }]) {
       const r = await whatsappOficial.versoesDoModelo(n.id).catch((e) => ({ erro: e.message, versoes: [] }));
       lista.push({ numeroId: n.id, nome: n.nome, erro: r.erro ?? null, modelo: r.c?.template ?? null,
-        versoes: r.versoes.map((v) => ({ idioma: v.language, situacao: v.status })) });
+        versoes: r.versoes.map((v) => ({ idioma: v.language, situacao: v.status })),
+        // Enquanto os idiomas de fora estão em análise, o número segue com as empresas do Brasil (modelo em português).
+        prontoBrasil: n.id ? await whatsappOficial.prontoParaEmpresaNova(n.id).catch(() => false) : false,
+        hoje: n.id ? await db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id }) : 0 });
     }
     res.json({ numeros: lista, idiomas: whatsappOficial.IDIOMAS_DE_FORA });
   } catch (e) {
