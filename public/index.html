@@ -1101,8 +1101,8 @@
               <label class="chave"><input type="checkbox" name="numeroExteriorAtivo"><div><b>Um número só para as empresas de fora</b>
                 <span>Ligado: só o número escolhido ao lado começa conversa com empresa de fora do Brasil, e ele não manda para empresa daqui. Desligado: as de fora saem pelos mesmos números das daqui.</span></div></label>
               <div class="campo"><label for="auto-numero-exterior">Número das empresas de fora</label>
-                <select id="auto-numero-exterior" name="numeroExterior"><option value="">Escolha um número da UAZap</option></select>
-                <span class="muted" style="font-size:12.5px">Só números da UAZap (a API oficial começa a conversa com o modelo em português). Conecte um número novo em Configurações.</span></div>
+                <select id="auto-numero-exterior" name="numeroExterior"><option value="">Escolha um número</option></select>
+                <span class="muted" style="font-size:12.5px">Da API oficial (precisa do modelo aprovado nos idiomas de fora: veja em Configurações) ou da UAZap.</span></div>
             </div>
             <div class="campo"><label for="auto-apresentacao">Apresentação que a IA manda para quem se interessar</label>
               <textarea id="auto-apresentacao" name="apresentacao" style="min-height:220px"></textarea>
@@ -1208,6 +1208,12 @@
           <div class="cartao-cab"><span class="kpi-ic" data-ic-span="globe"></span><div class="titulos"><h3>Pagamento fora do Brasil (Stripe) <span id="stripe-status"></span></h3>
             <div class="meta">Para as empresas de fora do Brasil e de Portugal, que compram sem reunião: quando a pessoa quer contratar, a IA manda um link de pagamento do Stripe com a mensalidade do plano em euro ou dólar, no cartão, cobrada todo mês.</div></div></div>
           <div class="cartao-corpo" id="stripe-conexao"></div>
+        </div>
+
+        <div class="cartao" id="cartao-modelo-fora" style="margin-top:16px">
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="globe"></span><div class="titulos"><h3>WhatsApp oficial para fora do Brasil</h3>
+            <div class="meta">Para o número oficial começar conversa com empresa de fora, a Meta exige o modelo aprovado no idioma dela. O sistema traduz o seu modelo em português e manda as versões para a Meta aprovar. Enquanto um idioma não é aprovado, a empresa usa a versão em inglês; sem nenhuma aprovada, sai pela UAZap.</div></div></div>
+          <div class="cartao-corpo" id="modelo-fora"></div>
         </div>
 
         <div class="cartao" id="cartao-oficial" style="margin-top:16px">
@@ -2763,6 +2769,45 @@ async function mostrarConexaoAnuncios() {
     alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
 }
+/** As versões do modelo do WhatsApp oficial nos idiomas de fora do Brasil. */
+const NOMES_IDIOMA_MODELO = { en: "Inglês", es: "Espanhol", de: "Alemão", fr: "Francês", it: "Italiano", nl: "Holandês", pt_PT: "Português de Portugal" };
+const SITUACAO_MODELO = { APPROVED: ["ok", "Aprovado"], PENDING: ["atencao", "Em análise na Meta"], REJECTED: ["perigo", "Recusado"], ERRO: ["perigo", "Erro"] };
+async function mostrarModeloFora() {
+  const alvo = $("#modelo-fora");
+  try {
+    const r = await api("/api/whatsapp/modelo-fora");
+    alvo.innerHTML = r.numeros.map((n) => {
+      const porIdioma = Object.fromEntries(n.versoes.map((v) => [v.idioma, v.situacao]));
+      const faltam = Object.values(r.idiomas).filter((c) => !porIdioma[c]).length;
+      const linhas = Object.values(r.idiomas).map((c) => {
+        const [tom, texto] = porIdioma[c] ? SITUACAO_MODELO[porIdioma[c]] ?? ["", porIdioma[c]] : ["", "Ainda não criado"];
+        return `<span class="pilula ${tom}">${esc(NOMES_IDIOMA_MODELO[c] ?? c)}: ${esc(texto)}</span>`;
+      }).join("");
+      return `<div style="display:grid;gap:10px;margin-bottom:14px">
+        <b>${esc(n.nome ?? "Número")}${n.modelo ? ` · modelo "${esc(n.modelo)}"` : ""}</b>
+        ${n.erro ? `<div class="alerta perigo">${ic("alert")}<div>${esc(n.erro)}</div></div>` : `<div class="pilulas">${linhas}</div>`}
+        ${!n.erro && faltam ? `<div><button class="btn primario" type="button" data-criar-modelos="${esc(n.numeroId ?? "")}">${ic("globe")}Criar as ${faltam} ${faltam === 1 ? "versão que falta" : "versões que faltam"} e mandar para a Meta</button></div>` : ""}
+      </div>`;
+    }).join("");
+  } catch (e) {
+    alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+$("#modelo-fora").addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-criar-modelos]");
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = `${ic("refresh")}Traduzindo e mandando para a Meta…`;
+  try {
+    const r = await post("/api/whatsapp/modelo-fora", { numeroId: btn.dataset.criarModelos || null });
+    const erros = r.versoes.filter((v) => v.situacao === "ERRO");
+    avisar(erros.length ? `Algumas versões não foram criadas: ${erros.map((e) => `${NOMES_IDIOMA_MODELO[e.idioma] ?? e.idioma} (${e.erro})`).join("; ")}` : "Versões enviadas para a Meta aprovar. Costuma levar de minutos a algumas horas.", erros.length ? "perigo" : "ok", 9000);
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  }
+  await mostrarModeloFora();
+});
+
 /** A conexão com o Stripe (pagamento das empresas de fora do Brasil). A chave quem cola é você. */
 async function mostrarStripe() {
   const alvo = $("#stripe-conexao");
@@ -2825,7 +2870,7 @@ $("#pais").addEventListener("change", async () => {
   try {
     const r = await api("/api/internacional");
     const p = r.paises.find((x) => x.codigo === pais);
-    $("#campos-exterior").innerHTML = `<span class="muted" style="font-size:12.5px">Busca no Google Maps de ${esc(p.nome)}, com o segmento traduzido para o idioma de lá. A IA escreve as mensagens em ${$("#idioma-ia").value === "en" ? "inglês" : esc(p.idioma)}, e os valores da apresentação vão em ${p.moeda === "EUR" ? "euro" : "dólar"} pela cotação do dia${r.ajustePct ? `, com ${r.ajustePct > 0 ? "+" : ""}${r.ajustePct}%` : ""} (R$ 4.500 = ${esc(r.exemplo[p.moeda])}). As mensagens saem no horário comercial de lá. O WhatsApp vai pela UAZap (a API oficial só começa conversa com o modelo em português).</span>`;
+    $("#campos-exterior").innerHTML = `<span class="muted" style="font-size:12.5px">Busca no Google Maps de ${esc(p.nome)}, com o segmento traduzido para o idioma de lá. A IA escreve as mensagens em ${$("#idioma-ia").value === "en" ? "inglês" : esc(p.idioma)}, e os valores da apresentação vão em ${p.moeda === "EUR" ? "euro" : "dólar"} pela cotação do dia${r.ajustePct ? `, com ${r.ajustePct > 0 ? "+" : ""}${r.ajustePct}%` : ""} (R$ 4.500 = ${esc(r.exemplo[p.moeda])}). As mensagens saem no horário comercial de lá. O WhatsApp sai pelo número oficial quando o modelo dele estiver aprovado no idioma de lá (ou em inglês); senão, pela UAZap.</span>`;
   } catch {}
 });
 $("#idioma-ia").addEventListener("change", () => $("#pais").dispatchEvent(new Event("change")));
@@ -4617,6 +4662,7 @@ async function carregarConfiguracoes() {
   carregarFormulario();
   mostrarConexaoAnuncios();
   mostrarStripe();
+  mostrarModeloFora();
   api("/api/calendly/status").then((c) => {
     $("#calendly-status").innerHTML = c.conectado ? pilulaCalendly(c) : `<span class="pilula">Não conectado</span>`;
     $("#calendly-token").required = !c.conectado;
@@ -8101,11 +8147,13 @@ async function carregarAutomacao() {
     f.idiomaExterior.value = a.idiomaExterior === "en" ? "en" : "local";
     f.nichosExterior.value = (a.nichosExterior ?? []).join("\n");
     f.numeroExteriorAtivo.checked = Boolean(a.numeroExterior?.ativo);
-    api("/api/uazap/numeros").then((lista) => {
+    Promise.all([api("/api/uazap/numeros").catch(() => []), api("/api/whatsapp/modelo-fora").catch(() => ({ numeros: [] }))]).then(([lista, oficiais]) => {
       const numeros = Array.isArray(lista) ? lista : lista.numeros ?? [];
       const escolhido = a.numeroExterior?.numeroId ?? "";
-      f.numeroExterior.innerHTML = `<option value="">Escolha um número da UAZap</option>` + numeros.map((n) =>
-        `<option value="${esc(n.id)}" ${n.id === escolhido ? "selected" : ""}>${esc(n.nome ?? n.id)}${n.numero ? ` · ${esc(n.numero)}` : ""}${n.conectado === false ? " (desconectado)" : ""}</option>`).join("");
+      const opcao = (id, texto) => `<option value="${esc(id)}" ${id === escolhido ? "selected" : ""}>${texto}</option>`;
+      f.numeroExterior.innerHTML = `<option value="">Escolha um número</option>`
+        + oficiais.numeros.filter((n) => n.numeroId).map((n) => opcao(n.numeroId, `${esc(n.nome ?? "Número oficial")} · API oficial da Meta`)).join("")
+        + numeros.map((n) => opcao(n.id, `${esc(n.nome ?? n.id)}${n.numero ? ` · ${esc(n.numero)}` : ""} · UAZap${n.conectado === false ? " (desconectado)" : ""}`)).join("");
     }).catch(() => {});
     api("/api/internacional").then((r) => {
       f.ajusteExterior.value = r.ajustePct;

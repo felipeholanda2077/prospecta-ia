@@ -1045,6 +1045,29 @@ app.get("/api/internacional", async (req, res) => {
   });
 });
 
+// Modelo do WhatsApp oficial nos idiomas de fora do Brasil: situação de cada versão e criação das que faltam.
+app.get("/api/whatsapp/modelo-fora", async (req, res) => {
+  try {
+    const numeros = await whatsappOficial.numerosOficiais({ ativos: true });
+    const lista = [];
+    for (const n of numeros.length ? numeros : [{ id: null, nome: "Principal" }]) {
+      const r = await whatsappOficial.versoesDoModelo(n.id).catch((e) => ({ erro: e.message, versoes: [] }));
+      lista.push({ numeroId: n.id, nome: n.nome, erro: r.erro ?? null, modelo: r.c?.template ?? null,
+        versoes: r.versoes.map((v) => ({ idioma: v.language, situacao: v.status })) });
+    }
+    res.json({ numeros: lista, idiomas: whatsappOficial.IDIOMAS_DE_FORA });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+app.post("/api/whatsapp/modelo-fora", async (req, res) => {
+  try {
+    res.json(await whatsappOficial.criarModelosDeFora(req.body?.numeroId ?? null));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 // Mapa do Dashboard: onde estão os clientes e as cidades da prospecção.
 app.get("/api/mapa", async (req, res) => {
   try {
@@ -1121,11 +1144,11 @@ app.get("/api/mensagens", async (req, res) => {
   const status = req.query.status || "rascunho";
   // Com ?lead=ID, as mensagens de uma empresa só (as etapas de e-mail e de WhatsApp), em qualquer situação.
   const lead = Number.parseInt(req.query.lead, 10);
-  const todas = lead ? [...await db.mensagensDaSequencia(lead, "whatsapp"), ...await db.mensagensDaSequencia(lead, "email")]
-    : await db.mensagensPorStatus(status, 300);
-  // Fila separada: ?exterior=1 só as empresas de fora do Brasil; ?exterior=0 só as daqui.
-  const deFora = (m) => Boolean(m.pais && m.pais !== "BR");
-  const mensagens = req.query.exterior === "1" ? todas.filter(deFora) : req.query.exterior === "0" ? todas.filter((m) => !deFora(m)) : todas;
+  // Fila separada: ?exterior=1 só as empresas de fora do Brasil; ?exterior=0 só as daqui (filtrado no banco,
+  // antes do limite, para as de fora não sumirem atrás das daqui).
+  const exterior = req.query.exterior === "1" ? true : req.query.exterior === "0" ? false : null;
+  const mensagens = lead ? [...await db.mensagensDaSequencia(lead, "whatsapp"), ...await db.mensagensDaSequencia(lead, "email")]
+    : await db.mensagensPorStatus(status, 300, { exterior });
   const modo = await pipeline.modoWhatsapp();
   // Nas enviadas, mostra qual etapa vem depois e quando (se a empresa não responder).
   const proximas = status === "enviada" ? await db.proximasEtapas([...new Set(mensagens.map((m) => m.lead_id))]) : [];

@@ -587,8 +587,11 @@ export async function definirAtivo(ativo) {
  * Bibliotecas não oficiais (open-wa, whatsapp-web.js, Baileys) violam os termos do
  * WhatsApp para disparos em massa e levam ao banimento do número — por isso não são usadas aqui.
  */
-export async function enviarWhatsapp({ para, empresa, corpo, numeroId = null }) {
-  const { ativo, token, phoneNumberId, template, idioma, apiVersion } = await dadosDoNumero(numeroId);
+export async function enviarWhatsapp({ para, empresa, corpo, numeroId = null, pais = null, idiomaDaEmpresa = null }) {
+  const { ativo, token, phoneNumberId, template, idioma: idiomaDoNumero, apiVersion } = await dadosDoNumero(numeroId);
+  // Empresa de fora do Brasil: a versão do modelo no idioma dela (ou em inglês), aprovada pela Meta.
+  const idioma = pais && pais !== "BR" ? await idiomaDoModeloPara({ pais, idioma: idiomaDaEmpresa }, numeroId) : idiomaDoNumero;
+  if (!idioma) throw new Error("o modelo do número oficial ainda não tem versão aprovada no idioma desta empresa (nem em inglês)");
   if (!ativo) throw new Error("API oficial do WhatsApp desligada (ligue em Configurações)");
   if (!token || !phoneNumberId) throw new Error("API oficial do WhatsApp sem token ou ID do número (preencha em Configurações)");
 
@@ -641,4 +644,87 @@ export async function enviarTextoWhatsappOficial({ para, corpo, numeroId = null 
   const dados = await resp.json();
   if (!resp.ok) throw new Error(`WhatsApp API ${resp.status}: ${dados.error?.message ?? JSON.stringify(dados)}`);
   return dados.messages?.[0]?.id;
+}
+
+// ---------- Modelo (template) para empresas de fora do Brasil ----------
+
+// O idioma do modelo na Meta para cada idioma da empresa. Os outros idiomas usam o inglês.
+export const IDIOMAS_DE_FORA = { en: "en", es: "es", de: "de", fr: "fr", it: "it", nl: "nl", "pt-PT": "pt_PT" };
+const idiomasAprovados = new Map(); // numeroId → { ate, lista }
+
+/** As versões do modelo do número (idioma, situação e o texto do corpo). */
+export async function versoesDoModelo(numeroId = null) {
+  const c = await dadosDoNumero(numeroId, { soAtivos: false });
+  const conta = await contaDoNumero(c);
+  if (!conta) throw new Error("Não achei a conta do WhatsApp Business deste número na Meta");
+  const r = await graph(c, `${conta}/message_templates?name=${encodeURIComponent(c.template)}&fields=name,status,language,category,components&limit=100`);
+  return { c, conta, versoes: (r?.data ?? []).filter((t) => t.name === c.template) };
+}
+
+/** Os idiomas do modelo já aprovados pela Meta para este número (guardados por 30 minutos). */
+export async function idiomasDoModelo(numeroId = null, agora = Date.now()) {
+  const chave = String(numeroId ?? "principal");
+  const guardado = idiomasAprovados.get(chave);
+  if (guardado && guardado.ate > agora) return guardado.lista;
+  const lista = await versoesDoModelo(numeroId).then((r) => r.versoes.filter((v) => v.status === "APPROVED").map((v) => v.language)).catch(() => null);
+  if (lista) idiomasAprovados.set(chave, { ate: agora + 30 * 60_000, lista });
+  return lista ?? [];
+}
+
+/**
+ * O idioma do modelo para uma empresa: o dela, se a versão estiver aprovada; senão o inglês aprovado.
+ * Empresa do Brasil: o idioma do número. Retorna null se não houver versão aprovada que sirva.
+ */
+export async function idiomaDoModeloPara({ pais, idioma } = {}, numeroId = null) {
+  if (!pais || pais === "BR") return (await dadosDoNumero(numeroId, { soAtivos: false })).idioma;
+  const aprovados = await idiomasDoModelo(numeroId);
+  const desejado = IDIOMAS_DE_FORA[idioma] ?? IDIOMAS_DE_FORA[String(idioma ?? "").split("-")[0]] ?? "en";
+  const parecido = (cod) => aprovados.find((a) => a === cod || a.split("_")[0] === cod.split("_")[0]);
+  return parecido(desejado) ?? parecido("en") ?? null;
+}
+
+/**
+ * Cria na Meta as versões do modelo em inglês, espanhol, alemão, francês, italiano, holandês e português de
+ * Portugal, traduzindo o texto do modelo em português (as variáveis {{1}} e {{2}} ficam). A Meta analisa cada
+ * uma (costuma levar de minutos a algumas horas). Versão que já existe não é criada de novo.
+ */
+export async function criarModelosDeFora(numeroId = null, { traduzir } = {}) {
+  const { c, conta, versoes } = await versoesDoModelo(numeroId);
+  const base = versoes.find((v) => v.language === c.idioma) ?? versoes.find((v) => v.language.startsWith("pt"));
+  if (!base) throw new Error(`O modelo "${c.template}" em português não foi achado nesta conta`);
+  const corpo = base.components?.find((x) => x.type === "BODY")?.text;
+  if (!corpo) throw new Error("O modelo em português não tem texto no corpo");
+  const existentes = new Set(versoes.map((v) => v.language));
+  const resultado = [];
+  for (const codigo of [...new Set(Object.values(IDIOMAS_DE_FORA))]) {
+    if (existentes.has(codigo)) { resultado.push({ idioma: codigo, situacao: versoes.find((v) => v.language === codigo).status }); continue; }
+    try {
+      const texto = await (traduzir ?? traduzirModelo)(corpo, codigo);
+      if (!texto.includes("{{1}}") || !texto.includes("{{2}}")) throw new Error("a tradução perdeu as variáveis {{1}} e {{2}}");
+      await graph(c, `${conta}/message_templates`, c.token, {
+        name: c.template, language: codigo, category: base.category ?? "MARKETING",
+        components: [{ type: "BODY", text: texto, example: { body_text: [["Ocean Auto Sales", "Hi, this is Felipe from FluxDeck. How do your customers usually reach you today?"]] } }],
+      });
+      resultado.push({ idioma: codigo, situacao: "PENDING" });
+    } catch (e) {
+      resultado.push({ idioma: codigo, situacao: "ERRO", erro: e.message });
+    }
+  }
+  idiomasAprovados.delete(String(numeroId ?? "principal"));
+  return { modelo: c.template, base: base.language, versoes: resultado };
+}
+
+async function traduzirModelo(texto, codigo) {
+  const { z } = await import("zod");
+  const { gerarJson } = await import("../ia/cliente.js");
+  const { nomeDoIdioma } = await import("../internacional.js");
+  const r = await gerarJson({
+    system: "Você traduz modelos de mensagem do WhatsApp Business. Mantenha exatamente as variáveis {{1}} e {{2}} (mesma ordem, sem traduzir nem mudar), o mesmo tom e o mesmo tamanho. Sem emojis novos. Responda só o texto traduzido.",
+    pedido: `Traduza para ${nomeDoIdioma(codigo.replace("_", "-"))}:\n\n${texto}`,
+    jsonSchema: { type: "object", properties: { texto: { type: "string" } }, required: ["texto"], additionalProperties: false },
+    zodSchema: z.object({ texto: z.string() }),
+    effort: "low",
+    maxTokens: 1000,
+  });
+  return r.texto.trim();
 }

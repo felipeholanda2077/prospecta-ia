@@ -16,7 +16,7 @@ import { PAISES, cidadeEPais, dadosDoPais, ehExterior, segmentoNoIdioma, telefon
 import { contatosLigados } from "./respostas/contatoNovo.js";
 import { gerarSequencia, escreverDirectDeProspeccao } from "./ia/proposta.js";
 import { enviarEmail, explicarErroEmail, enviarNotificacao } from "./envio/email.js";
-import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, numerosOficiais, ehNumeroOficial, prontoParaEmpresaNova, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
+import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, numerosOficiais, ehNumeroOficial, prontoParaEmpresaNova, RODAPE_WHATSAPP, idiomaDoModeloPara, idiomasDoModelo, IDIOMAS_DE_FORA } from "./envio/whatsapp.js";
 import { enviarDirect } from "./envio/instagram.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
@@ -256,14 +256,23 @@ export async function canalDoWhatsapp(m) {
   if (!oficial) return web ? pelaWeb() : { modo: "manual", numeroId: null };
   // Empresa de fora do Brasil não começa pela API oficial: o primeiro contato lá é o modelo aprovado, em português.
   const doLeadAntes = m.numero_wa_lead !== undefined ? m.numero_wa_lead : (await db.buscarLead(m.lead_id))?.numero_wa;
-  // Chave do número de fora ligada: empresa nova de fora sai só por ele.
+  // Chave do número de fora ligada: empresa nova de fora sai só por ele (da API oficial ou da UAZap).
   const deFora = await numeroDeFora();
-  if (deFora && !doLeadAntes && m.pais && m.pais !== "BR") {
+  const empresaDeFora = Boolean(m.pais && m.pais !== "BR");
+  if (deFora && !doLeadAntes && empresaDeFora) {
+    if (ehNumeroOficial(deFora)) {
+      return (await idiomaDoModeloPara(m, deFora)) ? { modo: "oficial", numeroId: deFora }
+        : { motivo: "o modelo do número oficial de fora ainda não foi aprovado pela Meta no idioma desta empresa (nem em inglês)" };
+    }
     if (!(await uazap.numeros()).some((n) => n.id === deFora)) return { motivo: "o número escolhido para as empresas de fora não existe mais; escolha outro em Automação" };
     return (await uazap.conectadoAgora(deFora)) ? { modo: "uazap", numeroId: deFora } : { motivo: "o número das empresas de fora está desconectado; sai quando você reconectar em Configurações" };
   }
-  if (m.pais && m.pais !== "BR" && !ehNumeroOficial(doLeadAntes)) {
-    return web ? pelaWeb() : { motivo: "empresa de fora do Brasil: a API oficial só começa a conversa com o modelo aprovado, em português; conecte um número pela UAZap" };
+  // Empresa de fora começa pela API oficial quando o modelo já está aprovado no idioma dela (ou em inglês);
+  // senão, pela UAZap.
+  if (empresaDeFora && !doLeadAntes) {
+    const oficial = await pelaOficial();
+    if (oficial.numeroId && (await idiomaDoModeloPara(m, oficial.numeroId))) return oficial;
+    return web ? pelaWeb() : { motivo: "empresa de fora do Brasil: o modelo do número oficial ainda não foi aprovado pela Meta no idioma dela (nem em inglês)" };
   }
   if (!web) return pelaOficial();
 
@@ -1272,7 +1281,7 @@ export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
     } else if (m.tipo === "resposta") {
       messageId = await enviarTextoWhatsappOficial({ para: m.destino, corpo: m.corpo, numeroId });
     } else {
-      messageId = await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo, numeroId });
+      messageId = await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo, numeroId, pais: m.pais, idiomaDaEmpresa: m.idioma });
     }
     await registrarEnvio(m, campanha, messageId, numeroId);
     log(`📨 ${m.canal} (etapa ${m.etapa}) enviado para ${m.empresa} <${m.destino}>${numeroId ? ` pelo número ${numeroId}` : ""}`);
@@ -1772,12 +1781,23 @@ export async function escolherVezes(enviaveis, vagas, pistas, campanha) {
   const restam = { ...vagas };
   const deFora = await numeroDeFora(campanha.automacao);
   const novas = enviaveis.filter((m) => m.tipo !== "resposta" && m.etapa <= 1);
+  // Os idiomas do modelo aprovados em cada número oficial (para as empresas de fora).
+  const aprovadosPorNumero = new Map();
+  if (novas.some((m) => m.pais && m.pais !== "BR")) {
+    for (const p of pistas) if (p.modo === "oficial") aprovadosPorNumero.set(p.numeroId, await idiomasDoModelo(p.numeroId));
+  }
+  const modeloServe = (numeroId, m) => {
+    const aprovados = aprovadosPorNumero.get(numeroId) ?? [];
+    const desejado = IDIOMAS_DE_FORA[m.idioma] ?? IDIOMAS_DE_FORA[String(m.idioma ?? "").split("-")[0]] ?? "en";
+    return aprovados.some((a) => a.split("_")[0] === desejado.split("_")[0] || a.split("_")[0] === "en");
+  };
   const enviadasHoje = new Map();
   for (const p of pistas) enviadasHoje.set(p, p.numeroId ? await db.enviadasHoje("whatsapp", { primeiroContato: true, numero: p.numeroId }) : 0);
   for (const p of [...pistas].sort((a, b) => enviadasHoje.get(a) - enviadasHoje.get(b))) {
     if (decididas.has(p.chave)) continue;
-    // Número da API oficial não começa conversa com empresa de fora do Brasil (o modelo aprovado é em português).
-    const lead = novas.find((m) => !leads.has(m.lead_id) && restam[m.canal] > 0 && !(p.modo === "oficial" && m.pais && m.pais !== "BR")
+    // Número da API oficial só começa conversa com empresa de fora se o modelo dele estiver aprovado no idioma
+    // dela (ou em inglês).
+    const lead = novas.find((m) => !leads.has(m.lead_id) && restam[m.canal] > 0 && !(p.modo === "oficial" && m.pais && m.pais !== "BR" && !modeloServe(p.numeroId, m))
       && (!p.numeroId || m.canal !== "whatsapp" || numeroServeParaEmpresa(p.numeroId, m, deFora)))?.lead_id;
     if (lead === undefined) break;
     if (!(await reservar(p.chave))) continue;

@@ -605,8 +605,10 @@ const SELECT_MENSAGEM = `
          l.pais, l.idioma, l.fuso
     FROM mensagens m JOIN leads l ON l.id = m.lead_id`;
 
-export async function mensagensPorStatus(status, limite = 1000) {
-  return q(`${SELECT_MENSAGEM} WHERE m.status = $1 ORDER BY m.lead_id, m.canal, m.etapa, m.id LIMIT $2`, [status, limite]);
+/** `exterior`: true só as empresas de fora do Brasil, false só as daqui (o filtro vem antes do limite). */
+export async function mensagensPorStatus(status, limite = 1000, { exterior = null } = {}) {
+  const filtro = exterior === true ? " AND l.pais IS NOT NULL AND l.pais <> 'BR'" : exterior === false ? " AND (l.pais IS NULL OR l.pais = 'BR')" : "";
+  return q(`${SELECT_MENSAGEM} WHERE m.status = $1${filtro} ORDER BY m.lead_id, m.canal, m.etapa, m.id LIMIT $2`, [status, limite]);
 }
 
 /** As etapas de um lead em um canal (a sequência inteira). */
