@@ -799,11 +799,14 @@ app.post("/api/diagnostico", (req, res) => {
 
 // Busca no Google Maps pelo painel: mostra o resultado sem salvar.
 app.post("/api/maps/buscar", async (req, res) => {
-  const { nicho, cidade, quantidade, pais = "BR", idioma = "local" } = req.body ?? {};
+  const { nicho, cidade, quantidade, pais = "BR", idioma = "local", fonte, inicio } = req.body ?? {};
   if (!nicho?.trim() || !cidade?.trim()) return res.status(400).json({ erro: "Informe o segmento e a cidade" });
   if (!internacional.PAISES[pais]) return res.status(400).json({ erro: "País não atendido" });
   try {
-    res.json(await pipeline.buscarNoMaps(nicho.trim(), cidade.trim(), quantidade, { pais, idioma: idioma === "en" ? "en" : "local" }));
+    res.json(await pipeline.buscarNoMaps(nicho.trim(), cidade.trim(), quantidade, {
+      pais, idioma: idioma === "en" ? "en" : "local", fonte: fonte === "serpapi" ? "serpapi" : "google",
+      inicio: Math.min(Math.max(Number.parseInt(inicio, 10) || 0, 0), 180),
+    }));
   } catch (e) {
     res.status(502).json({ erro: e.message });
   }
@@ -1603,6 +1606,7 @@ app.put("/api/config/automacao", async (req, res) => {
     buscarEmAnuncios: b.buscarEmAnuncios !== false,
     buscarEmVagas: b.buscarEmVagas !== false,
     buscarNoGoogleAds: b.buscarNoGoogleAds !== false,
+    buscarNaSerpApi: b.buscarNaSerpApi !== false,
     buscarContadores: b.buscarContadores !== false,
     testarRamos: b.testarRamos !== false,
     // Empresas de fora do Brasil (cidade com o país no fim): a IA fala no idioma de lá ou em inglês.

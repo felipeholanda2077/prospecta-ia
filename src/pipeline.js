@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { config } from "./config.js";
 import * as db from "./db.js";
 import { buscarEmpresas } from "./descoberta/googlePlaces.js";
+import { buscarEmpresasNaSerpApi, POR_PAGINA as POR_PAGINA_SERPAPI } from "./descoberta/serpapiMaps.js";
 import { buscaNoInstagram, buscarEmpresasNoInstagram, instagramDaEmpresa, perfilDoInstagram, contatosDoPerfil } from "./descoberta/instagram.js";
 import { buscarEmpresasPorCnpj, contatoDoCnpj, emailDeContador } from "./descoberta/cnpj.js";
 import { buscarAnunciantes, podeBuscarSozinho, completarContatos, cortar } from "./descoberta/anuncios.js";
@@ -471,12 +472,50 @@ export async function descobrirProxima(campanha, { tentativas = 3 } = {}) {
   const vagas = await soNoBrasil(descobrirNasVagas);
   const contadores = await soNoBrasil(descobrirContadores);
   const googleAds = await soNoBrasil(descobrirNoGoogleAds);
+  // Google Maps pela SerpApi: no Brasil e fora (é a mesma lista do Maps, além das 60 que a API do Google mostra).
+  const serpapi = await descobrirNaSerpApi(campanha, base);
   return {
-    novas: novas + (instagram?.novas ?? 0) + (cnpj?.novas ?? 0) + (anuncios?.novas ?? 0) + (vagas?.novas ?? 0) + (contadores?.novas ?? 0) + (googleAds?.novas ?? 0),
-    buscas: feitas, ...(googleAds ? { googleAds } : {}),
+    novas: novas + (instagram?.novas ?? 0) + (cnpj?.novas ?? 0) + (anuncios?.novas ?? 0) + (vagas?.novas ?? 0) + (contadores?.novas ?? 0) + (googleAds?.novas ?? 0) + (serpapi?.novas ?? 0),
+    buscas: feitas, ...(googleAds ? { googleAds } : {}), ...(serpapi ? { serpapi } : {}),
     ...(instagram ? { instagram } : {}), ...(cnpj ? { cnpj } : {}), ...(anuncios ? { anuncios } : {}), ...(vagas ? { vagas } : {}),
     ...(contadores ? { contadores } : {}),
   };
+}
+
+// ---------- Google Maps pela SerpApi ----------
+
+// A busca automática pela SerpApi começa depois das 60 empresas que a API do Google já trouxe e vai até a 120ª.
+const INICIO_SERPAPI = 60;
+const FIM_SERPAPI = 120;
+
+/**
+ * Com a SerpApi conectada, a busca automática também pega no Google Maps as empresas que a API do Google não mostra
+ * (do 61º resultado em diante), uma página (1 busca) por rodada, seguindo de onde parou em cada segmento e cidade.
+ */
+export async function descobrirNaSerpApi(campanha, { nicho, cidade }, { agora = new Date() } = {}) {
+  if (campanha.automacao?.buscarNaSerpApi === false) return null;
+  if (!(await podeBuscarSozinho(agora, "maps"))) return null;
+  const chave = `serpapi_maps:${String(nicho).toLowerCase()}|${String(cidade).toLowerCase()}`;
+  const inicio = Number(await db.lerEstado(chave)) || INICIO_SERPAPI;
+  try {
+    const { cidade: local, pais } = cidadeEPais(cidade);
+    const { consulta, opcoes } = await consultaDoMaps(nicho, local, pais);
+    const r = await buscarEmpresasNaSerpApi(consulta, { quantidade: POR_PAGINA_SERPAPI, inicio, pais, idioma: opcoes.idioma ?? "pt-BR", fonte: "maps", agora });
+    if (r.aviso) return { novas: 0, aviso: r.aviso };
+    let novas = 0;
+    for (const e of ordenarPorPrioridade(r.empresas)) {
+      const exterior = dadosDoPais(pais, campanha.automacao?.idiomaExterior, { endereco: e.endereco, cidade: local });
+      if (await db.inserirLead({ ...e, nicho, cidade, origem: "maps", ...exterior })) novas++;
+    }
+    // Página com menos de 20 é a última: na próxima vez, o segmento e a cidade começam de novo do 61º.
+    const proximo = r.empresas.length < POR_PAGINA_SERPAPI || inicio + POR_PAGINA_SERPAPI >= FIM_SERPAPI ? INICIO_SERPAPI : inicio + POR_PAGINA_SERPAPI;
+    await db.gravarEstado(chave, proximo);
+    log(`🗺️  Busca automática no Google Maps pela SerpApi "${consulta}" (do ${inicio + 1}º): ${r.empresas.length} empresas, ${novas} novas`);
+    return { novas, encontradas: r.empresas.length, inicio };
+  } catch (e) {
+    log(`⚠️  Falha na busca pela SerpApi "${nicho} em ${cidade}": ${e.message}`);
+    return { novas: 0, erro: e.message };
+  }
 }
 
 // ---------- Quem paga anúncio no Google ----------
@@ -819,11 +858,17 @@ export function ordenarPorPrioridade(empresas) {
 }
 
 /** Busca no Google Maps pelo painel, sem salvar: mostra o resultado para você escolher quem capturar. */
-export async function buscarNoMaps(nicho, cidade, quantidade = 20, { pais = "BR", idioma = "local" } = {}) {
+export async function buscarNoMaps(nicho, cidade, quantidade = 20, { pais = "BR", idioma = "local", fonte = "google", inicio = 0 } = {}) {
   const { consulta, opcoes } = await consultaDoMaps(nicho, cidade, pais);
-  const empresas = await buscarEmpresas(consulta, Math.min(Number(quantidade) || 20, 60), opcoes);
+  // `fonte: "serpapi"`: a mesma busca no Google Maps pela SerpApi, podendo começar depois do 60º resultado.
+  let empresas;
+  if (fonte === "serpapi") {
+    const r = await buscarEmpresasNaSerpApi(consulta, { quantidade: Math.min(Number(quantidade) || 20, 60), inicio, pais, idioma: opcoes.idioma ?? "pt-BR" });
+    if (r.aviso && !r.empresas.length) throw new Error(r.aviso);
+    empresas = r.empresas;
+  } else empresas = await buscarEmpresas(consulta, Math.min(Number(quantidade) || 20, 60), opcoes);
   const capturados = await db.placeIdsCapturados(empresas.map((e) => e.place_id));
-  log(`🔎 Busca no painel "${consulta}"${pais !== "BR" ? ` (${pais})` : ""}: ${empresas.length} empresas`);
+  log(`🔎 Busca no painel "${consulta}"${pais !== "BR" ? ` (${pais})` : ""}${fonte === "serpapi" ? ` pela SerpApi (do ${Number(inicio) + 1}º)` : ""}: ${empresas.length} empresas`);
   return ordenarPorPrioridade(
     empresas.map((e) => ({
       ...e,

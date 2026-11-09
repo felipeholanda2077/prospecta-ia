@@ -1014,7 +1014,7 @@
       <section id="view-maps" hidden>
         <form class="cartao cartao-corpo busca" id="form-maps">
           <div class="campo"><label for="onde">Onde buscar</label>
-            <select id="onde"><option value="maps">Google Maps</option><option value="instagram">Instagram</option><option value="cnpj">CNPJ (Receita Federal)</option><option value="anuncios">Anúncios da Meta (quem está anunciando)</option><option value="vagas">Vagas abertas (quem está contratando)</option><option value="contadores">Contadores (parceria de indicação)</option><option value="googleads">Anúncios no Google (quem paga para aparecer)</option></select></div>
+            <select id="onde"><option value="maps">Google Maps</option><option value="serpapi">Google Maps pela SerpApi (mais empresas)</option><option value="instagram">Instagram</option><option value="cnpj">CNPJ (Receita Federal)</option><option value="anuncios">Anúncios da Meta (quem está anunciando)</option><option value="vagas">Vagas abertas (quem está contratando)</option><option value="contadores">Contadores (parceria de indicação)</option><option value="googleads">Anúncios no Google (quem paga para aparecer)</option></select></div>
           <div class="campo"><label for="pais">País</label>
             <select id="pais"><option value="BR">Brasil</option><option value="US">Estados Unidos (dólar)</option><optgroup label="Países do euro"><option value="PT">Portugal</option><option value="ES">Espanha</option><option value="FR">França</option><option value="DE">Alemanha</option><option value="IT">Itália</option><option value="NL">Holanda</option><option value="BE">Bélgica</option><option value="AT">Áustria</option><option value="IE">Irlanda</option><option value="LU">Luxemburgo</option><option value="FI">Finlândia</option><option value="GR">Grécia</option><option value="MT">Malta</option><option value="CY">Chipre</option><option value="SK">Eslováquia</option><option value="SI">Eslovênia</option><option value="EE">Estônia</option><option value="LV">Letônia</option><option value="LT">Lituânia</option><option value="HR">Croácia</option><option value="BG">Bulgária</option></optgroup></select></div>
           <div class="campo" id="campo-idioma" hidden><label for="idioma-ia">A IA fala em</label>
@@ -1044,6 +1044,11 @@
             <span class="muted" style="font-size:12.5px;grid-column:1/-1">Empresas da cidade com vaga aberta no Google para uma função que a FluxDeck resolve: a dor está na própria vaga. O contato vem do Google Maps, pelo nome da empresa; agências de emprego ficam de fora. O segmento é opcional aqui. Cada busca gasta 1 do plano da SerpApi.</span>
           </div>
           <div id="campos-exterior" style="grid-column:1/-1" hidden></div>
+          <div id="campos-serpapi" style="grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:end" hidden>
+            <div class="campo"><label for="serpapi-inicio">A partir de qual resultado</label>
+              <select id="serpapi-inicio"><option value="60">Do 61º (os que a busca normal não mostra)</option><option value="0">Do 1º</option><option value="120">Do 121º</option></select></div>
+            <span class="muted" style="font-size:12.5px;grid-column:1/-1">A mesma lista do Google Maps, buscada pela SerpApi. A busca normal para nos 60 primeiros; por aqui dá para seguir para as empresas seguintes. Quem já foi capturado aparece marcado. Cada 20 empresas gastam 1 busca do plano da SerpApi (<span id="serpapi-uso">…</span>).</span>
+          </div>
           <span class="muted" id="campos-googleads" style="font-size:12.5px;grid-column:1/-1" hidden>Quem aparece patrocinado no topo do Google quando alguém da cidade procura pelo segmento. Já paga por clique: a IA fala do que acontece depois do clique (a página e o atendimento). Portais e marketplaces ficam de fora; o e-mail e o WhatsApp saem do site, na análise. Cada busca gasta 1 do plano da SerpApi.</span>
           <span class="muted" id="campos-contadores" style="font-size:12.5px;grid-column:1/-1" hidden>Escritórios de contabilidade da cidade, pelo Google Maps. Eles atendem empresas que estão abrindo e precisam de site e sistema: a IA propõe uma parceria de indicação (eles indicam e ganham 10% do primeiro pagamento de cada cliente fechado; o percentual só é dito se perguntarem), e não vende para eles. O segmento é ignorado aqui.</span>
           <div class="campo" id="campo-termos" style="grid-column:1/-1" hidden><label for="termos">Hashtags ou @perfis (opcional)</label>
@@ -1078,6 +1083,8 @@
               <span>Com a SerpApi conectada, a busca automática procura nas cidades da campanha empresas com vaga aberta de atendente de WhatsApp, recepcionista, social media, desenvolvedor, sistemas ou pré-vendas (uma função por rodada). O contato vem do Google Maps.</span></div></label>
             <label class="chave"><input type="checkbox" name="buscarContadores"><div><b>Buscar contadores para parceria</b>
               <span>Uma vez por dia, escritórios de contabilidade das cidades da campanha (Google Maps). A IA propõe uma parceria de indicação: eles indicam clientes que precisam de site ou sistema e ganham 10% do primeiro pagamento de cada cliente fechado (a IA só diz o percentual se perguntarem).</span></div></label>
+            <label class="chave"><input type="checkbox" name="buscarNaSerpApi"><div><b>Buscar também no Google Maps pela SerpApi</b>
+              <span>A API do Google mostra só as 60 primeiras empresas de cada busca. Com a SerpApi conectada, a busca automática segue para as seguintes (do 61º ao 120º), 20 por rodada, no Brasil e fora. Gasta no máximo um quarto do limite de buscas do mês.</span></div></label>
             <label class="chave"><input type="checkbox" name="buscarNoGoogleAds"><div><b>Buscar também quem anuncia no Google</b>
               <span>Com a SerpApi conectada, a busca automática pega quem aparece patrocinado no topo do Google para o segmento e a cidade da rodada. O contato sai do site, na análise.</span></div></label>
             <label class="chave"><input type="checkbox" name="testarRamos"><div><b>A IA testa ramos novos</b>
@@ -2759,7 +2766,7 @@ setInterval(() => dashboardVisivel() && carregarDashboard(), DASH_ATUALIZA_MS);
 document.addEventListener("visibilitychange", () => dashboardVisivel() && carregarDashboard());
 
 // ===================== Google Maps =====================
-const NOME_DA_FONTE = { maps: "no Google Maps", instagram: "no Instagram", cnpj: "pelo CNPJ", anuncios: "nos anúncios da Meta", vagas: "contratando", contadores: "de contabilidade", googleads: "anunciando no Google" };
+const NOME_DA_FONTE = { maps: "no Google Maps", serpapi: "no Google Maps pela SerpApi", instagram: "no Instagram", cnpj: "pelo CNPJ", anuncios: "nos anúncios da Meta", vagas: "contratando", contadores: "de contabilidade", googleads: "anunciando no Google" };
 
 /** A conexão com a SerpApi: chave, limite de buscas do mês e quanto já foi usado. */
 async function mostrarConexaoAnuncios() {
@@ -2911,8 +2918,8 @@ $("#pais").addEventListener("change", async () => {
   const pais = $("#pais").value;
   const fora = pais !== "BR";
   $("#campo-idioma").hidden = !fora;
-  for (const o of $("#onde").options) o.disabled = fora && o.value !== "maps";
-  if (fora && $("#onde").value !== "maps") { $("#onde").value = "maps"; $("#onde").dispatchEvent(new Event("change")); }
+  for (const o of $("#onde").options) o.disabled = fora && !["maps", "serpapi"].includes(o.value);
+  if (fora && !["maps", "serpapi"].includes($("#onde").value)) { $("#onde").value = "maps"; $("#onde").dispatchEvent(new Event("change")); }
   $("#cidade").placeholder = fora ? "Ex.: Lisboa, Miami, Berlim" : "Ex.: Fortaleza - CE";
   $("#campos-exterior").hidden = !fora;
   if (!fora) return;
@@ -2932,6 +2939,10 @@ $("#onde").addEventListener("change", () => {
   $("#campos-vagas").hidden = onde !== "vagas";
   $("#campos-contadores").hidden = onde !== "contadores";
   $("#campos-googleads").hidden = onde !== "googleads";
+  $("#campos-serpapi").hidden = onde !== "serpapi";
+  if (onde === "serpapi") api("/api/anuncios").then((s) => {
+    $("#serpapi-uso").textContent = s.conectado ? `${s.buscasNoMes} de ${s.limiteMensal} usadas este mês` : "SerpApi não conectada: cole a chave em Configurações → Anúncios da Meta (SerpApi)";
+  }).catch(() => {});
   // Nas vagas e nos contadores o segmento não é usado (a empresa é achada pela vaga, ou é um escritório de contabilidade).
   $("#nicho").required = !["vagas", "contadores"].includes(onde);
   if (onde === "anuncios") mostrarConexaoAnuncios();
@@ -2980,6 +2991,9 @@ $("#form-maps").addEventListener("submit", async (ev) => {
       resultadosMaps = r.empresas;
       avisosBusca = [...(r.avisos ?? [])];
       mostrarConexaoAnuncios();
+    } else if (onde === "serpapi") {
+      resultadosMaps = await post("/api/maps/buscar", { ...buscaMaps, quantidade: $("#quantidade").value, fonte: "serpapi", inicio: $("#serpapi-inicio").value });
+      if (!resultadosMaps.length) avisosBusca = ["O Google Maps não tem mais empresas a partir desse resultado. Tente do 1º, ou outro segmento ou cidade."];
     } else resultadosMaps = await post("/api/maps/buscar", { ...buscaMaps, quantidade: $("#quantidade").value });
     buscaMaps.onde = onde;
     desenharMaps();
@@ -8335,6 +8349,7 @@ async function carregarAutomacao() {
     f.buscarEmVagas.checked = a.buscarEmVagas !== false;
     f.buscarContadores.checked = a.buscarContadores !== false;
     f.buscarNoGoogleAds.checked = a.buscarNoGoogleAds !== false;
+    f.buscarNaSerpApi.checked = a.buscarNaSerpApi !== false;
     f.testarRamos.checked = a.testarRamos !== false;
     f.intervaloEmpresasMin.value = a.intervaloEmpresasMin;
     f.intervaloEmpresasMax.value = a.intervaloEmpresasMax;
@@ -8386,6 +8401,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
       buscarEmVagas: f.buscarEmVagas.checked,
       buscarContadores: f.buscarContadores.checked,
       buscarNoGoogleAds: f.buscarNoGoogleAds.checked,
+      buscarNaSerpApi: f.buscarNaSerpApi.checked,
       testarRamos: f.testarRamos.checked,
       metaEmail: f.metaEmail.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,

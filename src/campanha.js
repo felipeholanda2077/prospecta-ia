@@ -21,6 +21,7 @@ export const AUTOMACAO_PADRAO = {
   buscarContadores: true, // uma vez por dia, escritórios de contabilidade das cidades da campanha, para parceria de indicação
   buscarEmVagas: true,
   buscarNoGoogleAds: true, // com a SerpApi conectada, busca também quem paga anúncio no Google para o segmento na cidade // com a SerpApi conectada, busca também empresas contratando para funções que a FluxDeck resolve
+  buscarNaSerpApi: true, // com a SerpApi conectada, busca também no Google Maps as empresas depois das 60 que a API do Google mostra
   buscas: null, // null = usa as do campanha.json
   testarRamos: true, // a IA escolhe ramos novos, testa na captação e fica com os que respondem bem
 };
