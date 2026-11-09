@@ -1148,7 +1148,7 @@ app.get("/api/mensagens", async (req, res) => {
   // antes do limite, para as de fora não sumirem atrás das daqui).
   const exterior = req.query.exterior === "1" ? true : req.query.exterior === "0" ? false : null;
   const mensagens = lead ? [...await db.mensagensDaSequencia(lead, "whatsapp"), ...await db.mensagensDaSequencia(lead, "email")]
-    : await db.mensagensPorStatus(status, 300, { exterior });
+    : await db.mensagensPorStatus(status, exterior === true ? 1500 : 300, { exterior });
   const modo = await pipeline.modoWhatsapp();
   // Nas enviadas, mostra qual etapa vem depois e quando (se a empresa não responder).
   const proximas = status === "enviada" ? await db.proximasEtapas([...new Set(mensagens.map((m) => m.lead_id))]) : [];
