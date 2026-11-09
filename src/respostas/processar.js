@@ -6,6 +6,8 @@ import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento, horariosLivres } from "../agenda/calendly.js";
 import { momentoDaPrevia, previaSoNaHora } from "../vendas/previa.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
+import { contatosLigados } from "./contatoNovo.js";
+import { variantesWhatsappBR } from "../analise/telefone.js";
 import { lerApresentacao } from "./apresentacao.js";
 import { ehExterior, vendeSemReuniao } from "../internacional.js";
 import { aplicarLinkDePagamento } from "../vendas/stripe.js";
@@ -22,6 +24,13 @@ const RESPONDE_SOZINHA = ["interessado", "quer_informacoes", "outro"];
 export const ENCERRADOS = ["sem_interesse", "descadastrado"];
 const QUER_SABER = ["interessado", "quer_informacoes"];
 const chaveApresentacao = (leadId) => `apresentacao_enviada:${leadId}`;
+
+/** Os números dos contatos indicados nesta conversa (todas as grafias), menos o de quem acabou de escrever. */
+async function indicadosMenos(leadId, de) {
+  const quemEscreveu = new Set(variantesWhatsappBR(de));
+  return (await contatosLigados(leadId)).filter((x) => x.papel === "indicado")
+    .flatMap((x) => variantesWhatsappBR(x.numero)).filter((v) => !quemEscreveu.has(v));
+}
 /** A apresentação saiu (pela IA ou por você): nas próximas mensagens a conversa segue sem repeti-la. */
 export const marcarApresentacaoEnviada = (leadId) => db.gravarEstado(chaveApresentacao(leadId), new Date().toISOString());
 
@@ -401,7 +410,9 @@ export async function registrarResposta({
       await db.atualizarResposta(id, { lida: true });
       break;
     default:
-      await db.cancelarPendentes(lead.id, "lead respondeu");
+      // A empresa respondeu: o que ia sair para ela é cancelado, mas não a mensagem para quem ela indicou (ex.: a
+      // recepção manda o número da doutora e logo depois corrige o nome: a mensagem para a doutora continua).
+      await db.cancelarPendentes(lead.id, "lead respondeu", null, { manterDestinos: await indicadosMenos(lead.id, de) });
       if (!["agendado", "fechado"].includes(lead.status)) await db.atualizarLead(lead.id, { status: "respondeu" });
       if (!agente && (c.classificacao === "interessado" || c.classificacao === "quer_informacoes")) {
         await enviarNotificacao(

@@ -582,11 +582,23 @@ export async function atualizarMensagem(id, campos) {
 
 /** Cancela mensagens ainda não enviadas do lead (ex.: ele respondeu antes do follow-up sair). */
 /** Cancela o que ainda ia sair para a empresa; `exceto` = uma mensagem que deve continuar na fila. */
-export async function cancelarPendentes(leadId, motivo, exceto = null) {
-  await q(
-    `UPDATE mensagens SET status = 'rejeitada', erro = $2 WHERE lead_id = $1 AND status IN ('rascunho', 'aprovada')${exceto ? " AND id <> $3" : ""}`,
-    exceto ? [leadId, motivo, Number(exceto)] : [leadId, motivo]
-  );
+export async function cancelarPendentes(leadId, motivo, exceto = null, { manterDestinos = [] } = {}) {
+  const params = [leadId, motivo];
+  let filtro = "";
+  if (exceto) {
+    params.push(Number(exceto));
+    filtro += ` AND id <> $${params.length}`;
+  }
+  // `manterDestinos`: mensagens que vão para OUTRA pessoa (ex.: o contato indicado) continuam valendo.
+  const destinos = [...new Set(manterDestinos.filter(Boolean).map(normalizarContato))];
+  if (destinos.length) {
+    const lugares = destinos.map((d) => {
+      params.push(d);
+      return `$${params.length}`;
+    });
+    filtro += ` AND destino NOT IN (${lugares.join(", ")})`;
+  }
+  await q(`UPDATE mensagens SET status = 'rejeitada', erro = $2 WHERE lead_id = $1 AND status IN ('rascunho', 'aprovada')${filtro}`, params);
 }
 
 /** Conversas que a IA parou porque do outro lado parecia um robô (fora as de agentes e as encerradas). */
