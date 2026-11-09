@@ -8,14 +8,16 @@
 export const ABORDAGENS = {
   dor_na_pratica: {
     nome: "A · A dor na prática",
-    instrucao: `Cumprimente e diga quem é em poucas palavras, SEM elogio. Descreva em UMA frase uma cena concreta do dia a dia
+    instrucao: `Cumprimente e diga quem é e o que faz em poucas palavras, ligado ao ramo (ex.: "Sou o Felipe, da FluxDeck, a
+  gente automatiza o atendimento no WhatsApp de clínicas."), SEM elogio. Descreva em UMA frase uma cena concreta do dia a dia
   desse tipo de negócio, ligada à oportunidade observada, que a pessoa reconheça como dela (ex.: "Em clínica 24h, no
   pico o WhatsApp acumula, e o tutor que fica esperando acaba indo para outra."). Termine perguntando, de forma simples,
   se isso acontece aí também.`,
   },
   dor_custo: {
     nome: "B · O que a dor custa",
-    instrucao: `Cumprimente e diga quem é em poucas palavras, SEM elogio. Nomeie a dor mais comum desse tipo de negócio, ligada à
+    instrucao: `Cumprimente e diga quem é e o que faz em poucas palavras, ligado ao ramo (ex.: "Sou o Felipe, da FluxDeck, a
+  gente faz sites e sistemas para clínicas."), SEM elogio. Nomeie a dor mais comum desse tipo de negócio, ligada à
   oportunidade observada, e mostre em UMA frase o que ela custa sem a empresa perceber (cliente que vai para o
   concorrente, horas da equipe respondendo a mesma coisa, venda que não volta), sem inventar números. Termine com UMA
   pergunta sobre como eles lidam com isso hoje.`,

@@ -45,3 +45,20 @@ test("teste A/B: o resultado por abordagem conta contatadas, respostas e interes
   assert.equal(Object.keys(r).length, 2);
   assert.equal((await db.funilDeConversas()).por_abordagem.length, 2);
 });
+
+test("conversa: depois de 2 perguntas, ou se a pessoa não entendeu ou cansou, a IA para de perguntar", async () => {
+  const { perguntasFeitas, confusaOuCansada, MAX_PERGUNTAS } = await import("../src/ia/resposta.js");
+  const h = [
+    { autor: "nos", texto: "Oi, tudo bem? Como os clientes chegam até vocês?" }, // a primeira, antes da resposta: não conta
+    { autor: "lead", texto: "Oi tudo bem" },
+    { autor: "nos", texto: "Pelo Google ou por indicação?" },
+    { autor: "lead", texto: "Pelas duas formas" },
+    { autor: "nos", texto: "Entendi. Quem responde o WhatsApp?" },
+  ];
+  assert.equal(perguntasFeitas(h), 2);
+  assert.equal(MAX_PERGUNTAS, 2);
+  for (const t of ["Pq tantas perguntas ?", "Ja vai acabar as perguntas ?", "Não sei quem e vc, não sei pq estou te respondendo", "Não entendi?", "Do que se trata?"]) {
+    assert.ok(confusaOuCansada(t), t);
+  }
+  assert.ok(!confusaOuCansada("Pelas duas formas"));
+});

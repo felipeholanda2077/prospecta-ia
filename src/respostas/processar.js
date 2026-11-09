@@ -204,7 +204,8 @@ function ajustarResposta(c, historico, texto) {
   // A mensagem com a apresentação comercial nunca leva valores: tudo é sob medida.
   const podeValores = pediuValor(texto, historico) && !c.semValores;
   // Ainda descobrindo a dor e a pessoa não pediu conversa: nada de convite para bate-papo ou call.
-  const cedoParaConvite = c.dor_entendida === false && c.pediu_conversa === false;
+  // Depois de 2 perguntas (ou se a pessoa não entendeu), a IA explica e propõe: o convite pode sair.
+  const cedoParaConvite = c.dor_entendida === false && c.pediu_conversa === false && !c.chegaDePerguntas;
   const ajustar = (t, i) => {
     let sem = i === 0 ? semCumprimentoRepetido(t, historico) : t;
     if (cedoParaConvite) sem = semConviteCedo(sem);

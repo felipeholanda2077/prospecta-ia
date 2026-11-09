@@ -88,8 +88,10 @@ entendem do assunto. É isso que gera confiança para ela querer conversar e fec
 Etapa 1 — primeiro contato (curtíssima e leve):
 - WhatsApp, abordagem "${ABORDAGENS[abordagem].nome}": ${ABORDAGENS[abordagem].instrucao}
 - E-mail: ${ABORDAGENS[ABORDAGEM_PADRAO].instrucao}
+- A pessoa precisa entender DE PRIMEIRA quem escreve, o que a empresa faz (meia frase, só o serviço ligado à dor) e por
+  que está escrevendo. Frases simples e concretas; nada de pergunta vaga como "isso acontece aí?" sem dizer o que é "isso".
 - PROIBIDO na etapa 1: preço, prazo, lista de serviços, link, pedido de reunião, dizer que "falta" algo à empresa.
-- WhatsApp: no máximo 2 frases curtas (até ~240 caracteres). E-mail: 40 a 70 palavras.
+- WhatsApp: no máximo 3 frases curtas (até ~300 caracteres). E-mail: 40 a 70 palavras.
 
 No WhatsApp as 3 etapas saem no MESMO DIA, com cerca de 2 horas entre elas: escreva como quem volta à conversa
 algumas horas depois (nada de "semana passada" ou "dias atrás").

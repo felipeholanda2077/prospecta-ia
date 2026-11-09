@@ -199,6 +199,25 @@ export function semConviteCedo(texto) {
   return limpo || texto;
 }
 
+// A pessoa não entendeu, perguntou quem é ou do que se trata, ou cansou das perguntas: hora de explicar, não de perguntar.
+const CONFUSA_OU_CANSADA = /n[aã]o entendi|tantas perguntas|quantas perguntas|(j[aá]|vai) acabar (as|com as) perguntas|s[oó] pergunta|quem (é|e|eh) (vc|voc[eê]|o senhor|a senhora)|n[aã]o sei quem|quem fala|do que se trata|sobre o que (é|e|seria)|qual (é |e )?o assunto|o que (vc|voc[eê]) (quer|deseja|vende|faz)|pq (vc|voc[eê]) (est[aá]|t[aá]) perguntando|por ?que (est[aá]|t[aá]) perguntando|fala logo|direto ao (ponto|assunto)|n[aã]o sei (pq|por ?que) (estou|t[oô]) (te )?respond/i;
+
+/** A última mensagem mostra que a pessoa não entendeu ou cansou das perguntas. */
+export const confusaOuCansada = (texto) => CONFUSA_OU_CANSADA.test(String(texto ?? "").replace(/^\[áudio\]\s*/, ""));
+
+/** Quantas mensagens nossas com pergunta já foram depois que a pessoa respondeu (as de descoberta). */
+export function perguntasFeitas(historico = []) {
+  const primeira = historico.findIndex((h) => h.autor !== "nos");
+  if (primeira < 0) return 0;
+  return historico.slice(primeira).filter((h) => h.autor === "nos" && String(h.texto ?? "").includes("?")).length;
+}
+
+// No máximo 2 perguntas de descoberta na conversa: depois disso a IA explica o que faz e propõe o próximo passo.
+export const MAX_PERGUNTAS = 2;
+
+// "Sou uma IA", "sou um robô": nunca sai assim. Vai para você responder.
+const DISSE_QUE_E_IA = /\b(sou|aqui (é|e)|eu sou) (uma? )?(ia|intelig[eê]ncia artificial|rob[oô]|bot|assistente virtual)\b/i;
+
 /** Texto da conversa até aqui, para a IA não repetir o que já foi dito. */
 export function formatarHistorico(historico) {
   if (!historico?.length) return "(nenhuma mensagem anterior registrada)";
@@ -263,7 +282,11 @@ export async function classificarResposta({ texto, assunto, lead, historico, cam
 
   const limite = canal === "email" ? "até 100 palavras, com assinatura curta" : "no máximo 3 frases curtas (até ~400 caracteres), sem assinatura";
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
-  return gerarJson({ lead,
+  const feitas = perguntasFeitas(historico);
+  const confusa = confusaOuCansada(texto);
+  // Já perguntou o bastante (ou a pessoa não entendeu, ou cansou): nesta mensagem, explicar e propor, não perguntar.
+  const chegaDePerguntas = confusa || feitas >= MAX_PERGUNTAS;
+  const r = await gerarJson({ lead,
     system: `${contextoEmpresa(campanha, { semValores: Boolean(apresentacao) })}
 
 Você conduz, aos poucos e com naturalidade, uma conversa com uma empresa (de prospecção, ou de alguém que chamou
@@ -278,11 +301,19 @@ ${apresentacao}
 Como conduzir (tom humano, como ${quem} escrevendo do próprio celular, em primeira pessoa):
 - Responda primeiro, de forma direta e simpática, o que a empresa perguntou ou comentou. Use o nome da pessoa se ela disse.
 - Entregue no máximo UMA informação nova por mensagem; não despeje tudo de uma vez.
-- DESCOBERTA ANTES DE TUDO: antes de oferecer qualquer solução ou bate-papo, entenda a dor da empresa, com UMA pergunta
-  por mensagem, aprofundando no que ela respondeu: como atendem e vendem hoje, onde perdem cliente ou tempo, quem responde
-  as mensagens, o que mais incomoda. O objetivo é descobrir EXATAMENTE o que ela precisa: atendimento mais rápido (IA no
-  WhatsApp), presença online (site), vendas online (loja), gestão (sistema), agenda, ou outra coisa. Não presuma: se
-  ela disse que já tem algo (ex.: um CRM, um site), pergunte o que ainda falta nele.
+- ESCREVA CLARO: frases simples e concretas, como quem conversa no WhatsApp. A pessoa precisa entender de primeira
+  quem você é, o que a ${campanha.empresa.nome} faz e por que você está falando com ela. Nada de pergunta vaga ou abstrata.
+- DESCOBERTA CURTA: no máximo ${MAX_PERGUNTAS} perguntas de descoberta na conversa INTEIRA (você já fez ${feitas}). Toda pergunta
+  vem depois de dar algo (responder, explicar por que pergunta, ou ligar o que ela disse a uma dor real). Nunca faça
+  pergunta em cima de pergunta: conversa que vira interrogatório irrita e a pessoa some.
+- Use o que ela já contou (e a dor comum desse tipo de negócio) para mostrar que aquilo é um problema real da empresa e
+  o que ele custa (cliente que vai para o concorrente, tempo da equipe), e que tem solução. É isso que gera confiança.
+${chegaDePerguntas ? `- AGORA PARE DE PERGUNTAR. Nesta mensagem NÃO faça pergunta de descoberta. ${confusa ? `A pessoa não entendeu, perguntou
+  quem é você ou cansou das perguntas: peça desculpa em meia frase, diga com clareza quem você é (seu nome e a
+  ${campanha.empresa.nome}), o que a ${campanha.empresa.nome} faz em UMA frase ligada ao ramo dela, e por que procurou a
+  empresa (a dor comum desse tipo de negócio). ` : ""}Diga em 1 ou 2 frases como vocês resolvem o que ela contou (ou a dor do
+  ramo) e proponha UM próximo passo concreto, fácil de responder com sim ou não (ex.: "Posso te mandar uma proposta
+  rapidinha mostrando como ficaria aí?").` : ""}
 ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com o que está na apresentação.
 ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, como estão escritos. Orçamento exato, desconto ou
   condição especial: diga que isso vocês fecham no bate-papo, conforme o que ela precisa.` : `- Valores: a pessoa AINDA NÃO perguntou de preço. NÃO cite nenhum valor, preço ou R$, nem "a partir de". Se falar de
@@ -291,7 +322,7 @@ ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, co
   juntos no bate-papo.
 ` : `- Preço: não passe valor de cara. Se perguntarem, diga que depende do que eles precisam e convide para o bate-papo
   rápido, onde você mostra exemplos e passa o valor certo. Só se insistirem depois disso, diga o "a partir de" do catálogo.
-`}- Só convide para o bate-papo quando dor_entendida for true (você já sabe exatamente o que ela precisa e por quê) e
+`}- Só convide para o bate-papo quando ${chegaDePerguntas ? "fizer sentido depois de explicar (já pode), ou " : ""}dor_entendida for true (você já sabe exatamente o que ela precisa e por quê) e
   ela mostrar interesse, OU quando ela mesma pedir (ligação, reunião, call, orçamento, "como funciona"). Fora isso, NÃO
   fale de bate-papo, call, reunião nem agenda: continue descobrindo.
 - Na hora de convidar: convide para o bate-papo${comoConvidar(linkAgendamento, horarios)}.
@@ -299,7 +330,8 @@ ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, co
 ${comoOferecerPrevia(linkPrevia, lead)}- Nunca repita frases ou informações que já aparecem no histórico. Não invente fatos, prazos ou descontos.
 - Se o histórico já tem mensagem sua, NÃO cumprimente de novo (nada de "Bom dia!", "Boa tarde!", "Olá!") e NÃO se
   apresente de novo (seu nome e a empresa já foram ditos): vá direto ao assunto, como numa conversa que continua.
-- Nunca mencione assistente, robô, IA, sistema ou "equipe" respondendo por ${quem}.
+- Nunca mencione assistente, robô, IA, sistema ou "equipe" respondendo por ${quem}: você é ${quem}, mesmo se a pessoa
+  estranhar. Nunca diga que entrou em contato por causa das avaliações do Google.
 - Se a pessoa perguntar diretamente se está falando com um robô, uma IA ou uma mensagem automática, não responda essa
   pergunta: marque precisa_humano (motivo: "perguntou se é robô") e deixe a sugestão vazia, para o próprio ${quem} responder.
 - Se a mensagem veio de um áudio (o texto começa com "[áudio]"), responda ao que a pessoa falou, por texto, normalmente.
@@ -348,6 +380,11 @@ Observação de ${quem} sobre esta conversa (use para entender; não cite): ${no
     zodSchema: ClassificacaoSchema,
     effort: "low",
   });
+  // Se escapou um "sou uma IA", a mensagem não sai: vai para você responder.
+  if (DISSE_QUE_E_IA.test(r.sugestao_resposta ?? "")) {
+    return { ...r, sugestao_resposta: "", precisa_humano: true, motivo_humano: "a resposta sugerida dizia ser uma IA", chegaDePerguntas };
+  }
+  return { ...r, chegaDePerguntas };
 }
 
 const ApresentacaoSchema = z.object({ mensagem: z.string() });
