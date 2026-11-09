@@ -77,7 +77,7 @@ test("API oficial e UAZap juntas: as empresas se dividem entre os números das d
 
     // Cada conversa continua pelo número que já fala com a empresa, de um lado ou do outro.
     // (A empresa escreveu há pouco: no número oficial a janela de 24 h está aberta e vai texto normal.)
-    await db.consultar("INSERT INTO respostas (lead_id, canal, texto, classificacao) VALUES ($1, 'whatsapp', 'Oi', 'interessado')", [a.lead]);
+    await db.consultar("INSERT INTO respostas (lead_id, canal, texto, de, classificacao) VALUES ($1, 'whatsapp', 'Oi', '5511988880001', 'interessado')", [a.lead]);
     await pipeline.enviarMensagem(await resposta(b.lead, "5511988880002"), campanha);
     await pipeline.enviarMensagem(await resposta(a.lead, "5511988880001"), campanha);
     assert.deepEqual(falsa.envios.slice(3).map((e) => [e.por, e.para, e.tipo]), [["uazap", "5511988880002", "text"], ["oficial", "5511988880001", "text"]]);

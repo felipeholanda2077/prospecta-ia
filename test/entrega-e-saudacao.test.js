@@ -24,6 +24,16 @@ test("saudação pelo horário: o Oi do começo vira bom dia, boa tarde ou boa n
   assert.equal(pipeline.saudacaoDoHorario(new Date("2026-11-09T17:00:00Z"), "Europe/Lisbon"), "Boa tarde");
 });
 
+test("janela de 24 h é por número: a recepção escreveu, mas a doutora indicada não (para ela, só o modelo)", async () => {
+  await db.inserirLead({ place_id: "ChIJjanelanumero00000000001", nome: "Vet", cidade: "Osasco - SP" });
+  const [l] = await db.consultar("SELECT id FROM leads WHERE place_id = $1", ["ChIJjanelanumero00000000001"]);
+  await db.consultar("INSERT INTO respostas (lead_id, canal, texto, de, recebida_em, classificacao) VALUES ($1, 'whatsapp', 'Fala com a Dra. Lilia', '5511993566627', now() - interval '1 hour', 'outro')", [l.id]);
+  assert.equal(await pipeline.janelaDe24hAberta(l.id), true);
+  assert.equal(await pipeline.janelaDe24hAberta(l.id, new Date(), "5511993566627"), true);
+  assert.equal(await pipeline.janelaDe24hAberta(l.id, new Date(), "551193566627"), true); // sem o 9
+  assert.equal(await pipeline.janelaDe24hAberta(l.id, new Date(), "5511978760521"), false); // a doutora nunca escreveu
+});
+
 test("entrega pela Meta: enviada, entregue e lida aparecem; aviso atrasado não volta a situação; falha guarda o motivo", async () => {
   await db.inserirLead({ place_id: "ChIJentrega0000000000000001", nome: "Clínica", cidade: "Osasco - SP" });
   const [l] = await db.consultar("SELECT id FROM leads WHERE place_id = $1", ["ChIJentrega0000000000000001"]);

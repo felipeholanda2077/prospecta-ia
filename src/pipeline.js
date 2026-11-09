@@ -1349,7 +1349,7 @@ export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
       }
     } else if (m.tipo === "resposta") {
       // Dentro das 24 h da última mensagem da pessoa, texto livre; depois disso a Meta só aceita o modelo aprovado.
-      messageId = (await janelaDe24hAberta(m.lead_id))
+      messageId = (await janelaDe24hAberta(m.lead_id, agora, m.destino))
         ? await enviarTextoWhatsappOficial({ para: m.destino, corpo: m.corpo, numeroId })
         : await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo, numeroId, pais: m.pais, idiomaDaEmpresa: m.idioma });
     } else {
@@ -1373,9 +1373,14 @@ export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
 }
 
 /** A pessoa escreveu no WhatsApp nas últimas 24 h? (Na API oficial, só aí vale texto livre.) */
-export async function janelaDe24hAberta(leadId, agora = new Date()) {
+export async function janelaDe24hAberta(leadId, agora = new Date(), destino = null) {
+  // A Meta conta as 24 h por número: com `destino`, só vale a mensagem que ESSE número mandou (ex.: a doutora indicada
+  // pela recepção nunca escreveu, então para ela só o modelo aprovado sai, mesmo com a recepção tendo escrito agora).
+  const variantes = destino ? variantesWhatsappBR(String(destino).replace(/\D/g, "")) : [];
+  const params = [leadId, ...variantes];
+  const doNumero = variantes.length ? ` AND regexp_replace(coalesce(de, ''), '\\D', '', 'g') IN (${variantes.map((_, i) => `$${i + 2}`).join(", ")})` : "";
   const [r] = await db.consultar(
-    "SELECT max(recebida_em) AS ultima FROM respostas WHERE lead_id = $1 AND canal = 'whatsapp' AND classificacao IS DISTINCT FROM 'automatica'", [leadId]);
+    `SELECT max(recebida_em) AS ultima FROM respostas WHERE lead_id = $1 AND canal = 'whatsapp' AND classificacao IS DISTINCT FROM 'automatica'${doNumero}`, params);
   return Boolean(r?.ultima) && +agora - +new Date(r.ultima) < 24 * 3600_000;
 }
 
