@@ -35,6 +35,10 @@
     {
       "source": "/contato",
       "destination": "/api"
+    },
+    {
+      "source": "/proposta-slides/(.*)",
+      "destination": "/api"
     }
   ],
   "functions": {
