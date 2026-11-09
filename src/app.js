@@ -17,6 +17,7 @@ import { assinaturaValida, processarWebhookWhatsapp, processarWebhookUazap, proc
 import { rodapeDescadastro } from "./envio/email.js";
 import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as whatsappOficial from "./envio/whatsapp.js";
+import * as propostaSlides from "./vendas/propostaSlides.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
@@ -134,6 +135,13 @@ app.get("/contato", async (req, res) => {
 });
 
 app.options("/contato", (req, res) => liberarOutroSite(res).sendStatus(204));
+
+// Proposta em slides personalizada: o site (fluxdeck.com.br/apresentacao?proposta=código) lê a dor e a solução daqui.
+app.get("/proposta-slides/:codigo", async (req, res) => {
+  liberarOutroSite(res).set("Cache-Control", "no-store");
+  const p = await propostaSlides.propostaPublica(req.params.codigo).catch(() => null);
+  return p ? res.json(p) : res.status(404).json({ erro: "Proposta não encontrada" });
+});
 
 // JSON (pelo formulário com JavaScript ou pelo site) responde JSON; o envio sem JavaScript recebe a página.
 app.post("/contato", async (req, res) => {
@@ -1398,6 +1406,17 @@ async function enviarFoto(leadId, res) {
 app.get("/api/foto/:leadId", (req, res, next) => (/^\d+$/.test(req.params.leadId) ? enviarFoto(req.params.leadId, res) : next()));
 
 // As empresas de uma ou mais etapas do funil (clicar numa etapa da tela Respostas mostra quem são).
+// Escreve a proposta em slides desta empresa pela conversa (a dor e a solução). Não envia: a mensagem com o link vai
+// para a caixa de resposta, para revisar e enviar.
+app.post("/api/leads/:id/proposta-slides", async (req, res) => {
+  try {
+    const r = await propostaSlides.gerarPropostaSlides(Number(req.params.id));
+    res.json({ link: r.link, mensagem: r.mensagem, proposta: r.proposta });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.get("/api/funil/empresas", async (req, res) => {
   const etapas = String(req.query.etapas ?? "").split(",").map((e) => e.trim()).filter(Boolean);
   res.json({ empresas: await db.empresasDasEtapas(etapas) });

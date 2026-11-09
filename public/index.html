@@ -4229,6 +4229,7 @@ async function abrirConversa(id, { atualizar = false } = {}) {
         <div class="meta">${d.agente ? `<a href="#agentes">${ic("users", "sm")}Agente ${esc(d.agente)}</a>` : ""}${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}${d.lead.instagram ? `<a href="https://www.instagram.com/${esc(d.lead.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(d.lead.instagram)}</a>` : ""}</div></div>
       ${a ? pilulaChance(a) : ""}
       ${!encerrada && !d.agente && d.lead.status !== "fechado" ? `<button class="btn ok sm" data-cliente-aceitou="${d.lead.id}" title="Gera o contrato desta empresa">${ic("file", "sm")}Aceitou: gerar contrato</button>
+        <button class="btn sm" data-proposta-slides="${d.lead.id}" title="A IA monta os slides com a dor desta empresa e a solução, e deixa a mensagem com o link na caixa">${ic("spark", "sm")}Proposta em slides</button>
         <button class="btn sm" data-link-pagamento="${d.lead.id}" title="Gera o link de pagamento de uma oferta">${ic("send", "sm")}Link de pagamento</button>` : ""}
     </div>
     <div class="chat-andamento" id="chat-andamento">${a ? htmlAndamento(d) : ""}</div>
@@ -6030,6 +6031,33 @@ $("#vd-lista").addEventListener("click", async (ev) => {
     await carregarCobrancas();
   } catch (e) {
     avisar(e.message, "perigo", 7000);
+  }
+});
+
+// Na conversa: a IA monta a proposta em slides pela dor da empresa e deixa a mensagem com o link na caixa (não envia).
+document.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-proposta-slides]");
+  if (!btn) return;
+  btn.disabled = true;
+  const antes = btn.innerHTML;
+  btn.innerHTML = `${ic("spark", "sm")}Montando a proposta…`;
+  try {
+    const r = await post(`/api/leads/${btn.dataset.propostaSlides}/proposta-slides`, {});
+    const caixa = $("#chat-texto");
+    if (caixa) {
+      caixa.value = r.mensagem;
+      caixa.focus();
+      avisar(`Proposta pronta. Abra o link para conferir os slides antes de enviar: ${r.link}`, "ok", 12000);
+    } else {
+      await navigator.clipboard.writeText(r.mensagem).catch(() => {});
+      avisar("Proposta pronta e copiada. Cole a mensagem na conversa com a empresa.", "ok", 8000);
+    }
+    window.open(r.link, "_blank", "noopener");
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = antes;
   }
 });
 
