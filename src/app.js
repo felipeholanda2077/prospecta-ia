@@ -1369,6 +1369,9 @@ app.get("/api/conversas/:leadId", async (req, res) => {
       ? (n => n ? `${n.nome} (API oficial)` : null)((await whatsappOficial.numerosOficiais()).find((n) => n.id === lead.numero_wa))
       : (await uazap.numero(lead.numero_wa))?.nome ?? null,
     agente: lead.agente_id ? (await db.buscarAgente(lead.agente_id))?.nome ?? null : null,
+    // Por qual número a conversa pode sair (API oficial da Meta ou instâncias da UAZap) e qual está nela.
+    numeroAtual: lead.numero_wa ?? null,
+    numerosDisponiveis: await pipeline.numerosParaConversa(lead.id).catch(() => []),
     mensagens,
     agendadas: await db.agendadasDaConversa(lead.id),
     // A sugestão da IA vai para a caixa de resposta quando ninguém respondeu ainda a última mensagem.
@@ -1448,6 +1451,15 @@ app.post("/api/respostas/:id/enviar", async (req, res) => {
     return res.json({ ...r, linkWhatsapp: linkWhatsapp(m.destino, m.corpo, false) });
   }
   res.json(r);
+});
+
+// Troca o número de WhatsApp que conversa com a empresa (API oficial ou uma instância da UAZap).
+app.put("/api/leads/:id/numero-whatsapp", async (req, res) => {
+  try {
+    res.json(await pipeline.trocarNumeroDaConversa(req.params.id, req.body?.numeroId));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
 });
 
 app.get("/api/leads/:id/conversa", async (req, res) => {

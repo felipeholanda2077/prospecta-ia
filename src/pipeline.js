@@ -1279,7 +1279,10 @@ export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
         messageId = await enviarPara(telefone);
       }
     } else if (m.tipo === "resposta") {
-      messageId = await enviarTextoWhatsappOficial({ para: m.destino, corpo: m.corpo, numeroId });
+      // Dentro das 24 h da última mensagem da pessoa, texto livre; depois disso a Meta só aceita o modelo aprovado.
+      messageId = (await janelaDe24hAberta(m.lead_id))
+        ? await enviarTextoWhatsappOficial({ para: m.destino, corpo: m.corpo, numeroId })
+        : await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo, numeroId, pais: m.pais, idiomaDaEmpresa: m.idioma });
     } else {
       messageId = await enviarWhatsapp({ para: m.destino, empresa: m.empresa, corpo: m.corpo, numeroId, pais: m.pais, idiomaDaEmpresa: m.idioma });
     }
@@ -1298,6 +1301,37 @@ export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
     log(`⚠️  Falha ao enviar para ${m.empresa}: ${e.message}`);
     return { enviada: false, motivo: e.message };
   }
+}
+
+/** A pessoa escreveu no WhatsApp nas últimas 24 h? (Na API oficial, só aí vale texto livre.) */
+export async function janelaDe24hAberta(leadId, agora = new Date()) {
+  const [r] = await db.consultar(
+    "SELECT max(recebida_em) AS ultima FROM respostas WHERE lead_id = $1 AND canal = 'whatsapp' AND classificacao IS DISTINCT FROM 'automatica'", [leadId]);
+  return Boolean(r?.ultima) && +agora - +new Date(r.ultima) < 24 * 3600_000;
+}
+
+/**
+ * Os números que podem responder a conversa: os da API oficial da Meta e as instâncias da UAZap, com a
+ * situação de cada um (conectado, e se a janela de 24 h da Meta está aberta).
+ */
+export async function numerosParaConversa(leadId) {
+  const [oficiais, instancias, janela] = await Promise.all([
+    numerosOficiais({ ativos: true }).catch(() => []), uazap.numeros().catch(() => []), janelaDe24hAberta(leadId),
+  ]);
+  const lista = oficiais.map((n) => ({ id: n.id, nome: n.nome, tipo: "oficial", conectado: true, janela }));
+  for (const n of instancias) lista.push({ id: n.id, nome: n.nome, tipo: "uazap", conectado: await uazap.conectadoAgora(n.id).catch(() => false) });
+  return lista;
+}
+
+/** Troca o número que conversa com a empresa (as próximas mensagens saem por ele). */
+export async function trocarNumeroDaConversa(leadId, numeroId) {
+  const lead = await db.buscarLead(leadId);
+  if (!lead) throw new Error("Empresa não encontrada");
+  const numero = (await numerosParaConversa(leadId)).find((n) => n.id === String(numeroId));
+  if (!numero) throw new Error("Esse número não está ligado em Configurações");
+  await db.atualizarLead(lead.id, { numero_wa: numero.id });
+  log(`🔁 ${lead.nome}: a conversa passou para o número ${numero.nome} (${numero.tipo === "oficial" ? "API oficial" : "UAZap"})`);
+  return { numero };
 }
 
 /** O telefone da empresa para o WhatsApp (o confirmado no WhatsApp, senão o do cadastro), sem @lid. */

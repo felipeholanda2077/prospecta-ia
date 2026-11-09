@@ -76,6 +76,8 @@ test("API oficial e UAZap juntas: as empresas se dividem entre os números das d
     assert.deepEqual([await numeroDe(a.lead), await numeroDe(b.lead), await numeroDe(c.lead)], ["meta-5551", uazap.PRINCIPAL, "meta-5551"]);
 
     // Cada conversa continua pelo número que já fala com a empresa, de um lado ou do outro.
+    // (A empresa escreveu há pouco: no número oficial a janela de 24 h está aberta e vai texto normal.)
+    await db.consultar("INSERT INTO respostas (lead_id, canal, texto, classificacao) VALUES ($1, 'whatsapp', 'Oi', 'interessado')", [a.lead]);
     await pipeline.enviarMensagem(await resposta(b.lead, "5511988880002"), campanha);
     await pipeline.enviarMensagem(await resposta(a.lead, "5511988880001"), campanha);
     assert.deepEqual(falsa.envios.slice(3).map((e) => [e.por, e.para, e.tipo]), [["uazap", "5511988880002", "text"], ["oficial", "5511988880001", "text"]]);
@@ -84,6 +86,11 @@ test("API oficial e UAZap juntas: as empresas se dividem entre os números das d
     const antiga = await empresa("Clínica Antiga", "5511988880004");
     await db.atualizarMensagem(antiga.mensagem.id, { status: "enviada", enviada_em: new Date().toISOString() });
     assert.deepEqual(await pipeline.canalDoWhatsapp(await resposta(antiga.lead, "5511988880004")), { modo: "uazap", numeroId: uazap.PRINCIPAL });
+
+    // Fora da janela de 24 h, a resposta pelo número oficial vai pelo modelo aprovado (a Meta recusa texto livre).
+    await db.consultar("UPDATE respostas SET recebida_em = now() - interval '2 days' WHERE lead_id = $1", [a.lead]);
+    await pipeline.enviarMensagem(await resposta(a.lead, "5511988880001"), campanha);
+    assert.deepEqual(falsa.envios.at(-1) && [falsa.envios.at(-1).por, falsa.envios.at(-1).tipo], ["oficial", "template"]);
 
     // Número oficial desligado: a empresa dele passa a ser atendida pela UAZap.
     await wa.salvarConfig({ token: "EAAprincipal", phoneNumberId: "5551", ativo: false });
