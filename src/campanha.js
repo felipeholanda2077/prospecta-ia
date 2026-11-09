@@ -13,6 +13,8 @@ export const AUTOMACAO_PADRAO = {
   metaDiaria: { email: 100 }, // empresas novas por dia no e-mail (o WhatsApp não tem limite por dia: vale o intervalo)
   intervaloEmpresasMin: 5, // minutos entre uma empresa nova e a próxima (sorteado entre o mínimo e o máximo)
   intervaloEmpresasMax: 12,
+  intervaloOficialMin: 2, // minutos entre uma empresa e a próxima no número da API oficial da Meta (sai mais rápido)
+  intervaloOficialMax: 4,
   maxRespostasIA: 6, // depois disso a conversa passa para você
   calendly: "",
   buscarNoInstagram: true, // com o Instagram conectado pela página do Facebook, busca lá também

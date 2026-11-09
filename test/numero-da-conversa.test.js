@@ -48,3 +48,10 @@ test("enviadas: as mais recentes primeiro (as de hoje não somem atrás das anti
   assert.deepEqual(minhas, ["nova", "antiga"]);
   assert.equal(lista[0].corpo, "nova");
 });
+
+test("intervalo: o número oficial da Meta tem o próprio (2 a 4 min por padrão), mais curto que o da UAZap", async () => {
+  assert.equal(pipeline.intervaloDoOficialMs({}, 0), 2 * 60_000);
+  assert.equal(pipeline.intervaloDoOficialMs({}, 1), 4 * 60_000);
+  assert.equal(pipeline.intervaloDoOficialMs({ intervaloOficialMin: 1, intervaloOficialMax: 1 }, 0.7), 60_000);
+  assert.equal(pipeline.intervaloEntreEmpresasMs({}, 0), 5 * 60_000);
+});

@@ -1599,6 +1599,8 @@ app.put("/api/config/automacao", async (req, res) => {
     metaDiaria: { email: inteiro(b.metaEmail, 0, 500, AUTOMACAO_PADRAO.metaDiaria.email) },
     intervaloEmpresasMin: intervaloMin,
     intervaloEmpresasMax: Math.max(intervaloMin, inteiro(b.intervaloEmpresasMax, 1, 120, AUTOMACAO_PADRAO.intervaloEmpresasMax)),
+    intervaloOficialMin: inteiro(b.intervaloOficialMin, 1, 60, AUTOMACAO_PADRAO.intervaloOficialMin),
+    intervaloOficialMax: Math.max(inteiro(b.intervaloOficialMin, 1, 60, AUTOMACAO_PADRAO.intervaloOficialMin), inteiro(b.intervaloOficialMax, 1, 120, AUTOMACAO_PADRAO.intervaloOficialMax)),
     maxRespostasIA: inteiro(b.maxRespostasIA, 1, 20, AUTOMACAO_PADRAO.maxRespostasIA),
     calendly: calendlyLink,
     buscarNoInstagram: b.buscarNoInstagram !== false,

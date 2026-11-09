@@ -1099,6 +1099,11 @@
               <div class="campo"><label for="auto-int-max">até (minutos)</label><input id="auto-int-max" name="intervaloEmpresasMax" type="number" min="1" max="120"></div>
             </div>
             <div class="config-grade">
+              <div class="campo"><label for="auto-of-min">Número da API oficial da Meta: de (minutos)</label><input id="auto-of-min" name="intervaloOficialMin" type="number" min="1" max="60"></div>
+              <div class="campo"><label for="auto-of-max">até (minutos)</label><input id="auto-of-max" name="intervaloOficialMax" type="number" min="1" max="120"></div>
+            </div>
+            <p class="muted" style="margin:-4px 0 12px;font-size:12.5px">O número oficial não corre o risco de bloqueio do WhatsApp Web e pode sair mais rápido. Enquanto a empresa não é verificada na Meta, ela deixa começar até 250 conversas por dia nele: de 2 a 4 minutos dá umas 180 num dia comercial.</p>
+            <div class="config-grade">
               <div class="campo"><label for="auto-calendly">Link do Calendly</label><input id="auto-calendly" name="calendly" placeholder="https://calendly.com/fluxdeck/15min"></div>
               <div class="campo"><label for="auto-max-ia">Respostas da IA por conversa (depois passa para você)</label><input id="auto-max-ia" name="maxRespostasIA" type="number" min="1" max="20"></div>
             </div>
@@ -8353,6 +8358,8 @@ async function carregarAutomacao() {
     f.testarRamos.checked = a.testarRamos !== false;
     f.intervaloEmpresasMin.value = a.intervaloEmpresasMin;
     f.intervaloEmpresasMax.value = a.intervaloEmpresasMax;
+    f.intervaloOficialMin.value = a.intervaloOficialMin ?? 2;
+    f.intervaloOficialMax.value = a.intervaloOficialMax ?? 4;
     f.metaEmail.value = a.metaDiaria.email;
     f.maxRespostasIA.value = a.maxRespostasIA;
     f.apresentacao.value = a.apresentacao ?? "";
@@ -8379,7 +8386,7 @@ async function carregarAutomacao() {
     const barra = (nome, h) => `<div><div style="display:flex;justify-content:space-between;font-size:13.5px"><b>${nome}</b><span class="muted">${h.limite == null ? `${h.enviadas} hoje · sem limite por dia` : `${h.enviadas} de ${h.limite} hoje`}</span></div>
       ${h.limite == null ? "" : `<div class="medidor"><i style="width:${h.limite ? Math.min(100, (h.enviadas / h.limite) * 100) : 0}%"></i></div>`}</div>`;
     $("#auto-hoje").innerHTML = `<div class="config-grade">${barra("E-mail", a.hoje.email)}${barra("WhatsApp", a.hoje.whatsapp)}</div>
-      <p class="muted" style="margin:8px 0 0;font-size:13px">Empresas novas e as etapas 2 e 3 do WhatsApp saem uma por vez em cada número, com ${a.intervaloEmpresasMin} a ${a.intervaloEmpresasMax} minutos entre uma e outra no mesmo número (as etapas 2 e 3 vão antes; entre as novas, as de mais potencial).${a.proximaEmpresaNova ? ` Próxima a partir de <b>${new Date(a.proximaEmpresaNova).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</b>.` : ""}</p>
+      <p class="muted" style="margin:8px 0 0;font-size:13px">Empresas novas e as etapas 2 e 3 do WhatsApp saem uma por vez em cada número, com ${a.intervaloEmpresasMin} a ${a.intervaloEmpresasMax} minutos entre uma e outra no mesmo número da UAZap e ${a.intervaloOficialMin ?? 2} a ${a.intervaloOficialMax ?? 4} no número oficial da Meta (as etapas 2 e 3 vão antes; entre as novas, as de mais potencial).${a.proximaEmpresaNova ? ` Próxima a partir de <b>${new Date(a.proximaEmpresaNova).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</b>.` : ""}</p>
       ${a.respostaAutomatica && !a.calendly ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>Coloque o link do Calendly para a IA conseguir levar as pessoas ao agendamento.</div></div>` : ""}
       ${a.ativo && sessao.modoWhatsapp === "manual" ? `<div class="alerta perigo" style="margin-top:10px">${ic("alert")}<div>O WhatsApp está no modo manual: as mensagens automáticas de WhatsApp vão ficar na Fila de envio esperando você. Conecte a UAZap ou a Evolution API em <a href="#configuracoes">Configurações</a> para elas saírem sozinhas.</div></div>` : ""}`;
   } catch (e) {
@@ -8405,6 +8412,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
       testarRamos: f.testarRamos.checked,
       metaEmail: f.metaEmail.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,
+      intervaloOficialMin: f.intervaloOficialMin.value, intervaloOficialMax: f.intervaloOficialMax.value,
       calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value, idiomaExterior: f.idiomaExterior.value,
       nichosExterior: f.nichosExterior.value, numeroExteriorAtivo: f.numeroExteriorAtivo.checked, numeroExterior: f.numeroExterior.value,
     }) });

@@ -63,6 +63,9 @@ export const LIMITE_DIRECT_DIA = 25;
 // e o e-mail não parecerem disparo em massa. Ajustável em Automação. As etapas 2 e 3 do WhatsApp
 // dividem essa mesma vez: o número manda uma mensagem por vez, nunca várias em sequência.
 const INTERVALO_EMPRESAS_MIN = [5, 12];
+// Número da API oficial da Meta: não corre o risco de bloqueio do WhatsApp Web, então sai mais rápido. Com a empresa
+// ainda não verificada, a Meta deixa começar 250 conversas por dia: de 2 a 4 minutos dá umas 180 num dia de 9 h.
+const INTERVALO_OFICIAL_MIN = [2, 4];
 const VEZ_DO_PROXIMO_CONTATO = "vez_da_empresa_nova";
 
 /** Momento-limite para uma etapa terminar. */
@@ -1500,6 +1503,13 @@ export function intervaloEntreEmpresasMs(auto = {}, sorteio = Math.random()) {
   return Math.round((min + sorteio * (max - min)) * 60_000);
 }
 
+/** Espera até a próxima empresa no número da API oficial, em ms (intervalo próprio da Automação). */
+export function intervaloDoOficialMs(auto = {}, sorteio = Math.random()) {
+  const min = Math.max(0, Number(auto?.intervaloOficialMin ?? INTERVALO_OFICIAL_MIN[0]));
+  const max = Math.max(min, Number(auto?.intervaloOficialMax ?? INTERVALO_OFICIAL_MIN[1]));
+  return Math.round((min + sorteio * (max - min)) * 60_000);
+}
+
 /** Chave da vez de um número no banco (sem número, a vez única de antes). */
 const chaveDaVez = (numeroId) => (numeroId ? `${VEZ_DO_PROXIMO_CONTATO}:${numeroId}` : VEZ_DO_PROXIMO_CONTATO);
 
@@ -1841,10 +1851,11 @@ export async function escolherVezes(enviaveis, vagas, pistas, campanha) {
   const vezes = [];
   const decididas = new Set();
   const leads = new Set();
-  const reservar = async (chave) => {
+  // O número da API oficial tem o intervalo próprio (mais curto); os da UAZap, o das empresas novas.
+  const reservar = async (chave, modo) => {
     if (decididas.has(chave)) return false;
     decididas.add(chave);
-    return db.travar(chave, intervaloEntreEmpresasMs(campanha.automacao));
+    return db.travar(chave, modo === "oficial" ? intervaloDoOficialMs(campanha.automacao) : intervaloEntreEmpresasMs(campanha.automacao));
   };
   let vistos = 0;
   for (const m of enviaveis) {
@@ -1853,7 +1864,7 @@ export async function escolherVezes(enviaveis, vagas, pistas, campanha) {
     const escolha = await canalDoWhatsapp(m);
     if (!escolha.modo) continue;
     const chave = chaveDaVez(escolha.numeroId);
-    if (!(await reservar(chave))) continue;
+    if (!(await reservar(chave, escolha.modo))) continue;
     leads.add(m.lead_id);
     vezes.push({ chave, mensagens: [m] });
   }
@@ -1879,7 +1890,7 @@ export async function escolherVezes(enviaveis, vagas, pistas, campanha) {
     const lead = novas.find((m) => !leads.has(m.lead_id) && restam[m.canal] > 0 && !(p.modo === "oficial" && m.pais && m.pais !== "BR" && !modeloServe(p.numeroId, m))
       && (!p.numeroId || m.canal !== "whatsapp" || numeroServeParaEmpresa(p.numeroId, m, deFora)))?.lead_id;
     if (lead === undefined) break;
-    if (!(await reservar(p.chave))) continue;
+    if (!(await reservar(p.chave, p.modo))) continue;
     const mensagens = novas.filter((m) => m.lead_id === lead && restam[m.canal] > 0);
     for (const m of mensagens) {
       restam[m.canal]--;
