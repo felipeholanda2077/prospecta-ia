@@ -313,7 +313,11 @@ ${chegaDePerguntas ? `- AGORA PARE DE PERGUNTAR. Esta mensagem NÃO tem pergunta
   frase ligada ao ramo dela; 3) por que procurou a empresa: a dor comum desse tipo de negócio (nunca as avaliações do
   Google); 4)` : "1)"} em 1 frase, como vocês resolvem o que ela contou (ou essa dor); ${confusa ? "5)" : "2)"} UM próximo passo concreto,
   fácil de responder com sim ou não (ex.: "Posso te mandar uma proposta rapidinha mostrando como ficaria aí?").
-  Se a pessoa falou das avaliações do Google, NÃO fale delas: explique o que você faz.` : ""}
+  Se a pessoa falou das avaliações do Google, NÃO fale delas: explique o que você faz. Mesmo com a pessoa irritada,
+  não termine só com "se não fizer sentido, paro por aqui": junte a explicação, o próximo passo e essa saída educada
+  na mesma mensagem (ex.: "Desculpa pelas perguntas! Sou o Felipe, da FluxDeck: a gente faz a IA que responde o WhatsApp
+  de lojas de carro na hora, para nenhum cliente esfriar esperando. Posso te mandar uma proposta rápida? Se não fizer
+  sentido, paro por aqui.").` : ""}
 ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com o que está na apresentação.
 ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, como estão escritos. Orçamento exato, desconto ou
   condição especial: diga que isso vocês fecham no bate-papo, conforme o que ela precisa.` : `- Valores: a pessoa AINDA NÃO perguntou de preço. NÃO cite nenhum valor, preço ou R$, nem "a partir de". Se falar de
