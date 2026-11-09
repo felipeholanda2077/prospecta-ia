@@ -731,3 +731,51 @@ async function traduzirModelo(texto, codigo) {
   });
   return r.texto.trim();
 }
+
+/** A foto do perfil do número na Meta (link temporário da imagem), ou null. */
+export async function fotoDoPerfil(numeroId = null) {
+  const c = numeroId ? await numeroParaGerenciar(numeroId) : await obterConfig();
+  if (!c.token || !c.phoneNumberId) return null;
+  const r = await graph(c, `${c.phoneNumberId}/whatsapp_business_profile?fields=profile_picture_url`);
+  return r.data?.[0]?.profile_picture_url ?? null;
+}
+
+/**
+ * Troca a foto do perfil do número pela API da Meta (a mesma que aparece para quem recebe a mensagem):
+ * sobe a imagem pela API de upload do app (gera um "handle") e grava esse handle no perfil do número.
+ * `dados`: Buffer da imagem; `tipo`: image/jpeg ou image/png (a Meta pede quadrada, de 192 a 640 px).
+ */
+export async function trocarFotoDoPerfil(numeroId, dados, tipo, { buscar = fetch } = {}) {
+  if (!["image/jpeg", "image/png"].includes(tipo)) throw new Error("A foto precisa ser JPG ou PNG");
+  if (!dados?.length) throw new Error("Escolha a foto");
+  if (dados.length > 5 * 1024 * 1024) throw new Error("A foto precisa ter até 5 MB");
+  const c = numeroId ? await numeroParaGerenciar(numeroId) : await obterConfig();
+  if (!c.token || !c.phoneNumberId) throw new Error("Salve o token e o número da Meta antes");
+  const base = `https://graph.facebook.com/${c.apiVersion}`;
+  const pedir = async (url, opcoes) => {
+    let resp;
+    try {
+      resp = await buscar(url, { ...opcoes, signal: AbortSignal.timeout(30_000) });
+    } catch {
+      throw new Error("Não foi possível falar com a Meta agora. Tente de novo em instantes.");
+    }
+    const r = await resp.json().catch(() => ({}));
+    if (!resp.ok) throw new Error(`A Meta recusou a foto: ${r.error?.error_user_msg ?? r.error?.message ?? resp.status}`);
+    return r;
+  };
+  // O app do token (a API de upload é do app, não do número).
+  const app = await pedir(`${base}/app`, { headers: { Authorization: `Bearer ${c.token}` } });
+  if (!app.id) throw new Error("A Meta não disse qual é o app deste token");
+  const sessao = await pedir(`${base}/${app.id}/uploads?file_length=${dados.length}&file_type=${encodeURIComponent(tipo)}&file_name=perfil.${tipo === "image/png" ? "png" : "jpg"}`,
+    { method: "POST", headers: { Authorization: `Bearer ${c.token}` } });
+  if (!sessao.id) throw new Error("A Meta não abriu o envio da foto");
+  const enviado = await pedir(`${base}/${sessao.id}`, {
+    method: "POST", headers: { Authorization: `OAuth ${c.token}`, file_offset: "0" }, body: dados,
+  });
+  if (!enviado.h) throw new Error("A Meta não devolveu a foto enviada");
+  await pedir(`${base}/${c.phoneNumberId}/whatsapp_business_profile`, {
+    method: "POST", headers: { Authorization: `Bearer ${c.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", profile_picture_handle: enviado.h }),
+  });
+  return { ok: true, foto: await fotoDoPerfil(numeroId).catch(() => null) };
+}

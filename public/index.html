@@ -450,6 +450,9 @@
   .aba-numero .ponto-off { width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
   .numeros-grupo { flex-basis: 100%; font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
   .numero-pilula .icon { width: 12px; height: 12px; }
+  .foto-perfil-oficial { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .foto-oficial { width: 44px; height: 44px; flex: none; border-radius: 50%; }
+  label.btn.carregando { opacity: .6; pointer-events: none; }
   .numero-hoje { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 12px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--surface-2, transparent); }
   .numero-hoje button.link { font: inherit; font-weight: 700; color: var(--accent-text, var(--accent)); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
   .chat-itens { overflow-y: auto; flex: 1; }
@@ -5089,16 +5092,68 @@ async function carregarNumerosOficiais() {
           ${n.principal ? "" : `<label class="chave" title="Ligar ou desligar este número"><input type="checkbox" data-oficial-ativo="${esc(n.id)}" ${n.ativo ? "checked" : ""}><div><b style="font-size:13px">${n.ativo ? "Ligado" : "Desligado"}</b></div></label>
           <button class="btn fantasma" type="button" data-oficial-remover="${esc(n.id)}" title="Tirar do sistema"><span data-ic-span="trash"></span>Tirar</button>`}
         </div>
+        ${!n.erro && st?.configurada ? `<div class="foto-perfil-oficial">
+          <span class="avatar foto-oficial" data-foto-oficial="${esc(n.id)}" aria-hidden="true">${inicial(n.nome)}</span>
+          <div style="flex:1;min-width:160px"><b style="font-size:13px">Foto do perfil</b><div class="muted" style="font-size:12px">A que aparece para quem recebe a mensagem deste número.</div></div>
+          <label class="btn" style="cursor:pointer"><span data-ic-span="camera"></span>Trocar foto do perfil<input type="file" accept="image/jpeg,image/png" data-foto-oficial-arquivo="${esc(n.id)}" aria-label="Escolher a foto do perfil de ${esc(n.nome)}" hidden></label>
+        </div>` : ""}
         ${conta?.empresaNome || conta?.nome ? `<div class="muted" style="font-size:12px">BM: <b>${esc(conta.empresaNome ?? "—")}</b>${conta.nome ? ` · Conta do WhatsApp: ${esc(conta.nome)}` : ""}</div>` : ""}
         ${lista ? `<details ${aberto || n.erro ? "open" : ""}><summary class="muted" style="cursor:pointer;font-size:13px">${s?.pronto ? "Tudo certo na Meta" : "O que falta para este número enviar"}</summary><div style="margin-top:8px">${lista}</div></details>` : ""}
       </div>`;
     }).join("");
     $("#oficial-numeros").querySelectorAll("[data-ic-span]").forEach((el) => (el.innerHTML = ic(el.dataset.icSpan)));
+    $("#oficial-numeros").querySelectorAll("[data-foto-oficial]").forEach((el) => mostrarFotoOficial(el.dataset.fotoOficial));
   } catch (e) {
     bloco.hidden = false;
     $("#oficial-numeros").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
 }
+
+/** A foto do perfil do número na Meta, no cartão dele (sem foto, fica a inicial). */
+async function mostrarFotoOficial(id) {
+  const el = document.querySelector(`[data-foto-oficial="${CSS.escape(id)}"]`);
+  if (!el) return;
+  const { foto } = await api(`/api/whatsapp-oficial/numeros/${encodeURIComponent(id)}/foto`).catch(() => ({ foto: null }));
+  if (foto) el.innerHTML = `<img class="foto-perfil" src="${esc(foto)}" alt="" referrerpolicy="no-referrer">`;
+}
+
+/** Deixa a foto quadrada (corta o centro) em 640 × 640 JPG, o tamanho que o WhatsApp usa no perfil. */
+function fotoQuadrada(arquivo) {
+  return new Promise((ok, falha) => {
+    const img = new Image();
+    img.onload = () => {
+      const lado = Math.min(img.naturalWidth, img.naturalHeight);
+      if (lado < 192) return falha(new Error("A foto precisa ter pelo menos 192 × 192 pixels"));
+      const tela = document.createElement("canvas");
+      tela.width = tela.height = Math.min(640, lado);
+      tela.getContext("2d").drawImage(img, (img.naturalWidth - lado) / 2, (img.naturalHeight - lado) / 2, lado, lado, 0, 0, tela.width, tela.height);
+      URL.revokeObjectURL(img.src);
+      ok(tela.toDataURL("image/jpeg", 0.9));
+    };
+    img.onerror = () => falha(new Error("Não deu para abrir essa imagem. Use JPG ou PNG."));
+    img.src = URL.createObjectURL(arquivo);
+  });
+}
+
+document.addEventListener("change", async (ev) => {
+  const entrada = ev.target.closest?.("[data-foto-oficial-arquivo]");
+  if (!entrada?.files?.[0]) return;
+  const id = entrada.dataset.fotoOficialArquivo;
+  const rotulo = entrada.closest("label");
+  rotulo?.classList.add("carregando");
+  try {
+    const imagem = await fotoQuadrada(entrada.files[0]);
+    const r = await post(`/api/whatsapp-oficial/numeros/${encodeURIComponent(id)}/foto`, { imagem });
+    const el = document.querySelector(`[data-foto-oficial="${CSS.escape(id)}"]`);
+    if (el) el.innerHTML = `<img class="foto-perfil" src="${esc(r.foto ?? imagem)}" alt="" referrerpolicy="no-referrer">`;
+    avisar("Foto do perfil trocada na Meta. Quem receber mensagem deste número já vê a foto nova (o WhatsApp pode levar alguns minutos para atualizar).", "ok", 9000);
+  } catch (e) {
+    avisar(e.message, "perigo", 9000);
+  } finally {
+    rotulo?.classList.remove("carregando");
+    entrada.value = "";
+  }
+});
 
 // Adicionar número: escolher a BM, buscar os números que o token enxerga e escolher na lista.
 let encontradosOficiais = [];

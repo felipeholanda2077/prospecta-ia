@@ -2335,6 +2335,13 @@ app.post("/api/whatsapp-oficial/numeros/:id/corrigir", comErro(async (req) => {
   const r = await whatsappOficial.corrigirNaMeta(req.params.id);
   return { ok: true, ...r, status: await whatsappOficial.statusOficial(req.params.id).catch(() => null) };
 }));
+// Foto do perfil do número na Meta (a que aparece para quem recebe a mensagem). A imagem vem do painel em base64.
+app.get("/api/whatsapp-oficial/numeros/:id/foto", comErro(async (req) => ({ foto: await whatsappOficial.fotoDoPerfil(req.params.id) })));
+app.post("/api/whatsapp-oficial/numeros/:id/foto", comErro(async (req) => {
+  const m = String(req.body?.imagem ?? "").match(/^data:(image\/(?:jpeg|png));base64,(.+)$/);
+  if (!m) throw new Error("Escolha uma foto JPG ou PNG");
+  return whatsappOficial.trocarFotoDoPerfil(req.params.id, Buffer.from(m[2], "base64"), m[1]);
+}));
 app.put("/api/whatsapp-oficial/numeros/:id/token", comErro(async (req) => ({ ok: true, ...(await whatsappOficial.trocarTokenDoNumero(req.params.id, req.body?.token)) })));
 app.put("/api/whatsapp-oficial/numeros/:id/conta", comErro(async (req) => {
   return { ok: true, ...(await whatsappOficial.definirContaDoNumero(req.params.id, req.body?.contaId)) };
