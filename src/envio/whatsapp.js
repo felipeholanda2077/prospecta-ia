@@ -658,7 +658,10 @@ export async function versoesDoModelo(numeroId = null) {
   const conta = await contaDoNumero(c);
   if (!conta) throw new Error("Não achei a conta do WhatsApp Business deste número na Meta");
   const r = await graph(c, `${conta}/message_templates?name=${encodeURIComponent(c.template)}&fields=name,status,language,category,components&limit=100`);
-  return { c, conta, versoes: (r?.data ?? []).filter((t) => t.name === c.template) };
+  const versoes = (r?.data ?? []).filter((t) => t.name === c.template);
+  // A conferência do painel também atualiza o que o envio usa (a aprovação vale na hora, sem esperar 30 minutos).
+  idiomasAprovados.set(String(numeroId ?? "principal"), { ate: Date.now() + 30 * 60_000, lista: versoes.filter((v) => v.status === "APPROVED").map((v) => v.language) });
+  return { c, conta, versoes };
 }
 
 /** Os idiomas do modelo já aprovados pela Meta para este número (guardados por 30 minutos). */

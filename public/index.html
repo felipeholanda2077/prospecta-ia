@@ -2771,24 +2771,46 @@ async function mostrarConexaoAnuncios() {
 }
 /** As versões do modelo do WhatsApp oficial nos idiomas de fora do Brasil. */
 const NOMES_IDIOMA_MODELO = { en: "Inglês", es: "Espanhol", de: "Alemão", fr: "Francês", it: "Italiano", nl: "Holandês", pt_PT: "Português de Portugal" };
-const SITUACAO_MODELO = { APPROVED: ["ok", "Aprovado"], PENDING: ["atencao", "Em análise na Meta"], REJECTED: ["perigo", "Recusado"], ERRO: ["perigo", "Erro"] };
+const SITUACAO_MODELO = { APPROVED: ["ok", "Aprovado", "checkCircle"], PENDING: ["atencao", "Em análise na Meta", "clock"], IN_APPEAL: ["atencao", "Em recurso na Meta", "clock"],
+  REJECTED: ["perigo", "Recusado", "alert"], PAUSED: ["perigo", "Pausado pela Meta", "alert"], DISABLED: ["perigo", "Desativado pela Meta", "alert"], ERRO: ["perigo", "Erro", "alert"] };
+// Enquanto a Meta analisa, o cartão confere sozinho a cada minuto (só com Configurações aberta) e avisa cada aprovação.
+let modeloForaVigia = null;
+let modeloForaAntes = null;
 async function mostrarModeloFora() {
   const alvo = $("#modelo-fora");
   try {
     const r = await api("/api/whatsapp/modelo-fora");
+    const agora = {};
+    for (const n of r.numeros) for (const v of n.versoes) agora[`${n.nome}:${v.idioma}`] = v.situacao;
+    if (modeloForaAntes) {
+      for (const [k, s] of Object.entries(agora)) {
+        if (s === "APPROVED" && modeloForaAntes[k] && modeloForaAntes[k] !== "APPROVED") {
+          const [nome, cod] = k.split(":");
+          avisar(`Meta aprovou o modelo em ${NOMES_IDIOMA_MODELO[cod] ?? cod} (${nome}): as empresas desse idioma já saem pelo número oficial.`, "ok", 9000);
+        }
+      }
+    }
+    modeloForaAntes = agora;
+    const emAnalise = Object.values(agora).some((s) => ["PENDING", "IN_APPEAL"].includes(s));
+    clearTimeout(modeloForaVigia);
+    if (emAnalise) modeloForaVigia = setTimeout(() => viewAtual === "configuracoes" && !document.hidden ? mostrarModeloFora() : (modeloForaVigia = null), 60_000);
     alvo.innerHTML = r.numeros.map((n) => {
       const porIdioma = Object.fromEntries(n.versoes.map((v) => [v.idioma, v.situacao]));
       const faltam = Object.values(r.idiomas).filter((c) => !porIdioma[c]).length;
+      const aprovados = Object.values(r.idiomas).filter((c) => porIdioma[c] === "APPROVED").length;
+      const total = Object.values(r.idiomas).length;
       const linhas = Object.values(r.idiomas).map((c) => {
-        const [tom, texto] = porIdioma[c] ? SITUACAO_MODELO[porIdioma[c]] ?? ["", porIdioma[c]] : ["", "Ainda não criado"];
-        return `<span class="pilula ${tom}">${esc(NOMES_IDIOMA_MODELO[c] ?? c)}: ${esc(texto)}</span>`;
+        const [tom, texto, icone] = porIdioma[c] ? SITUACAO_MODELO[porIdioma[c]] ?? ["", porIdioma[c], "clock"] : ["", "Ainda não criado", "x"];
+        return `<span class="pilula ${tom}">${ic(icone, "sm")}${esc(NOMES_IDIOMA_MODELO[c] ?? c)}: ${esc(texto)}</span>`;
       }).join("");
+      const resumo = n.versoes.length
+        ? `<span class="pilula ${aprovados === total ? "ok" : aprovados ? "acc" : "atencao"}">${aprovados} de ${total} aprovados</span>` : "";
       return `<div style="display:grid;gap:10px;margin-bottom:14px">
-        <b>${esc(n.nome ?? "Número")}${n.modelo ? ` · modelo "${esc(n.modelo)}"` : ""}</b>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${esc(n.nome ?? "Número")}${n.modelo ? ` · modelo "${esc(n.modelo)}"` : ""}</b>${resumo}</div>
         ${n.erro ? `<div class="alerta perigo">${ic("alert")}<div>${esc(n.erro)}</div></div>` : `<div class="pilulas">${linhas}</div>`}
         ${!n.erro && faltam ? `<div><button class="btn primario" type="button" data-criar-modelos="${esc(n.numeroId ?? "")}">${ic("globe")}Criar as ${faltam} ${faltam === 1 ? "versão que falta" : "versões que faltam"} e mandar para a Meta</button></div>` : ""}
       </div>`;
-    }).join("");
+    }).join("") + (emAnalise ? `<p class="muted" style="font-size:12.5px;margin:0">Conferindo com a Meta a cada minuto enquanto esta tela estiver aberta. Última conferência às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}.</p>` : "");
   } catch (e) {
     alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
