@@ -36,3 +36,15 @@ test("cada conversa sabe por qual número sai (para ver as mensagens de cada nú
   assert.equal(de(antiga), "principal"); // de antes de existirem vários números: o principal da UAZap
   assert.equal(de(soEmail), null);
 });
+
+test("enviadas: as mais recentes primeiro (as de hoje não somem atrás das antigas)", async () => {
+  await db.inserirLead({ place_id: "ChIJordem0000000000000000001", nome: "Ordem", cidade: "Osasco - SP" });
+  const [l] = await db.consultar("SELECT id FROM leads WHERE place_id = $1", ["ChIJordem0000000000000000001"]);
+  await db.consultar(`INSERT INTO mensagens (lead_id, canal, etapa, destino, corpo, status, enviada_em, numero_wa) VALUES
+    ($1, 'whatsapp', 1, '5511999990001', 'antiga', 'enviada', now() - interval '3 days', 'principal'),
+    ($1, 'whatsapp', 2, '5511999990001', 'nova', 'enviada', now(), 'meta-123')`, [l.id]);
+  const lista = await db.mensagensPorStatus("enviada", 10);
+  const minhas = lista.filter((m) => m.lead_id === l.id).map((m) => m.corpo);
+  assert.deepEqual(minhas, ["nova", "antiga"]);
+  assert.equal(lista[0].corpo, "nova");
+});

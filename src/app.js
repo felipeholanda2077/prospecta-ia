@@ -1151,7 +1151,7 @@ app.get("/api/mensagens", async (req, res) => {
   // antes do limite, para as de fora não sumirem atrás das daqui).
   const exterior = req.query.exterior === "1" ? true : req.query.exterior === "0" ? false : null;
   const mensagens = lead ? [...await db.mensagensDaSequencia(lead, "whatsapp"), ...await db.mensagensDaSequencia(lead, "email")]
-    : await db.mensagensPorStatus(status, exterior === true ? 1500 : 300, { exterior });
+    : await db.mensagensPorStatus(status, exterior === true ? 1500 : status === "enviada" ? 600 : 300, { exterior });
   const modo = await pipeline.modoWhatsapp();
   // Nas enviadas, mostra qual etapa vem depois e quando (se a empresa não responder).
   const proximas = status === "enviada" ? await db.proximasEtapas([...new Set(mensagens.map((m) => m.lead_id))]) : [];
@@ -1169,9 +1169,12 @@ app.get("/api/mensagens", async (req, res) => {
     })]));
     prioridadeDe = (m) => calculada.get(m.lead_id);
   }
+  // Por qual número de WhatsApp cada uma saiu (API oficial da Meta ou instância da UAZap).
+  const numeros = status === "enviada" ? await nomesDosNumeros() : null;
   res.json(mensagens.map((m) => ({
     ...prepararMensagem(m, modo),
     proxima: status === "enviada" ? proximaDe(m) : undefined,
+    numero: numeros && m.canal === "whatsapp" ? numeroDaMensagem(m, numeros) : undefined,
     prioridade: prioridadeDe(m),
   })));
 });
@@ -1334,6 +1337,25 @@ app.get("/api/conversas", async (req, res) => {
  * tem, para ver as mensagens de cada número separadas na tela Respostas. Número que saiu de Configurações mas
  * ainda tem conversa aparece como "removido"; conversa só por e-mail ou direct fica em "Sem WhatsApp".
  */
+/** Os números de WhatsApp pelo id: { nome, tipo } (oficial = API da Meta, uazap = instância). */
+async function nomesDosNumeros() {
+  const [oficiais, instancias] = await Promise.all([
+    whatsappOficial.numerosOficiais().catch(() => []), uazap.numeros().catch(() => []),
+  ]);
+  return new Map([
+    ...oficiais.map((n) => [n.id, { nome: n.nome, tipo: "oficial" }]),
+    ...instancias.map((n) => [n.id, { nome: n.nome, tipo: "uazap" }]),
+  ]);
+}
+
+/** O número por onde a mensagem saiu (as antigas, sem número guardado, saíram pela Principal da UAZap). */
+function numeroDaMensagem(m, numeros) {
+  const id = m.numero_wa || "principal";
+  const n = numeros.get(id);
+  const tipo = n?.tipo ?? (whatsappOficial.ehNumeroOficial(id) ? "oficial" : "uazap");
+  return { id, nome: n?.nome ?? "Número removido", tipo };
+}
+
 async function numerosDasConversas(conversas) {
   const [oficiais, instancias] = await Promise.all([
     whatsappOficial.numerosOficiais().catch(() => []), uazap.numeros().catch(() => []),
@@ -1354,7 +1376,11 @@ async function numerosDasConversas(conversas) {
     if (id !== "sem" && !lista.some((n) => n.id === id)) lista.push({ id, nome: "Número removido", tipo: whatsappOficial.ehNumeroOficial(id) ? "oficial" : "uazap", removido: true });
   }
   if (contagem.has("sem")) lista.push({ id: "sem", nome: "Sem WhatsApp", tipo: "outro" });
-  return lista.map((n) => ({ ...n, conversas: 0, nao_lidas: 0, ...contagem.get(n.id) }));
+  // Quantas empresas novas cada número chamou hoje (a maioria ainda não respondeu, então não está na lista).
+  return Promise.all(lista.map(async (n) => ({
+    ...n, conversas: 0, nao_lidas: 0, ...contagem.get(n.id),
+    hoje: n.id === "sem" ? 0 : await db.enviadasHoje("whatsapp", { primeiroContato: true, numero: n.id }).catch(() => 0),
+  })));
 }
 
 /** Manda a foto de perfil da empresa (ou 204, sem foto: o painel mostra a inicial). */

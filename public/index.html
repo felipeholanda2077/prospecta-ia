@@ -450,6 +450,8 @@
   .aba-numero .ponto-off { width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
   .numeros-grupo { flex-basis: 100%; font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
   .numero-pilula .icon { width: 12px; height: 12px; }
+  .numero-hoje { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 12px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--surface-2, transparent); }
+  .numero-hoje button.link { font: inherit; font-weight: 700; color: var(--accent-text, var(--accent)); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
   .chat-itens { overflow-y: auto; flex: 1; }
   .chat-item { display: grid; grid-template-columns: 40px 1fr auto; gap: 10px; align-items: center; width: 100%; padding: 11px 14px;
                border: 0; border-bottom: 1px solid var(--border); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
@@ -3382,7 +3384,7 @@ function cardMensagem(m) {
     return `<article class="cartao">${cabecalhoMensagem(m)}${erro}
       <div class="cartao-corpo">
         <details class="ver-msg"><summary>${ic("mail", "sm")}Ver mensagem enviada</summary>${previaHtml(m)}</details>
-        <div class="meta" style="margin-top:8px"><span>${ic("checkCircle", "sm")}${m.status === "enviada" ? `Enviada em ${dataHora(m.enviada_em)}` : esc(m.status)}</span></div>
+        <div class="meta" style="margin-top:8px"><span>${ic("checkCircle", "sm")}${m.status === "enviada" ? `Enviada em ${dataHora(m.enviada_em)}` : esc(m.status)}</span>${m.numero ? `<span class="pilula ${m.numero.tipo === "oficial" ? "ok" : ""}">${ic(m.numero.tipo === "oficial" ? "check" : "phone", "sm")}Saiu pelo ${esc(nomeComOrigem(m.numero))}</span>` : ""}</div>
         ${m.status === "enviada" ? linhaProxima(m) : ""}
       </div></article>`;
   }
@@ -3976,15 +3978,21 @@ document.addEventListener("input", (ev) => {
 
 function desenharListaConversas() {
   // Número escolhido que não existe mais (ou sem conversa): volta para todos.
-  if (numeroConversa !== "todos" && !(dadosConversas?.numeros ?? []).some((n) => n.id === numeroConversa && n.conversas)) numeroConversa = "todos";
+  if (numeroConversa !== "todos" && !(dadosConversas?.numeros ?? []).some((n) => n.id === numeroConversa && (n.conversas || !n.removido))) numeroConversa = "todos";
   const abas = htmlNumerosDaConversa();
   $("#chat-numeros").hidden = !abas;
   $("#chat-numeros").innerHTML = abas;
   const lista = conversasFiltradas();
   $("#chat-filtros").innerHTML = FILTROS_CONVERSA.map(([v, t]) =>
     `<button class="filtro" data-filtro-conversa="${v}" aria-pressed="${v === filtroConversa}">${t}</button>`).join("");
-  $("#chat-itens").innerHTML = lista.length ? lista.map(itemConversa).join("")
-    : `<p class="muted" style="padding:20px;text-align:center">${buscaConversa.trim() ? `Nenhuma conversa com "${esc(buscaConversa.trim())}"${filtroConversa !== "todas" || numeroConversa !== "todos" ? " neste filtro" : ""}.` : numeroConversa !== "todos" && filtroConversa === "todas" ? "Nenhuma conversa neste número." : "Nenhuma conversa neste filtro."}</p>`;
+  // Aba de um número: o que ele mandou hoje (as empresas que ainda não responderam ficam em Enviadas).
+  const escolhido = (dadosConversas?.numeros ?? []).find((n) => n.id === numeroConversa && n.id !== "sem");
+  const aviso = escolhido ? `<div class="numero-hoje">${ic("send", "sm")}<span>${escolhido.hoje
+      ? `Hoje este número chamou <b>${escolhido.hoje} ${escolhido.hoje === 1 ? "empresa nova" : "empresas novas"}</b>. Aqui aparecem as que responderam.`
+      : "Este número não chamou nenhuma empresa nova hoje."}</span>
+    <button class="link" type="button" data-ver-enviadas-do-numero="${esc(escolhido.id)}">Ver o que ele enviou</button></div>` : "";
+  $("#chat-itens").innerHTML = aviso + (lista.length ? lista.map(itemConversa).join("")
+    : `<p class="muted" style="padding:20px;text-align:center">${buscaConversa.trim() ? `Nenhuma conversa com "${esc(buscaConversa.trim())}"${filtroConversa !== "todas" || numeroConversa !== "todos" ? " neste filtro" : ""}.` : numeroConversa !== "todos" && filtroConversa === "todas" ? "Nenhuma conversa neste número." : "Nenhuma conversa neste filtro."}</p>`);
 }
 
 /** Monta a página (indicadores + lista + chat). Com `manterChat`, só atualiza o que mudou. */
@@ -4326,6 +4334,31 @@ let filtroLeads = FILTROS_LEADS[0][0];
 // Abas de canal nas listas de mensagens (aprovar, fila, enviadas, com erro). Lembrada neste navegador.
 const CANAIS = [["todos", "Todos", "grid"], ["email", "E-mail", "mail"], ["whatsapp", "WhatsApp", "message"], ["instagram", "Instagram", "camera"]];
 let filtroCanal = (() => { try { return localStorage.getItem("filtroCanal") || "todos"; } catch { return "todos"; } })();
+// Enviadas: o número de WhatsApp por onde saíram ("todos" = todos os números e o e-mail).
+let filtroNumeroEnviadas = "todos";
+const ORIGEM_DO_NUMERO = { oficial: "API oficial", uazap: "UAZap" };
+const nomeComOrigem = (n) => `${n.nome} · ${ORIGEM_DO_NUMERO[n.tipo] ?? ""}`;
+
+/** Abas dos números nas Enviadas: quantas saíram por cada um, e quantas hoje. */
+function abasDeNumero(lista) {
+  const hoje = new Date().toDateString();
+  const porNumero = new Map();
+  for (const m of lista) {
+    if (!m.numero) continue;
+    const k = porNumero.get(m.numero.id) ?? { ...m.numero, total: 0, hoje: 0 };
+    k.total++;
+    if (new Date(m.enviada_em).toDateString() === hoje) k.hoje++;
+    porNumero.set(m.numero.id, k);
+  }
+  if (!porNumero.size) return "";
+  const numeros = [...porNumero.values()].sort((a, b) => (a.tipo === b.tipo ? b.hoje - a.hoje : a.tipo === "oficial" ? -1 : 1));
+  const aba = (id, rotulo, extra = "") => `<button class="filtro aba-numero" data-filtro-numero-enviadas="${esc(id)}" aria-pressed="${id === filtroNumeroEnviadas}">${rotulo}${extra}</button>`;
+  return `<div class="filtros" role="group" aria-label="Filtrar pelo número de WhatsApp">
+    ${aba("todos", "Todos os números")}
+    ${numeros.map((n) => aba(n.id, `${ic(n.tipo === "oficial" ? "check" : "phone", "sm")}${esc(nomeComOrigem(n))}`,
+      ` <span class="muted">${n.hoje ? `${n.hoje} hoje · ` : ""}${n.total}</span>`)).join("")}
+  </div>`;
+}
 
 /** Abas Todos / E-mail / WhatsApp com a quantidade de cada uma. `itens` são mensagens, sequências ou empresas. */
 function abasDeCanal(itens, canalDe) {
@@ -4453,6 +4486,14 @@ async function carregarLista() {
           ? `<div class="alerta info" style="margin-bottom:16px">${ic("globe")}<div>${agruparPorEmpresa(lista).length} ${agruparPorEmpresa(lista).length === 1 ? "empresa" : "empresas"} de fora (${paises.map(esc).join(", ")}). Cada mensagem sai das 9h às 18h do país dela, de segunda a sexta: Europa das 5h às 14h de Brasília, Estados Unidos a partir das 11h. Fora de Portugal, a venda é sem reunião: slides em inglês e link de pagamento.</div></div>` : "";
         html = lista.length
           ? (view === "aprovada" ? previsaoDaFila(previsao) : avisoExterior) + abasDeCanal(empresas, (ms) => ms.map((m) => m.canal)) + avisoWhatsapp + (visiveis.length ? visiveis.map(cardFilaEmpresa).join("") : semNada(lista.length))
+          : vazio(...VAZIOS[view]);
+      } else if (view === "enviada") {
+        // Mais recentes primeiro, com o número por onde cada uma saiu; dá para ver só as de um número.
+        if (filtroNumeroEnviadas !== "todos" && !lista.some((m) => m.numero?.id === filtroNumeroEnviadas)) filtroNumeroEnviadas = "todos";
+        const doNumero = (m) => filtroNumeroEnviadas === "todos" || m.numero?.id === filtroNumeroEnviadas;
+        const visiveis = lista.filter((m) => doCanal(m.canal) && doNumero(m));
+        html = lista.length
+          ? abasDeCanal(lista, (m) => m.canal) + abasDeNumero(lista) + (visiveis.length ? visiveis.map(cardMensagem).join("") : semNada(lista.length))
           : vazio(...VAZIOS[view]);
       } else {
         const visiveis = lista.filter((m) => doCanal(m.canal));
@@ -8452,6 +8493,8 @@ document.addEventListener("click", async (ev) => {
     else if ("responder" in btn.dataset) await responder(btn);
     else if (btn.dataset.conversaId) await abrirConversa(btn.dataset.conversaId);
     else if (btn.dataset.filtroConversa) { filtroConversa = btn.dataset.filtroConversa; desenharListaConversas(); }
+    else if (btn.dataset.filtroNumeroEnviadas) { filtroNumeroEnviadas = btn.dataset.filtroNumeroEnviadas; await carregarLista(); }
+    else if (btn.dataset.verEnviadasDoNumero) { filtroNumeroEnviadas = btn.dataset.verEnviadasDoNumero; filtroCanal = "todos"; location.hash = "#enviada"; }
     else if (btn.dataset.numeroConversa) {
       numeroConversa = btn.dataset.numeroConversa;
       try { localStorage.setItem("respostas_numero", numeroConversa); } catch {}

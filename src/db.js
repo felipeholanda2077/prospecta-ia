@@ -608,7 +608,9 @@ const SELECT_MENSAGEM = `
 /** `exterior`: true só as empresas de fora do Brasil, false só as daqui (o filtro vem antes do limite). */
 export async function mensagensPorStatus(status, limite = 1000, { exterior = null } = {}) {
   const filtro = exterior === true ? " AND l.pais IS NOT NULL AND l.pais <> 'BR'" : exterior === false ? " AND (l.pais IS NULL OR l.pais = 'BR')" : "";
-  return q(`${SELECT_MENSAGEM} WHERE m.status = $1${filtro} ORDER BY m.lead_id, m.canal, m.etapa, m.id LIMIT $2`, [status, limite]);
+  // Enviadas: as mais recentes primeiro (senão as de hoje ficam atrás das antigas e somem depois do limite).
+  const ordem = status === "enviada" ? "m.enviada_em DESC NULLS LAST, m.id DESC" : "m.lead_id, m.canal, m.etapa, m.id";
+  return q(`${SELECT_MENSAGEM} WHERE m.status = $1${filtro} ORDER BY ${ordem} LIMIT $2`, [status, limite]);
 }
 
 /** As etapas de um lead em um canal (a sequência inteira). */
