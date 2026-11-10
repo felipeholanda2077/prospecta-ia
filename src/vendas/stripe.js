@@ -103,12 +103,28 @@ export async function precosPublicos(moeda) {
   const vistos = new Set();
   const planos = [];
   for (const p of planosDaApresentacao(await lerApresentacao())) {
-    if (p.promocao || vistos.has(simples(p.nome))) continue;
+    // O diagnóstico do site é um relatório em português, pago em reais: não é vendido fora.
+    if (p.promocao || vistos.has(simples(p.nome)) || /diagn[oó]stico/i.test(p.nome)) continue;
     vistos.add(simples(p.nome));
-    planos.push({ nome: p.nome, porMes: arredondarPreco(p.reais * cot[m] * (1 + conf.ajustePct / 100)) });
+    planos.push({ nome: nomeEmIngles(p.nome), porMes: arredondarPreco(p.reais * cot[m] * (1 + conf.ajustePct / 100)) });
   }
-  return { moeda: m, planos };
+  return { moeda: m, planos: planos.sort((a, b) => a.porMes - b.porMes) };
 }
+
+// O nome de cada plano em inglês, para a página em inglês e para a página de pagamento do Stripe.
+const NOMES_EM_INGLES = {
+  "professional com ia de atendimento no whatsapp": "Professional + WhatsApp AI assistant",
+  "app mobile": "Mobile App",
+  "correcoes avulsas": "On-demand fixes",
+  "modernizacao de site": "Website modernization",
+  "site profissional": "Professional website",
+  "automacao de atendimento e crm": "Customer service automation & CRM",
+  "sistema de agendamento online": "Online booking system",
+  "loja virtual": "Online store",
+  "sistema de gestao sob medida": "Custom management system",
+};
+/** "Loja virtual" → "Online store"; nome que não está na lista fica como está. */
+export const nomeEmIngles = (nome) => NOMES_EM_INGLES[simples(nome)] ?? nome;
 
 /** O link de pagamento (mensalidade no cartão) para a empresa e o plano. Reaproveita o que já foi criado. */
 export async function linkDePagamento({ lead, nome, valor, moeda }) {
@@ -117,7 +133,7 @@ export async function linkDePagamento({ lead, nome, valor, moeda }) {
   if (salvo) return salvo;
   const preco = await chamar("/prices", { metodo: "POST", campos: {
     currency: moeda.toLowerCase(), unit_amount: String(Math.round(valor * 100)), "recurring[interval]": "month",
-    "product_data[name]": `FluxDeck · ${nome}`, "metadata[lead_id]": String(lead.id),
+    "product_data[name]": `FluxDeck · ${lead.pais === "PT" ? nome : nomeEmIngles(nome)}`, "metadata[lead_id]": String(lead.id),
   } });
   const link = await chamar("/payment_links", { metodo: "POST", campos: {
     "line_items[0][price]": preco.id, "line_items[0][quantity]": "1",

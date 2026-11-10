@@ -187,3 +187,11 @@ test("página em inglês: os planos em dólar e em euro, sem a promoção repeti
   assert.equal((await stripe.precosPublicos("EUR")).moeda, "EUR");
   assert.equal(await stripe.precosPublicos("BRL"), null);
 });
+
+test("planos em inglês na página e no Stripe; o diagnóstico (em reais) não aparece", async () => {
+  assert.equal(stripe.nomeEmIngles("Loja virtual"), "Online store");
+  assert.equal(stripe.nomeEmIngles("Professional"), "Professional");
+  const usd = await stripe.precosPublicos("USD");
+  assert.ok(!usd.planos.some((p) => /diagn|loja|site profissional/i.test(p.nome)));
+  assert.deepEqual(usd.planos.map((p) => p.porMes), [...usd.planos.map((p) => p.porMes)].sort((a, b) => a - b));
+});
