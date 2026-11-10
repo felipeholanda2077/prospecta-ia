@@ -107,10 +107,11 @@ export async function precosPublicos(moeda) {
     // O diagnóstico do site é um relatório em português, pago em reais: não é vendido fora.
     if (p.promocao || vistos.has(simples(p.nome)) || /diagn[oó]stico/i.test(p.nome)) continue;
     vistos.add(simples(p.nome));
-    const porMes = arredondarPreco(p.reais * cot[m] * (1 + conf.ajustePct / 100));
-    // O checkout do plano no Stripe, se já foi criado com este mesmo valor (o botão da página vai direto para ele).
-    const checkout = checkouts.find((c) => c.plano === p.nome && c.moeda === m && c.valor === porMes)?.url ?? null;
-    planos.push({ nome: nomeEmIngles(p.nome), porMes, checkout });
+    // Com checkout do plano no Stripe, a página mostra o valor dele (é o que o cliente paga) e o botão vai direto
+    // para ele; sem checkout, o valor do dia (a cotação muda todo dia, então não dá para exigir o mesmo valor).
+    const ck = checkouts.find((c) => c.plano === p.nome && c.moeda === m);
+    const porMes = ck?.valor ?? arredondarPreco(p.reais * cot[m] * (1 + conf.ajustePct / 100));
+    planos.push({ nome: nomeEmIngles(p.nome), porMes, checkout: ck?.url ?? null });
   }
   return { moeda: m, planos: planos.sort((a, b) => a.porMes - b.porMes) };
 }

@@ -141,7 +141,7 @@ app.options("/contato", (req, res) => liberarOutroSite(res).sendStatus(204));
 
 // Os planos em dólar ou euro, para a página em inglês do site (fluxdeck.com.br/en) mostrar os mesmos valores da IA.
 app.get("/precos/:moeda", async (req, res) => {
-  liberarOutroSite(res).set("Cache-Control", "public, max-age=3600");
+  liberarOutroSite(res).set("Cache-Control", "public, max-age=300");
   const p = await stripe.precosPublicos(req.params.moeda).catch(() => null);
   return p ? res.json(p) : res.status(404).json({ erro: "Moeda não atendida" });
 });
