@@ -1641,7 +1641,14 @@ app.put("/api/config/automacao", async (req, res) => {
   const inteiro = (v, min, max, padrao) => Math.min(max, Math.max(min, Number.parseInt(v, 10) || padrao));
   const lista = (v) => (Array.isArray(v) ? v : String(v ?? "").split(/\n|,/)).map((x) => String(x).trim()).filter(Boolean).slice(0, 50);
   const nichos = lista(b.nichos);
-  const cidades = lista(b.cidades);
+  // Cidade de fora leva o país depois da vírgula ("Lisboa, Portugal"): a vírgula só separa cidades do Brasil
+  // escritas na mesma linha ("Osasco - SP, Barueri - SP"), nunca uma cidade do seu país.
+  const cidades = (Array.isArray(b.cidades) ? b.cidades : String(b.cidades ?? "").split("\n"))
+    .flatMap((linha) => {
+      const t = String(linha).trim();
+      return internacional.cidadeEPais(t).pais !== "BR" ? [t] : t.split(",");
+    })
+    .map((x) => String(x).trim()).filter(Boolean).slice(0, 50);
   const calendlyLink = String(b.calendly ?? "").trim();
   if (calendlyLink && !/^https:\/\/(www\.)?calendly\.com\//i.test(calendlyLink)) {
     return res.status(400).json({ erro: "O link do Calendly deve começar com https://calendly.com/" });

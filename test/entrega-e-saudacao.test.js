@@ -41,6 +41,21 @@ test("Brasil fechado, EUA aberto: empresa dos EUA começa a sequência até meia
   assert.equal(new Intl.DateTimeFormat("en-US", { timeZone: ny, weekday: "short", hour: "numeric", hourCycle: "h23" }).format(proxima).replace(",", ""), "Tue 09");
 });
 
+test("cidades ricas da Europa: cada uma é lida com o país dela (e entra no horário de lá)", async () => {
+  const { cidadeEPais, PAISES } = await import("../src/internacional.js");
+  const esperado = {
+    "Madrid, Espanha": "ES", "Barcelona, Espanha": "ES", "Paris, França": "FR", "München, Alemanha": "DE", "Frankfurt am Main, Alemanha": "DE",
+    "Hamburg, Alemanha": "DE", "Milano, Itália": "IT", "Amsterdam, Holanda": "NL", "Antwerpen, Bélgica": "BE", "Wien, Áustria": "AT",
+    "Dublin, Irlanda": "IE", "Luxembourg, Luxemburgo": "LU", "Helsinki, Finlândia": "FI", "Osasco - SP": "BR",
+  };
+  for (const [texto, pais] of Object.entries(esperado)) assert.equal(cidadeEPais(texto).pais, pais, texto);
+  assert.equal(cidadeEPais("Frankfurt am Main, Alemanha").cidade, "Frankfurt am Main");
+  // 5h em Brasília (8h UTC) já são 9h em Paris: a madrugada daqui é horário comercial lá.
+  const limites = { horarioComercial: { inicio: 9, fim: 18 }, somenteDiasUteis: true };
+  assert.equal(pipeline.dentroDoHorario(limites, new Date("2026-11-10T08:00:00Z"), PAISES.FR.fuso), true);
+  assert.equal(pipeline.dentroDoHorario(limites, new Date("2026-11-10T08:00:00Z")), false);
+});
+
 test("janela de 24 h é por número: a recepção escreveu, mas a doutora indicada não (para ela, só o modelo)", async () => {
   await db.inserirLead({ place_id: "ChIJjanelanumero00000000001", nome: "Vet", cidade: "Osasco - SP" });
   const [l] = await db.consultar("SELECT id FROM leads WHERE place_id = $1", ["ChIJjanelanumero00000000001"]);

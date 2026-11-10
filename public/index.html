@@ -8461,7 +8461,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
       metaEmail: f.metaEmail.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,
       intervaloOficialMin: f.intervaloOficialMin.value, intervaloOficialMax: f.intervaloOficialMax.value,
-      calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value, idiomaExterior: f.idiomaExterior.value,
+      calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value.split("\n").map((c) => c.trim()).filter(Boolean), idiomaExterior: f.idiomaExterior.value,
       nichosExterior: f.nichosExterior.value, numeroExteriorAtivo: f.numeroExteriorAtivo.checked, numeroExterior: f.numeroExterior.value,
     }) });
     await api("/api/internacional", { method: "PUT", body: JSON.stringify({ ajustePct: f.ajusteExterior.value || 0 }) });
