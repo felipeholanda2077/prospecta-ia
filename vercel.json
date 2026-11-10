@@ -39,6 +39,10 @@
     {
       "source": "/proposta-slides/(.*)",
       "destination": "/api"
+    },
+    {
+      "source": "/precos/(.*)",
+      "destination": "/api"
     }
   ],
   "functions": {

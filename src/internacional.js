@@ -240,7 +240,7 @@ IDIOMA, PAÍS E MOEDA (esta regra vale acima de qualquer outra sobre idioma nest
 async function pagamentoComReuniao() {
   const stripe = Boolean((await db.lerConfig("stripe").catch(() => null))?.chave);
   return stripe ? `
-- Se a pessoa disser que quer contratar ou pagar (mesmo sem a reunião): confirme o plano e o valor por mês e escreva, sozinho na última linha, o marcador {{pagamento:NOME EXATO DO PLANO|VALOR POR MÊS}}. Ele vira o link de pagamento seguro, no cartão, cobrado todo mês em euro. Só mande o link quando ela pedir para contratar ou pagar.` : "";
+- Se a pessoa disser que quer contratar ou pagar (mesmo sem a reunião): confirme o plano e o valor por mês e escreva, sozinho na última linha, o marcador {{pagamento:NOME EXATO DO PLANO|VALOR POR MÊS}}. Ele vira o link de pagamento seguro, no cartão, cobrado todo mês em euro, e a assinatura segue o contrato de serviço (Service Agreement): https://fluxdeck.com.br/en/terms. Só mande o link quando ela pedir para contratar ou pagar.` : "";
 }
 
 /** As regras da venda sem reunião (fora do Brasil e de Portugal): slides no lugar do convite e link de pagamento. */
@@ -249,12 +249,14 @@ async function vendaSemReuniao(lead) {
   return `
 
 VENDA SEM REUNIÃO (esta regra vale acima de todas as instruções sobre bate-papo, call, reunião, conversa de 15 minutos e agendamento):
-- Com esta empresa NÃO existe call, reunião, videochamada nem agendamento. Nunca convide, nunca ofereça horários e nunca use o marcador {{link_agendamento}}. A venda acontece toda por mensagem.
+${lead.pais === "US" ? `- A venda acontece por mensagem. A call é OPCIONAL: nunca convide por conta própria e nunca use o marcador {{link_agendamento}} na sequência de prospecção. Só na conversa, se a pessoa pedir para conversar, ligar ou fazer uma videochamada, ou disser que antes de contratar quer falar com alguém, ofereça uma videochamada rápida de 15 minutos (Zoom ou Google Meet), no horário dela, pelo link de agendamento que aparece nestas instruções (se não houver link, diga que vai mandar os horários).`
+    : "- Com esta empresa NÃO existe call, reunião, videochamada nem agendamento. Nunca convide, nunca ofereça horários e nunca use o marcador {{link_agendamento}}. A venda acontece toda por mensagem."}
 - No lugar do convite, mande a apresentação com os projetos da empresa (os slides, em inglês), por este link, exatamente como está: ${linkDosSlides(lead)}
 - Na sequência de prospecção, a etapa 3 é: diga que é a última mensagem e deixe a apresentação de projetos para ela ver quando puder, com o link sozinho na última linha.
 - Na conversa, tire as dúvidas por mensagem, mostre o plano que resolve o problema dela e o valor por mês, se ela perguntar.
 - ${stripe
-    ? `Quando a pessoa disser que quer contratar ou seguir com um plano: confirme em uma frase o plano e o valor por mês e escreva, sozinho na última linha, o marcador {{pagamento:NOME EXATO DO PLANO|VALOR POR MÊS}} (ex.: {{pagamento:Professional|910}}). Ele vira o link de pagamento seguro, no cartão, cobrado todo mês na moeda dela. Diga que, assim que o pagamento for confirmado, vocês começam e mandam os próximos passos por aqui. Só mande o link quando ela pedir para contratar ou pagar.`
+    ? `Quando a pessoa disser que quer contratar ou seguir com um plano: confirme em uma frase o plano e o valor por mês e escreva, sozinho na última linha, o marcador {{pagamento:NOME EXATO DO PLANO|VALOR POR MÊS}} (ex.: {{pagamento:Professional|910}}). Ele vira o link de pagamento seguro, no cartão, cobrado todo mês na moeda dela. Diga que, assim que o pagamento for confirmado, vocês começam e mandam os próximos passos por aqui, e que a assinatura segue o contrato de serviço (Service Agreement): https://fluxdeck.com.br/en/terms. Só mande o link quando ela pedir para contratar ou pagar.
+- Se perguntarem do contrato, do cancelamento ou do reembolso: o contrato de serviço está em https://fluxdeck.com.br/en/terms (mensal, cancela quando quiser, sem multa).`
     : `Quando a pessoa disser que quer contratar ou pagar: confirme o plano e o valor e diga que vai mandar o link de pagamento em seguida (não invente link).`}`;
 }
 

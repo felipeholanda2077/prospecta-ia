@@ -1337,6 +1337,8 @@ export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
         token: m.token,
         respondendoA: await threadDoEmail(m),
         idioma: m.idioma,
+        // Empresa de fora: o endereço físico vai no rodapé (CAN-SPAM, nos EUA).
+        endereco: m.pais && m.pais !== "BR" ? campanha.empresa?.enderecoComercial ?? "" : "",
       });
     } else if (m.canal === "instagram") {
       messageId = await enviarDirect({ para: m.destino, comentarioId: m.em_resposta_a, texto: m.corpo });

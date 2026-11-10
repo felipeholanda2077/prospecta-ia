@@ -198,11 +198,13 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
  * Em qualquer resposta humana, as etapas pendentes são canceladas e, com a resposta
  * automática ligada, a IA continua a conversa rumo ao agendamento.
  */
-/** O link de agendamento da conversa: fora do Brasil e de Portugal não tem (a venda é sem reunião). */
-const agendaDa = (campanha, lead, canal) => (vendeSemReuniao(lead) ? "" : linkAgendamento(campanha.automacao?.calendly, lead, canal));
+/**
+ * O link de agendamento da conversa: fora do Brasil e de Portugal a venda é sem reunião (sem link), menos nos EUA,
+ * onde a call é opcional: a IA só manda o link se a pessoa pedir para conversar antes de contratar.
+ */
+const agendaDa = (campanha, lead, canal) => (vendeSemReuniao(lead) && lead.pais !== "US" ? "" : linkAgendamento(campanha.automacao?.calendly, lead, canal));
 
-/** Venda sem reunião: o marcador de pagamento que a IA escreveu vira o link do Stripe. */
-// Empresa de fora (inclusive Portugal): o marcador de pagamento vira o link do Stripe, em euro ou dólar.
+/** Empresa de fora (inclusive Portugal): o marcador de pagamento que a IA escreveu vira o link do Stripe, em euro ou dólar. */
 const comPagamento = (c, lead, apresentacao) => (ehExterior(lead) ? aplicarLinkDePagamento(c, lead, { apresentacao }) : c);
 
 /**

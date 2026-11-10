@@ -89,6 +89,27 @@ export async function valorDoPlano({ plano, valor, lead, apresentacao }) {
   return certo ? { nome: certo.nome, valor: certo.local, moeda: pais.moeda } : null;
 }
 
+// O contrato de serviço em inglês (site): aparece na página de pagamento do Stripe, e a IA cita junto do link.
+export const CONTRATO_EN = "https://fluxdeck.com.br/en/terms";
+
+/**
+ * Os planos da apresentação em dólar ou euro (cotação do dia com o ajuste de fora), para a página em inglês do
+ * site mostrar os mesmos valores que a IA cobra. Público: só nome e valor por mês, nada de cliente.
+ */
+export async function precosPublicos(moeda) {
+  const m = String(moeda ?? "").toUpperCase();
+  if (!["USD", "EUR"].includes(m)) return null;
+  const [cot, conf] = await Promise.all([cotacoes(), configInternacional()]);
+  const vistos = new Set();
+  const planos = [];
+  for (const p of planosDaApresentacao(await lerApresentacao())) {
+    if (p.promocao || vistos.has(simples(p.nome))) continue;
+    vistos.add(simples(p.nome));
+    planos.push({ nome: p.nome, porMes: arredondarPreco(p.reais * cot[m] * (1 + conf.ajustePct / 100)) });
+  }
+  return { moeda: m, planos };
+}
+
 /** O link de pagamento (mensalidade no cartão) para a empresa e o plano. Reaproveita o que já foi criado. */
 export async function linkDePagamento({ lead, nome, valor, moeda }) {
   const guarda = `stripe_link:${lead.id}:${simples(nome)}:${valor}${moeda}`;
@@ -102,6 +123,10 @@ export async function linkDePagamento({ lead, nome, valor, moeda }) {
     "line_items[0][price]": preco.id, "line_items[0][quantity]": "1",
     "metadata[lead_id]": String(lead.id), "metadata[empresa]": String(lead.nome ?? "").slice(0, 200), "metadata[plano]": nome,
     "subscription_data[metadata][lead_id]": String(lead.id), "billing_address_collection": "auto",
+    // O contrato de serviço aparece logo acima do botão de pagar.
+    "custom_text[submit][message]": lead.pais === "PT"
+      ? `Ao subscrever, aceita o contrato de serviço da FluxDeck (Service Agreement): ${CONTRATO_EN}`
+      : `By subscribing, you agree to the FluxDeck Service Agreement: ${CONTRATO_EN}`,
   } });
   await db.gravarEstado(guarda, link.url);
   // Para reconhecer o pagamento: o link aponta para a empresa, o plano e o valor.

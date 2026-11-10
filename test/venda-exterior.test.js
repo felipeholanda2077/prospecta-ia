@@ -178,3 +178,12 @@ test("botão Link de pagamento para empresa de fora: Stripe em euro ou dólar, n
     globalThis.fetch = antes;
   }
 });
+
+test("página em inglês: os planos em dólar e em euro, sem a promoção repetida; outra moeda não", async () => {
+  const usd = await stripe.precosPublicos("usd");
+  assert.equal(usd.moeda, "USD");
+  assert.ok(usd.planos.length >= 1 && usd.planos.every((p) => p.nome && p.porMes > 0));
+  assert.equal(new Set(usd.planos.map((p) => p.nome)).size, usd.planos.length);
+  assert.equal((await stripe.precosPublicos("EUR")).moeda, "EUR");
+  assert.equal(await stripe.precosPublicos("BRL"), null);
+});

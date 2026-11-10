@@ -1,7 +1,8 @@
 import { carregarCampanha } from "./config.js";
 import * as db from "./db.js";
 
-export const CAMPOS_EMPRESA = ["nome", "responsavel", "cargo", "telefone", "email", "site", "portfolio"];
+// enderecoComercial: o endereço físico que a lei dos EUA (CAN-SPAM) exige no rodapé do e-mail para empresas de fora.
+export const CAMPOS_EMPRESA = ["nome", "responsavel", "cargo", "telefone", "email", "site", "portfolio", "enderecoComercial"];
 
 // Valores de exemplo do campanha.json que não devem aparecer nas mensagens.
 const PLACEHOLDER = /seu nome|seudominio|99999-9999/i;
