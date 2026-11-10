@@ -362,6 +362,15 @@ export async function reagendarEmailsDoMesmoDia(campanha) {
 /** Ainda dá tempo de começar uma sequência e as 3 etapas saírem hoje? */
 export const daTempoDeSequenciaHoje = (limites, agora = new Date(), fuso = config.timezone) => minutosAteOFim(limites, agora, fuso) >= TEMPO_PARA_SEQUENCIA_MIN;
 
+// Empresa de fora do Brasil (ex.: EUA, que fecham 2 h depois de nós): enquanto o Brasil está fora do horário, os
+// números trabalham para as empresas de lá. A primeira mensagem sai até meia hora antes do fim do expediente de lá,
+// e as etapas 2 e 3 que não couberem hoje vão para o dia útil seguinte (horarioDaProximaEtapa).
+const MIN_PARA_COMECAR_FORA = 30;
+/** Ainda dá para começar a sequência de uma empresa nova no WhatsApp neste fuso. */
+export const podeComecarSequencia = (limites, agora = new Date(), fuso = config.timezone) => (fuso !== config.timezone
+  ? dentroDoHorario(limites, agora, fuso) && minutosAteOFim(limites, agora, fuso) >= MIN_PARA_COMECAR_FORA
+  : daTempoDeSequenciaHoje(limites, agora, fuso));
+
 /** Soma dias úteis (segunda a sexta) mantendo o horário. */
 export function somarDiasUteis(data, dias, fuso = config.timezone) {
   const resultado = new Date(data);
@@ -1816,7 +1825,7 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   const fusos = [...new Set([...(aquiNoHorario ? [config.timezone] : []), ...noHorario.map(fusoDaMensagem)])];
   const vagas = {};
   for (const canal of ["email", "whatsapp"]) {
-    const comTempo = fusos.filter((f) => canal === "email" || daTempoDeSequenciaHoje(limites, agora, f));
+    const comTempo = fusos.filter((f) => canal === "email" || podeComecarSequencia(limites, agora, f));
     const restante = comTempo.length
       ? (await limiteDoDia(campanha, canal)) - (await db.enviadasHoje(canal, { primeiroContato: true }))
       : 0;
@@ -1824,9 +1833,10 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
     vagas[canal] = distribuir ? Math.min(restante, Math.max(LOTE_POR_RODADA, Math.ceil(restante / rodadas))) : restante;
   }
   const vagasDaRodada = { ...vagas };
-  // Empresa nova no WhatsApp só começa se as 3 etapas ainda couberem hoje no horário dela.
+  // Empresa nova no WhatsApp só começa se as 3 etapas ainda couberem hoje no horário dela (a de fora, até meia hora
+  // antes do fim do expediente de lá: ver podeComecarSequencia).
   const enviaveis = noHorario.filter((m) => (m.canal !== "whatsapp" || !semWhatsapp)
-    && !(m.canal === "whatsapp" && m.tipo !== "resposta" && m.etapa <= 1 && !daTempoDeSequenciaHoje(limites, agora, fusoDaMensagem(m))));
+    && !(m.canal === "whatsapp" && m.tipo !== "resposta" && m.etapa <= 1 && !podeComecarSequencia(limites, agora, fusoDaMensagem(m))));
   const conversa = conversaDaChamada(enviaveis, { somenteDaVez });
   const naFila = { email: 0, whatsapp: 0, instagram: 0 };
   for (const m of todas) naFila[m.canal]++;

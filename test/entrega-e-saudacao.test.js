@@ -24,6 +24,23 @@ test("saudação pelo horário: o Oi do começo vira bom dia, boa tarde ou boa n
   assert.equal(pipeline.saudacaoDoHorario(new Date("2026-11-09T17:00:00Z"), "Europe/Lisbon"), "Boa tarde");
 });
 
+test("Brasil fechado, EUA aberto: empresa dos EUA começa a sequência até meia hora antes do fim do expediente de lá", () => {
+  const limites = { horarioComercial: { inicio: 9, fim: 18 }, somenteDiasUteis: true };
+  const ny = "America/New_York";
+  // Segunda, 21h30 UTC: 18h30 em Brasília (fechado) e 16h30 em Nova York.
+  const depoisDoBrasil = new Date("2026-11-09T21:30:00Z");
+  assert.equal(pipeline.dentroDoHorario(limites, depoisDoBrasil), false);
+  assert.equal(pipeline.daTempoDeSequenciaHoje(limites, depoisDoBrasil, ny), false); // a regra antiga travava aqui
+  assert.equal(pipeline.podeComecarSequencia(limites, depoisDoBrasil, ny), true);
+  // 17h40 em Nova York: menos de meia hora para fechar, não começa.
+  assert.equal(pipeline.podeComecarSequencia(limites, new Date("2026-11-09T22:40:00Z"), ny), false);
+  // No Brasil continua a regra das 3 etapas no mesmo dia.
+  assert.equal(pipeline.podeComecarSequencia(limites, new Date("2026-11-09T20:30:00Z")), false); // 17h30 em Brasília
+  // A etapa 2 que não cabe hoje vai para o dia útil seguinte, às 9h de Nova York.
+  const proxima = pipeline.horarioDaProximaEtapa(1, { limites }, depoisDoBrasil, "whatsapp", ny);
+  assert.equal(new Intl.DateTimeFormat("en-US", { timeZone: ny, weekday: "short", hour: "numeric", hourCycle: "h23" }).format(proxima).replace(",", ""), "Tue 09");
+});
+
 test("janela de 24 h é por número: a recepção escreveu, mas a doutora indicada não (para ela, só o modelo)", async () => {
   await db.inserirLead({ place_id: "ChIJjanelanumero00000000001", nome: "Vet", cidade: "Osasco - SP" });
   const [l] = await db.consultar("SELECT id FROM leads WHERE place_id = $1", ["ChIJjanelanumero00000000001"]);
