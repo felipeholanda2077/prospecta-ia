@@ -11,23 +11,25 @@ const TEMPO_LIMITE_MS = 290_000;
 const JOBS = [
   // A rodada completa: minuto 3, 13, 23... das 9h às 20h UTC (6h às 17h53 em Brasília), segunda a sexta.
   { nome: NOME_JOB, agenda: "3-59/10 9-20 * * 1-5", tarefa: "envios" },
-  // A cada minuto: a próxima empresa nova, ou a etapa 2 ou 3 do WhatsApp, sai assim que termina o intervalo
-  // de 5 a 12 minutos desde a anterior. Das 7h às 01h59 UTC, para cobrir o horário comercial do Brasil, da
+  // A cada 2 minutos (era a cada minuto: cada chamada gasta processamento na Vercel): a próxima empresa nova, ou a
+  // etapa 2 ou 3 do WhatsApp, sai assim que termina o intervalo desde a anterior (5 a 12 min na UAZap, 2 a 4 no oficial). Das 7h às 01h59 UTC, para cobrir o horário comercial do Brasil, da
   // Europa (a partir das 8h de Lisboa) e dos Estados Unidos (até as 17h59 da Califórnia); cada mensagem só
   // sai no horário comercial do fuso da empresa, e fora do horário daqui a chamada termina na hora se não
   // houver mensagem para fora do Brasil.
-  { nome: "prospecta-ia-empresas-novas", agenda: "* 0-1,7-23 * * 1-6", tarefa: "novas" },
-  // A cada 15 minutos, todos os dias: cria o post de conteúdo do dia no horário escolhido.
-  { nome: "prospecta-ia-conteudo", agenda: "*/15 * * * *", tarefa: "conteudo" },
-  // A cada 2 minutos, todos os dias: as respostas da IA no direct do Instagram (a Meta só aceita até 24 h depois).
-  { nome: "prospecta-ia-instagram", agenda: "*/2 * * * *", tarefa: "instagram" },
-  // A cada 5 minutos, todos os dias: os posts do dia na página do LinkedIn, numa execução só dele,
-  // para o vídeo ter o próprio tempo e nada do Instagram atrapalhar.
-  { nome: "prospecta-ia-linkedin", agenda: "*/5 * * * *", tarefa: "linkedin" },
-  // A cada 5 minutos, todos os dias: os Reels do dia no TikTok, também numa execução só dele.
-  { nome: "prospecta-ia-tiktok", agenda: "*/5 * * * *", tarefa: "tiktok" },
-  // A cada 10 minutos, todos os dias: as perguntas novas do Mercado Livre (e mantém o acesso em dia).
-  { nome: "prospecta-ia-mercadolivre", agenda: "*/10 * * * *", tarefa: "mercadolivre" },
+  { nome: "prospecta-ia-empresas-novas", agenda: "*/2 0-1,7-23 * * 1-6", tarefa: "novas" },
+  // Os intervalos abaixo foram aumentados em 2026-11-10: a conta da Vercel foi pausada por passar do limite de
+  // processamento (Fluid Active CPU), e cada chamada acorda o sistema inteiro.
+  // A cada 30 minutos, todos os dias: cria o post de conteúdo do dia no horário escolhido.
+  { nome: "prospecta-ia-conteudo", agenda: "*/30 * * * *", tarefa: "conteudo" },
+  // A cada 10 minutos, todos os dias: as respostas da IA no direct do Instagram (a Meta só aceita até 24 h depois).
+  { nome: "prospecta-ia-instagram", agenda: "*/10 * * * *", tarefa: "instagram" },
+  // A cada 15 minutos, das 6h às 23h59 de Brasília (9h às 2h59 UTC): os posts do dia na página do LinkedIn,
+  // numa execução só dele, para o vídeo ter o próprio tempo e nada do Instagram atrapalhar.
+  { nome: "prospecta-ia-linkedin", agenda: "*/15 0-2,9-23 * * *", tarefa: "linkedin" },
+  // A cada 15 minutos, no mesmo horário: os Reels do dia no TikTok, também numa execução só dele.
+  { nome: "prospecta-ia-tiktok", agenda: "7-59/15 0-2,9-23 * * *", tarefa: "tiktok" },
+  // A cada 15 minutos, todos os dias: as perguntas novas do Mercado Livre (e mantém o acesso em dia).
+  { nome: "prospecta-ia-mercadolivre", agenda: "*/15 * * * *", tarefa: "mercadolivre" },
   // A cada hora, todos os dias: emite as parcelas perto de vencer e confere o que foi pago no Asaas.
   { nome: "prospecta-ia-cobrancas", agenda: "17 * * * *", tarefa: "cobrancas" },
 ];

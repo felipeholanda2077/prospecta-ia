@@ -63,7 +63,8 @@ export async function capaDoReels(post, empresa) {
   return c.encode("jpeg", 92);
 }
 
-const QUADROS_POR_SEGUNDO = 30;
+// 24 quadros por segundo (o do cinema): cada quadro é desenhado aqui, e 30 gastava 25% a mais de processamento.
+const QUADROS_POR_SEGUNDO = 24;
 // O Instagram baixa o vídeo pelo link do próprio sistema, e a Vercel só entrega respostas de até 4,5 MB.
 const TAMANHO_MAXIMO = 4_200_000;
 const AUDIO_KBPS = 128;

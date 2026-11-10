@@ -79,8 +79,17 @@ export function pdfDoCarrossel(imagens, { titulo = "", largura = 1080, altura = 
 
 /** Sobe a mídia do post: o vídeo do Reels ou o carrossel em PDF. */
 async function subirMidia(api, conexao, post, empresa, arquivos) {
+  // O vídeo do LinkedIn (com o fecho dele) fica guardado: uma nova tentativa não renderiza tudo de novo.
+  const chave = `post-${post.id}-linkedin.mp4`;
+  if (post.formato === "reels") {
+    const guardado = await db.lerMidia(chave);
+    if (guardado) return api.enviarVideo(conexao, guardado.dados);
+  }
   const gerados = await arquivos(postParaLinkedin(post), empresa);
-  if (post.formato === "reels") return api.enviarVideo(conexao, gerados[0].dados);
+  if (post.formato === "reels") {
+    await db.gravarMidia(chave, "video/mp4", gerados[0].dados).catch(() => {});
+    return api.enviarVideo(conexao, gerados[0].dados);
+  }
   return api.enviarDocumento(conexao, await pdfDoCarrossel(gerados.map((a) => a.dados), { titulo: post.conteudo.linkedin.tituloDocumento }));
 }
 
@@ -113,6 +122,7 @@ export async function postarNoLinkedin(postId, campanha, {
     }
     const publicado = await api.publicarPost(conexao, { texto: textoFinal(post), midia: { id: midia, titulo: post.conteudo.linkedin.tituloDocumento || post.tema } });
     await db.atualizarLinkedinDoPost(post.id, { linkedin_id: publicado.id, linkedin_link: publicado.link, linkedin_midia: null, linkedin_erro: null });
+    await db.apagarMidias(`post-${post.id}-linkedin`).catch(() => {});
     log(`💼 Post ${post.id} publicado no LinkedIn: ${publicado.link}`);
     return { linkedin: "postado", link: publicado.link };
   } catch (e) {
