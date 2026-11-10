@@ -233,6 +233,7 @@ IDIOMA, PAÍS E MOEDA (esta regra vale acima de qualquer outra sobre idioma nest
 - Use um único tratamento do começo ao fim, sem misturar: ${TRATAMENTO[idioma.split("-")[0]] ?? "o tratamento educado de negócios do país"}.${idioma === "pt-PT" ? `
 - Português de Portugal de verdade: nada de "bate-papo", "Fala o", "a gente", "legal", "contato" (é "contacto") nem gerúndio ("estou vendo" → "estou a ver"); trate por "vocês" ou pelo nome, sem misturar com "vós".` : ""}
 - Na assinatura e quando citar o seu telefone, use o formato internacional (com +55).
+- Quando citar o site da empresa, use a versão em inglês, com os preços na moeda dela: https://fluxdeck.com.br/en
 - PAGAMENTO: só em ${nomeMoeda}, pelo link de pagamento seguro do Stripe (cartão). Nunca ofereça Pix, boleto, transferência, reais nem outro meio.${vendeSemReuniao(lead) ? await vendaSemReuniao(lead) : await pagamentoComReuniao()}`;
 }
 
