@@ -195,3 +195,49 @@ test("planos em inglês na página e no Stripe; o diagnóstico (em reais) não a
   assert.ok(!usd.planos.some((p) => /diagn|loja|site profissional/i.test(p.nome)));
   assert.deepEqual(usd.planos.map((p) => p.porMes), [...usd.planos.map((p) => p.porMes)].sort((a, b) => a - b));
 });
+
+test("checkouts dos planos: um por plano em reais e em dólar; rodar de novo reaproveita; quem paga é achado pelo telefone", async () => {
+  const antes = globalThis.fetch;
+  const criados = [];
+  const desativados = [];
+  globalThis.fetch = async (url, op = {}) => {
+    const u = String(url);
+    const corpo = op.body ? Object.fromEntries(new URLSearchParams(op.body)) : {};
+    if (u.endsWith("/prices")) return new Response(JSON.stringify({ id: `price_${criados.length}` }));
+    if (u.endsWith("/payment_links")) { criados.push(corpo); return new Response(JSON.stringify({ id: `plink_p${criados.length}`, url: `https://buy.stripe.com/p${criados.length}` })); }
+    if (/\/payment_links\/plink_/.test(u)) { desativados.push(u); return new Response("{}"); }
+    if (u.endsWith("/account")) return new Response(JSON.stringify({ id: "acct_1", charges_enabled: true }));
+    return new Response("{}", { status: 404 });
+  };
+  try {
+    const links = await stripe.criarCheckoutsDosPlanos();
+    const planos = new Set(links.map((l) => l.plano));
+    assert.equal(links.length, planos.size * 2);
+    assert.ok(links.some((l) => l.moeda === "BRL") && links.some((l) => l.moeda === "USD"));
+    assert.ok(![...planos].some((p) => /diagn/i.test(p)));
+    assert.ok(criados.every((c) => c["phone_number_collection[enabled]"] === "true"));
+    assert.match(criados.find((c) => /Termos de Uso/.test(c["custom_text[submit][message]"]))["custom_text[submit][message]"], /fluxdeck\.com\.br\/termos/);
+    // De novo, sem mudar nada: nada novo no Stripe.
+    const n = criados.length;
+    await stripe.criarCheckoutsDosPlanos();
+    assert.equal(criados.length, n);
+    assert.equal(desativados.length, 0);
+    // A página em inglês já leva o botão para o checkout em dólar.
+    assert.ok((await stripe.precosPublicos("USD")).planos.every((p) => /^https:\/\/buy\.stripe\.com\//.test(p.checkout)));
+
+    // Pagou pelo checkout do plano: a empresa da conversa é achada pelo telefone e fecha.
+    await db.inserirLead({ place_id: "ChIJcheckout0000000000000001", nome: "Clínica Paga", cidade: "Osasco - SP", whatsapp: "5511987654321" });
+    const [l] = await db.consultar("SELECT id FROM leads WHERE place_id = $1", ["ChIJcheckout0000000000000001"]);
+    await db.atualizarLead(l.id, { whatsapp: "5511987654321" });
+    const brl = links.find((x) => x.moeda === "BRL");
+    const r = await stripe.registrarPagamento({ id: "cs_plano_1", status: "complete", payment_link: brl.id, customer_details: { phone: "+55 11 98765-4321", email: "dono@clinica.com" } });
+    assert.equal(r.leadId, l.id);
+    assert.equal((await db.buscarLead(l.id)).status, "fechado");
+    // Quem não é de nenhuma empresa: registrado e avisado, sem empresa.
+    const outro = await stripe.registrarPagamento({ id: "cs_plano_2", status: "complete", payment_link: brl.id, customer_details: { email: "novo@x.com", name: "Nova" } });
+    assert.equal(outro.leadId, null);
+    assert.match(outro.contato, /novo@x\.com/);
+  } finally {
+    globalThis.fetch = antes;
+  }
+});

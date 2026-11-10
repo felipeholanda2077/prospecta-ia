@@ -1235,7 +1235,7 @@
         </div>
 
         <div class="cartao" id="cartao-stripe" style="margin-top:16px">
-          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="globe"></span><div class="titulos"><h3>Pagamento fora do Brasil (Stripe) <span id="stripe-status"></span></h3>
+          <div class="cartao-cab"><span class="kpi-ic" data-ic-span="globe"></span><div class="titulos"><h3>Pagamentos pelo Stripe <span id="stripe-status"></span></h3>
             <div class="meta">Para as empresas de fora do Brasil e de Portugal, que compram sem reunião: quando a pessoa quer contratar, a IA manda um link de pagamento do Stripe com a mensalidade do plano em euro ou dólar, no cartão, cobrada todo mês.</div></div></div>
           <div class="cartao-corpo" id="stripe-conexao"></div>
         </div>
@@ -2888,11 +2888,50 @@ async function mostrarStripe() {
         <span class="muted" style="font-size:12.5px;grid-column:1/-1">${s.conectado
           ? "Os links saem com o valor do plano na moeda da empresa (a mesma conversão e o mesmo ajuste de Automação). O Stripe avisa você por e-mail a cada pagamento."
           : `Crie a conta em <a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener">stripe.com</a> (dá para receber em reais na sua conta do Brasil). Depois, em Desenvolvedores → Chaves de API, copie a chave secreta e cole aqui. Sem o Stripe, a IA avisa que vai mandar o link e a conversa passa para você.`}</span>
-      </form>`;
+      </form>${s.conectado ? `<div id="stripe-planos" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px"></div>` : ""}`;
+    if (s.conectado) await mostrarCheckoutsDosPlanos();
   } catch (e) {
     alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
   }
 }
+/** Os checkouts fixos de cada plano no Stripe (reais e dólar), para mandar ou pôr no site. */
+async function mostrarCheckoutsDosPlanos() {
+  const alvo = $("#stripe-planos");
+  if (!alvo) return;
+  const { links } = await api("/api/stripe/planos").catch(() => ({ links: [] }));
+  const valor = (l) => new Intl.NumberFormat(l.moeda === "BRL" ? "pt-BR" : "en-US", { style: "currency", currency: l.moeda, maximumFractionDigits: 0 }).format(l.valor);
+  const grupo = (moeda, titulo) => {
+    const da = links.filter((l) => l.moeda === moeda);
+    return da.length ? `<div style="display:grid;gap:6px"><b style="font-size:13px">${titulo}</b>${da.map((l) => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
+      <span style="flex:1;min-width:180px">${esc(l.nome ?? l.plano)} · <b>${esc(valor(l))}/mês</b></span>
+      <a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener">${ic("external", "sm")}Abrir</a>
+      <button class="btn sm" type="button" data-copiar-checkout="${esc(l.url)}">${ic("copy", "sm")}Copiar link</button></div>`).join("")}</div>` : "";
+  };
+  alvo.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><b style="flex:1">Checkouts dos planos</b>
+      <button class="btn ${links.length ? "" : "primario"} sm" type="button" data-criar-checkouts>${ic("refresh", "sm")}${links.length ? "Atualizar com os valores de hoje" : "Criar os checkouts na Stripe"}</button></div>
+    <p class="muted" style="font-size:12.5px;margin:0 0 10px">Um link de pagamento fixo por plano, com a mensalidade no cartão: em reais (Brasil, o valor da apresentação) e em dólar (EUA, pela cotação do dia com o ajuste de fora). Quem paga é ligado à empresa da conversa pelo e-mail ou telefone; se não for de nenhuma, você recebe o aviso por e-mail. Os botões da página em inglês já levam para eles.</p>
+    ${links.length ? `<div style="display:grid;gap:14px">${grupo("BRL", "Brasil (R$)")}${grupo("USD", "Estados Unidos (US$)")}</div>` : ""}`;
+}
+document.addEventListener("click", async (ev) => {
+  const copiar = ev.target.closest("[data-copiar-checkout]");
+  if (copiar) {
+    await navigator.clipboard.writeText(copiar.dataset.copiarCheckout).catch(() => {});
+    return avisar("Link do checkout copiado", "ok");
+  }
+  const criar = ev.target.closest("[data-criar-checkouts]");
+  if (!criar) return;
+  criar.disabled = true;
+  criar.innerHTML = `${ic("refresh", "sm")}Criando na Stripe…`;
+  try {
+    const r = await post("/api/stripe/planos", {});
+    avisar(`${r.links.length} checkouts prontos na Stripe`, "ok", 6000);
+    await mostrarCheckoutsDosPlanos();
+  } catch (e) {
+    avisar(e.message, "perigo", 9000);
+    criar.disabled = false;
+  }
+});
+
 $("#stripe-conexao").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const campo = $("#stripe-chave");

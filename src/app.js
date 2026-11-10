@@ -1103,6 +1103,15 @@ app.get("/api/mapa", async (req, res) => {
 
 // Stripe: pagamento das empresas de fora do Brasil (a chave quem cola é você, no painel).
 app.get("/api/stripe", async (req, res) => res.json(await stripe.situacao()));
+// Checkouts fixos dos planos (reais para o Brasil, dólar para os EUA): listar e criar/atualizar no Stripe.
+app.get("/api/stripe/planos", async (req, res) => res.json({ links: await stripe.checkoutsDosPlanos() }));
+app.post("/api/stripe/planos", async (req, res) => {
+  try {
+    res.json({ links: await stripe.criarCheckoutsDosPlanos() });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
 app.put("/api/stripe", async (req, res) => {
   try {
     res.json(await stripe.conectar({ chave: req.body?.chave === null ? null : String(req.body?.chave ?? "") }));

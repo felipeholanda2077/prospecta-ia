@@ -102,11 +102,15 @@ export async function precosPublicos(moeda) {
   const [cot, conf] = await Promise.all([cotacoes(), configInternacional()]);
   const vistos = new Set();
   const planos = [];
+  const checkouts = await checkoutsDosPlanos();
   for (const p of planosDaApresentacao(await lerApresentacao())) {
     // O diagnóstico do site é um relatório em português, pago em reais: não é vendido fora.
     if (p.promocao || vistos.has(simples(p.nome)) || /diagn[oó]stico/i.test(p.nome)) continue;
     vistos.add(simples(p.nome));
-    planos.push({ nome: nomeEmIngles(p.nome), porMes: arredondarPreco(p.reais * cot[m] * (1 + conf.ajustePct / 100)) });
+    const porMes = arredondarPreco(p.reais * cot[m] * (1 + conf.ajustePct / 100));
+    // O checkout do plano no Stripe, se já foi criado com este mesmo valor (o botão da página vai direto para ele).
+    const checkout = checkouts.find((c) => c.plano === p.nome && c.moeda === m && c.valor === porMes)?.url ?? null;
+    planos.push({ nome: nomeEmIngles(p.nome), porMes, checkout });
   }
   return { moeda: m, planos: planos.sort((a, b) => a.porMes - b.porMes) };
 }
@@ -125,6 +129,61 @@ const NOMES_EM_INGLES = {
 };
 /** "Loja virtual" → "Online store"; nome que não está na lista fica como está. */
 export const nomeEmIngles = (nome) => NOMES_EM_INGLES[simples(nome)] ?? nome;
+
+// ---------- Checkouts fixos dos planos (Brasil em reais, EUA em dólar) ----------
+
+const CHAVE_PLANOS = "stripe_planos";
+const TERMOS_BR = "https://fluxdeck.com.br/termos";
+
+/** Os checkouts dos planos já criados: [{ plano, moeda, valor, url, id }]. */
+export const checkoutsDosPlanos = async () => (await db.lerConfig(CHAVE_PLANOS))?.links ?? [];
+
+/**
+ * Cria no Stripe um checkout (link de pagamento, mensalidade no cartão) para cada plano da apresentação: em reais
+ * para o Brasil (o valor da apresentação) e em dólar para os EUA (a cotação do dia com o ajuste de fora, igual à
+ * página em inglês). Rodar de novo reaproveita o que não mudou; plano com valor novo ganha um link novo e o antigo
+ * é desativado. O diagnóstico do site fica de fora (tem página e relatório próprios, pelo Asaas).
+ */
+export async function criarCheckoutsDosPlanos({ moedas = ["BRL", "USD"] } = {}) {
+  if (!(await situacao()).conectado) throw new Error("Conecte o Stripe em Configurações primeiro");
+  const [cot, conf] = await Promise.all([cotacoes(), configInternacional()]);
+  const antigos = await checkoutsDosPlanos();
+  const novos = [];
+  const vistos = new Set();
+  for (const p of planosDaApresentacao(await lerApresentacao())) {
+    if (p.promocao || vistos.has(simples(p.nome)) || /diagn[oó]stico/i.test(p.nome)) continue;
+    vistos.add(simples(p.nome));
+    for (const moeda of moedas) {
+      const valor = moeda === "BRL" ? p.reais : arredondarPreco(p.reais * cot[moeda] * (1 + conf.ajustePct / 100));
+      const igual = antigos.find((a) => a.plano === p.nome && a.moeda === moeda && a.valor === valor);
+      if (igual) { novos.push(igual); continue; }
+      const emPortugues = moeda === "BRL";
+      const nome = emPortugues ? p.nome : nomeEmIngles(p.nome);
+      const preco = await chamar("/prices", { metodo: "POST", campos: {
+        currency: moeda.toLowerCase(), unit_amount: String(Math.round(valor * 100)), "recurring[interval]": "month",
+        "product_data[name]": `FluxDeck · ${nome}`, "metadata[plano]": p.nome,
+      } });
+      const link = await chamar("/payment_links", { metodo: "POST", campos: {
+        "line_items[0][price]": preco.id, "line_items[0][quantity]": "1",
+        "metadata[plano]": p.nome, "metadata[checkout]": "plano", "billing_address_collection": "auto",
+        // O telefone liga o pagamento à empresa da conversa (quem pagou pelo link do plano, sem link próprio).
+        "phone_number_collection[enabled]": "true",
+        "custom_text[submit][message]": emPortugues
+          ? `Ao assinar, você concorda com os Termos de Uso da FluxDeck: ${TERMOS_BR}`
+          : `By subscribing, you agree to the FluxDeck Service Agreement: ${CONTRATO_EN}`,
+      } });
+      await db.gravarEstado(`stripe_link_plano:${link.id}`, JSON.stringify({ plano: p.nome, valor, moeda }));
+      novos.push({ plano: p.nome, nome, moeda, valor, url: link.url, id: link.id });
+    }
+  }
+  // Os que saíram (plano removido ou valor mudou) param de aceitar pagamento.
+  for (const a of antigos) {
+    if (novos.some((n) => n.id === a.id)) continue;
+    await chamar(`/payment_links/${a.id}`, { metodo: "POST", campos: { active: "false" } }).catch(() => {});
+  }
+  await db.gravarConfig(CHAVE_PLANOS, { links: novos, atualizadoEm: new Date().toISOString() });
+  return novos;
+}
 
 /** O link de pagamento (mensalidade no cartão) para a empresa e o plano. Reaproveita o que já foi criado. */
 export async function linkDePagamento({ lead, nome, valor, moeda }) {
@@ -198,7 +257,7 @@ export async function registrarPagamento(sessao) {
   if (!sessao?.id || sessao.status !== "complete" || !sessao.payment_link) return null;
   if (await db.lerEstado(`stripe_pago:${sessao.id}`)) return null;
   const salvo = await db.lerEstado(`stripe_link_lead:${sessao.payment_link}`);
-  if (!salvo) return null;
+  if (!salvo) return registrarPagamentoDoPlano(sessao);
   const { leadId, nome, valor, moeda } = JSON.parse(salvo);
   const lead = await db.buscarLead(leadId);
   if (!lead) return null;
@@ -214,6 +273,36 @@ export async function registrarPagamento(sessao) {
   await enviarNotificacao(`${lead.nome} pagou: ${nome} (${preco}/mês)`,
     `${lead.nome}${lead.cidade ? `, de ${lead.cidade}` : ""}, pagou o primeiro mês do plano ${nome} (${preco} por mês) pelo Stripe${quem}.\n\nA empresa foi marcada como fechada no painel, as mensagens de venda foram canceladas e a IA parou de responder: mande os próximos passos.`).catch(() => {});
   return { leadId: lead.id, empresa: lead.nome, plano: nome, valor, moeda };
+}
+
+/**
+ * Pagamento pelo checkout fixo de um plano (sem empresa no link): acha a empresa pelo e-mail ou telefone de quem
+ * pagou e fecha como no link próprio; sem empresa no sistema, só avisa você com os dados de quem assinou.
+ */
+async function registrarPagamentoDoPlano(sessao) {
+  const doPlano = await db.lerEstado(`stripe_link_plano:${sessao.payment_link}`);
+  if (!doPlano) return null;
+  const { plano, valor, moeda } = JSON.parse(doPlano);
+  await db.gravarEstado(`stripe_pago:${sessao.id}`, new Date().toISOString());
+  const c = sessao.customer_details ?? {};
+  const telefone = String(c.phone ?? "").replace(/\D/g, "");
+  const lead = await db.leadPorContato({ whatsapps: telefone ? [telefone, telefone.replace(/^55(\d{2})9(\d{8})$/, "55$1$2")] : [], email: c.email ?? null });
+  const preco = new Intl.NumberFormat("pt-BR", { style: "currency", currency: moeda }).format(valor);
+  const quem = [c.name, c.email, c.phone].filter(Boolean).join(" · ");
+  const resumo = `Pagou pelo Stripe: ${plano}, ${preco} por mês${quem ? ` (${quem})` : ""}`;
+  const { enviarNotificacao } = await import("../envio/email.js");
+  if (!lead) {
+    await enviarNotificacao(`Nova assinatura: ${plano} (${preco}/mês)`,
+      `Alguém assinou o plano ${plano} (${preco} por mês) pelo checkout do Stripe: ${quem || "sem dados de contato"}.\n\nNão achei essa empresa no sistema pelo e-mail ou telefone: fale com ela e mande os próximos passos.`).catch(() => {});
+    return { leadId: null, plano, valor, moeda, contato: quem };
+  }
+  await db.atualizarLead(lead.id, { status: "fechado", observacao: resumo });
+  await db.cancelarPendentes(lead.id, "a empresa pagou pelo Stripe");
+  const { pausarIA } = await import("../respostas/processar.js");
+  await pausarIA(lead.id, `${resumo}: a conversa agora é com você (próximos passos do projeto)`);
+  await enviarNotificacao(`${lead.nome} pagou: ${plano} (${preco}/mês)`,
+    `${lead.nome} assinou o plano ${plano} (${preco} por mês) pelo checkout do Stripe${quem ? ` (${quem})` : ""}.\n\nA empresa foi marcada como fechada, as mensagens de venda foram canceladas e a IA parou de responder: mande os próximos passos.`).catch(() => {});
+  return { leadId: lead.id, empresa: lead.nome, plano, valor, moeda };
 }
 
 /** O aviso do Stripe (webhook): só aceita com a assinatura certa. */
