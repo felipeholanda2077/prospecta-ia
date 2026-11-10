@@ -151,3 +151,30 @@ test("aviso do Stripe: só vale com a assinatura certa", async () => {
   assert.deepEqual(await stripe.processarAviso(corpo, `t=${t},v1=${v1}`), { aceito: true, pagamento: null });
   assert.deepEqual(await stripe.processarAviso(corpo, "t=1,v1=x"), { aceito: false });
 });
+
+test("botão Link de pagamento para empresa de fora: Stripe em euro ou dólar, nunca Asaas em reais", async () => {
+  const antes = globalThis.fetch;
+  const moedas = [];
+  globalThis.fetch = async (url, op = {}) => {
+    const corpo = op.body ? Object.fromEntries(new URLSearchParams(op.body)) : {};
+    if (String(url).endsWith("/prices")) { moedas.push(corpo.currency); return new Response(JSON.stringify({ id: `price_${moedas.length}` })); }
+    if (String(url).endsWith("/payment_links")) return new Response(JSON.stringify({ id: `plink_${moedas.length}`, url: `https://buy.stripe.com/test_${moedas.length}` }));
+    if (String(url).endsWith("/account")) return new Response(JSON.stringify({ id: "acct_1", charges_enabled: true }));
+    return new Response("{}", { status: 404 });
+  };
+  try {
+    const site = { id: "o1", nome: "Site", valor: 570, mensal: true };
+    const pt = await stripe.linkDoStripeParaOferta({ ...lisboa, id: 91 }, site);
+    assert.equal(pt.venda.moeda, "EUR");
+    assert.match(pt.mensagem, /^Segue o link para subscrever Site \(.*€ por mês\), com cartão: https:\/\/buy\.stripe\.com\/test_1$/);
+    const us = await stripe.linkDoStripeParaOferta({ ...miami, id: 92 }, site);
+    assert.equal(us.venda.moeda, "USD");
+    assert.match(us.mensagem, /^Here is the link to subscribe to Site \(\$\d+ per month\), by card:/);
+    assert.deepEqual(moedas, ["eur", "usd"]);
+    // Pagamento único (PIX) e diagnóstico não existem para fora; Brasil continua no Asaas.
+    assert.match((await stripe.linkDoStripeParaOferta(miami, { ...site, mensal: false })).erro, /só ofertas mensais/);
+    assert.match((await stripe.linkDoStripeParaOferta({ id: 1, pais: "BR" }, site)).erro, /Asaas/);
+  } finally {
+    globalThis.fetch = antes;
+  }
+});

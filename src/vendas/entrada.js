@@ -4,6 +4,7 @@ import * as asaas from "../contratos/asaas.js";
 import { hojeNoFuso } from "../contratos/cobranca.js";
 import { lerValor, reais } from "../contratos/valores.js";
 import { enderecoDaPagina, mensagemDoDiagnostico, previa } from "./diagnostico.js";
+import { linkDoStripeParaOferta } from "./stripe.js";
 
 // Oferta de entrada: um serviço pequeno, de preço fixo, pago por PIX na própria conversa, sem contrato. O link é
 // do Asaas e é um por empresa, então o pagamento chega sabendo quem pagou; é o cliente quem preenche os dados dele
@@ -39,6 +40,9 @@ const mensagemDoLink = (v) => (v.mensal
 
 /** O link de uma oferta para uma empresa. Pedir de novo devolve o mesmo, enquanto não for pago. */
 export async function gerarLink({ leadId, ofertaId } = {}, agora = new Date()) {
+  // Empresa de fora do Brasil só paga em euro ou dólar, pelo Stripe (nunca PIX, boleto nem reais pelo Asaas).
+  const deFora = await db.buscarLead(leadId);
+  if (deFora && deFora.pais && deFora.pais !== "BR") return linkDoStripeParaOferta(deFora, (await lerOfertas()).find((o) => o.id === ofertaId));
   const conta = await asaas.situacao();
   if (!conta.conectado) return { erro: conta.trancada ? asaas.CHAVE_TRANCADA : "Conecte o Asaas antes de gerar o link" };
   const lead = await db.buscarLead(leadId);

@@ -202,7 +202,8 @@ async function responderSozinha({ respostaId, lead, canal, de, assunto, origem_i
 const agendaDa = (campanha, lead, canal) => (vendeSemReuniao(lead) ? "" : linkAgendamento(campanha.automacao?.calendly, lead, canal));
 
 /** Venda sem reunião: o marcador de pagamento que a IA escreveu vira o link do Stripe. */
-const comPagamento = (c, lead, apresentacao) => (vendeSemReuniao(lead) ? aplicarLinkDePagamento(c, lead, { apresentacao }) : c);
+// Empresa de fora (inclusive Portugal): o marcador de pagamento vira o link do Stripe, em euro ou dólar.
+const comPagamento = (c, lead, apresentacao) => (ehExterior(lead) ? aplicarLinkDePagamento(c, lead, { apresentacao }) : c);
 
 /**
  * Últimos acertos antes de a resposta sair: sem "Bom dia!" de novo se a conversa já começou, e sem valores (R$)

@@ -232,7 +232,15 @@ IDIOMA, PAÍS E MOEDA (esta regra vale acima de qualquer outra sobre idioma nest
 - Horários citados na conversa são no fuso de lá (${fusoDaEmpresa(lead)}).
 - Use um único tratamento do começo ao fim, sem misturar: ${TRATAMENTO[idioma.split("-")[0]] ?? "o tratamento educado de negócios do país"}.${idioma === "pt-PT" ? `
 - Português de Portugal de verdade: nada de "bate-papo", "Fala o", "a gente", "legal", "contato" (é "contacto") nem gerúndio ("estou vendo" → "estou a ver"); trate por "vocês" ou pelo nome, sem misturar com "vós".` : ""}
-- Na assinatura e quando citar o seu telefone, use o formato internacional (com +55).${vendeSemReuniao(lead) ? await vendaSemReuniao(lead) : ""}`;
+- Na assinatura e quando citar o seu telefone, use o formato internacional (com +55).
+- PAGAMENTO: só em ${nomeMoeda}, pelo link de pagamento seguro do Stripe (cartão). Nunca ofereça Pix, boleto, transferência, reais nem outro meio.${vendeSemReuniao(lead) ? await vendaSemReuniao(lead) : await pagamentoComReuniao()}`;
+}
+
+/** Portugal segue com a reunião, mas quem quer contratar também paga pelo link do Stripe, em euro. */
+async function pagamentoComReuniao() {
+  const stripe = Boolean((await db.lerConfig("stripe").catch(() => null))?.chave);
+  return stripe ? `
+- Se a pessoa disser que quer contratar ou pagar (mesmo sem a reunião): confirme o plano e o valor por mês e escreva, sozinho na última linha, o marcador {{pagamento:NOME EXATO DO PLANO|VALOR POR MÊS}}. Ele vira o link de pagamento seguro, no cartão, cobrado todo mês em euro. Só mande o link quando ela pedir para contratar ou pagar.` : "";
 }
 
 /** As regras da venda sem reunião (fora do Brasil e de Portugal): slides no lugar do convite e link de pagamento. */

@@ -197,6 +197,27 @@ export async function conferirPagamentos(agora = new Date()) {
 }
 
 /**
+ * O botão "Link de pagamento" da conversa, para empresa de fora do Brasil: a oferta (cadastrada em reais) vira a
+ * mensalidade na moeda dela (euro ou dólar), pela cotação do dia com o ajuste de fora, num link do Stripe. Nunca
+ * PIX, boleto nem reais. A mensagem sai no idioma dela (português de Portugal ou inglês).
+ */
+export async function linkDoStripeParaOferta(lead, oferta) {
+  const pais = PAISES[lead?.pais];
+  if (!pais || lead.pais === "BR") return { erro: "Esta empresa é do Brasil: o link é do Asaas" };
+  if (!oferta) return { erro: "Oferta não encontrada" };
+  if (!oferta.mensal || oferta.diagnostico) return { erro: "Para empresa de fora, só ofertas mensais: a assinatura no cartão, em euro ou dólar, pelo Stripe" };
+  if (!(await situacao()).conectado) return { erro: "Conecte o Stripe em Configurações para cobrar empresas de fora (euro e dólar)" };
+  const [cot, conf] = await Promise.all([cotacoes(), configInternacional()]);
+  const valor = arredondarPreco(Number(oferta.valor) * cot[pais.moeda] * (1 + conf.ajustePct / 100));
+  const url = await linkDePagamento({ lead, nome: oferta.nome, valor, moeda: pais.moeda });
+  const preco = new Intl.NumberFormat(lead.pais === "PT" ? "pt-PT" : "en-US", { style: "currency", currency: pais.moeda, maximumFractionDigits: 0 }).format(valor);
+  const mensagem = lead.pais === "PT"
+    ? `Segue o link para subscrever ${oferta.nome} (${preco} por mês), com cartão: ${url}`
+    : `Here is the link to subscribe to ${oferta.nome} (${preco} per month), by card: ${url}`;
+  return { venda: { oferta: oferta.nome, valor, moeda: pais.moeda, link: url, mensal: true }, mensagem };
+}
+
+/**
  * Troca o marcador {{pagamento:Plano|valor}} da resposta da IA pelo link de pagamento. Sem Stripe, sem plano
  * reconhecido ou com erro, tira o marcador e a conversa passa para você (`precisa_humano`).
  */
