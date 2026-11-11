@@ -89,3 +89,19 @@ test("slides: a página escapa o texto e tem um slide por seção; o endereço p
     servidor.close();
   }
 });
+
+test("precoDoPlano lê os valores do plano para o cartão de preço", async () => {
+  const { precoDoPlano } = await import("../src/vendas/slides.js");
+  const p = precoDoPlano("Recomendado. Implantação R$ 497 (lançamento até 30/11/2026; depois R$ 900) + R$ 129,90/mês. IA 24h no WhatsApp oficial, com 15 dias de ajustes.");
+  assert.equal(p.mensal, 129.9);
+  assert.equal(p.implantacao, 497);
+  assert.equal(p.depois, 900);
+  assert.equal(p.ate, "30/11");
+  assert.equal(p.hoje, 626.9);
+  assert.deepEqual(p.inclui, ["IA 24h no WhatsApp oficial", "15 dias de ajustes"]);
+  const anual = precoDoPlano("R$ 2.397/ano (12x R$ 199,75, implantação grátis). Site, CRM e IA");
+  assert.equal(anual.anual, 2397);
+  assert.equal(anual.implantacao, 0);
+  assert.deepEqual(anual.parcelas, { vezes: 12, valor: 199.75 });
+  assert.equal(precoDoPlano("Sob consulta"), null);
+});

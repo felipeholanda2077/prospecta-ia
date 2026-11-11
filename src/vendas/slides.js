@@ -96,8 +96,9 @@ Slides (nesta ordem):
 - investimento: 2 ou 3 planos da apresentação abaixo, o RECOMENDADO para a dor dela primeiro (ex.: só o atendimento no
   WhatsApp → "WhatsApp com IA"; quem também quer site e funil → "Completo Mensal"), e o anual como opção de melhor
   custo quando fizer sentido. titulo = o nome EXATO do plano como está na apresentação; texto = os valores EXATOS da
-  apresentação (implantação e mensalidade, ou o anual) e, em poucas palavras, o que inclui. Cite o preço de lançamento
-  só se a apresentação disser que ainda vale.
+  apresentação (implantação e mensalidade, ou o anual) e depois, separado por vírgulas, 2 ou 3 itens curtos do que
+  inclui (ex.: "IA 24h no WhatsApp oficial, 15 dias de ajustes"). Cite o preço de lançamento só se a apresentação
+  disser que ainda vale.
 - garantias: o que tira o risco da decisão, em 3 ou 4 cartões, só com o que a apresentação diz (sem fidelidade, ajustes
   incluídos, prazo de entrada no ar, suporte humano).
 - fechamento: o convite para começar hoje, em 3 passos simples (ex.: 1. escolher o plano; 2. pagar a implantação pelo
@@ -220,6 +221,59 @@ export function telefoneBonito(t) {
   return String(t ?? "");
 }
 
+const numeroBR = (t) => Number(String(t).replace(/\./g, "").replace(",", "."));
+const reaisBR = (v) => `R$ ${new Intl.NumberFormat("pt-BR", { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 }).format(v)}`;
+const primeiraMaiuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
+/**
+ * Os números de um plano do slide de investimento, lidos do texto ("Implantação R$ 497 (lançamento até 30/11/2026;
+ * depois R$ 900) + R$ 129,90/mês. IA 24h..."), para o cartão de preço. Sem preço no texto, devolve null.
+ */
+export function precoDoPlano(texto) {
+  const t = String(texto ?? "");
+  const achar = (re) => { const m = t.match(re); return m ? numeroBR(m[1]) : null; };
+  const mensal = achar(/R\$\s*([\d.]+(?:,\d{1,2})?)\s*(?:\/|por)\s*m[eê]s/i);
+  const anual = achar(/R\$\s*([\d.]+(?:,\d{1,2})?)\s*(?:\/|por)\s*ano/i);
+  const parcelas = t.match(/(\d{1,2})\s*x\s*(?:de\s*)?R\$\s*([\d.]+(?:,\d{1,2})?)/i);
+  const implantacao = /implanta[çc][ãa]o[^.;]{0,20}gr[aá]tis|gr[aá]tis[^.;]{0,10}implanta/i.test(t) ? 0
+    : achar(/implanta[çc][ãa]o[^R\d]{0,25}R\$\s*([\d.]+(?:,\d{1,2})?)/i);
+  const depois = achar(/depois[^R\d]{0,10}R\$\s*([\d.]+(?:,\d{1,2})?)/i);
+  const ate = t.match(/at[ée]\s*(\d{1,2}\/\d{1,2})(?:\/\d{2,4})?/i)?.[1] ?? null;
+  if (mensal == null && anual == null) return null;
+  // O que sobra depois dos valores vira a lista do que o plano inclui.
+  const inclui = t.replace(/\([^)]*\)/g, "").split(/(?<=\.)\s+/)
+    .filter((f) => !/R\$|^recomendad[oa]\.?$/i.test(f.trim()))
+    .join(" ").split(/[,;]\s+|\.\s+/)
+    .map((f) => f.trim().replace(/\.$/, "").replace(/^(com|e|inclui|incluindo)\s+/i, ""))
+    .filter((f) => f.length > 2).map(primeiraMaiuscula).slice(0, 4);
+  return {
+    mensal, anual, implantacao, depois: depois && implantacao != null && depois > implantacao ? depois : null, ate,
+    parcelas: parcelas ? { vezes: Number(parcelas[1]), valor: numeroBR(parcelas[2]) } : null,
+    hoje: mensal != null && implantacao ? Math.round((implantacao + mensal) * 100) / 100 : null,
+    inclui,
+  };
+}
+
+function cartaoDePreco(it, k) {
+  const p = precoDoPlano(it.texto);
+  const recomendado = k === 0;
+  const topo = `${recomendado ? `<span class="selo">★ Recomendado para vocês</span>` : ""}<b class="nome">${esc(it.titulo)}</b>`;
+  if (!p) return `<div class="cartao plano${recomendado ? " recomendado" : ""}" style="--k:${k}">${topo}<p>${esc(it.texto)}</p></div>`;
+  const grande = p.mensal != null ? { valor: p.mensal, por: "/mês" }
+    : p.parcelas ? { valor: p.parcelas.valor, por: "/mês", antes: `${p.parcelas.vezes}x` } : { valor: p.anual, por: "/ano" };
+  const [inteiro, cents] = reaisBR(grande.valor).replace("R$ ", "").split(",");
+  const linhaImplantacao = p.implantacao === 0 ? `<div class="linha-preco"><span>Implantação</span><b class="gratis">Grátis</b></div>`
+    : p.implantacao != null ? `<div class="linha-preco"><span>Implantação${p.ate && p.depois ? ` <i class="lanc">lançamento até ${esc(p.ate)}</i>` : ""}</span>
+        <span class="valores">${p.depois ? `<s>${esc(reaisBR(p.depois))}</s>` : ""}<b>${esc(reaisBR(p.implantacao))}</b></span></div>` : "";
+  const linhaAno = p.mensal == null && p.anual != null && p.parcelas ? `<div class="linha-preco"><span>Ou à vista</span><b>${esc(reaisBR(p.anual))}/ano</b></div>` : "";
+  const hoje = p.hoje != null ? `<div class="hoje"><span>Para começar hoje</span><b>${esc(reaisBR(p.hoje))}</b><small>implantação + 1º mês</small></div>` : "";
+  return `<div class="cartao plano${recomendado ? " recomendado" : ""}" style="--k:${k}">${topo}
+    <div class="preco">${grande.antes ? `<span class="vezes">${esc(grande.antes)}</span>` : ""}<span class="moeda">R$</span><span class="valor">${esc(inteiro)}</span>${cents ? `<span class="cents">,${esc(cents)}</span>` : ""}<span class="por">${esc(grande.por)}</span></div>
+    ${linhaImplantacao}${linhaAno}${hoje}
+    ${p.inclui.length ? `<ul class="inclui">${p.inclui.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
+  </div>`;
+}
+
 function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout }) {
   const itens = s.itens ?? [];
   const cartoes = (classe = "") => `<div class="cartoes ${classe} n${Math.min(itens.length, 4)}">${itens.map((it, k) => `
@@ -238,8 +292,7 @@ function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout }) {
     case "garantias":
       return `${cab}${cartoes("grandes")}`;
     case "investimento":
-      return `${cab}<div class="cartoes planos n${Math.min(itens.length, 3)}">${itens.map((it, k) => `
-        <div class="cartao${k === 0 ? " recomendado" : ""}" style="--k:${k}">${k === 0 ? `<span class="selo">Recomendado</span>` : ""}<b>${esc(it.titulo)}</b><p>${esc(it.texto)}</p></div>`).join("")}</div>`;
+      return `${cab}<div class="cartoes planos n${Math.min(itens.length, 3)}">${itens.map(cartaoDePreco).join("")}</div>`;
     case "fechamento":
       return `<div class="fim">${s.titulo ? `<h2>${esc(s.titulo)}</h2>` : ""}${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}
         ${itens.length ? `<ol class="passos curtos">${itens.map((it, k) => `<li style="--k:${k}"><span class="num">${k + 1}</span><b>${esc(it.titulo)}</b><p>${esc(it.texto)}</p></li>`).join("")}</ol>` : ""}
@@ -308,9 +361,40 @@ h2{font-size:3.6cqw;line-height:1.1;font-weight:800;letter-spacing:-.015em;max-w
 .fim h2{font-size:4.6cqw;background:linear-gradient(90deg,#fff,var(--ciano),var(--violeta));-webkit-background-clip:text;background-clip:text;color:transparent}
 .contatos{display:flex;gap:1.4cqw;flex-wrap:wrap;justify-content:center;margin-top:1cqw}.contatos span{border:1px solid var(--borda);border-radius:99px;padding:.9cqw 1.8cqw;font-size:1.4cqw;font-weight:600}
 .fim .marca{margin-top:2cqw;color:var(--suave)}
-.planos .cartao{position:relative;padding:2.4cqw}.planos .cartao b{font-size:2cqw}.planos .cartao p{font-size:1.4cqw;color:var(--texto)}
-.planos .recomendado{border-color:var(--ciano);box-shadow:0 0 0 1px var(--ciano),0 1.6cqw 4cqw rgba(0,212,255,.15)}
-.selo{position:absolute;top:-1.1cqw;left:2cqw;background:linear-gradient(90deg,var(--ciano),var(--violeta));color:#06101f;font-weight:800;font-size:1.05cqw;padding:.35cqw 1cqw;border-radius:99px}
+[data-tipo=investimento] .cab{margin-bottom:1.6cqw}[data-tipo=investimento] h2{font-size:3.2cqw}[data-tipo=investimento] .sub{font-size:1.5cqw;margin-top:1cqw}
+.planos{margin:auto 0 3.4cqw;align-items:stretch;gap:2.2cqw}.planos.n2{grid-template-columns:1.12fr 1fr;width:min(100%,82cqw)}.planos.n3{grid-template-columns:1.12fr 1fr 1fr}
+.plano{position:relative;padding:2.4cqw 2.6cqw;gap:1cqw;border-radius:1.8cqw;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02))}
+.plano .nome{font-size:1.75cqw;font-weight:700;color:var(--suave);letter-spacing:.01em}
+.plano.recomendado .nome{color:var(--texto)}
+.plano.recomendado{border:0;background:linear-gradient(160deg,color-mix(in srgb,var(--ciano) 16%,#0f1830),color-mix(in srgb,var(--violeta) 14%,#0f1830));
+  box-shadow:0 0 0 .18cqw color-mix(in srgb,var(--ciano) 70%,transparent),0 2cqw 6cqw rgba(0,212,255,.18),0 0 8cqw rgba(180,77,245,.12)}
+.plano.recomendado::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:.18cqw;background:linear-gradient(135deg,var(--ciano),var(--violeta));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.selo{position:absolute;top:-1.25cqw;left:2.4cqw;background:linear-gradient(90deg,var(--ciano),var(--violeta));color:#06101f;font-weight:800;font-size:1.05cqw;letter-spacing:.02em;padding:.45cqw 1.2cqw;border-radius:99px;box-shadow:0 .6cqw 1.6cqw rgba(0,212,255,.3)}
+.preco{display:flex;align-items:flex-end;gap:.25cqw;line-height:1;margin-top:.2cqw}
+.preco .moeda{font-size:1.8cqw;font-weight:700;color:var(--suave);margin-right:.3cqw;align-self:flex-start;margin-top:.8cqw}
+.preco .valor{font-size:5.6cqw;font-weight:800;letter-spacing:-.03em}
+.plano.recomendado .preco .valor,.plano.recomendado .preco .cents{background:linear-gradient(90deg,#fff 20%,var(--ciano));-webkit-background-clip:text;background-clip:text;color:transparent}
+.preco .cents{font-size:2.6cqw;font-weight:800;align-self:flex-start;margin-top:.6cqw}
+.preco .por{font-size:1.6cqw;color:var(--suave);font-weight:600;margin-left:.3cqw;margin-bottom:.7cqw}
+.preco .vezes{font-size:2cqw;font-weight:800;color:var(--ciano);margin-right:.6cqw;margin-bottom:.7cqw}
+.linha-preco{display:flex;justify-content:space-between;align-items:center;gap:1cqw;font-size:1.3cqw;color:var(--suave);padding:.9cqw 0;border-top:1px solid var(--borda)}
+.linha-preco b{color:var(--texto);font-size:1.5cqw;margin-left:.6cqw}.linha-preco s{opacity:.7}
+.linha-preco .gratis{color:var(--ciano)}.linha-preco .valores{white-space:nowrap}
+[data-tipo=investimento]:has(.n3) .cab{margin-bottom:1.2cqw}[data-tipo=investimento]:has(.n3) h2{font-size:2.7cqw}[data-tipo=investimento]:has(.n3) .sub{font-size:1.3cqw;margin-top:.7cqw}
+.planos.n3{margin-bottom:3.6cqw;gap:1.6cqw}.n3 .plano{padding:1.9cqw 1.9cqw;gap:.75cqw;border-radius:1.5cqw}.n3 .plano .nome{font-size:1.5cqw}
+.n3 .preco .valor{font-size:4.2cqw}.n3 .preco .cents{font-size:2cqw;margin-top:.4cqw}.n3 .preco .moeda{font-size:1.4cqw;margin-top:.5cqw}.n3 .preco .por{font-size:1.25cqw;margin-bottom:.5cqw}.n3 .preco .vezes{font-size:1.6cqw;margin-bottom:.5cqw}
+.n3 .linha-preco{flex-wrap:wrap;row-gap:.4cqw;font-size:1.1cqw;padding:.7cqw 0}.n3 .linha-preco b{font-size:1.3cqw}.n3 .lanc{font-size:.85cqw}
+.n3 .hoje{grid-template-columns:1fr;padding:.9cqw 1.1cqw}.n3 .hoje b{grid-row:auto;font-size:1.8cqw;order:3}.n3 .hoje span{font-size:1.1cqw}.n3 .hoje small{font-size:.9cqw}
+.n3 .inclui{gap:.5cqw}.n3 .inclui li{font-size:1.12cqw;padding-left:1.9cqw}.n3 .inclui li::before{width:1.3cqw;height:1.3cqw;font-size:.8cqw}
+.n3 .selo{font-size:.95cqw;top:-1.1cqw;left:1.9cqw}
+.lanc{font-style:normal;font-size:1cqw;font-weight:700;color:#06101f;background:var(--ciano);border-radius:99px;padding:.2cqw .7cqw;margin-left:.5cqw;white-space:nowrap}
+.hoje{display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:1cqw;padding:1.1cqw 1.3cqw;border-radius:1cqw;background:rgba(255,255,255,.05);border:1px solid var(--borda)}
+.plano.recomendado .hoje{background:rgba(0,212,255,.1);border-color:color-mix(in srgb,var(--ciano) 40%,transparent)}
+.hoje span{font-size:1.25cqw;font-weight:700}.hoje b{grid-row:span 2;font-size:2.2cqw;font-weight:800}.hoje small{font-size:1cqw;color:var(--suave)}
+.inclui{list-style:none;display:grid;gap:.7cqw;margin-top:.4cqw}
+.inclui li{position:relative;padding-left:2.2cqw;font-size:1.3cqw;line-height:1.35;color:var(--texto)}
+.inclui li::before{content:"✓";position:absolute;left:0;top:-.05cqw;width:1.5cqw;height:1.5cqw;border-radius:50%;display:grid;place-items:center;font-size:.95cqw;font-weight:800;color:#06101f;background:linear-gradient(135deg,var(--ciano),var(--violeta))}
 .passos.curtos{margin:1.5cqw 0;text-align:left;width:min(100%,80cqw)}
 .pagar{display:inline-block;margin-top:1cqw;padding:1.3cqw 3cqw;border-radius:99px;font-weight:800;font-size:1.9cqw;color:#06101f;text-decoration:none;background:linear-gradient(90deg,var(--ciano),var(--violeta));box-shadow:0 1cqw 3cqw rgba(0,212,255,.25)}
 .fim .link{font-size:1.15cqw;color:var(--suave)}
