@@ -247,10 +247,11 @@ test("planos do Brasil com implantação e anual; apresentação de fora separad
   const texto = `Planos:
 - WhatsApp com IA (R$ 129,90/mês + implantação de R$ 497): atendente de IA.
 - Completo Anual (R$ 2.397/ano, ou 12x de R$ 199,75; implantação grátis): tudo integrado.
+- Completo Bônus (R$ 2.000/ano): tudo, implantação de R$ 1.950 grátis.
 - Automação sob medida (a partir de R$ 900, valor único): processos.`;
   const p = stripe.planosDaApresentacao(texto);
   assert.deepEqual(p.map((x) => [x.nome, x.reais, x.intervalo, x.implantacao ?? null]), [
-    ["WhatsApp com IA", 129.9, "month", 497], ["Completo Anual", 2397, "year", null],
+    ["WhatsApp com IA", 129.9, "month", 497], ["Completo Anual", 2397, "year", null], ["Completo Bônus", 2000, "year", null],
   ]);
 
   const { lerApresentacao, gravarApresentacao, lerApresentacaoDeFora } = await import("../src/respostas/apresentacao.js");

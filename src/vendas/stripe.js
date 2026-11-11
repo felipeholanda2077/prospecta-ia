@@ -65,7 +65,8 @@ export function planosDaApresentacao(texto) {
   for (const linha of String(texto ?? "").split("\n")) {
     const m = linha.match(/^\s*-\s*([^(:]+?)\s*\(R\$\s?([\d.]+(?:,\d{1,2})?)\s*\/\s*(m[eê]s|ano)/i);
     if (m) {
-      const implantacao = linha.match(/implanta[çc][aã]o\s+(?:de\s+)?R\$\s?([\d.]+(?:,\d{1,2})?)/i);
+      // "implantação de R$ 1.950 grátis" não é cobrança: a implantação só vale sem "grátis" logo depois do valor.
+      const implantacao = linha.match(/implanta[çc][aã]o\s+(?:de\s+)?R\$\s?([\d.]+(?:,\d{1,2})?)(?![\d.,])(?!\s*gr[aá]tis)/i);
       planos.push({ nome: m[1].trim(), reais: valorEmReais(m[2]), intervalo: /ano/i.test(m[3]) ? "year" : "month",
         ...(implantacao ? { implantacao: valorEmReais(implantacao[1]) } : {}) });
     }
