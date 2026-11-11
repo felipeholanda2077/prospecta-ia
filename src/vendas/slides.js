@@ -59,7 +59,8 @@ export function arrumarSlides(dados, { empresa = "" } = {}) {
       tipo: s.tipo,
       titulo: corta(s.titulo, 90),
       subtitulo: corta(s.subtitulo, 260),
-      itens: (s.itens ?? []).map((i) => ({ titulo: corta(i?.titulo, 50), texto: corta(i?.texto, 180) }))
+      // No processo o número já vem no círculo: "1. Reunião inicial" vira "Reunião inicial".
+      itens: (s.itens ?? []).map((i) => ({ titulo: corta(s.tipo === "processo" ? String(i?.titulo ?? "").replace(/^\s*(?:etapa\s*\d+\s*[.)º°:-]?|\d+\s*[.)º°:-])\s*/i, "") : i?.titulo, 50), texto: corta(i?.texto, 180) }))
         .filter((i) => i.titulo || i.texto).slice(0, s.tipo === "conversa" ? 6 : 5),
     }));
   const capa = slides.find((s) => s.tipo === "capa") ?? { tipo: "capa", titulo: corta(dados?.titulo, 90) || "Apresentação", subtitulo: "", itens: [] };

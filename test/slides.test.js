@@ -58,6 +58,11 @@ test("slides: a IA monta a apresentação com a conversa, fica pronta no sistema
   assert.equal((await db.listarSlides()).length, 1);
 });
 
+test("slides: no processo, o número que a IA põe no título sai (o círculo já mostra)", () => {
+  const d = arrumarSlides({ titulo: "x", slides: [{ tipo: "processo", titulo: "Como", subtitulo: "", itens: [{ titulo: "1. Reunião inicial", texto: "a" }, { titulo: "Etapa 2 - Escopo", texto: "b" }, { titulo: "24 horas", texto: "c" }] }] });
+  assert.deepEqual(d.slides[1].itens.map((i) => i.titulo), ["Reunião inicial", "Escopo", "24 horas"]); // número que é parte do texto fica
+});
+
 test("slides: a página escapa o texto e tem um slide por seção; o endereço público só abre com o código", async () => {
   const dados = arrumarSlides(respostaDaIA(), { empresa: "Telles <Fight>" });
   const html = paginaDosSlides({ titulo: "x", dados, empresa: "Telles <Fight>" }, { marca: "FluxDeck", telefone: "11953528042" });
