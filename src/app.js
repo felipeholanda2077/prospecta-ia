@@ -244,9 +244,12 @@ app.get("/slides/:codigo", async (req, res) => {
   const codigo = String(req.params.codigo ?? "");
   const registro = /^[A-Za-z0-9_-]{8,64}$/.test(codigo) ? await db.slidesPorCodigo(codigo) : null;
   if (!registro) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
-  const { empresa } = await carregarCampanhaCompleta();
+  const { empresa, servicos } = await carregarCampanhaCompleta();
   res.set({ ...SEM_CACHE, "Referrer-Policy": "no-referrer" })
-    .send(slides.paginaDosSlides(registro, { marca: empresa.nome, telefone: empresa.telefone, site: empresa.site }));
+    .send(slides.paginaDosSlides(registro, {
+      marca: empresa.nome, telefone: empresa.telefone, site: empresa.site, email: empresa.email, responsavel: empresa.responsavel, cargo: empresa.cargo,
+      diferenciais: empresa.diferenciais ?? [], servicos: (servicos ?? []).map((s) => s.nome),
+    }));
 });
 
 // ---------- Webhook do WhatsApp (público, validado pela assinatura da Meta) ----------

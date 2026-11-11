@@ -105,3 +105,23 @@ test("precoDoPlano lê os valores do plano para o cartão de preço", async () =
   assert.deepEqual(anual.parcelas, { vezes: 12, valor: 199.75 });
   assert.equal(precoDoPlano("Sob consulta"), null);
 });
+
+test("a página dos slides tem a logo, a capa animada e o slide de quem é a FluxDeck", async () => {
+  const { paginaDosSlides } = await import("../src/vendas/slides.js");
+  const dados = { titulo: "T", modo: "fechamento", slides: [
+    { tipo: "capa", titulo: "Capa", subtitulo: "", itens: [] },
+    { tipo: "conversa", titulo: "C", subtitulo: "", itens: [{ titulo: "Cliente", texto: "Oi" }, { titulo: "IA", texto: "Olá" }] },
+    { tipo: "fechamento", titulo: "Vamos?", subtitulo: "", itens: [] },
+  ] };
+  const html = paginaDosSlides({ empresa: "Academia X", dados }, { marca: "FluxDeck", responsavel: "Felipe", cargo: "Fundador", diferenciais: ["Prazo fechado"], servicos: ["Site"] });
+  assert.match(html, /src="\/fluxdeck-logo\.jpg"/);
+  assert.match(html, /class="fundo-anim"/);
+  assert.match(html, /class="celular mini"/);
+  assert.match(html, /QUEM SOMOS/);
+  assert.match(html, /Prazo fechado/);
+  assert.match(html, /src="\/felipe-holanda\.jpg"/);
+  assert.equal((html.match(/<section class="slide/g) ?? []).length, 4);
+  // Com o "sobre" escrito pela IA, não entra outro.
+  const comSobre = { ...dados, slides: [dados.slides[0], { tipo: "sobre", titulo: "Sobre", subtitulo: "", itens: [{ titulo: "A", texto: "B" }] }, dados.slides[2]] };
+  assert.equal((paginaDosSlides({ empresa: "X", dados: comSobre }).match(/QUEM SOMOS/g) ?? []).length, 1);
+});

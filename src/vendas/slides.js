@@ -274,15 +274,57 @@ function cartaoDePreco(it, k) {
   </div>`;
 }
 
-function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout }) {
+const marcaComLogo = (marca, logo, classe = "marca") => `<div class="${classe}">${logo ? `<img class="logo-img" src="${esc(logo)}" alt="">` : `<span class="logo">${esc(marca.slice(0, 1))}</span>`}${esc(marca)}</div>`;
+const curto = (t, max) => { const s = String(t ?? "").trim(); return s.length > max ? `${s.slice(0, max - 1).trimEnd()}…` : s; };
+
+/** A capa: o título à esquerda e, à direita, uma cena animada com a conversa da proposta (ou a logo em órbita). */
+function capaAnimada(s, { marca, logo, empresa, todos }) {
+  const conversa = (todos.find((x) => x.tipo === "conversa")?.itens ?? []).slice(0, 3);
+  const selos = (todos.find((x) => x.tipo === "solucao")?.itens ?? []).map((x) => curto(x.titulo, 30)).filter(Boolean).slice(0, 3);
+  const flutuantes = (selos.length ? selos : ["Atendimento 24h", "Resposta em segundos", "Mais clientes"])
+    .map((t, k) => `<span class="flutua f${k + 1}"><i>${["⚡", "✓", "★"][k]}</i>${esc(t)}</span>`).join("");
+  const cena = conversa.length
+    ? `<div class="celular mini"><div class="tela"><div class="topo-wa"><span class="av">${esc((empresa || marca).slice(0, 1))}</span>${esc(curto(empresa || "WhatsApp", 22))}<em>online</em></div>
+        ${conversa.map((it, k) => `<div class="bolha ${/^cliente$/i.test(it.titulo) ? "ela" : "nos"}" style="--k:${3 + k * 4}">${esc(curto(it.texto, 110))}</div>`).join("")}
+        <div class="digitando" style="--k:${3 + conversa.length * 4}"><span></span><span></span><span></span></div></div></div>`
+    : `<div class="logo-orbita">${logo ? `<img src="${esc(logo)}" alt="">` : `<span class="logo">${esc(marca.slice(0, 1))}</span>`}</div>`;
+  return `<div class="fundo-anim" aria-hidden="true"><span class="orbe o1"></span><span class="orbe o2"></span><span class="orbe o3"></span><span class="grade"></span>
+      ${Array.from({ length: 14 }, (_, k) => `<span class="faisca" style="--x:${(k * 37) % 100};--y:${(k * 53) % 100};--d:${(k % 5) * 0.9}s"></span>`).join("")}</div>
+    <div class="capa">
+      <div class="capa-texto">${marcaComLogo(marca, logo)}
+        <h1 class="entra">${esc(s.titulo)}</h1>${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}<div class="linha"></div></div>
+      <div class="capa-visual" aria-hidden="true"><span class="anel a1"></span><span class="anel a2"></span>${cena}${flutuantes}</div>
+    </div>`;
+}
+
+/** Quem é a FluxDeck: logo, o que faz, diferenciais, serviços e o responsável com foto e contatos. */
+function quemSomos(s, i, { marca, logo, foto, responsavel, cargo, telefone, site, email, diferenciais, servicos }) {
+  const pontos = (s.itens?.length ? s.itens : diferenciais.map((d) => ({ titulo: d, texto: "" }))).slice(0, 4);
+  const contatos = [telefone && `WhatsApp ${telefoneBonito(telefone)}`, site && site.replace(/^https?:\/\//, "").replace(/\/$/, ""), email].filter(Boolean);
+  return `<div class="quem">
+    <div class="quem-esq">
+      <span class="tag">${String(i).padStart(2, "0")} · QUEM SOMOS</span>
+      <div class="quem-marca">${logo ? `<img class="logo-grande" src="${esc(logo)}" alt="">` : ""}<div><h2>${esc(s.titulo || marca)}</h2>${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}</div></div>
+      <ul class="dif">${pontos.map((p, k) => `<li class="entra" style="--k:${k + 1}"><b>${esc(p.titulo)}</b>${p.texto ? `<span>${esc(p.texto)}</span>` : ""}</li>`).join("")}</ul>
+      ${servicos.length ? `<div class="chips entra" style="--k:${pontos.length + 1}">${servicos.slice(0, 6).map((t) => `<span>${esc(t)}</span>`).join("")}</div>` : ""}
+    </div>
+    ${responsavel ? `<div class="pessoa cartao" style="--k:2">${foto ? `<div class="foto"><img src="${esc(foto)}" alt=""></div>` : ""}
+      <b>${esc(responsavel)}</b><span class="cargo">${esc([cargo, marca].filter(Boolean).join(" da "))}</span>
+      ${contatos.length ? `<div class="contatos-mini">${contatos.map((c) => `<span>${esc(c)}</span>`).join("")}</div>` : ""}</div>` : ""}
+  </div>`;
+}
+
+function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout, logo, todos, ...perfil }) {
   const itens = s.itens ?? [];
   const cartoes = (classe = "") => `<div class="cartoes ${classe} n${Math.min(itens.length, 4)}">${itens.map((it, k) => `
     <div class="cartao" style="--k:${k}"><span class="ic">${ICONES[k % ICONES.length]}</span><b>${esc(it.titulo)}</b><p>${esc(it.texto)}</p></div>`).join("")}</div>`;
   const cab = `<div class="cab"><span class="tag">${String(i).padStart(2, "0")}</span><h2>${esc(s.titulo)}</h2>${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}</div>`;
   switch (s.tipo) {
     case "capa":
-      return `<div class="capa"><div class="marca"><span class="logo">${esc(marca.slice(0, 1))}</span>${esc(marca)}</div>
-        <h1 class="entra">${esc(s.titulo)}</h1>${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}<div class="linha"></div></div>`;
+      return capaAnimada(s, { marca, logo, empresa, todos });
+    case "sobre":
+    case "quem_somos":
+      return quemSomos(s, i, { marca, logo, telefone, site, ...perfil });
     case "conversa":
       return `<div class="duas">${cab}<div class="celular"><div class="tela"><div class="topo-wa"><span class="av">${esc((empresa || marca).slice(0, 1))}</span>${esc(empresa || "WhatsApp")}</div>
         ${itens.map((it, k) => `<div class="bolha ${/^cliente$/i.test(it.titulo) ? "ela" : "nos"}" style="--k:${k}">${esc(it.texto)}</div>`).join("")}</div></div></div>`;
@@ -294,24 +336,32 @@ function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout }) {
     case "investimento":
       return `${cab}<div class="cartoes planos n${Math.min(itens.length, 3)}">${itens.map(cartaoDePreco).join("")}</div>`;
     case "fechamento":
-      return `<div class="fim">${s.titulo ? `<h2>${esc(s.titulo)}</h2>` : ""}${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}
+      return `<div class="fim">${marcaComLogo(marca, logo, "marca topo-fim")}${s.titulo ? `<h2>${esc(s.titulo)}</h2>` : ""}${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}
         ${itens.length ? `<ol class="passos curtos">${itens.map((it, k) => `<li style="--k:${k}"><span class="num">${k + 1}</span><b>${esc(it.titulo)}</b><p>${esc(it.texto)}</p></li>`).join("")}</ol>` : ""}
         ${checkout?.url ? `<a class="pagar" href="${esc(checkout.url)}" target="_blank" rel="noopener">Contratar ${esc(checkout.plano)} agora →</a><span class="link">${esc(checkout.url.replace(/^https?:\/\//, ""))}</span>` : ""}
-        <div class="contatos">${telefone ? `<span>WhatsApp ${esc(telefoneBonito(telefone))}</span>` : ""}${site ? `<span>${esc(site.replace(/^https?:\/\//, ""))}</span>` : ""}</div></div>`;
+        <div class="contatos">${telefone ? `<span>WhatsApp ${esc(telefoneBonito(telefone))}</span>` : ""}${site ? `<span>${esc(site.replace(/^https?:\/\//, "").replace(/\/$/, ""))}</span>` : ""}</div></div>`;
     case "proximo_passo":
       return `<div class="fim"><h2>${esc(s.titulo)}</h2>${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}
-        <div class="contatos">${telefone ? `<span>WhatsApp ${esc(telefoneBonito(telefone))}</span>` : ""}${site ? `<span>${esc(site.replace(/^https?:\/\//, ""))}</span>` : ""}</div>
-        <div class="marca">${esc(marca)}</div></div>`;
+        <div class="contatos">${telefone ? `<span>WhatsApp ${esc(telefoneBonito(telefone))}</span>` : ""}${site ? `<span>${esc(site.replace(/^https?:\/\//, "").replace(/\/$/, ""))}</span>` : ""}</div>
+        ${marcaComLogo(marca, logo)}</div>`;
     default:
       return `${cab}${cartoes()}`;
   }
 }
 
 /** A apresentação inteira numa página: 16:9, setas/toque para passar, tela cheia e impressão (um slide por página). */
-export function paginaDosSlides(registro, { marca = "FluxDeck", telefone = "", site = "" } = {}) {
+export function paginaDosSlides(registro, {
+  marca = "FluxDeck", telefone = "", site = "", email = "", responsavel = "", cargo = "",
+  logo = "/fluxdeck-logo.jpg", foto = "/felipe-holanda.jpg", diferenciais = [], servicos = [],
+} = {}) {
   let dados = {};
   try { dados = typeof registro.dados === "string" ? JSON.parse(registro.dados) : registro.dados ?? {}; } catch {}
-  const slides = dados.slides ?? [];
+  // Quem é a FluxDeck entra logo depois da capa quando a IA não escreveu o slide "sobre" (ex.: os de fechamento).
+  const salvos = dados.slides ?? [];
+  const slides = salvos.length && !salvos.some((s) => s.tipo === "sobre")
+    ? [salvos[0], { tipo: "quem_somos", titulo: marca, subtitulo: "Sites, sistemas e IA no WhatsApp para empresas que querem atender melhor e vender mais.", itens: [] }, ...salvos.slice(1)]
+    : salvos;
+  const perfil = { email, responsavel, cargo, foto, diferenciais, servicos };
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex"><title>${esc(dados.titulo || registro.titulo || "Apresentação")} · ${esc(marca)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -334,7 +384,63 @@ h1{font-size:5.4cqw;line-height:1.05;font-weight:800;letter-spacing:-.02em;max-w
 h2{font-size:3.6cqw;line-height:1.1;font-weight:800;letter-spacing:-.015em;max-width:85%}
 .sub{font-size:1.75cqw;line-height:1.45;color:var(--suave);margin-top:1.4cqw;max-width:70%}
 .grad,h1{background:linear-gradient(90deg,#fff 30%,var(--ciano) 70%,var(--violeta));-webkit-background-clip:text;background-clip:text;color:transparent}
-.capa{margin:auto 0;display:flex;flex-direction:column;gap:2cqw}
+.capa{position:relative;z-index:1;margin:auto 0;display:grid;grid-template-columns:1.12fr .88fr;gap:3cqw;align-items:center;height:100%}
+.capa-texto{display:flex;flex-direction:column;gap:2cqw}.capa h1{max-width:none;font-size:4.7cqw}.capa .sub{max-width:none}
+.logo-img{width:3.6cqw;height:3.6cqw;border-radius:1cqw;object-fit:cover;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.14),0 0 2.4cqw rgba(30,144,255,.45)}
+.fundo-anim{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.orbe{position:absolute;border-radius:50%;filter:blur(5cqw);opacity:.55;animation:deriva 14s ease-in-out infinite alternate}
+.o1{width:30cqw;height:30cqw;background:#1e90ff;top:-10cqw;right:6cqw}.o2{width:24cqw;height:24cqw;background:var(--violeta);bottom:-12cqw;right:-6cqw;animation-duration:18s;opacity:.4}
+.o3{width:20cqw;height:20cqw;background:var(--ciano);bottom:-8cqw;left:-6cqw;animation-duration:16s;opacity:.3}
+@keyframes deriva{0%{transform:translate(0,0) scale(1)}50%{transform:translate(-4cqw,3cqw) scale(1.12)}100%{transform:translate(3cqw,-2cqw) scale(.95)}}
+.grade{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:4cqw 4cqw;
+  -webkit-mask-image:radial-gradient(60% 70% at 72% 45%,#000,transparent);mask-image:radial-gradient(60% 70% at 72% 45%,#000,transparent);animation:grade 20s linear infinite}
+@keyframes grade{to{background-position:4cqw 4cqw}}
+.faisca{position:absolute;left:calc(var(--x)*1%);top:calc(var(--y)*1%);width:.35cqw;height:.35cqw;border-radius:50%;background:#fff;box-shadow:0 0 1cqw var(--ciano);opacity:0;animation:pisca 4.5s ease-in-out infinite;animation-delay:var(--d)}
+@keyframes pisca{0%,100%{opacity:0;transform:scale(.4)}50%{opacity:.8;transform:scale(1)}}
+.capa-visual{position:relative;height:100%;display:grid;place-items:center}
+.anel{position:absolute;border-radius:50%;border:1px dashed rgba(255,255,255,.14);animation:gira 40s linear infinite}
+.a1{width:34cqw;height:34cqw}.a2{width:24cqw;height:24cqw;border-style:solid;border-color:color-mix(in srgb,var(--ciano) 25%,transparent);animation-duration:28s;animation-direction:reverse}
+.anel::after{content:"";position:absolute;top:-.5cqw;left:50%;width:1cqw;height:1cqw;border-radius:50%;background:var(--ciano);box-shadow:0 0 1.4cqw var(--ciano)}
+.a2::after{background:var(--violeta);box-shadow:0 0 1.4cqw var(--violeta)}
+@keyframes gira{to{transform:rotate(360deg)}}
+.celular.mini{position:relative;width:21cqw;height:34cqw;border-radius:3cqw;animation:boia 6s ease-in-out infinite;box-shadow:0 2cqw 6cqw rgba(0,0,0,.55),0 0 6cqw rgba(30,144,255,.18)}
+.celular.mini .tela{border-radius:2.3cqw;gap:.8cqw}.celular.mini .topo-wa{font-size:1.05cqw}.celular.mini .topo-wa em{margin-left:auto;font-style:normal;font-size:.85cqw;color:#3ddc84}
+.celular.mini .bolha{font-size:.98cqw;padding:.75cqw .95cqw}
+.slide.ativo .capa .bolha{animation-delay:calc(var(--k)*.22s)}
+.digitando{align-self:flex-start;display:flex;gap:.35cqw;padding:.8cqw 1cqw;border-radius:1.2cqw;background:#1f2a44;opacity:0}
+.slide.ativo .digitando{animation:sobe .5s forwards;animation-delay:calc(var(--k)*.22s)}
+.digitando span{width:.55cqw;height:.55cqw;border-radius:50%;background:var(--suave);animation:pulo 1.2s infinite}.digitando span:nth-child(2){animation-delay:.15s}.digitando span:nth-child(3){animation-delay:.3s}
+@keyframes pulo{0%,60%,100%{transform:none;opacity:.5}30%{transform:translateY(-.4cqw);opacity:1}}
+@keyframes boia{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-1.2cqw) rotate(-1deg)}}
+.logo-orbita img,.logo-orbita .logo{width:13cqw;height:13cqw;border-radius:3.4cqw;object-fit:cover;background:#000;box-shadow:0 0 0 1px rgba(255,255,255,.12),0 0 7cqw rgba(30,144,255,.5);animation:boia 6s ease-in-out infinite}
+.logo-orbita .logo{font-size:6cqw}
+.flutua{position:absolute;display:flex;align-items:center;gap:.6cqw;padding:.75cqw 1.2cqw;border-radius:99px;font-size:1.1cqw;font-weight:700;white-space:nowrap;
+  background:rgba(14,22,40,.78);border:1px solid rgba(255,255,255,.12);backdrop-filter:blur(8px);box-shadow:0 1cqw 3cqw rgba(0,0,0,.4);opacity:0}
+.flutua i{font-style:normal;display:grid;place-items:center;width:1.7cqw;height:1.7cqw;border-radius:50%;font-size:.9cqw;color:#06101f;background:linear-gradient(135deg,var(--ciano),var(--violeta))}
+.f1{top:12%;left:-4%}.f2{top:61%;right:-9%}.f3{bottom:9%;left:0}
+.slide.ativo .flutua{animation:aparece .6s cubic-bezier(.2,.8,.2,1) forwards,flutua 5s ease-in-out infinite}
+.slide.ativo .f1{animation-delay:.9s,1.5s}.slide.ativo .f2{animation-delay:1.3s,1.9s}.slide.ativo .f3{animation-delay:1.7s,2.3s}
+@keyframes aparece{from{opacity:0;transform:translateY(1.5cqw) scale(.9)}to{opacity:1;transform:none}}
+@keyframes flutua{0%,100%{opacity:1;transform:translateY(0)}50%{opacity:1;transform:translateY(-.9cqw)}}
+.quem{display:grid;grid-template-columns:1.35fr .65fr;gap:4cqw;align-items:center;height:100%}
+.quem .tag{display:inline-block;font-weight:700;font-size:1.25cqw;letter-spacing:.2em;color:var(--ciano);margin-bottom:1.6cqw}
+.quem-marca{display:flex;align-items:center;gap:2cqw;margin-bottom:2.4cqw}.quem-marca h2{font-size:4cqw}.quem-marca .sub{margin-top:.6cqw;max-width:none}
+.logo-grande{width:8cqw;height:8cqw;border-radius:2.2cqw;object-fit:cover;background:#000;flex:none;box-shadow:0 0 0 1px rgba(255,255,255,.12),0 0 5cqw rgba(30,144,255,.4)}
+.slide.ativo .logo-grande{animation:boia 6s ease-in-out infinite}
+.dif{list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:1.2cqw 2cqw}
+.dif li{position:relative;padding-left:2.6cqw;display:flex;flex-direction:column;gap:.3cqw}
+.dif li::before{content:"✓";position:absolute;left:0;top:.1cqw;width:1.8cqw;height:1.8cqw;border-radius:50%;display:grid;place-items:center;font-size:1cqw;font-weight:800;color:#06101f;background:linear-gradient(135deg,var(--ciano),var(--violeta))}
+.dif b{font-size:1.45cqw;line-height:1.3}.dif span{font-size:1.15cqw;line-height:1.4;color:var(--suave)}
+.chips{display:flex;flex-wrap:wrap;gap:.7cqw;margin-top:2.2cqw}.chips span{font-size:1.05cqw;font-weight:600;padding:.5cqw 1.1cqw;border-radius:99px;border:1px solid var(--borda);background:rgba(255,255,255,.04);color:var(--suave)}
+.pessoa{align-items:center;text-align:center;padding:2.4cqw 2cqw;gap:.5cqw}
+.pessoa .foto{width:13cqw;height:13cqw;border-radius:50%;padding:.3cqw;background:linear-gradient(135deg,var(--ciano),var(--violeta));margin-bottom:1cqw}
+.pessoa .foto img{width:100%;height:100%;border-radius:50%;object-fit:cover;object-position:60% 20%;display:block;border:.3cqw solid var(--bg)}
+.pessoa b{font-size:1.8cqw}.pessoa .cargo{font-size:1.2cqw;color:var(--suave)}
+.contatos-mini{display:flex;flex-direction:column;gap:.5cqw;margin-top:1.2cqw;width:100%}.contatos-mini span{font-size:1.05cqw;padding:.55cqw 1cqw;border-radius:99px;border:1px solid var(--borda);font-weight:600}
+.marca.topo-fim{margin-bottom:.6cqw}
+.rod-marca{display:flex;align-items:center;gap:.6cqw;font-weight:700}.rod-marca .logo-img{width:1.7cqw;height:1.7cqw;border-radius:.45cqw;box-shadow:none}
+.rod-marca .logo{width:1.7cqw;height:1.7cqw;font-size:1cqw;border-radius:.45cqw}
+@media (prefers-reduced-motion:reduce){.orbe,.grade,.faisca,.anel,.celular.mini,.logo-orbita img,.logo-grande,.digitando span{animation:none!important}.flutua{opacity:1}}
 .marca{display:flex;align-items:center;gap:1cqw;font-weight:800;font-size:1.7cqw;letter-spacing:.02em}
 .logo{display:grid;place-items:center;width:3.4cqw;height:3.4cqw;border-radius:.9cqw;background:linear-gradient(135deg,var(--ciano),var(--violeta));color:#06101f;font-size:1.9cqw}
 .capa .linha{width:12cqw;height:.45cqw;border-radius:1cqw;background:linear-gradient(90deg,var(--ciano),var(--violeta));transform-origin:left;animation:risca 1s .4s both}
@@ -410,12 +516,12 @@ body.quieto .controles{opacity:0}
   .quadro{width:1280px;height:720px;aspect-ratio:auto;border-radius:0;box-shadow:none;overflow:visible;background:none}
   .slide{position:relative;width:1280px;height:720px;opacity:1;visibility:visible;transform:none;page-break-after:always;break-after:page;
     background:radial-gradient(60% 80% at 100% 0%,rgba(180,77,245,.22),transparent 60%),radial-gradient(50% 70% at 0% 100%,rgba(0,212,255,.16),transparent 60%),#0b1120;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  .slide .entra,.slide .cartao,.slide .passos li,.slide .bolha{opacity:1;transform:none;animation:none}.controles,.toque,.barra,.rodape{display:none}}
+  .slide .entra,.slide .cartao,.slide .passos li,.slide .bolha,.flutua,.digitando{opacity:1;transform:none;animation:none}.orbe,.faisca,.anel{animation:none}.controles,.toque,.barra,.rodape{display:none}}
 </style></head><body>
 <div class="palco"><div class="quadro" id="quadro">
-${slides.map((s, i) => `<section class="slide${i === 0 ? " ativo" : ""}" data-tipo="${esc(s.tipo)}" aria-label="Slide ${i + 1} de ${slides.length}">${corpoDoSlide(s, i, { marca, telefone, site, empresa: registro.empresa ?? "", checkout: dados.checkout })
+${slides.map((s, i) => `<section class="slide${i === 0 ? " ativo" : ""}" data-tipo="${esc(s.tipo)}" aria-label="Slide ${i + 1} de ${slides.length}">${corpoDoSlide(s, i, { marca, telefone, site, empresa: registro.empresa ?? "", checkout: dados.checkout, logo, todos: slides, ...perfil })
     .replace(/<h2>/g, '<h2 class="entra">').replace(/<p class="sub">/g, '<p class="sub entra" style="--k:1">')}</section>`).join("\n")}
-<div class="rodape"><span>${esc(marca)}</span><span>${esc(registro.empresa ?? "")}</span></div>
+<div class="rodape">${marcaComLogo(marca, logo, "rod-marca")}<span>${esc(registro.empresa ?? "")}</span></div>
 <div class="barra" id="barra"></div>
 <div class="toque esq" data-ir="-1"></div><div class="toque dir" data-ir="1"></div>
 </div></div>
