@@ -1488,3 +1488,49 @@ export async function criarAcessoDoCrm({ agente_id, nome, usuario, sal, resumo, 
   ))?.id ?? null;
 }
 export const excluirAcessoDoCrm = (agenteId, id) => q("DELETE FROM agente_acessos WHERE agente_id = $1 AND id = $2", [agenteId, id]);
+
+// ---------- Slides (apresentações feitas para uma empresa) ----------
+
+const SELECT_SLIDES = `SELECT s.*, l.nome AS empresa, l.nicho, l.cidade
+  FROM slides s LEFT JOIN leads l ON l.id = s.lead_id`;
+
+export async function criarSlides({ leadId, codigo, titulo, dados, pedido = null }) {
+  const linha = await um(
+    "INSERT INTO slides (lead_id, codigo, titulo, dados, pedido) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+    [leadId, codigo, titulo, JSON.stringify(dados), pedido]
+  );
+  return linha.id;
+}
+
+export async function atualizarSlides(id, { titulo, dados, pedido = null }) {
+  await q("UPDATE slides SET titulo = $2, dados = $3, pedido = $4, atualizado_em = now() WHERE id = $1",
+    [id, titulo, JSON.stringify(dados), pedido]);
+}
+
+export async function listarSlides() {
+  return q(`${SELECT_SLIDES} ORDER BY s.atualizado_em DESC LIMIT 200`);
+}
+
+export async function buscarSlides(id) {
+  return um(`${SELECT_SLIDES} WHERE s.id = $1`, [id]);
+}
+
+export async function slidesPorCodigo(codigo) {
+  return um(`${SELECT_SLIDES} WHERE s.codigo = $1`, [codigo]);
+}
+
+export async function apagarSlides(id) {
+  await q("DELETE FROM slides WHERE id = $1", [id]);
+}
+
+/** Empresas pelo nome, para escolher de quem são os slides (fora as dos agentes). */
+export async function buscarEmpresasPorNome(texto, limite = 10) {
+  const termo = String(texto ?? "").trim();
+  if (termo.length < 2) return [];
+  return q(
+    `SELECT id, nome, nicho, cidade, status FROM leads
+      WHERE agente_id IS NULL AND nome ILIKE $1
+      ORDER BY (lower(nome) = lower($2)) DESC, (status IN ('respondeu', 'agendado', 'fechado')) DESC, id DESC LIMIT $3`,
+    [`%${termo.replace(/[%_\\]/g, "")}%`, termo, limite]
+  );
+}

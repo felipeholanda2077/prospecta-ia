@@ -1,0 +1,86 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+process.env.DB_PATH = ":memory:";
+process.env.PAINEL_SENHA = "senha-de-teste";
+process.env.PAINEL_USUARIO = "teste";
+process.env.NOTIFICAR_EMAIL = " ";
+const db = await import("../src/db.js");
+const { app } = await import("../src/app.js");
+const { gerarSlides, editarSlides, arrumarSlides, paginaDosSlides } = await import("../src/vendas/slides.js");
+
+const campanha = { empresa: { nome: "FluxDeck", responsavel: "Felipe", diferenciais: ["sob medida"], telefone: "11953528042", site: "https://fluxdeck.com.br" },
+  servicos: [{ id: "ia", nome: "IA no WhatsApp", descricao: "atende 24 h" }] };
+
+/** O que a IA devolveria (com um tipo inválido, sem o próximo passo e um texto com HTML). */
+const respostaDaIA = (titulo = "Atendimento 24 h no WhatsApp da Telles Fight Team") => ({
+  titulo,
+  slides: [
+    { tipo: "sobre", titulo: "Quem é a FluxDeck", subtitulo: "Software house de Osasco", itens: [{ titulo: "Sob medida", texto: "Nada de pacote fechado" }] },
+    { tipo: "capa", titulo, subtitulo: "", itens: [] },
+    { tipo: "inventado", titulo: "x", subtitulo: "", itens: [] },
+    { tipo: "conversa", titulo: "Como fica o atendimento", subtitulo: "", itens: [{ titulo: "Cliente", texto: "Tem aula experimental hoje?" }, { titulo: "IA", texto: "Tem sim, às 19h! <b>Quer agendar?</b>" }] },
+  ],
+});
+
+async function lead(nome) {
+  await db.inserirLead({ place_id: nome, nome, nicho: "academia", cidade: "Osasco - SP" });
+  const [l] = await db.consultar("SELECT * FROM leads WHERE place_id = $1", [nome]);
+  return l;
+}
+
+test("slides: a IA monta a apresentação com a conversa, fica pronta no sistema e nada é enviado", async () => {
+  const l = await lead("Telles Fight Team");
+  await db.criarResposta({ lead_id: l.id, canal: "email", origem_id: "tft-1", de: "x", texto: "Eu tenho interesse apenas no atendimento automatizado do WhatsApp.", classificacao: "interessado", resumo: "x" });
+  let pedido;
+  const gerar = async (p) => { pedido = p; return respostaDaIA(); };
+  const r = await gerarSlides({ leadId: l.id, nota: "só o WhatsApp" }, campanha, { gerar });
+  assert.match(pedido.pedido, /apenas no atendimento automatizado do WhatsApp/);
+  assert.match(pedido.pedido, /só o WhatsApp/);
+  assert.match(pedido.system, /NUNCA cite valores/);
+  const dados = JSON.parse(r.dados);
+  // Capa primeiro, próximo passo no fim, tipo inválido fora.
+  assert.deepEqual(dados.slides.map((s) => s.tipo), ["capa", "sobre", "conversa", "proximo_passo"]);
+  assert.equal(dados.slides[0].subtitulo, "Preparada para a Telles Fight Team");
+  assert.equal(r.empresa, "Telles Fight Team");
+  assert.match(r.codigo, /^[A-Za-z0-9_-]{16}$/);
+  // Nada saiu nem entrou na fila.
+  assert.equal((await db.consultar("SELECT count(*)::int AS n FROM mensagens WHERE lead_id = $1", [l.id]))[0].n, 0);
+
+  // Refazer mantém o mesmo endereço; editar troca só os textos.
+  const refeita = await gerarSlides({ id: r.id, nota: "mais curto" }, campanha, { gerar: async () => respostaDaIA("Outro título") });
+  assert.equal(refeita.codigo, r.codigo);
+  assert.equal(refeita.titulo, "Outro título");
+  assert.equal(refeita.pedido, "mais curto");
+  const editada = await editarSlides(r.id, { titulo: "Para o Tiago", slides: JSON.parse(refeita.dados).slides.map((s, i) => (i === 1 ? { ...s, titulo: "Somos a FluxDeck" } : s)) });
+  assert.equal(editada.titulo, "Para o Tiago");
+  assert.equal(JSON.parse(editada.dados).slides[1].titulo, "Somos a FluxDeck");
+  assert.equal((await db.listarSlides()).length, 1);
+});
+
+test("slides: a página escapa o texto e tem um slide por seção; o endereço público só abre com o código", async () => {
+  const dados = arrumarSlides(respostaDaIA(), { empresa: "Telles <Fight>" });
+  const html = paginaDosSlides({ titulo: "x", dados, empresa: "Telles <Fight>" }, { marca: "FluxDeck", telefone: "11953528042" });
+  assert.equal((html.match(/<section class="slide/g) ?? []).length, dados.slides.length);
+  assert.ok(!html.includes("<b>Quer agendar?</b>"));
+  assert.ok(html.includes("&lt;b&gt;Quer agendar?&lt;/b&gt;"));
+  assert.ok(html.includes("Telles &lt;Fight&gt;"));
+  assert.ok(!/R\$/.test(html));
+  assert.ok(html.includes("WhatsApp (11) 95352-8042"));
+
+  const l = await lead("Academia Rota");
+  const r = await gerarSlides({ leadId: l.id }, campanha, { gerar: async () => respostaDaIA() });
+  const servidor = app.listen(0);
+  const base = `http://127.0.0.1:${servidor.address().port}`;
+  try {
+    const ok = await fetch(`${base}/slides/${r.codigo}`);
+    assert.equal(ok.status, 200);
+    assert.match(ok.headers.get("x-robots-tag") ?? "", /noindex/);
+    assert.match(await ok.text(), /Atendimento 24 h no WhatsApp/);
+    assert.equal((await fetch(`${base}/slides/naoexiste123`)).status, 404);
+    // A API do painel pede login.
+    assert.equal((await fetch(`${base}/api/slides`)).status, 401);
+  } finally {
+    servidor.close();
+  }
+});

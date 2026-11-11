@@ -33,6 +33,10 @@
       "destination": "/api"
     },
     {
+      "source": "/slides/(.*)",
+      "destination": "/api"
+    },
+    {
       "source": "/contato",
       "destination": "/api"
     },

@@ -773,6 +773,29 @@
   .ct-linha { font: inherit; color: inherit; background: none; border: 0; width: 100%; text-align: left; cursor: pointer; display: flex; align-items: center; gap: 12px; padding: 14px 16px; }
   .ct-linha:hover { background: var(--surface-2); border-radius: var(--radius); }
   .ct-linha-texto { flex: 1; min-width: 0; display: grid; gap: 2px; }
+  /* Slides */
+  .sl-novo { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(220px, 1.3fr) auto; gap: 12px; align-items: end; padding: 16px; margin-bottom: 16px; }
+  .sl-busca { position: relative; }
+  .sl-sugestoes { position: absolute; top: 100%; left: 0; right: 0; z-index: 20; margin-top: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md, 0 10px 30px rgba(0,0,0,.15)); overflow: hidden; }
+  .sl-sugestoes button { display: grid; width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; padding: 10px 12px; cursor: pointer; gap: 2px; }
+  .sl-sugestoes button:hover, .sl-sugestoes button:focus-visible { background: var(--surface-2); outline: none; }
+  .sl-grade { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: start; }
+  .sl-lista { display: grid; gap: 8px; }
+  .sl-item { font: inherit; color: inherit; text-align: left; cursor: pointer; display: grid; gap: 3px; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); }
+  .sl-item:hover { background: var(--surface-2); }
+  .sl-item[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .sl-item b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sl-visor { padding: 16px; display: grid; gap: 14px; }
+  .sl-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; }
+  .sl-acoes { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sl-moldura { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 12px; background: #0b1120; display: block; }
+  .sl-editor { display: grid; gap: 12px; }
+  .sl-editor fieldset { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: grid; gap: 8px; }
+  .sl-editor legend { font-weight: 700; padding: 0 6px; }
+  .sl-editor textarea { min-height: 64px; }
+  .sl-itens { display: grid; grid-template-columns: minmax(120px, .6fr) 1fr; gap: 6px; }
+  .sl-carregando { display: grid; place-items: center; gap: 10px; aspect-ratio: 16 / 9; border-radius: 12px; background: var(--surface-2); text-align: center; padding: 20px; }
+  @media (max-width: 900px) { .sl-novo { grid-template-columns: 1fr; } .sl-grade { grid-template-columns: 1fr; } .sl-itens { grid-template-columns: 1fr; } }
   /* Agentes de atendimento */
   .ag-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
   .ag-cartao { padding: 16px; display: grid; gap: 14px; align-content: start; }
@@ -1518,6 +1541,21 @@
       <!-- Agentes de atendimento: a lista, e cada agente com o acompanhamento e a configuração -->
       <section id="view-agentes" hidden><div id="ag-conteudo"></div></section>
 
+      <section id="view-slides" hidden>
+        <form class="cartao sl-novo" id="sl-form" autocomplete="off">
+          <div class="campo sl-busca"><label for="sl-empresa">Empresa</label>
+            <input id="sl-empresa" type="search" placeholder="Digite o nome da empresa" required>
+            <div class="sl-sugestoes" id="sl-sugestoes" role="listbox" hidden></div></div>
+          <div class="campo"><label for="sl-nota">O que destacar <span class="muted">(opcional)</span></label>
+            <input id="sl-nota" type="text" maxlength="500" placeholder="Ex.: só o atendimento automático no WhatsApp"></div>
+          <button class="btn primario" type="submit" id="sl-criar"><span data-ic="spark"></span>Criar slides com IA</button>
+        </form>
+        <div class="sl-grade">
+          <div class="sl-lista" id="sl-lista"></div>
+          <div class="cartao sl-visor" id="sl-visor"></div>
+        </div>
+      </section>
+
       <section id="view-contratos" hidden>
         <div class="ig-abas" role="tablist" aria-label="Seções de contratos" id="ct-abas">
           <button type="button" class="ig-aba" role="tab" data-ct-aba="lista" aria-selected="true"><span data-ic="file"></span>Contratos</button>
@@ -1928,6 +1966,7 @@ const ICONES = {
   target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  slides: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/><path d="m10 7 5 3-5 3z"/>',
   trash: '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   camera: '<rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><path d="M17.5 6.5h.01"/>',
@@ -2092,6 +2131,8 @@ const VIEWS = {
                sub: "Corrija e tente de novo, ou descarte.", contador: () => stats?.mensagens.erro, perigo: true },
   fornecedores: { grupo: "Prospecção", nome: "Fornecedores", icone: "box", titulo: "Fornecedores de dropshipping",
                sub: "Procure quem envia direto ao seu cliente. Fica separado das empresas: ninguém aqui recebe mensagem automática." },
+  slides:    { grupo: "Vendas", nome: "Slides", icone: "slides", titulo: "Slides",
+               sub: "Apresentações sobre a FluxDeck feitas pela IA para cada empresa. Ficam prontas aqui: nada é enviado sem você." },
   marketplaces: { grupo: "Vendas", nome: "Marketplaces", icone: "store", titulo: "Marketplaces",
                sub: "Cadastre produtos para o Mercado Livre e a Shopee, responda perguntas com a IA e acompanhe os pedidos das suas contas." },
   respostas: { grupo: "Relacionamento", nome: "Respostas", curto: "Respostas", icone: "message", titulo: "Respostas",
@@ -2152,9 +2193,11 @@ function irParaHash() {
   $("#view-fornecedores").hidden = viewAtual !== "fornecedores";
   $("#view-marketplaces").hidden = viewAtual !== "marketplaces";
   $("#view-agentes").hidden = viewAtual !== "agentes";
-  $("#view-lista").hidden = ["dashboard", "maps", "automacao", "configuracoes", "conteudo", "contratos", "fornecedores", "marketplaces", "agentes"].includes(viewAtual);
+  $("#view-slides").hidden = viewAtual !== "slides";
+  $("#view-lista").hidden = ["dashboard", "maps", "automacao", "configuracoes", "conteudo", "contratos", "fornecedores", "marketplaces", "agentes", "slides"].includes(viewAtual);
   // Os números da prospecção não dizem nada nestas páginas.
-  $("#kpis").hidden = ["dashboard", "conteudo", "contratos", "fornecedores", "marketplaces", "agentes"].includes(viewAtual);
+  $("#kpis").hidden = ["dashboard", "conteudo", "contratos", "fornecedores", "marketplaces", "agentes", "slides"].includes(viewAtual);
+  if (viewAtual === "slides") carregarSlides();
   if (viewAtual === "dashboard") carregarDashboard();
   if (viewAtual === "marketplaces") carregarMercadoLivre();
   if (viewAtual === "fornecedores") carregarFornecedores();
@@ -5611,6 +5654,160 @@ function abrirAbaCt(aba) {
   if (aba === "dados") carregarDadosCt();
   if (aba === "cobrancas") carregarCobrancas();
 }
+
+// ===================== Slides =====================
+// Apresentações sobre a FluxDeck que a IA faz para uma empresa. A página mostra a mesma /slides/<código> num quadro;
+// nada é enviado daqui (o link só sai se você copiar e mandar).
+let slidesLista = [];
+let slideAberto = null;
+let slidesEmpresa = null; // { id, nome } escolhida no campo de busca
+const NOMES_DOS_TIPOS = { capa: "Capa", sobre: "Sobre a FluxDeck", cenario: "O cenário deles", solucao: "A solução", conversa: "Exemplo de conversa",
+  processo: "Como trabalhamos", resultados: "O que muda", proximo_passo: "Próximo passo" };
+
+async function carregarSlides(abrirId = null) {
+  try {
+    slidesLista = await api("/api/slides");
+    if (abrirId) slideAberto = abrirId;
+    if (!slidesLista.some((x) => x.id === slideAberto)) slideAberto = slidesLista[0]?.id ?? null;
+    desenharSlides();
+  } catch (e) {
+    $("#sl-lista").innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
+  }
+}
+
+function desenharSlides() {
+  $("#sl-lista").innerHTML = slidesLista.length ? slidesLista.map((x) => `
+    <button type="button" class="sl-item" data-sl-abrir="${x.id}" aria-current="${x.id === slideAberto}">
+      <b>${esc(x.empresa ?? "Empresa apagada")}</b><span class="muted">${esc(x.titulo)}</span>
+      <span class="muted" style="font-size:12.5px">${x.slides.length} slides · ${dataHora(x.atualizadoEm)}</span></button>`).join("")
+    : vazio("slides", "Nenhuma apresentação ainda", "Escolha uma empresa acima e a IA monta os slides sobre a FluxDeck para ela.");
+  const x = slidesLista.find((y) => y.id === slideAberto);
+  $("#sl-visor").hidden = !x;
+  if (!x) return;
+  const endereco = `${location.origin}${x.endereco}`;
+  $("#sl-visor").innerHTML = `
+    <div class="sl-topo"><div><b>${esc(x.titulo)}</b><div class="muted">${esc(x.empresa ?? "")}${x.cidade ? ` · ${esc(x.cidade)}` : ""}
+      · <span class="pilula">Pronta · não enviada</span></div>${x.pedido ? `<div class="muted" style="font-size:12.5px">Último pedido à IA: ${esc(x.pedido)}</div>` : ""}</div>
+      <div class="sl-acoes">
+        <a class="btn sm primario" href="${esc(x.endereco)}" target="_blank" rel="noopener">${ic("external", "sm")}Apresentar</a>
+        <button type="button" class="btn sm" data-sl-copiar="${esc(endereco)}">${ic("copy", "sm")}Copiar link</button>
+        <button type="button" class="btn sm" data-sl-editar="${x.id}">${ic("edit", "sm")}Editar textos</button>
+        <button type="button" class="btn sm" data-sl-refazer="${x.id}">${ic("refresh", "sm")}Refazer com IA</button>
+        <button type="button" class="btn sm perigo" data-sl-apagar="${x.id}">${ic("trash", "sm")}Apagar</button>
+      </div></div>
+    <iframe class="sl-moldura" src="${esc(x.endereco)}?v=${encodeURIComponent(x.atualizadoEm)}" title="Slides de ${esc(x.empresa ?? "")}" loading="lazy" allow="fullscreen"></iframe>
+    <div id="sl-extra"></div>`;
+}
+
+function editorDeSlides(x) {
+  return `<form class="sl-editor" id="sl-editor" data-id="${x.id}">
+    <div class="campo"><label for="sl-ed-titulo">Nome da apresentação</label><input id="sl-ed-titulo" name="titulo" value="${esc(x.titulo)}" maxlength="80"></div>
+    ${x.slides.map((sl, i) => `<fieldset data-slide="${i}" data-tipo="${esc(sl.tipo)}"><legend>${i + 1}. ${esc(NOMES_DOS_TIPOS[sl.tipo] ?? sl.tipo)}</legend>
+      <input data-campo="titulo" value="${esc(sl.titulo)}" maxlength="90" aria-label="Título do slide ${i + 1}">
+      <textarea data-campo="subtitulo" maxlength="260" aria-label="Frase de apoio do slide ${i + 1}">${esc(sl.subtitulo)}</textarea>
+      ${sl.itens.length ? `<div class="sl-itens">${sl.itens.map((it, k) => `
+        <input data-item="${k}" data-campo="titulo" value="${esc(it.titulo)}" maxlength="50" aria-label="Item ${k + 1}: título">
+        <input data-item="${k}" data-campo="texto" value="${esc(it.texto)}" maxlength="180" aria-label="Item ${k + 1}: texto">`).join("")}</div>` : ""}
+    </fieldset>`).join("")}
+    <div class="sl-acoes"><button class="btn primario" type="submit">${ic("check", "sm")}Salvar textos</button><button class="btn" type="button" data-sl-fechar>Cancelar</button></div>
+  </form>`;
+}
+
+let buscaSlidesTimer;
+$("#sl-empresa").addEventListener("input", () => {
+  slidesEmpresa = null;
+  clearTimeout(buscaSlidesTimer);
+  const q = $("#sl-empresa").value.trim();
+  if (q.length < 2) { $("#sl-sugestoes").hidden = true; return; }
+  buscaSlidesTimer = setTimeout(async () => {
+    try {
+      const achadas = await api(`/api/slides/empresas?q=${encodeURIComponent(q)}`);
+      $("#sl-sugestoes").innerHTML = achadas.length ? achadas.map((e) => `<button type="button" role="option" data-sl-empresa="${e.id}" data-nome="${esc(e.nome)}">
+        <b>${esc(e.nome)}</b><span class="muted">${esc([e.nicho, e.cidade].filter(Boolean).join(" · "))}</span></button>`).join("")
+        : `<div class="muted" style="padding:10px 12px">Nenhuma empresa com esse nome.</div>`;
+      $("#sl-sugestoes").hidden = false;
+    } catch (e) { avisar(e.message, "perigo"); }
+  }, 250);
+});
+
+$("#sl-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  if (!slidesEmpresa) return avisar("Escolha a empresa na lista que aparece ao digitar o nome.", "perigo");
+  const btn = $("#sl-criar");
+  btn.disabled = true;
+  $("#sl-visor").hidden = false;
+  $("#sl-visor").innerHTML = `<div class="sl-carregando">${ic("spark")}<div><b>A IA está montando os slides para ${esc(slidesEmpresa.nome)}</b><div class="muted">Leva por volta de um minuto.</div></div></div>`;
+  try {
+    const x = await post("/api/slides", { leadId: slidesEmpresa.id, nota: $("#sl-nota").value.trim() });
+    $("#sl-form").reset();
+    slidesEmpresa = null;
+    avisar("Slides prontos. Nada foi enviado para a empresa.", "ok");
+    await carregarSlides(x.id);
+  } catch (e) {
+    avisar(e.message, "perigo");
+    desenharSlides();
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-sl-empresa],[data-sl-abrir],[data-sl-copiar],[data-sl-editar],[data-sl-refazer],[data-sl-apagar],[data-sl-fechar]");
+  if (!b) {
+    if (!ev.target.closest(".sl-busca")) $("#sl-sugestoes").hidden = true;
+    return;
+  }
+  const d = b.dataset;
+  if (d.slEmpresa) {
+    slidesEmpresa = { id: Number(d.slEmpresa), nome: d.nome };
+    $("#sl-empresa").value = d.nome;
+    $("#sl-sugestoes").hidden = true;
+  } else if (d.slAbrir) {
+    slideAberto = Number(d.slAbrir);
+    desenharSlides();
+  } else if (d.slCopiar) {
+    await navigator.clipboard.writeText(d.slCopiar).then(() => avisar("Link copiado. Ele só chega à empresa se você mandar.", "ok"), () => avisar(d.slCopiar));
+  } else if (d.slEditar) {
+    $("#sl-extra").innerHTML = editorDeSlides(slidesLista.find((x) => x.id === Number(d.slEditar)));
+    $("#sl-extra").scrollIntoView({ behavior: "smooth", block: "start" });
+  } else if ("slFechar" in d) {
+    $("#sl-extra").innerHTML = "";
+  } else if (d.slRefazer) {
+    const nota = prompt("O que a IA deve mudar? (deixe em branco para refazer do zero)", "");
+    if (nota === null) return;
+    b.disabled = true;
+    avisar("A IA está refazendo os slides…");
+    try {
+      await post(`/api/slides/${d.slRefazer}/refazer`, { nota });
+      avisar("Slides refeitos. Nada foi enviado.", "ok");
+      await carregarSlides(Number(d.slRefazer));
+    } catch (e) { avisar(e.message, "perigo"); b.disabled = false; }
+  } else if (d.slApagar) {
+    if (!confirm("Apagar esta apresentação? O link dela deixa de funcionar.")) return;
+    try {
+      await api(`/api/slides/${d.slApagar}`, { method: "DELETE" });
+      slideAberto = null;
+      await carregarSlides();
+    } catch (e) { avisar(e.message, "perigo"); }
+  }
+});
+
+document.addEventListener("submit", async (ev) => {
+  const f = ev.target.closest("#sl-editor");
+  if (!f) return;
+  ev.preventDefault();
+  const slides = [...f.querySelectorAll("fieldset[data-slide]")].map((fs) => {
+    const itens = [];
+    fs.querySelectorAll("[data-item]").forEach((el) => { (itens[Number(el.dataset.item)] ??= { titulo: "", texto: "" })[el.dataset.campo] = el.value; });
+    return { tipo: fs.dataset.tipo, titulo: fs.querySelector(':scope > [data-campo="titulo"]').value,
+      subtitulo: fs.querySelector(':scope > [data-campo="subtitulo"]').value, itens: itens.filter(Boolean) };
+  });
+  try {
+    const x = await api(`/api/slides/${f.dataset.id}`, { method: "PUT", body: JSON.stringify({ titulo: f.querySelector('[name="titulo"]').value, slides }) });
+    avisar("Textos salvos.", "ok");
+    await carregarSlides(x.id);
+  } catch (e) { avisar(e.message, "perigo"); }
+});
 
 async function carregarContratos() {
   if (contratoDoLead) {

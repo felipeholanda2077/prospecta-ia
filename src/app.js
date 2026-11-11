@@ -18,6 +18,7 @@ import { rodapeDescadastro } from "./envio/email.js";
 import { linkWhatsapp, RODAPE_WHATSAPP } from "./envio/whatsapp.js";
 import * as whatsappOficial from "./envio/whatsapp.js";
 import * as propostaSlides from "./vendas/propostaSlides.js";
+import * as slides from "./vendas/slides.js";
 import { gerarSequencia } from "./ia/proposta.js";
 import { classificarResposta } from "./ia/resposta.js";
 import { ABORDAGENS } from "./ia/abordagens.js";
@@ -234,6 +235,17 @@ app.get("/previa/:token", async (req, res) => {
   if (!podeTerPrevia(lead)) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
   const { empresa } = await carregarCampanhaCompleta();
   res.set({ ...SEM_CACHE, "Referrer-Policy": "no-referrer" }).send(paginaDaPrevia(lead, { marca: empresa.nome, telefoneMarca: empresa.telefone }));
+});
+
+// ---------- Slides (público pelo código aleatório; a página Slides do painel mostra esta mesma página) ----------
+
+app.get("/slides/:codigo", async (req, res) => {
+  const codigo = String(req.params.codigo ?? "");
+  const registro = /^[A-Za-z0-9_-]{8,64}$/.test(codigo) ? await db.slidesPorCodigo(codigo) : null;
+  if (!registro) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
+  const { empresa } = await carregarCampanhaCompleta();
+  res.set({ ...SEM_CACHE, "Referrer-Policy": "no-referrer" })
+    .send(slides.paginaDosSlides(registro, { marca: empresa.nome, telefone: empresa.telefone, site: empresa.site }));
 });
 
 // ---------- Webhook do WhatsApp (público, validado pela assinatura da Meta) ----------
@@ -1469,6 +1481,54 @@ app.post("/api/leads/:id/proposta-slides", async (req, res) => {
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
+});
+
+// ---------- Página Slides: apresentações feitas para uma empresa (prontas no sistema; nada é enviado) ----------
+
+const slidesParaPainel = (r) => {
+  let dados = {};
+  try { dados = JSON.parse(r.dados || "{}"); } catch {}
+  return { id: r.id, codigo: r.codigo, titulo: r.titulo, leadId: r.lead_id, empresa: r.empresa, nicho: r.nicho, cidade: r.cidade,
+    pedido: r.pedido, criadoEm: r.criado_em, atualizadoEm: r.atualizado_em, endereco: `/slides/${r.codigo}`, slides: dados.slides ?? [] };
+};
+
+app.get("/api/slides", async (req, res) => {
+  res.json((await db.listarSlides()).map(slidesParaPainel));
+});
+
+app.get("/api/slides/empresas", async (req, res) => {
+  res.json(await db.buscarEmpresasPorNome(req.query.q));
+});
+
+app.post("/api/slides", async (req, res) => {
+  const leadId = Number(req.body?.leadId);
+  if (!leadId) return res.status(400).json({ erro: "Escolha a empresa" });
+  try {
+    res.json(slidesParaPainel(await slides.gerarSlides({ leadId, nota: req.body?.nota }, await carregarCampanhaCompleta())));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.post("/api/slides/:id/refazer", async (req, res) => {
+  try {
+    res.json(slidesParaPainel(await slides.gerarSlides({ id: Number(req.params.id), nota: req.body?.nota }, await carregarCampanhaCompleta())));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.put("/api/slides/:id", async (req, res) => {
+  try {
+    res.json(slidesParaPainel(await slides.editarSlides(Number(req.params.id), { titulo: req.body?.titulo, slides: req.body?.slides })));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.delete("/api/slides/:id", async (req, res) => {
+  await db.apagarSlides(Number(req.params.id));
+  res.json({ ok: true });
 });
 
 app.get("/api/funil/empresas", async (req, res) => {
