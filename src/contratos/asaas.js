@@ -146,3 +146,5 @@ export const removerLink = (id) => chamar("DELETE", `/paymentLinks/${encodeURICo
 export const desativarLink = (id) => chamar("PUT", `/paymentLinks/${encodeURIComponent(id)}`, { active: false });
 export const pagamentosDaAssinatura = (id) => chamar("GET", `/payments?${new URLSearchParams({ subscription: id, limit: "100" })}`);
 export const removerAssinatura = (id) => chamar("DELETE", `/subscriptions/${encodeURIComponent(id)}`);
+export const criarAssinatura = (dados) => chamar("POST", "/subscriptions", dados);
+export const lerCliente = (id) => chamar("GET", `/customers/${encodeURIComponent(id)}`);

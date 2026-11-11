@@ -50,6 +50,7 @@ import * as asaas from "./contratos/asaas.js";
 import * as anuncios from "./descoberta/anuncios.js";
 import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
+import * as checkoutsAsaas from "./vendas/checkoutsAsaas.js";
 import { pdfDoGuia, prepararCampanha, imagemDaMensagem, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
 import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia } from "./vendas/previa.js";
@@ -367,6 +368,7 @@ app.post("/webhooks/asaas", async (req, res) => {
     await cobrancas.registrarAviso();
     await cobrancas.processarAvisoDoAsaas(req.body);
     await entrada.processarAvisoDeVenda(req.body);
+    await checkoutsAsaas.processarAvisoDoPlano(req.body);
   } catch (e) {
     console.error("Erro no webhook do Asaas:", e.message);
   }
@@ -405,6 +407,7 @@ const TAREFAS_CRON = {
   mercadolivre: (c) => rodadaDoMercadoLivre(c),
   // A cada hora: as parcelas perto de vencer e o que já foi pago, inclusive pelos links de pagamento.
   cobrancas: async () => ({ ...(await cobrancas.rodadaDeCobrancas()), ...(await entrada.conferirVendas()),
+    ...(await checkoutsAsaas.conferirCheckoutsAsaas().catch((e) => ({ planos: `erro: ${e.message}` }))),
     stripe: await stripe.conferirPagamentos().catch((e) => ({ erro: e.message })),
     // E localiza no mapa do Dashboard as empresas que ainda não têm o ponto.
     mapa: await localizarEmpresas({ limite: 300 }).catch((e) => ({ erro: e.message })) }),
@@ -1115,6 +1118,15 @@ app.get("/api/mapa", async (req, res) => {
 
 // Stripe: pagamento das empresas de fora do Brasil (a chave quem cola é você, no painel).
 app.get("/api/stripe", async (req, res) => res.json(await stripe.situacao()));
+// Checkouts dos planos do Brasil pelo Asaas (taxas menores): listar e criar/atualizar.
+app.get("/api/asaas/planos", async (req, res) => res.json({ links: await checkoutsAsaas.checkoutsAsaas() }));
+app.post("/api/asaas/planos", async (req, res) => {
+  try {
+    res.json({ links: await checkoutsAsaas.criarCheckoutsAsaas() });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
 // Checkouts fixos dos planos (reais para o Brasil, dólar para os EUA): listar e criar/atualizar no Stripe.
 app.get("/api/stripe/planos", async (req, res) => res.json({ links: await stripe.checkoutsDosPlanos() }));
 app.post("/api/stripe/planos", async (req, res) => {
@@ -1298,6 +1310,27 @@ app.post("/api/leads/:id/status", async (req, res) => {
     await db.atualizarLead(lead.id, { status });
   }
   res.json({ ok: true });
+});
+
+// Reunião marcada com a empresa fora do Calendly (pelo WhatsApp, por telefone): fica "Reunião agendada", as etapas
+// da prospecção param e o horário aparece na conversa. `quando` vazio desmarca (volta para "Respondeu").
+app.post("/api/leads/:id/reuniao", async (req, res) => {
+  const lead = await db.buscarLead(req.params.id);
+  if (!lead) return res.status(404).json({ erro: "Empresa não encontrada" });
+  const texto = String(req.body?.quando ?? "").trim();
+  if (!texto) {
+    await db.gravarEstado(`reuniao:${lead.id}`, "");
+    await db.atualizarLead(lead.id, { status: "respondeu", observacao: "Reunião desmarcada no painel" });
+    return res.json({ ok: true, reuniao: null });
+  }
+  const quando = new Date(texto);
+  if (Number.isNaN(+quando)) return res.status(400).json({ erro: "Informe a data e a hora da reunião" });
+  const como = String(req.body?.como ?? "online").trim().slice(0, 120) || "online";
+  const legivel = quando.toLocaleString("pt-BR", { timeZone: config.timezone, weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+  await db.cancelarPendentes(lead.id, "reunião marcada");
+  await db.gravarEstado(`reuniao:${lead.id}`, JSON.stringify({ quando: quando.toISOString(), como }));
+  await db.atualizarLead(lead.id, { status: "agendado", observacao: `Reunião marcada para ${legivel} (${como})` });
+  res.json({ ok: true, reuniao: { quando: quando.toISOString(), como, legivel } });
 });
 
 // Volta a empresa para a análise; o painel roda a análise e as propostas em seguida.
@@ -1489,7 +1522,8 @@ const slidesParaPainel = (r) => {
   let dados = {};
   try { dados = JSON.parse(r.dados || "{}"); } catch {}
   return { id: r.id, codigo: r.codigo, titulo: r.titulo, leadId: r.lead_id, empresa: r.empresa, nicho: r.nicho, cidade: r.cidade,
-    pedido: r.pedido, criadoEm: r.criado_em, atualizadoEm: r.atualizado_em, endereco: `/slides/${r.codigo}`, slides: dados.slides ?? [] };
+    pedido: r.pedido, criadoEm: r.criado_em, atualizadoEm: r.atualizado_em, endereco: `/slides/${r.codigo}`, slides: dados.slides ?? [],
+    modo: dados.modo ?? "normal", checkout: dados.checkout ?? null };
 };
 
 app.get("/api/slides", async (req, res) => {
@@ -1504,7 +1538,7 @@ app.post("/api/slides", async (req, res) => {
   const leadId = Number(req.body?.leadId);
   if (!leadId) return res.status(400).json({ erro: "Escolha a empresa" });
   try {
-    res.json(slidesParaPainel(await slides.gerarSlides({ leadId, nota: req.body?.nota }, await carregarCampanhaCompleta())));
+    res.json(slidesParaPainel(await slides.gerarSlides({ leadId, nota: req.body?.nota, modo: req.body?.modo }, await carregarCampanhaCompleta())));
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
@@ -1562,6 +1596,8 @@ app.get("/api/conversas/:leadId", async (req, res) => {
       ? (n => n ? `${n.nome} (API oficial)` : null)((await whatsappOficial.numerosOficiais()).find((n) => n.id === lead.numero_wa))
       : (await uazap.numero(lead.numero_wa))?.nome ?? null,
     agente: lead.agente_id ? (await db.buscarAgente(lead.agente_id))?.nome ?? null : null,
+    // Reunião marcada no painel (fora do Calendly): data, hora e como.
+    reuniao: await db.lerEstado(`reuniao:${lead.id}`).then((v) => (v ? JSON.parse(v) : null)).catch(() => null),
     // Por qual número a conversa pode sair (API oficial da Meta ou instâncias da UAZap) e qual está nela.
     // Conversa de antes de existirem vários números: o número por onde ela sai hoje (sem gravar nada).
     numeroAtual: lead.numero_wa ?? (await pipeline.canalDoWhatsapp({ lead_id: lead.id, tipo: "resposta", etapa: 0, numero_wa_lead: null, pais: lead.pais })

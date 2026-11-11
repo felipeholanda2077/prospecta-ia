@@ -110,10 +110,12 @@ export async function precosPublicos(moeda) {
   const m = String(moeda ?? "").toUpperCase();
   // Em reais: os planos do Brasil, como estão na apresentação daqui, com o checkout de cada um (para o site).
   if (m === "BRL") {
-    const checkouts = await checkoutsDosPlanos();
+    // O checkout do Brasil é o do Asaas (taxas menores); sem ele, nenhum (o botão do site leva ao contato).
+    const { checkoutsAsaas } = await import("./checkoutsAsaas.js");
+    const doAsaas = await checkoutsAsaas();
     const planos = planosDaApresentacao(await lerApresentacao()).filter((p) => !p.promocao).map((p) => ({
       nome: p.nome, valor: p.reais, intervalo: p.intervalo, implantacao: p.implantacao ?? null,
-      checkout: checkouts.find((c) => c.plano === p.nome && c.moeda === "BRL")?.url ?? null,
+      checkout: doAsaas.find((c) => c.plano === p.nome)?.url ?? null,
     }));
     return { moeda: m, planos };
   }
@@ -164,7 +166,8 @@ export const checkoutsDosPlanos = async () => (await db.lerConfig(CHAVE_PLANOS))
  * página em inglês). Rodar de novo reaproveita o que não mudou; plano com valor novo ganha um link novo e o antigo
  * é desativado. O diagnóstico do site fica de fora (tem página e relatório próprios, pelo Asaas).
  */
-export async function criarCheckoutsDosPlanos({ moedas = ["BRL", "USD"] } = {}) {
+// Só dólar: as vendas do Brasil vão pelo Asaas (taxas menores, ver checkoutsAsaas.js). Rodar de novo desativa os em reais.
+export async function criarCheckoutsDosPlanos({ moedas = ["USD"] } = {}) {
   if (!(await situacao()).conectado) throw new Error("Conecte o Stripe em Configurações primeiro");
   const [cot, conf] = await Promise.all([cotacoes(), configInternacional()]);
   const antigos = await checkoutsDosPlanos();

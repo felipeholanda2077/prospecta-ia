@@ -2945,6 +2945,7 @@ async function mostrarCheckoutsDosPlanos() {
   const alvo = $("#stripe-planos");
   if (!alvo) return;
   const { links } = await api("/api/stripe/planos").catch(() => ({ links: [] }));
+  const { links: doAsaas } = await api("/api/asaas/planos").catch(() => ({ links: [] }));
   const valor = (l) => new Intl.NumberFormat(l.moeda === "BRL" ? "pt-BR" : "en-US", { style: "currency", currency: l.moeda, maximumFractionDigits: 0 }).format(l.valor);
   const grupo = (moeda, titulo) => {
     const da = links.filter((l) => l.moeda === moeda);
@@ -2956,13 +2957,35 @@ async function mostrarCheckoutsDosPlanos() {
   alvo.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><b style="flex:1">Checkouts dos planos</b>
       <button class="btn ${links.length ? "" : "primario"} sm" type="button" data-criar-checkouts>${ic("refresh", "sm")}${links.length ? "Atualizar com os valores de hoje" : "Criar os checkouts na Stripe"}</button></div>
     <p class="muted" style="font-size:12.5px;margin:0 0 10px">Um link de pagamento fixo por plano, no cartão: em reais (Brasil: a implantação, uma vez, e a mensalidade ou anuidade da apresentação daqui) e em dólar (EUA: a mensalidade da apresentação de fora, pela cotação do dia com o ajuste de fora). Quem paga é ligado à empresa da conversa pelo e-mail ou telefone; se não for de nenhuma, você recebe o aviso por e-mail. Os botões da página em inglês já levam para eles.</p>
-    ${links.length ? `<div style="display:grid;gap:14px">${grupo("BRL", "Brasil (R$)")}${grupo("USD", "Estados Unidos (US$)")}</div>` : ""}`;
+    ${links.length ? `<div style="display:grid;gap:14px">${grupo("BRL", "Brasil pelo Stripe (R$)")}${grupo("USD", "Estados Unidos (US$)")}</div>` : ""}
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);display:grid;gap:8px">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="flex:1">Brasil pelo Asaas (taxas menores)</b>
+        <button class="btn ${doAsaas.length ? "" : "primario"} sm" type="button" data-criar-checkouts-asaas>${ic("refresh", "sm")}${doAsaas.length ? "Atualizar com a apresentação" : "Criar os checkouts no Asaas"}</button></div>
+      <p class="muted" style="font-size:12.5px;margin:0">Os do site e dos slides de fechamento. Plano mensal: o link cobra a implantação + o 1º mês (Pix, boleto ou cartão) e, quando cai, o sistema cria no Asaas a assinatura da mensalidade a partir do mês seguinte. Anual: o ano em até 12x.</p>
+      ${doAsaas.map((l) => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
+        <span style="flex:1;min-width:180px">${esc(l.plano)} · <b>${esc(valor({ moeda: "BRL", valor: l.primeiro }))}</b> ${l.anual ? "(o ano, até 12x)" : `hoje, depois ${esc(valor({ moeda: "BRL", valor: l.mensal }))}/mês`}</span>
+        <a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener">${ic("external", "sm")}Abrir</a>
+        <button class="btn sm" type="button" data-copiar-checkout="${esc(l.url)}">${ic("copy", "sm")}Copiar link</button></div>`).join("")}
+    </div>`;
 }
 document.addEventListener("click", async (ev) => {
   const copiar = ev.target.closest("[data-copiar-checkout]");
   if (copiar) {
     await navigator.clipboard.writeText(copiar.dataset.copiarCheckout).catch(() => {});
     return avisar("Link do checkout copiado", "ok");
+  }
+  const doAsaas = ev.target.closest("[data-criar-checkouts-asaas]");
+  if (doAsaas) {
+    doAsaas.disabled = true;
+    try {
+      const r = await post("/api/asaas/planos", {});
+      avisar(`${r.links.length} checkouts prontos no Asaas`, "ok", 6000);
+      await mostrarCheckoutsDosPlanos();
+    } catch (e) {
+      avisar(e.message, "perigo", 9000);
+      doAsaas.disabled = false;
+    }
+    return;
   }
   const criar = ev.target.closest("[data-criar-checkouts]");
   if (!criar) return;
@@ -4333,11 +4356,12 @@ async function abrirConversa(id, { atualizar = false } = {}) {
       <button class="btn fantasma sm so-celular" data-voltar-lista aria-label="Voltar para as conversas">${ic("arrowLeft", "sm")}</button>
       ${avatarConversa(d.lead.nome, d.interessado, d.lead.id)}
       <div class="titulos"><h3>${esc(d.lead.nome)}${d.interessado ? ` ${pilulaInteresse()}` : ""}</h3>
-        <div class="meta">${d.agente ? `<a href="#agentes">${ic("users", "sm")}Agente ${esc(d.agente)}</a>` : ""}${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}${d.lead.instagram ? `<a href="https://www.instagram.com/${esc(d.lead.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(d.lead.instagram)}</a>` : ""}</div></div>
+        <div class="meta">${d.reuniao ? `<span class="pilula ok" title="${esc(d.reuniao.como ?? "")}">${ic("calendar", "sm")}Reunião ${esc(new Date(d.reuniao.quando).toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }))}</span>` : ""}${d.agente ? `<a href="#agentes">${ic("users", "sm")}Agente ${esc(d.agente)}</a>` : ""}${d.lead.whatsapp ? `<span>${ic("message", "sm")}${esc(d.lead.whatsapp)}</span>` : ""}${d.lead.email ? `<span>${ic("mail", "sm")}${esc(d.lead.email)}</span>` : ""}${d.lead.instagram ? `<a href="https://www.instagram.com/${esc(d.lead.instagram)}/" target="_blank" rel="noopener">${ic("camera", "sm")}@${esc(d.lead.instagram)}</a>` : ""}</div></div>
       ${a ? pilulaChance(a) : ""}
       ${!encerrada && !d.agente && d.lead.status !== "fechado" ? `<button class="btn ok sm" data-cliente-aceitou="${d.lead.id}" title="Gera o contrato desta empresa">${ic("file", "sm")}Aceitou: gerar contrato</button>
         <button class="btn sm" data-proposta-slides="${d.lead.id}" title="A IA monta os slides com a dor desta empresa e a solução, e deixa a mensagem com o link na caixa">${ic("spark", "sm")}Proposta em slides</button>
-        <button class="btn sm" data-link-pagamento="${d.lead.id}" title="Gera o link de pagamento de uma oferta">${ic("send", "sm")}Link de pagamento</button>` : ""}
+        <button class="btn sm" data-link-pagamento="${d.lead.id}" title="Gera o link de pagamento de uma oferta">${ic("send", "sm")}Link de pagamento</button>
+        <button class="btn sm" data-marcar-reuniao="${d.lead.id}" data-quando="${esc(d.reuniao?.quando ?? "")}" title="A reunião foi marcada fora do Calendly (WhatsApp, telefone)">${ic("calendar", "sm")}${d.reuniao ? "Mudar reunião" : "Marcar reunião"}</button>` : ""}
     </div>
     <div class="chat-andamento" id="chat-andamento">${a ? htmlAndamento(d) : ""}</div>
     <div class="chat-msgs" id="chat-msgs">${msgs}</div>
@@ -5690,12 +5714,13 @@ function desenharSlides() {
   const endereco = `${location.origin}${x.endereco}`;
   $("#sl-visor").innerHTML = `
     <div class="sl-topo"><div><b>${esc(x.titulo)}</b><div class="muted">${esc(x.empresa ?? "")}${x.cidade ? ` · ${esc(x.cidade)}` : ""}
-      · <span class="pilula">Pronta · não enviada</span></div>${x.pedido ? `<div class="muted" style="font-size:12.5px">Último pedido à IA: ${esc(x.pedido)}</div>` : ""}</div>
+      · <span class="pilula">Pronta · não enviada</span>${x.modo === "fechamento" ? ` <span class="pilula ok">Para fechar na call${x.checkout ? ` · link de pagamento: ${esc(x.checkout.plano)}` : " · sem link de pagamento"}</span>` : ""}</div>${x.pedido ? `<div class="muted" style="font-size:12.5px">Último pedido à IA: ${esc(x.pedido)}</div>` : ""}</div>
       <div class="sl-acoes">
         <a class="btn sm primario" href="${esc(x.endereco)}" target="_blank" rel="noopener">${ic("external", "sm")}Apresentar</a>
         <button type="button" class="btn sm" data-sl-copiar="${esc(endereco)}">${ic("copy", "sm")}Copiar link</button>
         <button type="button" class="btn sm" data-sl-editar="${x.id}">${ic("edit", "sm")}Editar textos</button>
         <button type="button" class="btn sm" data-sl-refazer="${x.id}">${ic("refresh", "sm")}Refazer com IA</button>
+        ${x.modo === "fechamento" ? "" : `<button type="button" class="btn sm ok" data-sl-fechamento="${x.leadId}">${ic("spark", "sm")}Versão para fechar na call</button>`}
         <button type="button" class="btn sm perigo" data-sl-apagar="${x.id}">${ic("trash", "sm")}Apagar</button>
       </div></div>
     <iframe class="sl-moldura" src="${esc(x.endereco)}?v=${encodeURIComponent(x.atualizadoEm)}" title="Slides de ${esc(x.empresa ?? "")}" loading="lazy" allow="fullscreen"></iframe>
@@ -5755,7 +5780,7 @@ $("#sl-form").addEventListener("submit", async (ev) => {
 });
 
 document.addEventListener("click", async (ev) => {
-  const b = ev.target.closest("[data-sl-empresa],[data-sl-abrir],[data-sl-copiar],[data-sl-editar],[data-sl-refazer],[data-sl-apagar],[data-sl-fechar]");
+  const b = ev.target.closest("[data-sl-empresa],[data-sl-abrir],[data-sl-copiar],[data-sl-editar],[data-sl-refazer],[data-sl-apagar],[data-sl-fechar],[data-sl-fechamento]");
   if (!b) {
     if (!ev.target.closest(".sl-busca")) $("#sl-sugestoes").hidden = true;
     return;
@@ -5773,6 +5798,14 @@ document.addEventListener("click", async (ev) => {
   } else if (d.slEditar) {
     $("#sl-extra").innerHTML = editorDeSlides(slidesLista.find((x) => x.id === Number(d.slEditar)));
     $("#sl-extra").scrollIntoView({ behavior: "smooth", block: "start" });
+  } else if (d.slFechamento) {
+    b.disabled = true;
+    avisar("A IA está montando os slides para fechar na call (com os planos e o link de pagamento)…", "ok", 8000);
+    try {
+      const x = await post("/api/slides", { leadId: Number(d.slFechamento), modo: "fechamento" });
+      avisar("Slides de fechamento prontos. Nada foi enviado.", "ok");
+      await carregarSlides(x.id);
+    } catch (e) { avisar(e.message, "perigo"); b.disabled = false; }
   } else if ("slFechar" in d) {
     $("#sl-extra").innerHTML = "";
   } else if (d.slRefazer) {
@@ -6319,6 +6352,30 @@ document.addEventListener("click", async (ev) => {
   } finally {
     btn.disabled = false;
     btn.innerHTML = antes;
+  }
+});
+
+// Na conversa: marcar a reunião combinada fora do Calendly (data e hora); vazio desmarca.
+document.addEventListener("click", async (ev) => {
+  const btn = ev.target.closest("[data-marcar-reuniao]");
+  if (!btn) return;
+  const atual = btn.dataset.quando ? new Date(btn.dataset.quando) : null;
+  const sugestao = atual ? atual.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", "") : "";
+  const resposta = prompt("Data e hora da reunião (ex.: 12/11/2026 14:00). Deixe vazio para desmarcar.", sugestao);
+  if (resposta === null) return;
+  let quando = "";
+  if (resposta.trim()) {
+    const m = resposta.trim().match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\s+(\d{1,2})[:h](\d{2})?$/);
+    if (!m) return avisar("Use o formato 12/11/2026 14:00", "perigo");
+    const ano = m[3] ? (m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])) : new Date().getFullYear();
+    quando = new Date(ano, Number(m[2]) - 1, Number(m[1]), Number(m[4]), Number(m[5] ?? 0)).toISOString();
+  }
+  try {
+    const r = await post(`/api/leads/${btn.dataset.marcarReuniao}/reuniao`, { quando, como: "online" });
+    avisar(r.reuniao ? `Reunião marcada: ${r.reuniao.legivel}. As etapas da prospecção pararam.` : "Reunião desmarcada", "ok", 6000);
+    await abrirConversa(conversaAberta);
+  } catch (e) {
+    avisar(e.message, "perigo");
   }
 });
 

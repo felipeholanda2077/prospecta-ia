@@ -9,11 +9,14 @@ import { lerApresentacao } from "../respostas/apresentacao.js";
 // (cadastro, análise e conversa) e a apresentação fica pronta no sistema, em /slides/<código>. Nada é enviado:
 // você apresenta numa call ou manda o link quando quiser. Nunca com valores.
 
-export const TIPOS = ["capa", "sobre", "cenario", "solucao", "conversa", "processo", "resultados", "proximo_passo"];
+export const TIPOS = ["capa", "sobre", "cenario", "solucao", "conversa", "processo", "resultados", "investimento", "garantias", "fechamento", "proximo_passo"];
+// Os slides de fechamento (para apresentar na call e o cliente contratar ali): terminam no "fechamento", com o
+// link de pagamento do Asaas do plano recomendado, no lugar do convite para o bate-papo.
+const FIM = { normal: "proximo_passo", fechamento: "fechamento" };
 const MAX_SLIDES = 10;
 
 const texto = (max, descricao = "") => ({ type: "string", description: `${descricao}${descricao ? " " : ""}(até ${max} caracteres)` });
-const ESQUEMA = {
+const esquema = (modo) => ({
   type: "object",
   additionalProperties: false,
   required: ["titulo", "slides"],
@@ -21,7 +24,9 @@ const ESQUEMA = {
     titulo: texto(80, "Nome da apresentação, para a lista do painel"),
     slides: {
       type: "array",
-      description: "7 a 9 slides, nesta ordem: capa, sobre, cenario, solucao, conversa, processo, resultados, proximo_passo",
+      description: modo === "fechamento"
+        ? "8 a 9 slides, nesta ordem: capa, cenario, solucao, conversa, processo, resultados, investimento, garantias, fechamento"
+        : "7 a 9 slides, nesta ordem: capa, sobre, cenario, solucao, conversa, processo, resultados, proximo_passo",
       items: {
         type: "object",
         additionalProperties: false,
@@ -32,8 +37,10 @@ const ESQUEMA = {
           subtitulo: texto(260, "Uma frase de apoio"),
           itens: {
             type: "array",
-            description: "capa e proximo_passo: vazio; sobre, cenario, solucao, resultados: 3 ou 4 cartões; " +
-              "conversa: 4 a 6 falas de WhatsApp (titulo = \"Cliente\" ou \"IA\", texto = a fala); processo: 4 ou 5 etapas",
+            description: "capa e proximo_passo: vazio; sobre, cenario, solucao, resultados, garantias: 3 ou 4 cartões; " +
+              "conversa: 4 a 6 falas de WhatsApp (titulo = \"Cliente\" ou \"IA\", texto = a fala); processo: 4 ou 5 etapas; " +
+              "investimento: 2 ou 3 planos, o recomendado primeiro (titulo = nome EXATO do plano, texto = valores exatos e o que inclui); " +
+              "fechamento: 3 passos para começar hoje",
             items: {
               type: "object", additionalProperties: false, required: ["titulo", "texto"],
               properties: { titulo: texto(50), texto: texto(180) },
@@ -43,7 +50,7 @@ const ESQUEMA = {
       },
     },
   },
-};
+});
 const ZOD = z.object({
   titulo: z.string(),
   slides: z.array(z.object({ tipo: z.enum(TIPOS), titulo: z.string(), subtitulo: z.string(), itens: z.array(z.object({ titulo: z.string(), texto: z.string() })) })),
@@ -52,7 +59,7 @@ const ZOD = z.object({
 const corta = (t, max) => String(t ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 
 /** Arruma o que a IA escreveu: tipos válidos, capa no começo, próximo passo no fim, tamanhos e quantidades. */
-export function arrumarSlides(dados, { empresa = "" } = {}) {
+export function arrumarSlides(dados, { empresa = "", modo = "normal" } = {}) {
   let slides = (dados?.slides ?? [])
     .filter((s) => TIPOS.includes(s?.tipo))
     .map((s) => ({
@@ -64,10 +71,53 @@ export function arrumarSlides(dados, { empresa = "" } = {}) {
         .filter((i) => i.titulo || i.texto).slice(0, s.tipo === "conversa" ? 6 : 5),
     }));
   const capa = slides.find((s) => s.tipo === "capa") ?? { tipo: "capa", titulo: corta(dados?.titulo, 90) || "Apresentação", subtitulo: "", itens: [] };
-  const fim = slides.find((s) => s.tipo === "proximo_passo") ?? { tipo: "proximo_passo", titulo: "Próximo passo", subtitulo: "Um bate-papo rápido para entender como vocês atendem hoje.", itens: [] };
-  slides = slides.filter((s) => s.tipo !== "capa" && s.tipo !== "proximo_passo").slice(0, MAX_SLIDES - 2);
+  const tipoFim = FIM[modo] ?? FIM.normal;
+  const fim = slides.find((s) => s.tipo === tipoFim) ?? (tipoFim === "fechamento"
+    ? { tipo: "fechamento", titulo: "Vamos começar hoje?", subtitulo: "Escolha o plano e a implantação já entra na fila.", itens: [] }
+    : { tipo: "proximo_passo", titulo: "Próximo passo", subtitulo: "Um bate-papo rápido para entender como vocês atendem hoje.", itens: [] });
+  slides = slides.filter((s) => s.tipo !== "capa" && s.tipo !== "proximo_passo" && s.tipo !== "fechamento").slice(0, MAX_SLIDES - 2);
   if (empresa && !capa.subtitulo) capa.subtitulo = `Preparada para a ${empresa}`;
-  return { titulo: corta(dados?.titulo, 80) || capa.titulo, slides: [capa, ...slides, fim] };
+  return { titulo: corta(dados?.titulo, 80) || capa.titulo, modo, slides: [capa, ...slides, fim] };
+}
+
+function sistemaDeFechamento(campanha) {
+  return `${contextoEmpresa(campanha, { semValores: true })}
+
+Monte os slides que o vendedor vai apresentar AO VIVO numa call já marcada com UMA empresa (os dados dela vêm a seguir),
+com um objetivo: a empresa contratar ali mesmo, no fim da call. Pouco texto por slide, uma ideia só, tom confiante e humano.
+Slides (nesta ordem):
+- capa: o resultado que ESSA empresa quer (ex.: "Nenhum aluno sem resposta no WhatsApp da Telles Fight Team");
+  subtítulo "Proposta para a <empresa>".
+- cenario: o que entendemos da operação e da dor deles, com os fatos da conversa (é aqui que ela se reconhece).
+- solucao: o que vamos colocar para funcionar para eles, em 3 ou 4 partes, só com o que o plano tem.
+- conversa: um exemplo curto de atendimento pelo WhatsApp, realista para o ramo (falas de "Cliente" e "IA").
+- processo: como fica a implantação, do pagamento ao ar, em 4 ou 5 etapas, com os prazos da apresentação.
+- resultados: o que muda no dia a dia, em 3 cartões, sem números inventados.
+- investimento: 2 ou 3 planos da apresentação abaixo, o RECOMENDADO para a dor dela primeiro (ex.: só o atendimento no
+  WhatsApp → "WhatsApp com IA"; quem também quer site e funil → "Completo Mensal"), e o anual como opção de melhor
+  custo quando fizer sentido. titulo = o nome EXATO do plano como está na apresentação; texto = os valores EXATOS da
+  apresentação (implantação e mensalidade, ou o anual) e, em poucas palavras, o que inclui. Cite o preço de lançamento
+  só se a apresentação disser que ainda vale.
+- garantias: o que tira o risco da decisão, em 3 ou 4 cartões, só com o que a apresentação diz (sem fidelidade, ajustes
+  incluídos, prazo de entrada no ar, suporte humano).
+- fechamento: o convite para começar hoje, em 3 passos simples (ex.: 1. escolher o plano; 2. pagar a implantação pelo
+  link seguro; 3. a configuração começa e entra no ar no prazo). O link de pagamento é colocado pelo sistema.
+Regras:
+- Se a empresa já disse o que quer (ex.: "só o atendimento automatizado do WhatsApp"), tudo gira em torno disso.
+- Português do Brasil, sem jargão técnico, sem exagero e sem emojis.
+- Valores: SÓ os da apresentação, exatamente como estão (nunca invente desconto, condição ou prazo).
+- Não invente clientes, depoimentos, números ou resultados em porcentagem.`;
+}
+
+/** O plano recomendado (o primeiro do slide de investimento) e o checkout dele no Asaas, para o slide de fechamento. */
+async function checkoutDoRecomendado(dados) {
+  const recomendado = dados.slides.find((s) => s.tipo === "investimento")?.itens?.[0]?.titulo ?? "";
+  if (!recomendado) return null;
+  const { checkoutsAsaas } = await import("./checkoutsAsaas.js");
+  const simples = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  const link = (await checkoutsAsaas()).find((l) => simples(l.plano) === simples(recomendado))
+    ?? (await checkoutsAsaas()).find((l) => simples(recomendado).includes(simples(l.plano)) || simples(l.plano).includes(simples(recomendado)));
+  return link ? { plano: link.plano, url: link.url } : null;
 }
 
 function sistema(campanha) {
@@ -92,7 +142,7 @@ Regras:
 - Não invente clientes, depoimentos, números ou resultados em porcentagem. Não prometa o que o catálogo não tem.`;
 }
 
-async function pedidoDaEmpresa(lead, nota, campanha) {
+async function pedidoDaEmpresa(lead, nota, campanha, { comValores = false } = {}) {
   const historico = await db.historicoConversa(lead.id);
   const conversa = historico.length
     ? historico.map((h) => `${h.autor === "nos" ? "Nós" : lead.nome}: ${String(h.texto ?? "").replace(/\s+/g, " ").replace(/Em .{0,90} escreveu:.*$/, "").slice(0, 600)}`).join("\n")
@@ -107,7 +157,7 @@ Instagram: ${lead.instagram ? `@${lead.instagram}` : "-"}
 Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "-"}
 Oportunidades da análise: ${oportunidades.map((o) => `[${o.servico}] ${o.motivo}`).join("; ") || "-"}
 
-Como a ${campanha.empresa.nome} trabalha (apresentação; use as etapas, ignore valores):
+Como a ${campanha.empresa.nome} trabalha (apresentação; ${comValores ? "use as etapas e os planos com os valores EXATOS" : "use as etapas, ignore valores"}):
 ${(await lerApresentacao(lead)).slice(0, 2500)}
 
 Conversa até agora:
@@ -118,20 +168,25 @@ ${conversa}${nota ? `\n\nO que mudar desta vez (pedido do vendedor): ${nota}` : 
  * Cria os slides de uma empresa ou, com `id`, refaz os que já existem (com o pedido `nota`, se houver).
  * Não envia nada. Retorna o registro salvo.
  */
-export async function gerarSlides({ leadId, id = null, nota = "" }, campanha, { gerar = gerarJson } = {}) {
+export async function gerarSlides({ leadId, id = null, nota = "", modo = null }, campanha, { gerar = gerarJson } = {}) {
   const atual = id ? await db.buscarSlides(id) : null;
   if (id && !atual) throw new Error("Apresentação não encontrada");
   const lead = await db.buscarLead(atual?.lead_id ?? leadId);
   if (!lead) throw new Error("Empresa não encontrada");
   nota = corta(nota, 500);
+  // Refazer mantém o tipo (normal ou de fechamento), a não ser que venha outro.
+  let anterior = {};
+  try { anterior = atual ? JSON.parse(atual.dados || "{}") : {}; } catch {}
+  modo = modo === "fechamento" || (!modo && anterior.modo === "fechamento") ? "fechamento" : "normal";
   const dados = arrumarSlides(await gerar({
-    system: sistema(campanha),
-    pedido: await pedidoDaEmpresa(lead, nota, campanha),
-    jsonSchema: ESQUEMA,
+    system: modo === "fechamento" ? sistemaDeFechamento(campanha) : sistema(campanha),
+    pedido: await pedidoDaEmpresa(lead, nota, campanha, { comValores: modo === "fechamento" }),
+    jsonSchema: esquema(modo),
     zodSchema: ZOD,
     effort: "medium",
     maxTokens: 6000,
-  }), { empresa: lead.nome });
+  }), { empresa: lead.nome, modo });
+  if (modo === "fechamento") dados.checkout = await checkoutDoRecomendado(dados).catch(() => null);
   if (atual) {
     await db.atualizarSlides(atual.id, { titulo: dados.titulo, dados, pedido: nota || null });
     return db.buscarSlides(atual.id);
@@ -144,7 +199,10 @@ export async function gerarSlides({ leadId, id = null, nota = "" }, campanha, { 
 export async function editarSlides(id, dados) {
   const atual = await db.buscarSlides(id);
   if (!atual) throw new Error("Apresentação não encontrada");
-  const arrumado = arrumarSlides(dados, { empresa: atual.empresa ?? "" });
+  let anterior = {};
+  try { anterior = JSON.parse(atual.dados || "{}"); } catch {}
+  const arrumado = arrumarSlides(dados, { empresa: atual.empresa ?? "", modo: anterior.modo ?? "normal" });
+  if (anterior.checkout) arrumado.checkout = anterior.checkout;
   await db.atualizarSlides(atual.id, { titulo: arrumado.titulo, dados: arrumado, pedido: atual.pedido });
   return db.buscarSlides(atual.id);
 }
@@ -162,7 +220,7 @@ export function telefoneBonito(t) {
   return String(t ?? "");
 }
 
-function corpoDoSlide(s, i, { marca, telefone, site, empresa }) {
+function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout }) {
   const itens = s.itens ?? [];
   const cartoes = (classe = "") => `<div class="cartoes ${classe} n${Math.min(itens.length, 4)}">${itens.map((it, k) => `
     <div class="cartao" style="--k:${k}"><span class="ic">${ICONES[k % ICONES.length]}</span><b>${esc(it.titulo)}</b><p>${esc(it.texto)}</p></div>`).join("")}</div>`;
@@ -177,7 +235,16 @@ function corpoDoSlide(s, i, { marca, telefone, site, empresa }) {
     case "processo":
       return `${cab}<ol class="passos">${itens.map((it, k) => `<li style="--k:${k}"><span class="num">${k + 1}</span><b>${esc(it.titulo)}</b><p>${esc(it.texto)}</p></li>`).join("")}</ol>`;
     case "resultados":
+    case "garantias":
       return `${cab}${cartoes("grandes")}`;
+    case "investimento":
+      return `${cab}<div class="cartoes planos n${Math.min(itens.length, 3)}">${itens.map((it, k) => `
+        <div class="cartao${k === 0 ? " recomendado" : ""}" style="--k:${k}">${k === 0 ? `<span class="selo">Recomendado</span>` : ""}<b>${esc(it.titulo)}</b><p>${esc(it.texto)}</p></div>`).join("")}</div>`;
+    case "fechamento":
+      return `<div class="fim">${s.titulo ? `<h2>${esc(s.titulo)}</h2>` : ""}${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}
+        ${itens.length ? `<ol class="passos curtos">${itens.map((it, k) => `<li style="--k:${k}"><span class="num">${k + 1}</span><b>${esc(it.titulo)}</b><p>${esc(it.texto)}</p></li>`).join("")}</ol>` : ""}
+        ${checkout?.url ? `<a class="pagar" href="${esc(checkout.url)}" target="_blank" rel="noopener">Contratar ${esc(checkout.plano)} agora →</a><span class="link">${esc(checkout.url.replace(/^https?:\/\//, ""))}</span>` : ""}
+        <div class="contatos">${telefone ? `<span>WhatsApp ${esc(telefoneBonito(telefone))}</span>` : ""}${site ? `<span>${esc(site.replace(/^https?:\/\//, ""))}</span>` : ""}</div></div>`;
     case "proximo_passo":
       return `<div class="fim"><h2>${esc(s.titulo)}</h2>${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}
         <div class="contatos">${telefone ? `<span>WhatsApp ${esc(telefoneBonito(telefone))}</span>` : ""}${site ? `<span>${esc(site.replace(/^https?:\/\//, ""))}</span>` : ""}</div>
@@ -241,6 +308,12 @@ h2{font-size:3.6cqw;line-height:1.1;font-weight:800;letter-spacing:-.015em;max-w
 .fim h2{font-size:4.6cqw;background:linear-gradient(90deg,#fff,var(--ciano),var(--violeta));-webkit-background-clip:text;background-clip:text;color:transparent}
 .contatos{display:flex;gap:1.4cqw;flex-wrap:wrap;justify-content:center;margin-top:1cqw}.contatos span{border:1px solid var(--borda);border-radius:99px;padding:.9cqw 1.8cqw;font-size:1.4cqw;font-weight:600}
 .fim .marca{margin-top:2cqw;color:var(--suave)}
+.planos .cartao{position:relative;padding:2.4cqw}.planos .cartao b{font-size:2cqw}.planos .cartao p{font-size:1.4cqw;color:var(--texto)}
+.planos .recomendado{border-color:var(--ciano);box-shadow:0 0 0 1px var(--ciano),0 1.6cqw 4cqw rgba(0,212,255,.15)}
+.selo{position:absolute;top:-1.1cqw;left:2cqw;background:linear-gradient(90deg,var(--ciano),var(--violeta));color:#06101f;font-weight:800;font-size:1.05cqw;padding:.35cqw 1cqw;border-radius:99px}
+.passos.curtos{margin:1.5cqw 0;text-align:left;width:min(100%,80cqw)}
+.pagar{display:inline-block;margin-top:1cqw;padding:1.3cqw 3cqw;border-radius:99px;font-weight:800;font-size:1.9cqw;color:#06101f;text-decoration:none;background:linear-gradient(90deg,var(--ciano),var(--violeta));box-shadow:0 1cqw 3cqw rgba(0,212,255,.25)}
+.fim .link{font-size:1.15cqw;color:var(--suave)}
 .rodape{position:absolute;left:6cqw;right:6cqw;bottom:2.2cqw;display:flex;justify-content:space-between;font-size:1.05cqw;color:var(--suave);pointer-events:none}
 .barra{position:absolute;left:0;bottom:0;height:.35cqw;background:linear-gradient(90deg,var(--ciano),var(--violeta));transition:width .5s}
 .controles{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:6px;align-items:center;background:rgba(10,15,28,.8);border:1px solid var(--borda);border-radius:99px;padding:5px;backdrop-filter:blur(8px);font-size:13px;z-index:5;transition:opacity .3s}
@@ -256,7 +329,7 @@ body.quieto .controles{opacity:0}
   .slide .entra,.slide .cartao,.slide .passos li,.slide .bolha{opacity:1;transform:none;animation:none}.controles,.toque,.barra,.rodape{display:none}}
 </style></head><body>
 <div class="palco"><div class="quadro" id="quadro">
-${slides.map((s, i) => `<section class="slide${i === 0 ? " ativo" : ""}" data-tipo="${esc(s.tipo)}" aria-label="Slide ${i + 1} de ${slides.length}">${corpoDoSlide(s, i, { marca, telefone, site, empresa: registro.empresa ?? "" })
+${slides.map((s, i) => `<section class="slide${i === 0 ? " ativo" : ""}" data-tipo="${esc(s.tipo)}" aria-label="Slide ${i + 1} de ${slides.length}">${corpoDoSlide(s, i, { marca, telefone, site, empresa: registro.empresa ?? "", checkout: dados.checkout })
     .replace(/<h2>/g, '<h2 class="entra">').replace(/<p class="sub">/g, '<p class="sub entra" style="--k:1">')}</section>`).join("\n")}
 <div class="rodape"><span>${esc(marca)}</span><span>${esc(registro.empresa ?? "")}</span></div>
 <div class="barra" id="barra"></div>

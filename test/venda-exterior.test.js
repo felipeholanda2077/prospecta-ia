@@ -211,7 +211,7 @@ test("checkouts dos planos: um por plano em reais e em dólar; rodar de novo rea
     return new Response("{}", { status: 404 });
   };
   try {
-    const links = await stripe.criarCheckoutsDosPlanos();
+    const links = await stripe.criarCheckoutsDosPlanos({ moedas: ["BRL", "USD"] });
     const planos = new Set(links.map((l) => l.plano));
     assert.equal(links.length, planos.size * 2);
     assert.ok(links.some((l) => l.moeda === "BRL") && links.some((l) => l.moeda === "USD"));
@@ -220,7 +220,7 @@ test("checkouts dos planos: um por plano em reais e em dólar; rodar de novo rea
     assert.match(criados.find((c) => /Termos de Uso/.test(c["custom_text[submit][message]"]))["custom_text[submit][message]"], /fluxdeck\.com\.br\/termos/);
     // De novo, sem mudar nada: nada novo no Stripe.
     const n = criados.length;
-    await stripe.criarCheckoutsDosPlanos();
+    await stripe.criarCheckoutsDosPlanos({ moedas: ["BRL", "USD"] });
     assert.equal(criados.length, n);
     assert.equal(desativados.length, 0);
     // A página em inglês já leva o botão para o checkout em dólar.
@@ -264,4 +264,29 @@ test("planos do Brasil com implantação e anual; apresentação de fora separad
   assert.equal(await lerApresentacaoDeFora(), antes);
   assert.equal(await lerApresentacao({ pais: "US" }), antes);
   assert.deepEqual((await stripe.precosPublicos("USD")).planos.map((x) => x.porMes), usdAntes);
+});
+
+test("checkouts do Asaas: mensal cobra implantação + 1º mês; anual em até 12x; slides de fechamento terminam no pagamento", async () => {
+  const { cobrancaDoPlano } = await import("../src/vendas/checkoutsAsaas.js");
+  const mensal = cobrancaDoPlano({ nome: "WhatsApp com IA", reais: 129.9, intervalo: "month", implantacao: 497 });
+  assert.equal(mensal.primeiro, 626.9);
+  assert.equal(mensal.mensal, 129.9);
+  assert.equal(mensal.dados.chargeType, "DETACHED");
+  assert.equal(mensal.dados.billingType, "UNDEFINED");
+  assert.match(mensal.dados.description, /Depois, R\$\s?129,90 por mês/);
+  const anual = cobrancaDoPlano({ nome: "Completo Anual", reais: 2397, intervalo: "year" });
+  assert.deepEqual([anual.primeiro, anual.mensal, anual.dados.chargeType, anual.dados.maxInstallmentCount], [2397, null, "INSTALLMENT", 12]);
+
+  const { arrumarSlides, paginaDosSlides } = await import("../src/vendas/slides.js");
+  const dados = arrumarSlides({ titulo: "Proposta", slides: [
+    { tipo: "capa", titulo: "Capa", subtitulo: "", itens: [] },
+    { tipo: "investimento", titulo: "Investimento", subtitulo: "", itens: [{ titulo: "WhatsApp com IA", texto: "R$ 497 + R$ 129,90/mês" }, { titulo: "Completo Anual", texto: "R$ 2.397/ano" }] },
+    { tipo: "fechamento", titulo: "Vamos começar?", subtitulo: "", itens: [{ titulo: "Escolha", texto: "o plano" }] },
+    { tipo: "proximo_passo", titulo: "Bate-papo", subtitulo: "", itens: [] },
+  ] }, { empresa: "Telles", modo: "fechamento" });
+  assert.equal(dados.slides.at(-1).tipo, "fechamento");
+  assert.ok(!dados.slides.some((s) => s.tipo === "proximo_passo"));
+  const html = paginaDosSlides({ dados: { ...dados, checkout: { plano: "WhatsApp com IA", url: "https://www.asaas.com/c/abc" } }, empresa: "Telles" });
+  assert.match(html, /Contratar WhatsApp com IA agora/);
+  assert.match(html, /Recomendado/);
 });
