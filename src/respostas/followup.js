@@ -77,7 +77,7 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
       const indicado = ultimoWa?.autor === "nos" ? (await contatosLigados(lead.id)).find((c) => variantesWhatsappBR(c.numero).includes(String(ultimoWa.contato).replace(/\D/g, ""))) : null;
       const r = await escrever({
         lead, historico, campanha, canal: dela.canal, numero: plano.numero, evitar: plano.evitar, contatoIndicado: indicado ?? null,
-        apresentacao: await lerApresentacao(), linkMaterial: enderecoDoGuia(lead), linkPrevia,
+        apresentacao: await lerApresentacao(lead), linkMaterial: enderecoDoGuia(lead), linkPrevia,
       });
       let corpo = pediuValor(dela.texto, historico) ? r.mensagem : semValores(r.mensagem);
       if (!linkPrevia || !corpo?.includes(linkPrevia)) corpo = semLinkDaPrevia(corpo);

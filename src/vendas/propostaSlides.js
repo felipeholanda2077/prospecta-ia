@@ -59,7 +59,7 @@ export async function gerarPropostaSlides(leadId, { gerar = gerarJson } = {}) {
   const conversa = historico.map((h) => `${h.autor === "nos" ? "Felipe" : lead.nome}: ${String(h.texto ?? "").replace(/\s+/g, " ").slice(0, 600)}`).join("\n");
   const dados = await gerar({
     system: SISTEMA,
-    pedido: `Empresa: ${lead.nome}\nSegmento: ${lead.nicho ?? "-"}\nCidade: ${lead.cidade ?? "-"}\nAvaliações no Google: ${lead.avaliacao ?? "-"} (${lead.total_avaliacoes ?? 0})\n\nServiços da FluxDeck:\n${(await lerApresentacao()).slice(0, 2500)}\n\nConversa:\n${conversa}`,
+    pedido: `Empresa: ${lead.nome}\nSegmento: ${lead.nicho ?? "-"}\nCidade: ${lead.cidade ?? "-"}\nAvaliações no Google: ${lead.avaliacao ?? "-"} (${lead.total_avaliacoes ?? 0})\n\nServiços da FluxDeck:\n${(await lerApresentacao(lead)).slice(0, 2500)}\n\nConversa:\n${conversa}`,
     jsonSchema: ESQUEMA,
     zodSchema: ZOD,
     effort: "medium",

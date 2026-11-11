@@ -55,7 +55,7 @@ import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostic
 import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia } from "./vendas/previa.js";
 import { PILAR_BLACK_FRIDAY } from "./ia/conteudo.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
-import { lerApresentacao, gravarApresentacao } from "./respostas/apresentacao.js";
+import { lerApresentacao, gravarApresentacao, lerApresentacaoDeFora, gravarApresentacaoDeFora } from "./respostas/apresentacao.js";
 import { escreverApresentacao } from "./ia/resposta.js";
 import { marcarApresentacaoEnviada, continuarComIA, pausarIA, iaPausada, revisarParadasPorRobo, aplicarRevisaoDeRobos } from "./respostas/processar.js";
 import { dashboardDoPainel } from "./dashboard.js";
@@ -1447,7 +1447,7 @@ app.post("/api/conversas/:leadId/simular", async (req, res) => {
     if (ultima < 0) return res.status(400).json({ erro: "A empresa ainda não respondeu" });
     const c = await classificarResposta({
       texto: historico[ultima].texto, lead, historico: historico.slice(0, ultima), campanha: await carregarCampanhaCompleta(),
-      canal: historico[ultima].canal, apresentacao: await lerApresentacao(),
+      canal: historico[ultima].canal, apresentacao: await lerApresentacao(lead),
     });
     res.json({ ultima: historico[ultima].texto, sugestao: c.sugestao_resposta, precisa_humano: c.precisa_humano, chegaDePerguntas: c.chegaDePerguntas });
   } catch (e) {
@@ -1632,7 +1632,7 @@ app.post("/api/respostas/:id/apresentacao", async (req, res) => {
   const historico = await db.historicoConversa(lead.id);
   const texto = await escreverApresentacao({
     texto: r.texto, lead, historico, campanha, canal: r.canal,
-    apresentacao: await lerApresentacao(), linkAgendamento: calendly.linkAgendamento(campanha.automacao?.calendly, lead, r.canal),
+    apresentacao: await lerApresentacao(lead), linkAgendamento: calendly.linkAgendamento(campanha.automacao?.calendly, lead, r.canal),
     horarios: await calendly.horariosLivres(campanha.automacao?.calendly),
     linkPrevia: momentoDaPrevia({ lead, historico, texto: r.texto }),
   });
@@ -1709,6 +1709,7 @@ app.get("/api/config/automacao", async (req, res) => {
     calendlyConectado: (await calendly.status()).conectado,
     proximaEmpresaNova: await pipeline.proximaEmpresaNovaEm(),
     apresentacao: await lerApresentacao(),
+    apresentacaoExterior: await lerApresentacaoDeFora(),
   });
 });
 
@@ -1761,6 +1762,7 @@ app.put("/api/config/automacao", async (req, res) => {
   };
   await db.gravarConfig("automacao", novo);
   if (b.apresentacao !== undefined) await gravarApresentacao(b.apresentacao);
+  if (b.apresentacaoExterior !== undefined) await gravarApresentacaoDeFora(b.apresentacaoExterior);
   res.json({ ok: true });
 });
 

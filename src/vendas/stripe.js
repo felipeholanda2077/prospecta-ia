@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import * as db from "../db.js";
 import { cifrar, decifrar } from "../segredos.js";
 import { PAISES, arredondarPreco, configInternacional, cotacoes } from "../internacional.js";
-import { lerApresentacao } from "../respostas/apresentacao.js";
+import { lerApresentacao, lerApresentacaoDeFora } from "../respostas/apresentacao.js";
 
 // Pagamento das empresas de fora do Brasil pelo Stripe: um link de pagamento com a mensalidade na moeda do
 // cliente (euro ou dólar), no cartão, recorrente todo mês. Você cria a conta no Stripe e cola a chave secreta
@@ -54,12 +54,21 @@ export async function conectar({ chave: nova }) {
   return { conectado: true, conta: info.conta, teste: info.teste, podeCobrar: conta.charges_enabled !== false, webhook };
 }
 
-/** Os planos da apresentação com o valor por mês em reais ("Professional (R$ 2.500/mês, ...)"). */
+const valorEmReais = (t) => Number(String(t).replace(/\./g, "").replace(",", "."));
+
+/**
+ * Os planos da apresentação com o valor em reais: por mês ("Professional (R$ 2.500/mês, ...)") ou por ano
+ * ("Completo Anual (R$ 2.397/ano ..."), e a implantação paga uma vez, quando houver ("... + implantação de R$ 497").
+ */
 export function planosDaApresentacao(texto) {
   const planos = [];
   for (const linha of String(texto ?? "").split("\n")) {
-    const m = linha.match(/^\s*-\s*([^(:]+?)\s*\(R\$\s?([\d.]+(?:,\d{1,2})?)\s*\/\s*m[eê]s/i);
-    if (m) planos.push({ nome: m[1].trim(), reais: Number(m[2].replace(/\./g, "").replace(",", ".")) });
+    const m = linha.match(/^\s*-\s*([^(:]+?)\s*\(R\$\s?([\d.]+(?:,\d{1,2})?)\s*\/\s*(m[eê]s|ano)/i);
+    if (m) {
+      const implantacao = linha.match(/implanta[çc][aã]o\s+(?:de\s+)?R\$\s?([\d.]+(?:,\d{1,2})?)/i);
+      planos.push({ nome: m[1].trim(), reais: valorEmReais(m[2]), intervalo: /ano/i.test(m[3]) ? "year" : "month",
+        ...(implantacao ? { implantacao: valorEmReais(implantacao[1]) } : {}) });
+    }
     // Promoção ("... de R$ 4.500/mês por R$ 3.000/mês"): o valor promocional também vale para o mesmo plano.
     const p = linha.match(/:\s*([^:]+?)\s+de\s+R\$\s?[\d.]+\/m[eê]s\s+por\s+R\$\s?([\d.]+)\/m[eê]s/i);
     if (p) planos.push({ nome: p[1].trim(), reais: Number(p[2].replace(/\./g, "")), promocao: true });
@@ -78,7 +87,7 @@ export async function valorDoPlano({ plano, valor, lead, apresentacao }) {
   if (!pais || lead.pais === "BR") return null;
   const [cot, conf] = await Promise.all([cotacoes(), configInternacional()]);
   const local = (reais) => arredondarPreco(reais * cot[pais.moeda] * (1 + conf.ajustePct / 100));
-  const planos = planosDaApresentacao(apresentacao ?? (await lerApresentacao())).map((p) => ({ ...p, local: local(p.reais) }));
+  const planos = planosDaApresentacao(apresentacao ?? (await lerApresentacao(lead))).map((p) => ({ ...p, local: local(p.reais) }));
   const pedido = Number(String(valor ?? "").replace(/[^\d.,]/g, "").replace(/[.,](?=\d{3}\b)/g, "").replace(",", "."));
   const nome = simples(plano);
   const doNome = planos.filter((p) => simples(p.nome) === nome || simples(p.nome).includes(nome) || nome.includes(simples(p.nome)));
@@ -98,12 +107,21 @@ export const CONTRATO_EN = "https://fluxdeck.com.br/en/terms";
  */
 export async function precosPublicos(moeda) {
   const m = String(moeda ?? "").toUpperCase();
+  // Em reais: os planos do Brasil, como estão na apresentação daqui, com o checkout de cada um (para o site).
+  if (m === "BRL") {
+    const checkouts = await checkoutsDosPlanos();
+    const planos = planosDaApresentacao(await lerApresentacao()).filter((p) => !p.promocao).map((p) => ({
+      nome: p.nome, valor: p.reais, intervalo: p.intervalo, implantacao: p.implantacao ?? null,
+      checkout: checkouts.find((c) => c.plano === p.nome && c.moeda === "BRL")?.url ?? null,
+    }));
+    return { moeda: m, planos };
+  }
   if (!["USD", "EUR"].includes(m)) return null;
   const [cot, conf] = await Promise.all([cotacoes(), configInternacional()]);
   const vistos = new Set();
   const planos = [];
   const checkouts = await checkoutsDosPlanos();
-  for (const p of planosDaApresentacao(await lerApresentacao())) {
+  for (const p of planosDaApresentacao(await lerApresentacaoDeFora())) {
     // O diagnóstico do site é um relatório em português, pago em reais: não é vendido fora.
     if (p.promocao || vistos.has(simples(p.nome)) || /diagn[oó]stico/i.test(p.nome)) continue;
     vistos.add(simples(p.nome));
@@ -150,22 +168,34 @@ export async function criarCheckoutsDosPlanos({ moedas = ["BRL", "USD"] } = {}) 
   const [cot, conf] = await Promise.all([cotacoes(), configInternacional()]);
   const antigos = await checkoutsDosPlanos();
   const novos = [];
-  const vistos = new Set();
-  for (const p of planosDaApresentacao(await lerApresentacao())) {
-    if (p.promocao || vistos.has(simples(p.nome)) || /diagn[oó]stico/i.test(p.nome)) continue;
-    vistos.add(simples(p.nome));
-    for (const moeda of moedas) {
-      const valor = moeda === "BRL" ? p.reais : arredondarPreco(p.reais * cot[moeda] * (1 + conf.ajustePct / 100));
-      const igual = antigos.find((a) => a.plano === p.nome && a.moeda === moeda && a.valor === valor);
-      if (igual) { novos.push(igual); continue; }
+  // Brasil: os planos da apresentação daqui (implantação + mensalidade ou anuidade). Fora: os da apresentação de
+  // fora, só a mensalidade convertida (a mesma conta da página em inglês).
+  const fontes = { BRL: planosDaApresentacao(await lerApresentacao()), USD: planosDaApresentacao(await lerApresentacaoDeFora()) };
+  for (const moeda of moedas) {
+    const vistos = new Set();
+    for (const p of fontes[moeda] ?? fontes.USD) {
+      if (p.promocao || vistos.has(simples(p.nome)) || /diagn[oó]stico/i.test(p.nome)) continue;
+      vistos.add(simples(p.nome));
       const emPortugues = moeda === "BRL";
+      const valor = emPortugues ? p.reais : arredondarPreco(p.reais * cot[moeda] * (1 + conf.ajustePct / 100));
+      const intervalo = emPortugues ? p.intervalo ?? "month" : "month";
+      const implantacao = emPortugues ? p.implantacao ?? null : null;
+      const igual = antigos.find((a) => a.plano === p.nome && a.moeda === moeda && a.valor === valor
+        && (a.intervalo ?? "month") === intervalo && (a.implantacao ?? null) === implantacao);
+      if (igual) { novos.push(igual); continue; }
       const nome = emPortugues ? p.nome : nomeEmIngles(p.nome);
       const preco = await chamar("/prices", { metodo: "POST", campos: {
-        currency: moeda.toLowerCase(), unit_amount: String(Math.round(valor * 100)), "recurring[interval]": "month",
+        currency: moeda.toLowerCase(), unit_amount: String(Math.round(valor * 100)), "recurring[interval]": intervalo,
         "product_data[name]": `FluxDeck · ${nome}`, "metadata[plano]": p.nome,
       } });
+      // A implantação é cobrada uma vez, junto com o primeiro pagamento.
+      const taxa = implantacao ? await chamar("/prices", { metodo: "POST", campos: {
+        currency: moeda.toLowerCase(), unit_amount: String(Math.round(implantacao * 100)),
+        "product_data[name]": `Implantação · ${nome}`, "metadata[plano]": p.nome,
+      } }) : null;
       const link = await chamar("/payment_links", { metodo: "POST", campos: {
         "line_items[0][price]": preco.id, "line_items[0][quantity]": "1",
+        ...(taxa ? { "line_items[1][price]": taxa.id, "line_items[1][quantity]": "1" } : {}),
         "metadata[plano]": p.nome, "metadata[checkout]": "plano", "billing_address_collection": "auto",
         // O telefone liga o pagamento à empresa da conversa (quem pagou pelo link do plano, sem link próprio).
         "phone_number_collection[enabled]": "true",
@@ -174,7 +204,7 @@ export async function criarCheckoutsDosPlanos({ moedas = ["BRL", "USD"] } = {}) 
           : `By subscribing, you agree to the FluxDeck Service Agreement: ${CONTRATO_EN}`,
       } });
       await db.gravarEstado(`stripe_link_plano:${link.id}`, JSON.stringify({ plano: p.nome, valor, moeda }));
-      novos.push({ plano: p.nome, nome, moeda, valor, url: link.url, id: link.id });
+      novos.push({ plano: p.nome, nome, moeda, valor, intervalo, implantacao, url: link.url, id: link.id });
     }
   }
   // Os que saíram (plano removido ou valor mudou) param de aceitar pagamento.

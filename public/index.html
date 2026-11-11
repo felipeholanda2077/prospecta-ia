@@ -1157,7 +1157,10 @@
             </div>
             <div class="campo"><label for="auto-apresentacao">Apresentação que a IA manda para quem se interessar</label>
               <textarea id="auto-apresentacao" name="apresentacao" style="min-height:220px"></textarea>
-              <span class="muted" style="font-size:12.5px">Como funciona, planos e prazo. A IA manda isso, resumido em tópicos, para quem demonstrar interesse e depois oferece o bate-papo. Ela não fala de valores que não estejam aqui. Deixe vazio para voltar ao texto do site.</span></div>
+              <span class="muted" style="font-size:12.5px">Para as empresas do Brasil. Como funciona, planos e prazo. A IA manda isso, resumido em tópicos, para quem demonstrar interesse e depois oferece o bate-papo. Ela não fala de valores que não estejam aqui. Deixe vazio para voltar ao texto do site.</span></div>
+            <div class="campo"><label for="auto-apresentacao-fora">Apresentação para empresas de fora do Brasil</label>
+              <textarea id="auto-apresentacao-fora" name="apresentacaoExterior" style="min-height:160px"></textarea>
+              <span class="muted" style="font-size:12.5px">Os planos e valores em reais que viram dólar e euro (cotação do dia com o ajuste de fora) para as empresas dos EUA e da Europa, e na página em inglês. Deixe vazio para usar a apresentação do Brasil.</span></div>
             <div id="auto-hoje"></div>
           </div>
           <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar automação</button>
@@ -2946,13 +2949,13 @@ async function mostrarCheckoutsDosPlanos() {
   const grupo = (moeda, titulo) => {
     const da = links.filter((l) => l.moeda === moeda);
     return da.length ? `<div style="display:grid;gap:6px"><b style="font-size:13px">${titulo}</b>${da.map((l) => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
-      <span style="flex:1;min-width:180px">${esc(l.nome ?? l.plano)} · <b>${esc(valor(l))}/mês</b></span>
+      <span style="flex:1;min-width:180px">${esc(l.nome ?? l.plano)} · <b>${esc(valor(l))}/${l.intervalo === "year" ? "ano" : "mês"}</b>${l.implantacao ? ` <span class="muted">+ implantação ${esc(valor({ ...l, valor: l.implantacao }))}</span>` : ""}</span>
       <a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener">${ic("external", "sm")}Abrir</a>
       <button class="btn sm" type="button" data-copiar-checkout="${esc(l.url)}">${ic("copy", "sm")}Copiar link</button></div>`).join("")}</div>` : "";
   };
   alvo.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><b style="flex:1">Checkouts dos planos</b>
       <button class="btn ${links.length ? "" : "primario"} sm" type="button" data-criar-checkouts>${ic("refresh", "sm")}${links.length ? "Atualizar com os valores de hoje" : "Criar os checkouts na Stripe"}</button></div>
-    <p class="muted" style="font-size:12.5px;margin:0 0 10px">Um link de pagamento fixo por plano, com a mensalidade no cartão: em reais (Brasil, o valor da apresentação) e em dólar (EUA, pela cotação do dia com o ajuste de fora). Quem paga é ligado à empresa da conversa pelo e-mail ou telefone; se não for de nenhuma, você recebe o aviso por e-mail. Os botões da página em inglês já levam para eles.</p>
+    <p class="muted" style="font-size:12.5px;margin:0 0 10px">Um link de pagamento fixo por plano, no cartão: em reais (Brasil: a implantação, uma vez, e a mensalidade ou anuidade da apresentação daqui) e em dólar (EUA: a mensalidade da apresentação de fora, pela cotação do dia com o ajuste de fora). Quem paga é ligado à empresa da conversa pelo e-mail ou telefone; se não for de nenhuma, você recebe o aviso por e-mail. Os botões da página em inglês já levam para eles.</p>
     ${links.length ? `<div style="display:grid;gap:14px">${grupo("BRL", "Brasil (R$)")}${grupo("USD", "Estados Unidos (US$)")}</div>` : ""}`;
 }
 document.addEventListener("click", async (ev) => {
@@ -8649,6 +8652,7 @@ async function carregarAutomacao() {
     f.metaEmail.value = a.metaDiaria.email;
     f.maxRespostasIA.value = a.maxRespostasIA;
     f.apresentacao.value = a.apresentacao ?? "";
+    f.apresentacaoExterior.value = a.apresentacaoExterior ?? "";
     f.calendly.value = a.calendly ?? "";
     f.nichos.value = [...new Set((a.buscas ?? []).map((b) => b.nicho))].join("\n");
     f.cidades.value = [...new Set((a.buscas ?? []).flatMap((b) => b.cidades))].join("\n");
@@ -8696,7 +8700,7 @@ $("#form-automacao").addEventListener("submit", async (ev) => {
       buscarNoGoogleAds: f.buscarNoGoogleAds.checked,
       buscarNaSerpApi: f.buscarNaSerpApi.checked,
       testarRamos: f.testarRamos.checked,
-      metaEmail: f.metaEmail.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value,
+      metaEmail: f.metaEmail.value, maxRespostasIA: f.maxRespostasIA.value, apresentacao: f.apresentacao.value, apresentacaoExterior: f.apresentacaoExterior.value,
       intervaloEmpresasMin: f.intervaloEmpresasMin.value, intervaloEmpresasMax: f.intervaloEmpresasMax.value,
       intervaloOficialMin: f.intervaloOficialMin.value, intervaloOficialMax: f.intervaloOficialMax.value,
       calendly: f.calendly.value, nichos: f.nichos.value, cidades: f.cidades.value.split("\n").map((c) => c.trim()).filter(Boolean), idiomaExterior: f.idiomaExterior.value,

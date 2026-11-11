@@ -339,7 +339,7 @@ export async function registrarResposta({
         linkAgendamento: agendaDa(campanha, lead, canal),
         // Fora do Brasil, vai só o link do Calendly (ele mostra os horários no fuso de quem abre).
         horarios: ehExterior(lead) ? [] : await horariosLivres(campanha.automacao?.calendly),
-        apresentacao: await lerApresentacao(),
+        apresentacao: await lerApresentacao(lead),
         linkPrevia: momentoDaPrevia({ lead, historico, texto: limpo }),
       };
       ({ c, apresentou } = await pensarResposta(contexto, { classificar, apresentar, enviarSlides }));
@@ -484,7 +484,7 @@ export async function continuarComIA(respostaId, campanha, {
   const contexto = {
     texto: r.texto, assunto: r.assunto, lead, historico, campanha, canal: r.canal, linkPrevia: momentoDaPrevia({ lead, historico, texto: r.texto }),
     linkAgendamento: agendaDa(campanha, lead, r.canal), horarios: ehExterior(lead) ? [] : await horariosLivres(campanha.automacao?.calendly),
-    apresentacao: await lerApresentacao(),
+    apresentacao: await lerApresentacao(lead),
     nota: String(nota ?? "").trim().slice(0, 500),
   };
   const pensado = await pensarResposta(contexto, { classificar, apresentar });
@@ -549,8 +549,8 @@ export const DECISOES_DA_REVISAO = {
 /** Relê as conversas paradas por robô e devolve o que fazer com cada uma (nada é enviado). */
 export async function revisarParadasPorRobo(campanha, { classificar = classificarResposta, leadIds = null } = {}) {
   const itens = [];
-  const apresentacao = await lerApresentacao();
   for (const lead of await db.leadsParadosPorRobo()) {
+    const apresentacao = await lerApresentacao(lead);
     if (leadIds && !leadIds.includes(lead.id)) continue;
     const historico = await db.historicoConversa(lead.id);
     const iNos = historico.findLastIndex((h) => h.autor === "nos");

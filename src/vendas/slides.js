@@ -108,7 +108,7 @@ Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avali
 Oportunidades da análise: ${oportunidades.map((o) => `[${o.servico}] ${o.motivo}`).join("; ") || "-"}
 
 Como a ${campanha.empresa.nome} trabalha (apresentação; use as etapas, ignore valores):
-${(await lerApresentacao()).slice(0, 2500)}
+${(await lerApresentacao(lead)).slice(0, 2500)}
 
 Conversa até agora:
 ${conversa}${nota ? `\n\nO que mudar desta vez (pedido do vendedor): ${nota}` : ""}`;

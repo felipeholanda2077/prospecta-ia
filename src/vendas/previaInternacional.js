@@ -25,7 +25,7 @@ export async function previaParaEmpresaDeFora({ empresa, nicho, cidade, pais, id
   let resposta = null;
   if (pergunta) {
     const c = await classificarResposta({
-      texto: pergunta, lead, campanha, canal: "whatsapp", apresentacao: await lerApresentacao(),
+      texto: pergunta, lead, campanha, canal: "whatsapp", apresentacao: await lerApresentacao(lead),
       historico: [{ autor: "nos", texto: seq.whatsapp[0], canal: "whatsapp" }],
     });
     resposta = c.sugestao_resposta ?? null;

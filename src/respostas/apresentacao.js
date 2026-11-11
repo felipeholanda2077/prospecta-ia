@@ -28,11 +28,36 @@ Promoção de Black Friday (só em novembro de 2026): Professional com IA de ate
 
 Prazo: projetos simples ficam prontos em 2 a 4 semanas; sistemas mais complexos levam de 2 a 3 meses. O cronograma exato sai na reunião inicial.`;
 
-export async function lerApresentacao() {
-  return (await db.lerConfig("apresentacao"))?.texto || APRESENTACAO_PADRAO;
+const deFora = (lead) => Boolean(lead?.pais) && lead.pais !== "BR";
+
+/**
+ * A apresentação (como funciona, planos e prazo) para a empresa: a do Brasil, ou, para empresa de fora do Brasil, a
+ * de fora (os preços de lá são convertidos dela para dólar ou euro). Sem a de fora guardada, vale a do Brasil.
+ */
+export async function lerApresentacao(lead = null) {
+  const doBrasil = (await db.lerConfig("apresentacao"))?.texto || APRESENTACAO_PADRAO;
+  if (!deFora(lead)) return doBrasil;
+  return (await db.lerConfig("apresentacao_exterior"))?.texto || doBrasil;
 }
 
+/** A apresentação das empresas de fora do Brasil (base dos preços em dólar e euro). */
+export const lerApresentacaoDeFora = () => lerApresentacao({ pais: "US" });
+
+/**
+ * Salva a apresentação do Brasil. Na primeira troca, os planos de antes ficam guardados como os de fora do Brasil,
+ * para os preços em dólar e euro não mudarem junto com os planos daqui.
+ */
 export async function gravarApresentacao(texto) {
+  if (!(await db.lerConfig("apresentacao_exterior"))?.texto) {
+    const atual = (await db.lerConfig("apresentacao"))?.texto || APRESENTACAO_PADRAO;
+    await db.gravarConfig("apresentacao_exterior", { texto: atual, atualizada: new Date().toISOString() });
+  }
   const limpo = String(texto ?? "").trim().slice(0, 6000);
   await db.gravarConfig("apresentacao", { texto: limpo || APRESENTACAO_PADRAO, atualizada: new Date().toISOString() });
+}
+
+/** Salva a apresentação de fora do Brasil (vazia: passa a valer a do Brasil). */
+export async function gravarApresentacaoDeFora(texto) {
+  const limpo = String(texto ?? "").trim().slice(0, 6000);
+  await db.gravarConfig("apresentacao_exterior", limpo ? { texto: limpo, atualizada: new Date().toISOString() } : {});
 }

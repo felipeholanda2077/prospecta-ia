@@ -185,7 +185,8 @@ test("página em inglês: os planos em dólar e em euro, sem a promoção repeti
   assert.ok(usd.planos.length >= 1 && usd.planos.every((p) => p.nome && p.porMes > 0));
   assert.equal(new Set(usd.planos.map((p) => p.nome)).size, usd.planos.length);
   assert.equal((await stripe.precosPublicos("EUR")).moeda, "EUR");
-  assert.equal(await stripe.precosPublicos("BRL"), null);
+  assert.equal((await stripe.precosPublicos("BRL")).moeda, "BRL"); // os planos do Brasil, para o site
+  assert.equal(await stripe.precosPublicos("GBP"), null);
 });
 
 test("planos em inglês na página e no Stripe; o diagnóstico (em reais) não aparece", async () => {
@@ -240,4 +241,26 @@ test("checkouts dos planos: um por plano em reais e em dólar; rodar de novo rea
   } finally {
     globalThis.fetch = antes;
   }
+});
+
+test("planos do Brasil com implantação e anual; apresentação de fora separada (os preços em dólar não mudam)", async () => {
+  const texto = `Planos:
+- WhatsApp com IA (R$ 129,90/mês + implantação de R$ 497): atendente de IA.
+- Completo Anual (R$ 2.397/ano, ou 12x de R$ 199,75; implantação grátis): tudo integrado.
+- Automação sob medida (a partir de R$ 900, valor único): processos.`;
+  const p = stripe.planosDaApresentacao(texto);
+  assert.deepEqual(p.map((x) => [x.nome, x.reais, x.intervalo, x.implantacao ?? null]), [
+    ["WhatsApp com IA", 129.9, "month", 497], ["Completo Anual", 2397, "year", null],
+  ]);
+
+  const { lerApresentacao, gravarApresentacao, lerApresentacaoDeFora } = await import("../src/respostas/apresentacao.js");
+  const antes = await lerApresentacao();
+  const usdAntes = (await stripe.precosPublicos("USD")).planos.map((x) => x.porMes);
+  await gravarApresentacao(texto);
+  assert.equal(await lerApresentacao(), texto.trim());
+  assert.equal(await lerApresentacao({ pais: "BR" }), texto.trim());
+  // A primeira troca guarda os planos de antes para fora do Brasil.
+  assert.equal(await lerApresentacaoDeFora(), antes);
+  assert.equal(await lerApresentacao({ pais: "US" }), antes);
+  assert.deepEqual((await stripe.precosPublicos("USD")).planos.map((x) => x.porMes), usdAntes);
 });
