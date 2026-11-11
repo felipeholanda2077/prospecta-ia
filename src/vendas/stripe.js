@@ -111,11 +111,12 @@ export async function precosPublicos(moeda) {
   // Em reais: os planos do Brasil, como estão na apresentação daqui, com o checkout de cada um (para o site).
   if (m === "BRL") {
     // O checkout do Brasil é o do Asaas (taxas menores); sem ele, nenhum (o botão do site leva ao contato).
-    const { checkoutsAsaas } = await import("./checkoutsAsaas.js");
+    const { checkoutsAsaas, enderecoDoCheckout } = await import("./checkoutsAsaas.js");
     const doAsaas = await checkoutsAsaas();
     const planos = planosDaApresentacao(await lerApresentacao()).filter((p) => !p.promocao).map((p) => ({
       nome: p.nome, valor: p.reais, intervalo: p.intervalo, implantacao: p.implantacao ?? null,
-      checkout: doAsaas.find((c) => c.plano === p.nome)?.url ?? null,
+      // O checkout da FluxDeck (página nossa, pagamento pelo Asaas): no site, /checkout/<plano> no próprio endereço.
+      checkout: doAsaas.some((c) => c.plano === p.nome) ? enderecoDoCheckout(p.nome) : null,
     }));
     return { moeda: m, planos };
   }

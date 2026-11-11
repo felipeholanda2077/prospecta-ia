@@ -148,3 +148,8 @@ export const pagamentosDaAssinatura = (id) => chamar("GET", `/payments?${new URL
 export const removerAssinatura = (id) => chamar("DELETE", `/subscriptions/${encodeURIComponent(id)}`);
 export const criarAssinatura = (dados) => chamar("POST", "/subscriptions", dados);
 export const lerCliente = (id) => chamar("GET", `/customers/${encodeURIComponent(id)}`);
+// Checkout transparente (a página de pagamento da FluxDeck): cliente pelo CPF/CNPJ, QR Code do Pix e linha do boleto.
+export const clientePorDocumento = async (documento) => (await chamar("GET", `/customers?${new URLSearchParams({ cpfCnpj: documento, limit: "1" })}`))?.data?.[0] ?? null;
+export const criarCliente = (dados) => chamar("POST", "/customers", dados);
+export const qrCodePix = (id) => chamar("GET", `/payments/${encodeURIComponent(id)}/pixQrCode`);
+export const linhaDigitavel = (id) => chamar("GET", `/payments/${encodeURIComponent(id)}/identificationField`);

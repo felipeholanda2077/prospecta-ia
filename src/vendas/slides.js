@@ -4,6 +4,7 @@ import * as db from "../db.js";
 import { gerarJson } from "../ia/cliente.js";
 import { contextoEmpresa } from "../ia/proposta.js";
 import { lerApresentacao } from "../respostas/apresentacao.js";
+import { enderecoDoCheckout } from "./checkoutsAsaas.js";
 
 // Slides sobre a FluxDeck feitos para uma empresa (página Slides do painel): a IA escreve com o que se sabe dela
 // (cadastro, análise e conversa) e a apresentação fica pronta no sistema, em /slides/<código>. Nada é enviado:
@@ -338,7 +339,12 @@ function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout, logo, to
     case "fechamento":
       return `<div class="fim">${marcaComLogo(marca, logo, "marca topo-fim")}${s.titulo ? `<h2>${esc(s.titulo)}</h2>` : ""}${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}
         ${itens.length ? `<ol class="passos curtos">${itens.map((it, k) => `<li style="--k:${k}"><span class="num">${k + 1}</span><b>${esc(it.titulo)}</b><p>${esc(it.texto)}</p></li>`).join("")}</ol>` : ""}
-        ${checkout?.url ? `<a class="pagar" href="${esc(checkout.url)}" target="_blank" rel="noopener">Contratar ${esc(checkout.plano)} agora →</a><span class="link">${esc(checkout.url.replace(/^https?:\/\//, ""))}</span>` : ""}
+        ${checkout?.url ? (() => {
+          // O checkout da FluxDeck no site (fluxdeck.com.br/checkout/<plano>); sem site no perfil, o daqui mesmo.
+          const origem = (() => { try { return new URL(site).origin; } catch { return ""; } })();
+          const url = checkout.plano ? `${origem}${enderecoDoCheckout(checkout.plano)}` : checkout.url;
+          return `<a class="pagar" href="${esc(url)}" target="_blank" rel="noopener">Contratar ${esc(checkout.plano)} agora →</a><span class="link">${esc(url.replace(/^https?:\/\//, ""))}</span>`;
+        })() : ""}
         <div class="contatos">${telefone ? `<span>WhatsApp ${esc(telefoneBonito(telefone))}</span>` : ""}${site ? `<span>${esc(site.replace(/^https?:\/\//, "").replace(/\/$/, ""))}</span>` : ""}</div></div>`;
     case "proximo_passo":
       return `<div class="fim"><h2>${esc(s.titulo)}</h2>${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}

@@ -37,6 +37,10 @@
       "destination": "/api"
     },
     {
+      "source": "/checkout/(.*)",
+      "destination": "/api"
+    },
+    {
       "source": "/contato",
       "destination": "/api"
     },

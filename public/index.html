@@ -2961,11 +2961,11 @@ async function mostrarCheckoutsDosPlanos() {
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);display:grid;gap:8px">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="flex:1">Brasil pelo Asaas (taxas menores)</b>
         <button class="btn ${doAsaas.length ? "" : "primario"} sm" type="button" data-criar-checkouts-asaas>${ic("refresh", "sm")}${doAsaas.length ? "Atualizar com a apresentação" : "Criar os checkouts no Asaas"}</button></div>
-      <p class="muted" style="font-size:12.5px;margin:0">Os do site e dos slides de fechamento. Plano mensal: o link cobra a implantação + o 1º mês (Pix, boleto ou cartão) e, quando cai, o sistema cria no Asaas a assinatura da mensalidade a partir do mês seguinte. Anual: o ano em até 12x.</p>
+      <p class="muted" style="font-size:12.5px;margin:0">Os do site e dos slides de fechamento, na página de pagamento da FluxDeck (fluxdeck.com.br/checkout/…): o cliente paga sem sair do seu endereço e o Asaas processa. No cartão, a mensalidade fica no mesmo cartão. Plano mensal: o link cobra a implantação + o 1º mês (Pix, boleto ou cartão) e, quando cai, o sistema cria no Asaas a assinatura da mensalidade a partir do mês seguinte. Anual: o ano em até 12x.</p>
       ${doAsaas.map((l) => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
         <span style="flex:1;min-width:180px">${esc(l.plano)} · <b>${esc(valor({ moeda: "BRL", valor: l.primeiro }))}</b> ${l.anual ? "(o ano, até 12x)" : `hoje, depois ${esc(valor({ moeda: "BRL", valor: l.mensal }))}/mês`}</span>
-        <a class="btn sm" href="${esc(l.url)}" target="_blank" rel="noopener">${ic("external", "sm")}Abrir</a>
-        <button class="btn sm" type="button" data-copiar-checkout="${esc(l.url)}">${ic("copy", "sm")}Copiar link</button></div>`).join("")}
+        <a class="btn sm" href="${esc(l.pagina || l.url)}" target="_blank" rel="noopener">${ic("external", "sm")}Abrir</a>
+        <button class="btn sm" type="button" data-copiar-checkout="${esc(l.pagina || l.url)}">${ic("copy", "sm")}Copiar link</button></div>`).join("")}
     </div>`;
 }
 document.addEventListener("click", async (ev) => {

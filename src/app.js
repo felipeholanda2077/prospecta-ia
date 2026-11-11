@@ -51,6 +51,7 @@ import * as anuncios from "./descoberta/anuncios.js";
 import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
 import * as checkoutsAsaas from "./vendas/checkoutsAsaas.js";
+import { paginaDoCheckout } from "./vendas/paginaCheckout.js";
 import { pdfDoGuia, prepararCampanha, imagemDaMensagem, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
 import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia } from "./vendas/previa.js";
@@ -146,6 +147,36 @@ app.get("/precos/:moeda", async (req, res) => {
   liberarOutroSite(res).set("Cache-Control", "public, max-age=300");
   const p = await stripe.precosPublicos(req.params.moeda).catch(() => null);
   return p ? res.json(p) : res.status(404).json({ erro: "Moeda não atendida" });
+});
+
+// ---------- Checkout da FluxDeck (fluxdeck.com.br/checkout/<plano>, pelo rewrite do site): página nossa, pagamento pelo Asaas ----------
+const SEM_MOLDURA = { "Cache-Control": "no-store", "X-Frame-Options": "DENY", "Content-Security-Policy": "frame-ancestors 'none'", "Referrer-Policy": "same-origin" };
+const LOGO_DO_CHECKOUT = new URL("../public/fluxdeck-logo.jpg", import.meta.url);
+app.get("/checkout/_/logo.jpg", async (req, res) => {
+  const { readFile } = await import("node:fs/promises");
+  res.set({ "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=86400" }).send(await readFile(LOGO_DO_CHECKOUT));
+});
+app.get("/checkout/:plano", async (req, res) => {
+  const link = await checkoutsAsaas.planoDoCheckout(req.params.plano).catch(() => null);
+  if (!link) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
+  const { empresa } = await carregarCampanhaCompleta();
+  res.set(SEM_MOLDURA).send(paginaDoCheckout(checkoutsAsaas.resumoDoPlano(link), { marca: empresa.nome, telefone: empresa.telefone }));
+});
+app.post("/checkout/:plano/pagar", async (req, res) => {
+  res.set(SEM_MOLDURA);
+  const ip = String(req.get("x-forwarded-for") ?? "").split(",")[0].trim() || req.socket?.remoteAddress || "";
+  try {
+    res.json(await checkoutsAsaas.pagarCheckout(req.params.plano, req.body, { ip }));
+  } catch (e) {
+    // Nunca registra o corpo (tem os dados do cartão): só a mensagem.
+    console.error("Checkout:", e.message);
+    const interno = !(e instanceof checkoutsAsaas.ErroDoCheckout) && /chave|conecte|senha|token/i.test(e.message);
+    res.status(400).json({ erro: interno ? "Não foi possível concluir agora. Fale com a gente pelo WhatsApp." : e.message });
+  }
+});
+app.get("/checkout/:plano/status/:id", async (req, res) => {
+  const s = await checkoutsAsaas.situacaoDoCheckout(req.params.plano, req.params.id).catch(() => null);
+  return s ? res.set(SEM_MOLDURA).json(s) : res.status(404).json({ erro: "Pagamento não encontrado" });
 });
 
 // Proposta em slides personalizada: o site (fluxdeck.com.br/apresentacao?proposta=código) lê a dor e a solução daqui.
@@ -1122,7 +1153,11 @@ app.get("/api/mapa", async (req, res) => {
 // Stripe: pagamento das empresas de fora do Brasil (a chave quem cola é você, no painel).
 app.get("/api/stripe", async (req, res) => res.json(await stripe.situacao()));
 // Checkouts dos planos do Brasil pelo Asaas (taxas menores): listar e criar/atualizar.
-app.get("/api/asaas/planos", async (req, res) => res.json({ links: await checkoutsAsaas.checkoutsAsaas() }));
+app.get("/api/asaas/planos", async (req, res) => {
+  const site = (await carregarCampanhaCompleta()).empresa.site;
+  const origem = (() => { try { return new URL(site).origin; } catch { return ""; } })();
+  res.json({ links: (await checkoutsAsaas.checkoutsAsaas()).map((l) => ({ ...l, pagina: `${origem}${checkoutsAsaas.enderecoDoCheckout(l.plano)}` })) });
+});
 app.post("/api/asaas/planos", async (req, res) => {
   try {
     res.json({ links: await checkoutsAsaas.criarCheckoutsAsaas() });
