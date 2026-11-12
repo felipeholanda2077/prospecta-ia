@@ -233,7 +233,7 @@ const primeiraMaiuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 export function precoDoPlano(texto) {
   const t = String(texto ?? "");
   const achar = (re) => { const m = t.match(re); return m ? numeroBR(m[1]) : null; };
-  const mensal = achar(/R\$\s*([\d.]+(?:,\d{1,2})?)\s*(?:\/|por)\s*m[eê]s/i);
+  const mensal = achar(/R\$\s*([\d.]+(?:,\d{1,2})?)\s*(?:\/|por)\s*m[eê]s/i) ?? achar(/mensalidade[^R\d]{0,12}R\$\s*([\d.]+(?:,\d{1,2})?)/i);
   const anual = achar(/R\$\s*([\d.]+(?:,\d{1,2})?)\s*(?:\/|por)\s*ano/i);
   const parcelas = t.match(/(\d{1,2})\s*x\s*(?:de\s*)?R\$\s*([\d.]+(?:,\d{1,2})?)/i);
   const implantacao = /implanta[çc][ãa]o[^.;]{0,20}gr[aá]tis|gr[aá]tis[^.;]{0,10}implanta/i.test(t) ? 0
@@ -242,11 +242,11 @@ export function precoDoPlano(texto) {
   const ate = t.match(/at[ée]\s*(\d{1,2}\/\d{1,2})(?:\/\d{2,4})?/i)?.[1] ?? null;
   if (mensal == null && anual == null) return null;
   // O que sobra depois dos valores vira a lista do que o plano inclui.
-  const inclui = t.replace(/\([^)]*\)/g, "").split(/(?<=\.)\s+/)
-    .filter((f) => !/R\$|^recomendad[oa]\.?$/i.test(f.trim()))
-    .join(" ").split(/[,;]\s+|\.\s+/)
+  // Cada trecho sem valor (ou com a economia do anual) vira um item; os de preço já estão no cartão.
+  const inclui = t.replace(/\([^)]*\)/g, "").split(/[,;]\s+|\.\s+|\.$/)
     .map((f) => f.trim().replace(/\.$/, "").replace(/^(com|e|inclui|incluindo)\s+/i, ""))
-    .filter((f) => f.length > 2).map(primeiraMaiuscula).slice(0, 4);
+    .filter((f) => f.length > 2 && !/^recomendad[oa]$/i.test(f) && !/implanta[çc][ãa]o|lan[çc]amento/i.test(f) && (!/R\$/.test(f) || /^economia/i.test(f)))
+    .map(primeiraMaiuscula).slice(0, 4);
   return {
     mensal, anual, implantacao, depois: depois && implantacao != null && depois > implantacao ? depois : null, ate,
     parcelas: parcelas ? { vezes: Number(parcelas[1]), valor: numeroBR(parcelas[2]) } : null,

@@ -104,6 +104,10 @@ test("precoDoPlano lê os valores do plano para o cartão de preço", async () =
   assert.equal(anual.implantacao, 0);
   assert.deepEqual(anual.parcelas, { vezes: 12, valor: 199.75 });
   assert.equal(precoDoPlano("Sob consulta"), null);
+  const outroJeito = precoDoPlano("Implantação R$ 997 (lançamento até 30/11/2026, depois R$ 1.950) e mensalidade de R$ 249,90. Inclui IA no WhatsApp, CRM e site.");
+  assert.equal(outroJeito.mensal, 249.9);
+  assert.equal(outroJeito.depois, 1950);
+  assert.deepEqual(outroJeito.inclui, ["IA no WhatsApp", "CRM e site"]);
 });
 
 test("a página dos slides tem a logo, a capa animada e o slide de quem é a FluxDeck", async () => {
