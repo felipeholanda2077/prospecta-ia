@@ -138,3 +138,10 @@ test("slides para uma pessoa: o nome dela no lugar do da empresa", async () => {
   assert.doesNotMatch(html, /Clínica Tal/);
   assert.match(html, /<span>Bruno<\/span><\/div>/);
 });
+
+test("texto longo é cortado no fim de um trecho, e o preço antigo da implantação é achado", async () => {
+  const { cortaFrase, precoDoPlano } = await import("../src/vendas/slides.js");
+  const t = "R$ 249,90/mês + implantação de R$ 997; preço de lançamento até 30/11/2026, depois a implantação é R$ 1.950. Inclui WhatsApp com IA, CRM Pipeline e Site Essencial integrados, sem fidelidade e com suporte.";
+  assert.equal(cortaFrase(t, 180), "R$ 249,90/mês + implantação de R$ 997; preço de lançamento até 30/11/2026, depois a implantação é R$ 1.950. Inclui WhatsApp com IA, CRM Pipeline e Site Essencial integrados");
+  assert.equal(precoDoPlano(t).depois, 1950);
+});

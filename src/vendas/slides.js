@@ -58,6 +58,15 @@ const ZOD = z.object({
 });
 
 const corta = (t, max) => String(t ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+/** Corta no fim de um trecho (vírgula, ponto) ou de uma palavra, nunca no meio ("sem fi"). */
+export function cortaFrase(t, max) {
+  const s = String(t ?? "").replace(/\s+/g, " ").trim();
+  if (s.length <= max) return s;
+  const pedaco = s.slice(0, max + 1);
+  const trecho = Math.max(pedaco.lastIndexOf(", "), pedaco.lastIndexOf(". "), pedaco.lastIndexOf("; "));
+  const fim = trecho > max * 0.5 ? trecho : pedaco.lastIndexOf(" ");
+  return s.slice(0, fim > 0 ? fim : max).replace(/[\s,;:–-]+$/, "");
+}
 
 /** Arruma o que a IA escreveu: tipos válidos, capa no começo, próximo passo no fim, tamanhos e quantidades. */
 export function arrumarSlides(dados, { empresa = "", modo = "normal" } = {}) {
@@ -68,7 +77,7 @@ export function arrumarSlides(dados, { empresa = "", modo = "normal" } = {}) {
       titulo: corta(s.titulo, 90),
       subtitulo: corta(s.subtitulo, 260),
       // No processo o número já vem no círculo: "1. Reunião inicial" vira "Reunião inicial".
-      itens: (s.itens ?? []).map((i) => ({ titulo: corta(s.tipo === "processo" ? String(i?.titulo ?? "").replace(/^\s*(?:etapa\s*\d+\s*[.)º°:-]?|\d+\s*[.)º°:-])\s*/i, "") : i?.titulo, 50), texto: corta(i?.texto, 180) }))
+      itens: (s.itens ?? []).map((i) => ({ titulo: corta(s.tipo === "processo" ? String(i?.titulo ?? "").replace(/^\s*(?:etapa\s*\d+\s*[.)º°:-]?|\d+\s*[.)º°:-])\s*/i, "") : i?.titulo, 50), texto: cortaFrase(i?.texto, 180) }))
         .filter((i) => i.titulo || i.texto).slice(0, s.tipo === "conversa" ? 6 : 5),
     }));
   const capa = slides.find((s) => s.tipo === "capa") ?? { tipo: "capa", titulo: corta(dados?.titulo, 90) || "Apresentação", subtitulo: "", itens: [] };
@@ -242,7 +251,7 @@ export function precoDoPlano(texto) {
   const parcelas = t.match(/(\d{1,2})\s*x\s*(?:de\s*)?R\$\s*([\d.]+(?:,\d{1,2})?)/i);
   const implantacao = /implanta[çc][ãa]o[^.;]{0,20}gr[aá]tis|gr[aá]tis[^.;]{0,10}implanta/i.test(t) ? 0
     : achar(/implanta[çc][ãa]o[^R\d]{0,25}R\$\s*([\d.]+(?:,\d{1,2})?)/i);
-  const depois = achar(/depois[^R\d]{0,10}R\$\s*([\d.]+(?:,\d{1,2})?)/i);
+  const depois = achar(/depois[^R\d]{0,30}R\$\s*([\d.]+(?:,\d{1,2})?)/i);
   const ate = t.match(/at[ée]\s*(\d{1,2}\/\d{1,2})(?:\/\d{2,4})?/i)?.[1] ?? null;
   if (mensal == null && anual == null) return null;
   // O que sobra depois dos valores vira a lista do que o plano inclui.
