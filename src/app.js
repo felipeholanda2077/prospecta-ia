@@ -280,6 +280,7 @@ app.get("/slides/:codigo", async (req, res) => {
     .send(slides.paginaDosSlides(registro, {
       marca: empresa.nome, telefone: empresa.telefone, site: empresa.site, email: empresa.email, responsavel: empresa.responsavel, cargo: empresa.cargo,
       diferenciais: empresa.diferenciais ?? [], servicos: (servicos ?? []).map((s) => s.nome), socios: empresa.socios ?? [],
+      planosComCheckout: (await checkoutsAsaas.checkoutsAsaas().catch(() => [])).map((l) => l.plano),
     }));
 });
 

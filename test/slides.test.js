@@ -159,3 +159,21 @@ test("slides com outra empresa: usa só o que foi informado, sem a conversa do c
   await gerarSlides({ id: r.id, nota: "mais curto" }, campanha, { gerar });
   assert.match(pedido.pedido, /Empresa: Dr\. Monitora/);
 });
+
+test("slides de fechamento: um botão de contratar para cada plano com checkout", async () => {
+  const { paginaDosSlides } = await import("../src/vendas/slides.js");
+  const dados = { titulo: "T", modo: "fechamento", checkout: { plano: "WhatsApp com IA", url: "https://www.asaas.com/x" }, slides: [
+    { tipo: "capa", titulo: "Capa", subtitulo: "", itens: [] },
+    { tipo: "investimento", titulo: "Planos", subtitulo: "", itens: [
+      { titulo: "WhatsApp com IA", texto: "Implantação R$ 497 + R$ 129,90/mês." },
+      { titulo: "Completo Mensal", texto: "Implantação R$ 997 + R$ 249,90/mês." },
+      { titulo: "Plano Sem Link", texto: "R$ 10/mês." },
+    ] },
+    { tipo: "fechamento", titulo: "Vamos?", subtitulo: "", itens: [] },
+  ] };
+  const html = paginaDosSlides({ empresa: "X", dados }, { site: "https://fluxdeck.com.br", planosComCheckout: ["WhatsApp com IA", "Completo Mensal"] });
+  assert.equal((html.match(/class="contratar/g) ?? []).length, 2);
+  assert.match(html, /href="https:\/\/fluxdeck\.com\.br\/checkout\/completo-mensal"[^>]*>Contratar Completo Mensal →/);
+  assert.match(html, /class="pagar outro"/);
+  assert.doesNotMatch(html, /plano-sem-link/);
+});

@@ -283,11 +283,12 @@ export function precoDoPlano(texto) {
   };
 }
 
-function cartaoDePreco(it, k) {
+function cartaoDePreco(it, k, link = null) {
   const p = precoDoPlano(it.texto);
+  const botao = link ? `<a class="contratar${k === 0 ? " principal" : ""}" href="${esc(link)}" target="_blank" rel="noopener">Contratar ${esc(it.titulo)} →</a>` : "";
   const recomendado = k === 0;
   const topo = `${recomendado ? `<span class="selo">★ Recomendado para vocês</span>` : ""}<b class="nome">${esc(it.titulo)}</b>`;
-  if (!p) return `<div class="cartao plano${recomendado ? " recomendado" : ""}" style="--k:${k}">${topo}<p>${esc(it.texto)}</p></div>`;
+  if (!p) return `<div class="cartao plano${recomendado ? " recomendado" : ""}" style="--k:${k}">${topo}<p>${esc(it.texto)}</p>${botao}</div>`;
   const grande = p.mensal != null ? { valor: p.mensal, por: "/mês" }
     : p.parcelas ? { valor: p.parcelas.valor, por: "/mês", antes: `${p.parcelas.vezes}x` } : { valor: p.anual, por: "/ano" };
   const [inteiro, cents] = reaisBR(grande.valor).replace("R$ ", "").split(",");
@@ -300,6 +301,7 @@ function cartaoDePreco(it, k) {
     <div class="preco">${grande.antes ? `<span class="vezes">${esc(grande.antes)}</span>` : ""}<span class="moeda">R$</span><span class="valor">${esc(inteiro)}</span>${cents ? `<span class="cents">,${esc(cents)}</span>` : ""}<span class="por">${esc(grande.por)}</span></div>
     ${linhaImplantacao}${linhaAno}${hoje}
     ${p.inclui.length ? `<ul class="inclui">${p.inclui.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>` : ""}
+    ${botao}
   </div>`;
 }
 
@@ -347,7 +349,7 @@ function quemSomos(s, i, { marca, logo, foto, responsavel, cargo, telefone, site
   </div>`;
 }
 
-function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout, logo, todos, ...perfil }) {
+function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout, logo, todos, linkDoPlano = () => null, ...perfil }) {
   const itens = s.itens ?? [];
   const cartoes = (classe = "") => `<div class="cartoes ${classe} n${Math.min(itens.length, 4)}">${itens.map((it, k) => `
     <div class="cartao" style="--k:${k}"><span class="ic">${ICONES[k % ICONES.length]}</span><b>${esc(it.titulo)}</b><p>${esc(it.texto)}</p></div>`).join("")}</div>`;
@@ -367,16 +369,19 @@ function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout, logo, to
     case "garantias":
       return `${cab}${cartoes("grandes")}`;
     case "investimento":
-      return `${cab}<div class="cartoes planos n${Math.min(itens.length, 3)}">${itens.map(cartaoDePreco).join("")}</div>`;
+      return `${cab}<div class="cartoes planos n${Math.min(itens.length, 3)}">${itens.map((it, k) => cartaoDePreco(it, k, linkDoPlano(it.titulo))).join("")}</div>`;
     case "fechamento":
       return `<div class="fim">${marcaComLogo(marca, logo, "marca topo-fim")}${s.titulo ? `<h2>${esc(s.titulo)}</h2>` : ""}${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}
         ${itens.length ? `<ol class="passos curtos">${itens.map((it, k) => `<li style="--k:${k}"><span class="num">${k + 1}</span><b>${esc(it.titulo)}</b><p>${esc(it.texto)}</p></li>`).join("")}</ol>` : ""}
-        ${checkout?.url ? (() => {
-          // O checkout da FluxDeck no site (fluxdeck.com.br/checkout/<plano>); sem site no perfil, o daqui mesmo.
-          const origem = (() => { try { return new URL(site).origin; } catch { return ""; } })();
-          const url = checkout.plano ? `${origem}${enderecoDoCheckout(checkout.plano)}` : checkout.url;
-          return `<a class="pagar" href="${esc(url)}" target="_blank" rel="noopener">Contratar ${esc(checkout.plano)} agora →</a><span class="link">${esc(url.replace(/^https?:\/\//, ""))}</span>`;
-        })() : ""}
+        ${(() => {
+          // Um botão para cada plano do slide de valores que tem checkout: o recomendado em destaque, os outros ao lado.
+          const planos = (todos.find((x) => x.tipo === "investimento")?.itens ?? []).map((it) => ({ plano: it.titulo, url: linkDoPlano(it.titulo) })).filter((x) => x.url);
+          const lista = planos.length ? planos : checkout?.url ? [{ plano: checkout.plano, url: linkDoPlano(checkout.plano) ?? checkout.url }] : [];
+          if (!lista.length) return "";
+          const [primeiro, ...outros] = lista;
+          return `<div class="pagamentos"><a class="pagar" href="${esc(primeiro.url)}" target="_blank" rel="noopener">Contratar ${esc(primeiro.plano)} agora →</a>${outros.map((o) => `<a class="pagar outro" href="${esc(o.url)}" target="_blank" rel="noopener">Contratar ${esc(o.plano)} →</a>`).join("")}</div>
+            <span class="link">${lista.map((o) => esc(o.url.replace(/^https?:\/\//, ""))).join(" · ")}</span>`;
+        })()}
         <div class="contatos">${telefone ? `<span>WhatsApp ${esc(telefoneBonito(telefone))}</span>` : ""}${site ? `<span>${esc(site.replace(/^https?:\/\//, "").replace(/\/$/, ""))}</span>` : ""}</div></div>`;
     case "proximo_passo":
       return `<div class="fim"><h2>${esc(s.titulo)}</h2>${s.subtitulo ? `<p class="sub">${esc(s.subtitulo)}</p>` : ""}
@@ -390,7 +395,7 @@ function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout, logo, to
 /** A apresentação inteira numa página: 16:9, setas/toque para passar, tela cheia e impressão (um slide por página). */
 export function paginaDosSlides(registro, {
   marca = "FluxDeck", telefone = "", site = "", email = "", responsavel = "", cargo = "",
-  logo = "/fluxdeck-logo.jpg", foto = "/felipe-holanda.jpg", diferenciais = [], servicos = [], socios = [],
+  logo = "/fluxdeck-logo.jpg", foto = "/felipe-holanda.jpg", diferenciais = [], servicos = [], socios = [], planosComCheckout = [],
 } = {}) {
   let dados = {};
   try { dados = typeof registro.dados === "string" ? JSON.parse(registro.dados) : registro.dados ?? {}; } catch {}
@@ -400,6 +405,16 @@ export function paginaDosSlides(registro, {
     ? [salvos[0], { tipo: "quem_somos", titulo: marca, subtitulo: "Sites, sistemas e IA no WhatsApp para empresas que querem atender melhor e vender mais.", itens: [] }, ...salvos.slice(1)]
     : salvos;
   const perfil = { email, responsavel, cargo, foto, diferenciais, servicos, socios };
+  // O checkout da FluxDeck de cada plano (fluxdeck.com.br/checkout/<plano>); sem site no perfil, o daqui mesmo.
+  const origem = (() => { try { return new URL(site).origin; } catch { return ""; } })();
+  const simples = (t) => String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const linkDoPlano = (titulo) => {
+    if (dados.modo !== "fechamento" || !titulo) return null;
+    const t = simples(titulo);
+    const nome = planosComCheckout.find((p) => simples(p) === t) ?? planosComCheckout.find((p) => t.includes(simples(p)) || simples(p).includes(t));
+    if (nome) return `${origem}${enderecoDoCheckout(nome)}`;
+    return dados.checkout?.plano && simples(dados.checkout.plano) === t ? `${origem}${enderecoDoCheckout(dados.checkout.plano)}` : null;
+  };
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex"><title>${esc(dados.titulo || registro.titulo || "Apresentação")} · ${esc(marca)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -512,9 +527,9 @@ h2{font-size:3.6cqw;line-height:1.1;font-weight:800;letter-spacing:-.015em;max-w
 .fim h2{font-size:4.6cqw;background:linear-gradient(90deg,#fff,var(--ciano),var(--violeta));-webkit-background-clip:text;background-clip:text;color:transparent}
 .contatos{display:flex;gap:1.4cqw;flex-wrap:wrap;justify-content:center;margin-top:1cqw}.contatos span{border:1px solid var(--borda);border-radius:99px;padding:.9cqw 1.8cqw;font-size:1.4cqw;font-weight:600}
 .fim .marca{margin-top:2cqw;color:var(--suave)}
-[data-tipo=investimento] .cab{margin-bottom:1.6cqw}[data-tipo=investimento] h2{font-size:3.2cqw}[data-tipo=investimento] .sub{font-size:1.5cqw;margin-top:1cqw}
+[data-tipo=investimento] .cab{margin-bottom:1.6cqw}[data-tipo=investimento] h2{font-size:2.9cqw}[data-tipo=investimento] .sub{font-size:1.5cqw;margin-top:1cqw}
 .planos{margin:auto 0 3.4cqw;align-items:stretch;gap:2.2cqw}.planos.n2{grid-template-columns:1.12fr 1fr;width:min(100%,82cqw)}.planos.n3{grid-template-columns:1.12fr 1fr 1fr}
-.plano{position:relative;padding:2.4cqw 2.6cqw;gap:1cqw;border-radius:1.8cqw;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02))}
+.plano{position:relative;padding:2cqw 2.4cqw;gap:.8cqw;border-radius:1.8cqw;background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.02))}
 .plano .nome{font-size:1.75cqw;font-weight:700;color:var(--suave);letter-spacing:.01em}
 .plano.recomendado .nome{color:var(--texto)}
 .plano.recomendado{border:0;background:linear-gradient(160deg,color-mix(in srgb,var(--ciano) 16%,#0f1830),color-mix(in srgb,var(--violeta) 14%,#0f1830));
@@ -549,6 +564,14 @@ h2{font-size:3.6cqw;line-height:1.1;font-weight:800;letter-spacing:-.015em;max-w
 .passos.curtos{margin:1.5cqw 0;text-align:left;width:min(100%,80cqw)}
 .pagar{display:inline-block;margin-top:1cqw;padding:1.3cqw 3cqw;border-radius:99px;font-weight:800;font-size:1.9cqw;color:#06101f;text-decoration:none;background:linear-gradient(90deg,var(--ciano),var(--violeta));box-shadow:0 1cqw 3cqw rgba(0,212,255,.25)}
 .fim .link{font-size:1.15cqw;color:var(--suave)}
+.pagamentos{display:flex;gap:1.2cqw;flex-wrap:wrap;justify-content:center;align-items:center}
+.pagar.outro{background:transparent;color:var(--texto);border:.15cqw solid color-mix(in srgb,var(--ciano) 60%,transparent);box-shadow:none;font-size:1.6cqw}
+.planos.n2{margin-bottom:4.4cqw}.planos.n2 .preco .valor{font-size:5cqw}.planos.n2 .hoje{padding:.9cqw 1.2cqw}.planos.n2 .inclui{gap:.5cqw}
+.contratar{margin-top:auto;display:block;text-align:center;padding:.9cqw 1cqw;border-radius:99px;font-weight:800;font-size:1.2cqw;text-decoration:none;color:var(--texto);border:.12cqw solid color-mix(in srgb,var(--ciano) 55%,transparent)}
+.contratar.principal{color:#06101f;border:0;background:linear-gradient(90deg,var(--ciano),var(--violeta));box-shadow:0 .8cqw 2cqw rgba(0,212,255,.25)}
+.n3 .contratar{font-size:1.05cqw;padding:.75cqw .8cqw}
+/* Só os links do slide recebem o clique; o resto passa para as áreas de toque (anterior/próximo). */
+.slide{pointer-events:none}.slide.ativo{z-index:3}.slide a{pointer-events:auto}
 .rodape{position:absolute;left:6cqw;right:6cqw;bottom:2.2cqw;display:flex;justify-content:space-between;font-size:1.05cqw;color:var(--suave);pointer-events:none}
 .barra{position:absolute;left:0;bottom:0;height:.35cqw;background:linear-gradient(90deg,var(--ciano),var(--violeta));transition:width .5s}
 .controles{position:fixed;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:6px;align-items:center;background:rgba(10,15,28,.8);border:1px solid var(--borda);border-radius:99px;padding:5px;backdrop-filter:blur(8px);font-size:13px;z-index:5;transition:opacity .3s}
@@ -564,7 +587,7 @@ body.quieto .controles{opacity:0}
   .slide .entra,.slide .cartao,.slide .passos li,.slide .bolha,.flutua,.digitando{opacity:1;transform:none;animation:none}.orbe,.faisca,.anel{animation:none}.controles,.toque,.barra,.rodape{display:none}}
 </style></head><body>
 <div class="palco"><div class="quadro" id="quadro">
-${slides.map((s, i) => `<section class="slide${i === 0 ? " ativo" : ""}" data-tipo="${esc(s.tipo)}" aria-label="Slide ${i + 1} de ${slides.length}">${corpoDoSlide(s, i, { marca, telefone, site, empresa: dados.contexto?.empresa || dados.para || registro.empresa || "", checkout: dados.checkout, logo, todos: slides, ...perfil })
+${slides.map((s, i) => `<section class="slide${i === 0 ? " ativo" : ""}" data-tipo="${esc(s.tipo)}" aria-label="Slide ${i + 1} de ${slides.length}">${corpoDoSlide(s, i, { marca, telefone, site, empresa: dados.contexto?.empresa || dados.para || registro.empresa || "", checkout: dados.checkout, logo, todos: slides, linkDoPlano, ...perfil })
     .replace(/<h2>/g, '<h2 class="entra">').replace(/<p class="sub">/g, '<p class="sub entra" style="--k:1">')}</section>`).join("\n")}
 <div class="rodape">${marcaComLogo(marca, logo, "rod-marca")}<span>${esc(dados.para || registro.empresa || "")}</span></div>
 <div class="barra" id="barra"></div>
