@@ -186,7 +186,7 @@ export async function gerarSlides({ leadId, id = null, nota = "", modo = null },
     jsonSchema: esquema(modo),
     zodSchema: ZOD,
     effort: "medium",
-    maxTokens: 6000,
+    maxTokens: 16000, // o pensamento da IA também conta: com 6000 a de fechamento era cortada
   }), { empresa: lead.nome, modo });
   if (modo === "fechamento") dados.checkout = await checkoutDoRecomendado(dados).catch(() => null);
   if (atual) {
