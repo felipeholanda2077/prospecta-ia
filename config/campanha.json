@@ -7,7 +7,11 @@
     "telefone": "(85) 99999-9999",
     "email": "contato@seudominio.com.br",
     "portfolio": "https://seudominio.com.br/portfolio",
-    "diferenciais": [
+    "socios": [
+   { "nome": "Felipe Holanda", "cargo": "Sócio-fundador", "foto": "/felipe-holanda.jpg" },
+   { "nome": "Kaique Pires", "cargo": "Sócio · Automação e IA", "foto": "/kaique-pires.jpg" }
+  ],
+  "diferenciais": [
       "Projetos entregues com prazo fechado em contrato",
       "Suporte e manutenção mensal após a entrega",
       "Equipe local, atendimento por WhatsApp"

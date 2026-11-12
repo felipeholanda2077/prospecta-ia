@@ -279,7 +279,7 @@ app.get("/slides/:codigo", async (req, res) => {
   res.set({ ...SEM_CACHE, "Referrer-Policy": "no-referrer" })
     .send(slides.paginaDosSlides(registro, {
       marca: empresa.nome, telefone: empresa.telefone, site: empresa.site, email: empresa.email, responsavel: empresa.responsavel, cargo: empresa.cargo,
-      diferenciais: empresa.diferenciais ?? [], servicos: (servicos ?? []).map((s) => s.nome),
+      diferenciais: empresa.diferenciais ?? [], servicos: (servicos ?? []).map((s) => s.nome), socios: empresa.socios ?? [],
     }));
 });
 

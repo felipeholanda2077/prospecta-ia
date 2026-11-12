@@ -312,7 +312,7 @@ function capaAnimada(s, { marca, logo, empresa, todos }) {
 }
 
 /** Quem é a FluxDeck: logo, o que faz, diferenciais, serviços e o responsável com foto e contatos. */
-function quemSomos(s, i, { marca, logo, foto, responsavel, cargo, telefone, site, email, diferenciais, servicos }) {
+function quemSomos(s, i, { marca, logo, foto, responsavel, cargo, telefone, site, email, diferenciais, servicos, socios = [] }) {
   const pontos = (s.itens?.length ? s.itens : diferenciais.map((d) => ({ titulo: d, texto: "" }))).slice(0, 4);
   const contatos = [telefone && `WhatsApp ${telefoneBonito(telefone)}`, site && site.replace(/^https?:\/\//, "").replace(/\/$/, ""), email].filter(Boolean);
   return `<div class="quem">
@@ -322,7 +322,11 @@ function quemSomos(s, i, { marca, logo, foto, responsavel, cargo, telefone, site
       <ul class="dif">${pontos.map((p, k) => `<li class="entra" style="--k:${k + 1}"><b>${esc(p.titulo)}</b>${p.texto ? `<span>${esc(p.texto)}</span>` : ""}</li>`).join("")}</ul>
       ${servicos.length ? `<div class="chips entra" style="--k:${pontos.length + 1}">${servicos.slice(0, 6).map((t) => `<span>${esc(t)}</span>`).join("")}</div>` : ""}
     </div>
-    ${responsavel ? `<div class="pessoa cartao" style="--k:2">${foto ? `<div class="foto"><img src="${esc(foto)}" alt=""></div>` : ""}
+    ${socios.length ? `<div class="socios">${socios.map((p, k) => `<div class="socio cartao" style="--k:${k + 2}">
+        <div class="foto"><span>${esc(String(p.nome ?? "").split(" ").map((x) => x[0]).slice(0, 2).join(""))}</span>${p.foto ? `<img src="${esc(p.foto)}" alt="" onerror="this.remove()">` : ""}</div>
+        <div><b>${esc(p.nome)}</b><span class="cargo">${esc(p.cargo ?? "Sócio")}</span></div></div>`).join("")}
+      ${contatos.length ? `<div class="contatos-mini entra" style="--k:${socios.length + 2}">${contatos.map((c) => `<span>${esc(c)}</span>`).join("")}</div>` : ""}</div>`
+    : responsavel ? `<div class="pessoa cartao" style="--k:2">${foto ? `<div class="foto"><img src="${esc(foto)}" alt=""></div>` : ""}
       <b>${esc(responsavel)}</b><span class="cargo">${esc([cargo, marca].filter(Boolean).join(" da "))}</span>
       ${contatos.length ? `<div class="contatos-mini">${contatos.map((c) => `<span>${esc(c)}</span>`).join("")}</div>` : ""}</div>` : ""}
   </div>`;
@@ -371,7 +375,7 @@ function corpoDoSlide(s, i, { marca, telefone, site, empresa, checkout, logo, to
 /** A apresentação inteira numa página: 16:9, setas/toque para passar, tela cheia e impressão (um slide por página). */
 export function paginaDosSlides(registro, {
   marca = "FluxDeck", telefone = "", site = "", email = "", responsavel = "", cargo = "",
-  logo = "/fluxdeck-logo.jpg", foto = "/felipe-holanda.jpg", diferenciais = [], servicos = [],
+  logo = "/fluxdeck-logo.jpg", foto = "/felipe-holanda.jpg", diferenciais = [], servicos = [], socios = [],
 } = {}) {
   let dados = {};
   try { dados = typeof registro.dados === "string" ? JSON.parse(registro.dados) : registro.dados ?? {}; } catch {}
@@ -380,7 +384,7 @@ export function paginaDosSlides(registro, {
   const slides = salvos.length && !salvos.some((s) => s.tipo === "sobre")
     ? [salvos[0], { tipo: "quem_somos", titulo: marca, subtitulo: "Sites, sistemas e IA no WhatsApp para empresas que querem atender melhor e vender mais.", itens: [] }, ...salvos.slice(1)]
     : salvos;
-  const perfil = { email, responsavel, cargo, foto, diferenciais, servicos };
+  const perfil = { email, responsavel, cargo, foto, diferenciais, servicos, socios };
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex"><title>${esc(dados.titulo || registro.titulo || "Apresentação")} · ${esc(marca)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -456,6 +460,13 @@ h2{font-size:3.6cqw;line-height:1.1;font-weight:800;letter-spacing:-.015em;max-w
 .pessoa .foto img{width:100%;height:100%;border-radius:50%;object-fit:cover;object-position:60% 20%;display:block;border:.3cqw solid var(--bg)}
 .pessoa b{font-size:1.8cqw}.pessoa .cargo{font-size:1.2cqw;color:var(--suave)}
 .contatos-mini{display:flex;flex-direction:column;gap:.5cqw;margin-top:1.2cqw;width:100%}.contatos-mini span{font-size:1.05cqw;padding:.55cqw 1cqw;border-radius:99px;border:1px solid var(--borda);font-weight:600}
+.socios{display:flex;flex-direction:column;gap:1.2cqw}.socios .rotulo-socios{font-size:1.1cqw;letter-spacing:.18em;color:var(--ciano);font-weight:700}
+.socio{flex-direction:row;align-items:center;gap:1.4cqw;padding:1.4cqw 1.6cqw}
+.socio .foto{position:relative;flex:none;width:7.4cqw;height:7.4cqw;border-radius:50%;padding:.25cqw;background:linear-gradient(135deg,var(--ciano),var(--violeta))}
+.socio .foto span{position:absolute;inset:.25cqw;border-radius:50%;display:grid;place-items:center;background:var(--bg2);font-weight:800;font-size:2.2cqw}
+.socio .foto img{position:absolute;inset:.25cqw;width:calc(100% - .5cqw);height:calc(100% - .5cqw);border-radius:50%;object-fit:cover;object-position:55% 22%;border:.25cqw solid var(--bg)}
+.socio b{display:block;font-size:1.6cqw}.socio .cargo{font-size:1.15cqw;color:var(--suave)}
+.socios .contatos-mini{margin-top:.2cqw}.socios .contatos-mini span{text-align:center}
 .marca.topo-fim{margin-bottom:.6cqw}
 .rod-marca{display:flex;align-items:center;gap:.6cqw;font-weight:700}.rod-marca .logo-img{width:1.7cqw;height:1.7cqw;border-radius:.45cqw;box-shadow:none}
 .rod-marca .logo{width:1.7cqw;height:1.7cqw;font-size:1cqw;border-radius:.45cqw}
