@@ -564,7 +564,7 @@ body.quieto .controles{opacity:0}
   .slide .entra,.slide .cartao,.slide .passos li,.slide .bolha,.flutua,.digitando{opacity:1;transform:none;animation:none}.orbe,.faisca,.anel{animation:none}.controles,.toque,.barra,.rodape{display:none}}
 </style></head><body>
 <div class="palco"><div class="quadro" id="quadro">
-${slides.map((s, i) => `<section class="slide${i === 0 ? " ativo" : ""}" data-tipo="${esc(s.tipo)}" aria-label="Slide ${i + 1} de ${slides.length}">${corpoDoSlide(s, i, { marca, telefone, site, empresa: dados.para || registro.empresa || "", checkout: dados.checkout, logo, todos: slides, ...perfil })
+${slides.map((s, i) => `<section class="slide${i === 0 ? " ativo" : ""}" data-tipo="${esc(s.tipo)}" aria-label="Slide ${i + 1} de ${slides.length}">${corpoDoSlide(s, i, { marca, telefone, site, empresa: dados.contexto?.empresa || dados.para || registro.empresa || "", checkout: dados.checkout, logo, todos: slides, ...perfil })
     .replace(/<h2>/g, '<h2 class="entra">').replace(/<p class="sub">/g, '<p class="sub entra" style="--k:1">')}</section>`).join("\n")}
 <div class="rodape">${marcaComLogo(marca, logo, "rod-marca")}<span>${esc(dados.para || registro.empresa || "")}</span></div>
 <div class="barra" id="barra"></div>
