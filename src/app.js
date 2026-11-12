@@ -1559,7 +1559,9 @@ app.post("/api/leads/:id/proposta-slides", async (req, res) => {
 const slidesParaPainel = (r) => {
   let dados = {};
   try { dados = JSON.parse(r.dados || "{}"); } catch {}
-  return { id: r.id, codigo: r.codigo, titulo: r.titulo, leadId: r.lead_id, empresa: dados.para || r.empresa, para: dados.para ?? null, nicho: r.nicho, cidade: dados.para ? null : r.cidade,
+  return { id: r.id, codigo: r.codigo, titulo: r.titulo, leadId: r.lead_id,
+    empresa: [dados.para, dados.contexto?.empresa].filter(Boolean).join(" · ") || r.empresa, para: dados.para ?? null,
+    nicho: dados.contexto ? dados.contexto.ramo : r.nicho, cidade: dados.para || dados.contexto ? null : r.cidade,
     pedido: r.pedido, criadoEm: r.criado_em, atualizadoEm: r.atualizado_em, endereco: `/slides/${r.codigo}`, slides: dados.slides ?? [],
     modo: dados.modo ?? "normal", checkout: dados.checkout ?? null };
 };
@@ -1584,7 +1586,7 @@ app.post("/api/slides", async (req, res) => {
 
 app.post("/api/slides/:id/refazer", async (req, res) => {
   try {
-    res.json(slidesParaPainel(await slides.gerarSlides({ id: Number(req.params.id), nota: req.body?.nota, para: req.body?.para }, await carregarCampanhaCompleta())));
+    res.json(slidesParaPainel(await slides.gerarSlides({ id: Number(req.params.id), nota: req.body?.nota, para: req.body?.para, contexto: req.body?.contexto }, await carregarCampanhaCompleta())));
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }

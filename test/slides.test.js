@@ -145,3 +145,17 @@ test("texto longo é cortado no fim de um trecho, e o preço antigo da implanta�
   assert.equal(cortaFrase(t, 180), "R$ 249,90/mês + implantação de R$ 997; preço de lançamento até 30/11/2026, depois a implantação é R$ 1.950. Inclui WhatsApp com IA, CRM Pipeline e Site Essencial integrados");
   assert.equal(precoDoPlano(t).depois, 1950);
 });
+
+test("slides com outra empresa: usa só o que foi informado, sem a conversa do cadastro, e mantém ao refazer", async () => {
+  const l = await lead("Clínica do Cadastro");
+  await db.criarResposta({ lead_id: l.id, canal: "email", origem_id: "cc-1", de: "x", texto: "Somos uma clínica odontológica.", classificacao: "interessado", resumo: "x" });
+  let pedido;
+  const gerar = async (p) => { pedido = p; return respostaDaIA(); };
+  const r = await gerarSlides({ leadId: l.id }, campanha, { gerar });
+  await gerarSlides({ id: r.id, para: "Bruno", contexto: { empresa: "Dr. Monitora", ramo: "rastreamento veicular" }, nota: "duas IAs" }, campanha, { gerar });
+  assert.match(pedido.pedido, /Empresa: Dr\. Monitora/);
+  assert.match(pedido.pedido, /trabalha na Dr\. Monitora/);
+  assert.doesNotMatch(pedido.pedido, /clínica odontológica|Clínica do Cadastro/);
+  await gerarSlides({ id: r.id, nota: "mais curto" }, campanha, { gerar });
+  assert.match(pedido.pedido, /Empresa: Dr\. Monitora/);
+});

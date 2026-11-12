@@ -89,7 +89,8 @@ export function arrumarSlides(dados, { empresa = "", modo = "normal" } = {}) {
   if (empresa && !capa.subtitulo) capa.subtitulo = `Preparada para a ${empresa}`;
   // `para`: o nome de quem recebe (ex.: "Bruno"), no lugar do nome da empresa no rodapé, na capa e no painel.
   const para = corta(dados?.para, 60);
-  return { titulo: corta(dados?.titulo, 80) || capa.titulo, modo, ...(para ? { para } : {}), slides: [capa, ...slides, fim] };
+  const contexto = dados?.contexto?.empresa ? { empresa: corta(dados.contexto.empresa, 80), ramo: corta(dados.contexto.ramo, 120) } : null;
+  return { titulo: corta(dados?.titulo, 80) || capa.titulo, modo, ...(para ? { para } : {}), ...(contexto ? { contexto } : {}), slides: [capa, ...slides, fim] };
 }
 
 function sistemaDeFechamento(campanha) {
@@ -155,7 +156,18 @@ Regras:
 - Não invente clientes, depoimentos, números ou resultados em porcentagem. Não prometa o que o catálogo não tem.`;
 }
 
-async function pedidoDaEmpresa(lead, nota, campanha, { comValores = false, para = "" } = {}) {
+async function pedidoDaEmpresa(lead, nota, campanha, { comValores = false, para = "", contexto = null } = {}) {
+  const apresentacao = (await lerApresentacao(lead)).slice(0, 2500);
+  const regra = comValores ? "use as etapas e os planos com os valores EXATOS" : "use as etapas, ignore valores";
+  // Outra empresa (ex.: a pessoa trabalha numa empresa que não está no sistema): só o que foi informado, sem a conversa do cadastro.
+  if (contexto?.empresa) {
+    return `Empresa: ${contexto.empresa}
+Segmento: ${contexto.ramo || "-"}
+(Essa empresa não tem conversa no sistema: use só o que está aqui e no pedido do vendedor, sem inventar fatos sobre ela.)
+
+Como a ${campanha.empresa.nome} trabalha (apresentação; ${regra}):
+${apresentacao}${para ? `\n\nA apresentação é para ${para}, que trabalha na ${contexto.empresa}: fale com ${para} pelo nome.` : ""}${nota ? `\n\nO que mudar desta vez (pedido do vendedor): ${nota}` : ""}`;
+  }
   const historico = await db.historicoConversa(lead.id);
   const conversa = historico.length
     ? historico.map((h) => `${h.autor === "nos" ? "Nós" : lead.nome}: ${String(h.texto ?? "").replace(/\s+/g, " ").replace(/Em .{0,90} escreveu:.*$/, "").slice(0, 600)}`).join("\n")
@@ -170,8 +182,8 @@ Instagram: ${lead.instagram ? `@${lead.instagram}` : "-"}
 Avaliação no Google: ${lead.avaliacao ? `${lead.avaliacao} (${lead.total_avaliacoes} avaliações)` : "-"}
 Oportunidades da análise: ${oportunidades.map((o) => `[${o.servico}] ${o.motivo}`).join("; ") || "-"}
 
-Como a ${campanha.empresa.nome} trabalha (apresentação; ${comValores ? "use as etapas e os planos com os valores EXATOS" : "use as etapas, ignore valores"}):
-${(await lerApresentacao(lead)).slice(0, 2500)}
+Como a ${campanha.empresa.nome} trabalha (apresentação; ${regra}):
+${apresentacao}
 
 Conversa até agora:
 ${conversa}${para ? `\n\nA apresentação é para ${para}, pessoalmente: fale com ${para} pelo nome e NÃO escreva o nome da empresa em nenhum slide (nem no título da apresentação), use "vocês" ou "a clínica"/"o negócio".` : ""}${nota ? `\n\nO que mudar desta vez (pedido do vendedor): ${nota}` : ""}`;
@@ -181,7 +193,7 @@ ${conversa}${para ? `\n\nA apresentação é para ${para}, pessoalmente: fale co
  * Cria os slides de uma empresa ou, com `id`, refaz os que já existem (com o pedido `nota`, se houver).
  * Não envia nada. Retorna o registro salvo.
  */
-export async function gerarSlides({ leadId, id = null, nota = "", modo = null, para = null }, campanha, { gerar = gerarJson } = {}) {
+export async function gerarSlides({ leadId, id = null, nota = "", modo = null, para = null, contexto = null }, campanha, { gerar = gerarJson } = {}) {
   const atual = id ? await db.buscarSlides(id) : null;
   if (id && !atual) throw new Error("Apresentação não encontrada");
   const lead = await db.buscarLead(atual?.lead_id ?? leadId);
@@ -192,15 +204,18 @@ export async function gerarSlides({ leadId, id = null, nota = "", modo = null, p
   try { anterior = atual ? JSON.parse(atual.dados || "{}") : {}; } catch {}
   modo = modo === "fechamento" || (!modo && anterior.modo === "fechamento") ? "fechamento" : "normal";
   para = corta(para ?? anterior.para ?? "", 60);
+  const outra = contexto ?? anterior.contexto ?? null;
+  contexto = outra?.empresa ? { empresa: corta(outra.empresa, 80), ramo: corta(outra.ramo, 120) } : null;
   const dados = arrumarSlides(await gerar({
     system: modo === "fechamento" ? sistemaDeFechamento(campanha) : sistema(campanha),
-    pedido: await pedidoDaEmpresa(lead, nota, campanha, { comValores: modo === "fechamento", para }),
+    pedido: await pedidoDaEmpresa(lead, nota, campanha, { comValores: modo === "fechamento", para, contexto }),
     jsonSchema: esquema(modo),
     zodSchema: ZOD,
     effort: "medium",
     maxTokens: 16000, // o pensamento da IA também conta: com 6000 a de fechamento era cortada
   }), { empresa: para || lead.nome, modo });
   if (para) dados.para = para;
+  if (contexto) dados.contexto = contexto;
   if (modo === "fechamento") dados.checkout = await checkoutDoRecomendado(dados).catch(() => null);
   if (atual) {
     await db.atualizarSlides(atual.id, { titulo: dados.titulo, dados, pedido: nota || null });
@@ -216,7 +231,7 @@ export async function editarSlides(id, dados) {
   if (!atual) throw new Error("Apresentação não encontrada");
   let anterior = {};
   try { anterior = JSON.parse(atual.dados || "{}"); } catch {}
-  const arrumado = arrumarSlides({ ...dados, para: dados.para ?? anterior.para }, { empresa: atual.empresa ?? "", modo: anterior.modo ?? "normal" });
+  const arrumado = arrumarSlides({ ...dados, para: dados.para ?? anterior.para, contexto: dados.contexto ?? anterior.contexto }, { empresa: atual.empresa ?? "", modo: anterior.modo ?? "normal" });
   if (anterior.checkout) arrumado.checkout = anterior.checkout;
   await db.atualizarSlides(atual.id, { titulo: arrumado.titulo, dados: arrumado, pedido: atual.pedido });
   return db.buscarSlides(atual.id);
