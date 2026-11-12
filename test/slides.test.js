@@ -129,3 +129,12 @@ test("a página dos slides tem a logo, a capa animada e o slide de quem é a Flu
   const comSobre = { ...dados, slides: [dados.slides[0], { tipo: "sobre", titulo: "Sobre", subtitulo: "", itens: [{ titulo: "A", texto: "B" }] }, dados.slides[2]] };
   assert.equal((paginaDosSlides({ empresa: "X", dados: comSobre }).match(/QUEM SOMOS/g) ?? []).length, 1);
 });
+
+test("slides para uma pessoa: o nome dela no lugar do da empresa", async () => {
+  const { paginaDosSlides, arrumarSlides } = await import("../src/vendas/slides.js");
+  const dados = arrumarSlides({ titulo: "Proposta para o Bruno", para: "Bruno", slides: [{ tipo: "capa", titulo: "Capa", subtitulo: "", itens: [] }] }, { empresa: "Bruno", modo: "fechamento" });
+  assert.equal(dados.para, "Bruno");
+  const html = paginaDosSlides({ empresa: "Clínica Tal", dados });
+  assert.doesNotMatch(html, /Clínica Tal/);
+  assert.match(html, /<span>Bruno<\/span><\/div>/);
+});

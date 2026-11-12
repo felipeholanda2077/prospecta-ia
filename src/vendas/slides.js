@@ -78,7 +78,9 @@ export function arrumarSlides(dados, { empresa = "", modo = "normal" } = {}) {
     : { tipo: "proximo_passo", titulo: "Próximo passo", subtitulo: "Um bate-papo rápido para entender como vocês atendem hoje.", itens: [] });
   slides = slides.filter((s) => s.tipo !== "capa" && s.tipo !== "proximo_passo" && s.tipo !== "fechamento").slice(0, MAX_SLIDES - 2);
   if (empresa && !capa.subtitulo) capa.subtitulo = `Preparada para a ${empresa}`;
-  return { titulo: corta(dados?.titulo, 80) || capa.titulo, modo, slides: [capa, ...slides, fim] };
+  // `para`: o nome de quem recebe (ex.: "Bruno"), no lugar do nome da empresa no rodapé, na capa e no painel.
+  const para = corta(dados?.para, 60);
+  return { titulo: corta(dados?.titulo, 80) || capa.titulo, modo, ...(para ? { para } : {}), slides: [capa, ...slides, fim] };
 }
 
 function sistemaDeFechamento(campanha) {
@@ -144,7 +146,7 @@ Regras:
 - Não invente clientes, depoimentos, números ou resultados em porcentagem. Não prometa o que o catálogo não tem.`;
 }
 
-async function pedidoDaEmpresa(lead, nota, campanha, { comValores = false } = {}) {
+async function pedidoDaEmpresa(lead, nota, campanha, { comValores = false, para = "" } = {}) {
   const historico = await db.historicoConversa(lead.id);
   const conversa = historico.length
     ? historico.map((h) => `${h.autor === "nos" ? "Nós" : lead.nome}: ${String(h.texto ?? "").replace(/\s+/g, " ").replace(/Em .{0,90} escreveu:.*$/, "").slice(0, 600)}`).join("\n")
@@ -163,14 +165,14 @@ Como a ${campanha.empresa.nome} trabalha (apresentação; ${comValores ? "use as
 ${(await lerApresentacao(lead)).slice(0, 2500)}
 
 Conversa até agora:
-${conversa}${nota ? `\n\nO que mudar desta vez (pedido do vendedor): ${nota}` : ""}`;
+${conversa}${para ? `\n\nA apresentação é para ${para}, pessoalmente: fale com ${para} pelo nome e NÃO escreva o nome da empresa em nenhum slide (nem no título da apresentação), use "vocês" ou "a clínica"/"o negócio".` : ""}${nota ? `\n\nO que mudar desta vez (pedido do vendedor): ${nota}` : ""}`;
 }
 
 /**
  * Cria os slides de uma empresa ou, com `id`, refaz os que já existem (com o pedido `nota`, se houver).
  * Não envia nada. Retorna o registro salvo.
  */
-export async function gerarSlides({ leadId, id = null, nota = "", modo = null }, campanha, { gerar = gerarJson } = {}) {
+export async function gerarSlides({ leadId, id = null, nota = "", modo = null, para = null }, campanha, { gerar = gerarJson } = {}) {
   const atual = id ? await db.buscarSlides(id) : null;
   if (id && !atual) throw new Error("Apresentação não encontrada");
   const lead = await db.buscarLead(atual?.lead_id ?? leadId);
@@ -180,14 +182,16 @@ export async function gerarSlides({ leadId, id = null, nota = "", modo = null },
   let anterior = {};
   try { anterior = atual ? JSON.parse(atual.dados || "{}") : {}; } catch {}
   modo = modo === "fechamento" || (!modo && anterior.modo === "fechamento") ? "fechamento" : "normal";
+  para = corta(para ?? anterior.para ?? "", 60);
   const dados = arrumarSlides(await gerar({
     system: modo === "fechamento" ? sistemaDeFechamento(campanha) : sistema(campanha),
-    pedido: await pedidoDaEmpresa(lead, nota, campanha, { comValores: modo === "fechamento" }),
+    pedido: await pedidoDaEmpresa(lead, nota, campanha, { comValores: modo === "fechamento", para }),
     jsonSchema: esquema(modo),
     zodSchema: ZOD,
     effort: "medium",
     maxTokens: 16000, // o pensamento da IA também conta: com 6000 a de fechamento era cortada
-  }), { empresa: lead.nome, modo });
+  }), { empresa: para || lead.nome, modo });
+  if (para) dados.para = para;
   if (modo === "fechamento") dados.checkout = await checkoutDoRecomendado(dados).catch(() => null);
   if (atual) {
     await db.atualizarSlides(atual.id, { titulo: dados.titulo, dados, pedido: nota || null });
@@ -203,7 +207,7 @@ export async function editarSlides(id, dados) {
   if (!atual) throw new Error("Apresentação não encontrada");
   let anterior = {};
   try { anterior = JSON.parse(atual.dados || "{}"); } catch {}
-  const arrumado = arrumarSlides(dados, { empresa: atual.empresa ?? "", modo: anterior.modo ?? "normal" });
+  const arrumado = arrumarSlides({ ...dados, para: dados.para ?? anterior.para }, { empresa: atual.empresa ?? "", modo: anterior.modo ?? "normal" });
   if (anterior.checkout) arrumado.checkout = anterior.checkout;
   await db.atualizarSlides(atual.id, { titulo: arrumado.titulo, dados: arrumado, pedido: atual.pedido });
   return db.buscarSlides(atual.id);
@@ -525,9 +529,9 @@ body.quieto .controles{opacity:0}
   .slide .entra,.slide .cartao,.slide .passos li,.slide .bolha,.flutua,.digitando{opacity:1;transform:none;animation:none}.orbe,.faisca,.anel{animation:none}.controles,.toque,.barra,.rodape{display:none}}
 </style></head><body>
 <div class="palco"><div class="quadro" id="quadro">
-${slides.map((s, i) => `<section class="slide${i === 0 ? " ativo" : ""}" data-tipo="${esc(s.tipo)}" aria-label="Slide ${i + 1} de ${slides.length}">${corpoDoSlide(s, i, { marca, telefone, site, empresa: registro.empresa ?? "", checkout: dados.checkout, logo, todos: slides, ...perfil })
+${slides.map((s, i) => `<section class="slide${i === 0 ? " ativo" : ""}" data-tipo="${esc(s.tipo)}" aria-label="Slide ${i + 1} de ${slides.length}">${corpoDoSlide(s, i, { marca, telefone, site, empresa: dados.para || registro.empresa || "", checkout: dados.checkout, logo, todos: slides, ...perfil })
     .replace(/<h2>/g, '<h2 class="entra">').replace(/<p class="sub">/g, '<p class="sub entra" style="--k:1">')}</section>`).join("\n")}
-<div class="rodape">${marcaComLogo(marca, logo, "rod-marca")}<span>${esc(registro.empresa ?? "")}</span></div>
+<div class="rodape">${marcaComLogo(marca, logo, "rod-marca")}<span>${esc(dados.para || registro.empresa || "")}</span></div>
 <div class="barra" id="barra"></div>
 <div class="toque esq" data-ir="-1"></div><div class="toque dir" data-ir="1"></div>
 </div></div>
