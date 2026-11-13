@@ -1401,7 +1401,8 @@ export async function janelaDe24hAberta(leadId, agora = new Date(), destino = nu
  */
 export async function numerosParaConversa(leadId) {
   const [oficiais, instancias, janela] = await Promise.all([
-    numerosOficiais({ ativos: true }).catch(() => []), uazap.numeros().catch(() => []), janelaDe24hAberta(leadId),
+    // Com a API oficial desligada em Configurações, os números dela não aparecem para responder.
+    oficialAtiva().then((ligada) => (ligada ? numerosOficiais({ ativos: true }) : [])).catch(() => []), uazap.numeros().catch(() => []), janelaDe24hAberta(leadId),
   ]);
   const lista = oficiais.map((n) => ({ id: n.id, nome: n.nome, tipo: "oficial", conectado: true, janela }));
   for (const n of instancias) lista.push({ id: n.id, nome: n.nome, tipo: "uazap", conectado: await uazap.conectadoAgora(n.id).catch(() => false) });
