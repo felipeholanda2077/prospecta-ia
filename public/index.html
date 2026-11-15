@@ -1940,6 +1940,11 @@
             </div>
             <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar e testar</button></div>
           </form>
+        </div>
+      </section>
+
+      <!-- Testes: homologação das vozes de IA, sem enviar nada para ninguém -->
+      <section id="view-testes" hidden>
           <form class="cartao" id="form-fish">
             <div class="cartao-cab"><span class="kpi-ic" data-ic-span="spark"></span><div class="titulos"><h3>Vozes com IA (Fish Audio) <span id="fish-status"></span></h3>
               <div class="meta">A Fish Audio cria a voz das mensagens em áudio. Em <b>Teste</b>, ela só gera os áudios de teste daqui, sem enviar para ninguém. Em <b>Produção</b>, ela gera os áudios enviados; se falhar, eles saem pela voz de antes.</div></div></div>
@@ -1977,7 +1982,6 @@
             <div class="acoes"><button class="btn primario" type="submit"><span data-ic="save"></span>Salvar</button>
               <button class="btn fantasma" type="button" id="fish-desconectar" hidden>Tirar a chave</button></div>
           </form>
-        </div>
       </section>
 
       <!-- Listas dinâmicas -->
@@ -2003,6 +2007,7 @@ const dataHora = (d) => (d ? new Date(d).toLocaleString("pt-BR", { dateStyle: "s
 const inicial = (nome) => esc((String(nome ?? "?").trim()[0] ?? "?").toUpperCase());
 
 const ICONES = {
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>',
   target: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -2189,6 +2194,8 @@ const VIEWS = {
                sub: "Rode as etapas do funil manualmente quando quiser." },
   configuracoes: { grupo: "Sistema", nome: "Configurações", icone: "settings", titulo: "Configurações",
                sub: "Perfil da sua empresa e conexão do WhatsApp: API oficial da Meta, UAZap ou Evolution API." },
+  testes:    { grupo: "Testes", nome: "Vozes com IA", icone: "mic", titulo: "Vozes com IA (Fish Audio)",
+               sub: "Homologação das vozes: gere áudios de teste, escolha a voz e veja o saldo. Nada daqui é enviado para ninguém." },
 };
 const NAV_INFERIOR = ["dashboard", "rascunho", "respostas", "leads"];
 
@@ -2234,10 +2241,12 @@ function irParaHash() {
   $("#view-marketplaces").hidden = viewAtual !== "marketplaces";
   $("#view-agentes").hidden = viewAtual !== "agentes";
   $("#view-slides").hidden = viewAtual !== "slides";
-  $("#view-lista").hidden = ["dashboard", "maps", "automacao", "configuracoes", "conteudo", "contratos", "fornecedores", "marketplaces", "agentes", "slides"].includes(viewAtual);
+  $("#view-testes").hidden = viewAtual !== "testes";
+  $("#view-lista").hidden = ["dashboard", "maps", "automacao", "configuracoes", "conteudo", "contratos", "fornecedores", "marketplaces", "agentes", "slides", "testes"].includes(viewAtual);
   // Os números da prospecção não dizem nada nestas páginas.
-  $("#kpis").hidden = ["dashboard", "conteudo", "contratos", "fornecedores", "marketplaces", "agentes", "slides"].includes(viewAtual);
+  $("#kpis").hidden = ["dashboard", "conteudo", "contratos", "fornecedores", "marketplaces", "agentes", "slides", "testes"].includes(viewAtual);
   if (viewAtual === "slides") carregarSlides();
+  if (viewAtual === "testes") carregarFish();
   if (viewAtual === "dashboard") carregarDashboard();
   if (viewAtual === "marketplaces") carregarMercadoLivre();
   if (viewAtual === "fornecedores") carregarFornecedores();
@@ -7095,7 +7104,6 @@ async function carregarConteudo() {
     carregarDirect({ conferir: r.instagram.conectado });
     carregarDirects();
     carregarAvatar();
-    carregarFish();
     await carregarInsights();
     if (!f.base.matches(":focus")) f.base.value = r.base;
     $("#conteudo-status").innerHTML = r.config.ativo ? `<span class="pilula ok">${r.plano && r.config.horariosPelaIA !== false ? "A IA decide: " : "Todo dia às "}${listaDeHoras(r.config.horarios)}</span>` : `<span class="pilula">Desligado</span>`;
