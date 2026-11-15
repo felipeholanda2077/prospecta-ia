@@ -228,6 +228,9 @@ export async function paginasParaLer({ todos = false } = {}) {
   return (await db.produtosDoFornecedor(FORNECEDOR)).filter((p) => todos || !p.descricao).map((p) => ({ chave: p.fornecedor_chave, link: p.link_fornecedor }));
 }
 
+// Erros da conta, não do produto: acesso vencido, senha do painel trocada, app sem permissão de escrita.
+const ERRO_DE_CONEXAO = /entre de novo|Entre com o Mercado Livre|Conecte essa conta|Secret Key|acesso venceu|não tem permissão para isso|renovação do acesso/i;
+
 const normalizar = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const OUTRO = /^(outro|outros|outra|outras|nao se aplica|generico|generica)$/;
 
@@ -268,7 +271,7 @@ export async function publicarEmLote({ conta, limite = 20, repetirErros = false,
   for (const p of await db.produtosDoFornecedor(FORNECEDOR)) {
     if (ids && !ids.includes(p.id)) continue;
     const pub = await db.publicacaoDoProduto(p.id, "mercadolivre", alvo);
-    if (pub?.externo_id || (pub?.status === "erro" && !repetirErros)) continue;
+    if (pub?.externo_id || (pub?.status === "erro" && !repetirErros && !ERRO_DE_CONEXAO.test(pub.erro ?? ""))) continue;
     if (!p.descricao || !p.fotos.length || !(p.estoque_fornecedor > 0) || !precoDeVenda(p.custo)?.viavel) continue;
     candidatos.push(p);
   }
@@ -286,6 +289,12 @@ export async function publicarEmLote({ conta, limite = 20, repetirErros = false,
     } catch (e) {
       // publicarProduto já gravou o erro; categoria e atributos falham antes, então grava aqui.
       await db.gravarPublicacao({ produto_id: p.id, canal: "mercadolivre", conta_id: alvo, status: "erro", erro: e.message });
+      // Sem acesso à conta, nenhum outro vai sair: para aqui. Esse erro não impede a próxima tentativa.
+      if (e.status === 401 || ERRO_DE_CONEXAO.test(e.message)) {
+        r.conexao = e.message;
+        r.restantes = candidatos.length - r.publicados.length;
+        break;
+      }
       r.erros.push({ id: p.id, nome: p.nome, erro: e.message });
     }
   }

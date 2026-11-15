@@ -76,6 +76,14 @@ test("importa o catálogo, publica, e a nova leitura acerta preço e estoque do 
   assert.deepEqual(p.fotos, [FOTO], "só as fotos do endereço do fornecedor");
   assert.equal(p.link_fornecedor, "https://www.c7drop.com.br/produto/power-bank-cs-922");
 
+  // Sem acesso à conta: para no primeiro, sem marcar o produto como recusado.
+  const semAcesso = { ...api, preverCategorias: async () => { throw new Error("Mercado Livre: entre de novo (a senha do painel mudou)"); } };
+  await db.atualizarProduto(p.id, { ...p, descricao: "Descrição provisória" });
+  const bloqueado = await drop.publicarEmLote({}, { api: semAcesso, agora: AGORA });
+  assert.match(bloqueado.conexao, /entre de novo/);
+  assert.deepEqual(bloqueado.erros, []);
+  await db.atualizarProduto(p.id, { ...p, descricao: null });
+
   // Antes de ler a página (sem descrição), o produto não é publicado.
   assert.equal((await drop.publicarEmLote({}, { api, agora: AGORA })).publicados.length, 0);
   assert.deepEqual(await drop.paginasParaLer(), [{ chave: "c7:power-bank-cs-922", link: "https://www.c7drop.com.br/produto/power-bank-cs-922" }]);
