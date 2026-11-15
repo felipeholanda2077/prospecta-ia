@@ -123,7 +123,9 @@ export function lerDescricaoDaC7(html) {
   h = h.replace(/<h\d[^>]*>\s*(<strong[^>]*>)?\s*(Características principais|Outros|Características gerais|Especificações)\s*(<\/strong>)?\s*<\/h\d>/gi, "");
   const linhas = decodificar(h.replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|h\d|li|div|tr)>/gi, "\n").replace(/<li[^>]*>/gi, "- ").replace(/<[^>]+>/g, ""))
     .replace(TEM_CONTATO, "")
-    .split("\n").map((l) => l.replace(/[ \t ]+/g, " ").trim());
+    .split("\n").map((l) => l.replace(/[ \t ]+/g, " ").trim())
+    // Sobras da página do fornecedor que não servem no anúncio: títulos de aba, código e saudação da loja dele.
+    .map((l) => l.replace(/^C[óo]digo Universal\s*\/?\s*EAN:?\s*\d*\s*/i, "").replace(/^Descri[çc][ãa]o:?$/i, "").replace(/^bem[- ]vindos?\s+(a|à)\s+nossa\s+loja\s*!?\s*$/i, ""));
   const descricao = linhas.join("\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, 5000) || null;
   const valorDe = (re) => atributos.find((a) => re.test(a.nome))?.valor ?? null;
   return { descricao, atributos, marca: texto(valorDe(/^marca/i), 60), modelo: texto(valorDe(/^modelo(?! alfanum)/i), 60) };

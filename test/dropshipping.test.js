@@ -60,6 +60,8 @@ test("separa as características da descrição e tira link e contato", () => {
   assert.equal(d.modelo, "CS-922");
   assert.match(d.descricao, /Nunca mais fique sem bateria!/);
   assert.doesNotMatch(d.descricao, /youtu|whats|Características principais|Marca do carregador/i);
+  const sobras = drop.lerDescricaoDaC7("<p>Código Universal/EAN: Descrição</p><p>BEM VINDOS A NOSSA LOJA !</p><p>Depilador portátil</p>");
+  assert.equal(sobras.descricao, "Depilador portátil");
 });
 
 test("importa o catálogo, publica, e a nova leitura acerta preço e estoque do anúncio", async () => {
