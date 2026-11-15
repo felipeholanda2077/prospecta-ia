@@ -408,4 +408,27 @@ CREATE TABLE IF NOT EXISTS slides (
   atualizado_em timestamptz NOT NULL DEFAULT now()
 );
 ALTER TABLE slides ENABLE ROW LEVEL SECURITY;
+
+-- Dropshipping de fornecedor sem API (C7 Drop): a chave do produto lá, o estoque da última leitura, o prazo extra de
+-- envio do anúncio e as características lidas na página. O pedido pago no Mercado Livre vira uma compra a fazer lá.
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS fornecedor_chave text;
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS estoque_fornecedor integer;
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS prazo_envio_dias integer;
+ALTER TABLE produtos ADD COLUMN IF NOT EXISTS atributos text;           -- JSON: [{ nome, valor }]
+CREATE UNIQUE INDEX IF NOT EXISTS idx_produtos_fornecedor_chave ON produtos(fornecedor_chave);
+CREATE TABLE IF NOT EXISTS compras_fornecedor (
+  id           text PRIMARY KEY,                 -- <pedido do ML>:<anúncio>
+  conta_id     text NOT NULL,
+  pedido_id    text NOT NULL,
+  item_id      text NOT NULL,
+  produto_id   integer,
+  titulo       text,
+  quantidade   integer NOT NULL DEFAULT 1,
+  total        double precision,
+  envio_id     text,
+  status       text NOT NULL DEFAULT 'comprar',  -- comprar | comprado | cancelado
+  criado_em    timestamptz NOT NULL DEFAULT now(),
+  comprado_em  timestamptz
+);
+ALTER TABLE compras_fornecedor ENABLE ROW LEVEL SECURITY;
 `;

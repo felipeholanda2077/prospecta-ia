@@ -252,3 +252,19 @@ export const validarAnuncio = (id, anuncio, agora) => chamar(id, "POST", "/items
 export const criarAnuncio = (id, anuncio, agora) => chamar(id, "POST", "/items", anuncio, agora);
 export const salvarDescricao = (id, itemId, texto, agora) => chamar(id, "POST", `/items/${encodeURIComponent(itemId)}/description`, { plain_text: texto }, agora);
 export const mudarStatusDoAnuncio = (id, itemId, status, agora) => chamar(id, "PUT", `/items/${encodeURIComponent(itemId)}`, { status }, agora);
+/** Muda preço e quantidade do anúncio (a sincronia com o fornecedor). */
+export const atualizarAnuncio = (id, itemId, campos, agora) => chamar(id, "PUT", `/items/${encodeURIComponent(itemId)}`, campos, agora);
+
+/** A etiqueta do envio em PDF, para mandar ao fornecedor. Só existe depois que o pedido fica pronto para despachar. */
+export async function etiquetaDoEnvio(id, envioId, agora) {
+  const c = await contaValida(id, agora);
+  const r = await fetch(`${API}/shipment_labels?shipment_ids=${encodeURIComponent(envioId)}&response_type=pdf`, {
+    headers: { Authorization: `Bearer ${decifrar(c.token)}` },
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    throw Object.assign(new Error(`Mercado Livre: ${d.message || "a etiqueta ainda não está disponível"}`), { status: r.status });
+  }
+  return Buffer.from(await r.arrayBuffer());
+}

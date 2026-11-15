@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Importar do fornecedor</title>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --texto: #1d2330; --suave: #5d6677; --linha: #e3e6ec; --azul: #2457d6; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #12151b; --card: #1b2029; --texto: #e8ebf1; --suave: #9aa3b5; --linha: #2b3240; --azul: #6d95ff; } }
+  body { margin: 0; background: var(--bg); color: var(--texto); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; padding: 24px 16px; }
+  .card { background: var(--card); border: 1px solid var(--linha); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  p { margin: 6px 0; color: var(--suave); }
+  button { background: var(--azul); color: #fff; border: 0; border-radius: 8px; padding: 10px 14px; font: inherit; cursor: pointer; margin: 6px 6px 0 0; }
+  #registro { white-space: pre-wrap; font: 13px/1.5 ui-monospace, monospace; max-height: 320px; overflow: auto; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>Importar do fornecedor</h1>
+    <p>Esta página recebe o catálogo da Velo e as páginas dos produtos da C7 Drop, lidos no navegador onde você está logado, e manda tudo para a Prospecta. Os preços seguem a regra do Mercado Livre e os anúncios publicados são atualizados com o custo e o estoque novos.</p>
+    <p>Entre no painel da Prospecta neste navegador antes de usar.</p>
+    <button id="abrirVelo">Abrir o catálogo da Velo</button>
+    <button id="abrirC7">Abrir a C7 Drop</button>
+  </div>
+  <div class="card"><div id="registro">Esperando…</div></div>
+</main>
+<script>
+  // Só aceita mensagens das janelas do fornecedor, e só repassa para a API da própria Prospecta (com o login daqui).
+  const ORIGENS = ["https://www.velods.com.br", "https://www.c7drop.com.br"];
+  const registro = document.getElementById("registro");
+  const anotar = (t) => { registro.textContent = `${new Date().toLocaleTimeString("pt-BR")}  ${t}\n${registro.textContent}`.slice(0, 20000); };
+  async function api(caminho, corpo) {
+    const r = await fetch(caminho, corpo ? { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(corpo) } : {});
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 401) throw new Error("Entre no painel da Prospecta neste navegador e tente de novo.");
+    if (!r.ok) throw new Error(d.erro || `Erro ${r.status}`);
+    return d;
+  }
+  window.addEventListener("message", async (e) => {
+    if (!ORIGENS.includes(e.origin) || !e.data || typeof e.data !== "object") return;
+    const responder = (dados) => e.source?.postMessage({ deProspecta: true, pedido: e.data.pedido, ...dados }, e.origin);
+    try {
+      if (e.data.tipo === "catalogo") {
+        const r = await api("/api/dropshipping/catalogo", { itens: e.data.itens });
+        anotar(`Catálogo: ${r.criados} novos, ${r.atualizados} atualizados, ${r.ignorados} ignorados, ${r.sincronizados} anúncios acertados.`);
+        responder({ tipo: "ok", resultado: r });
+      } else if (e.data.tipo === "pedir-paginas") {
+        const lista = await api(`/api/dropshipping/paginas${e.data.todos ? "?todos=1" : ""}`);
+        anotar(`${lista.length} páginas para ler na C7 Drop.`);
+        responder({ tipo: "paginas", lista });
+      } else if (e.data.tipo === "paginas") {
+        const r = await api("/api/dropshipping/paginas", { paginas: e.data.paginas });
+        anotar(`Páginas: ${r.lidos} lidas, ${r.esgotados} sem estoque, ${r.ignorados} ignoradas, ${r.sincronizados} anúncios acertados.`);
+        responder({ tipo: "ok", resultado: r });
+      }
+    } catch (erro) {
+      anotar(`Erro: ${erro.message}`);
+      responder({ tipo: "erro", erro: erro.message });
+    }
+  });
+  document.getElementById("abrirVelo").onclick = () => window.open("https://www.velods.com.br/dashboard/catalogo", "velo");
+  document.getElementById("abrirC7").onclick = () => window.open("https://www.c7drop.com.br/", "c7");
+  api("/api/dropshipping/paginas").then((l) => anotar(`Pronto. ${l.length} produtos esperando a leitura da página na C7 Drop.`), (e) => anotar(e.message));
+</script>
+</body>
+</html>

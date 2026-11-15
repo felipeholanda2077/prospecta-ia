@@ -1469,7 +1469,7 @@
           <div id="ml-teste"></div>
           <div class="forn-grade" id="ml-perguntas"></div>
         </div>
-        <div data-ml-painel="pedidos" hidden><div id="ml-pedidos-avisos"></div><div class="forn-grade" id="ml-pedidos"></div></div>
+        <div data-ml-painel="pedidos" hidden><div id="ml-pedidos-avisos"></div><div id="ml-compras"></div><div class="forn-grade" id="ml-pedidos"></div></div>
         <div data-ml-painel="conexao" hidden style="display:grid;gap:14px">
           <form class="cartao" id="form-ml">
             <div class="cartao-cab"><span class="kpi-ic" data-ic-span="store"></span><div class="titulos"><h3>Mercado Livre <span id="ml-status"></span></h3>
@@ -7702,7 +7702,39 @@ function cardDoPedido(o) {
   </article>`;
 }
 
-const fotoDoProduto = (chave) => `/api/produtos/foto/${encodeURIComponent(chave)}`;
+// Foto guardada aqui (chave) ou no fornecedor (endereço https, produto importado da C7 Drop).
+const fotoDoProduto = (chave) => (/^https:\/\//.test(chave) ? chave : `/api/produtos/foto/${encodeURIComponent(chave)}`);
+
+// Vendas de produtos da C7 Drop: o que comprar lá, com a etiqueta do Mercado Livre para o envio.
+const STATUS_COMPRA = { comprar: ["atencao", "Comprar na C7 Drop"], comprado: ["ok", "Comprado"], cancelado: ["", "Cancelado"] };
+function desenharCompras() {
+  const compras = estadoMl.compras ?? [];
+  $("#ml-compras").innerHTML = !compras.length ? "" : `<h3 style="margin:4px 0 10px">Compras no fornecedor</h3><div class="forn-grade" style="margin-bottom:18px">${compras.map((c) => {
+    const [cor, texto] = STATUS_COMPRA[c.status] ?? ["", c.status];
+    return `<article class="cartao forn-card" data-compra="${esc(c.id)}">
+      <div class="forn-pilulas"><span class="pilula ${cor}">${esc(texto)}</span></div>
+      <h3>${esc(c.quantidade)}× ${esc(c.titulo ?? "")}</h3>
+      <div class="meta">${[`Pedido ${c.pedido_id}`, c.total != null && `venda ${dinheiro(c.total)}`, c.custo != null && `custo ${dinheiro(c.custo * c.quantidade)}`, new Date(c.criado_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })].filter(Boolean).map(esc).join(" · ")}</div>
+      ${c.status === "comprar" ? `<div class="muted" style="font-size:13px">Na C7 Drop, escolha <b>Dropshipping</b>, compre ${esc(c.quantidade)} e envie a etiqueta do Mercado Livre.</div>` : ""}
+      <div class="forn-botoes">${c.link_fornecedor ? `<a class="btn primario" href="${esc(c.link_fornecedor)}" target="_blank" rel="noopener noreferrer">${ic("external")}Comprar na C7 Drop</a>` : ""}
+        ${c.envio_id ? `<a class="btn" href="/api/dropshipping/compras/${encodeURIComponent(c.id)}/etiqueta" target="_blank" rel="noopener">Etiqueta</a>` : ""}
+        ${c.status === "comprar" ? `<button class="btn" type="button" data-compra-status="comprado">${ic("check")}Já comprei</button>` : `<button class="btn fantasma" type="button" data-compra-status="comprar">Voltar para comprar</button>`}</div>
+    </article>`;
+  }).join("")}</div>`;
+}
+$("#ml-compras").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("[data-compra-status]");
+  if (!b) return;
+  b.disabled = true;
+  try {
+    const r = await post(`/api/dropshipping/compras/${encodeURIComponent(b.closest("[data-compra]").dataset.compra)}/status`, { status: b.dataset.compraStatus });
+    estadoMl.compras = r.compras;
+    desenharCompras();
+  } catch (e) {
+    avisar(e.message, "perigo");
+    b.disabled = false;
+  }
+});
 
 function formularioDePublicacao(p) {
   const pub = estadoMl.publicar[p.id];
@@ -7785,6 +7817,7 @@ function desenharMercadoLivre() {
   $("#ml-perguntas").innerHTML = !c.conectado ? vazio("Conecte uma conta do Mercado Livre na aba <b>Contas</b> para ver as perguntas aqui.") : pendentes.length ? pendentes.map(cardDaPergunta).join("") : vazio("Nenhuma pergunta esperando resposta.");
   $("#ml-pedidos-avisos").innerHTML = erros.map((e) => `<div class="alerta perigo" style="margin-bottom:12px">${ic("alert")}<div>${esc(e)}</div></div>`).join("");
   $("#ml-pedidos").innerHTML = !destinos().length ? vazio("Conecte uma conta na aba <b>Contas</b> para ver os pedidos aqui.") : !pedidos ? vazio("Carregando os pedidos…") : pedidos.length ? pedidos.map(cardDoPedido).join("") : vazio("Nenhum pedido ainda.");
+  desenharCompras();
 }
 
 async function carregarMercadoLivre() {
@@ -7799,9 +7832,10 @@ async function carregarMercadoLivre() {
 
 async function carregarPedidosMl() {
   try {
-    const r = await api("/api/marketplaces/pedidos");
+    const [r, c] = await Promise.all([api("/api/marketplaces/pedidos"), api("/api/dropshipping/compras").catch(() => ({ compras: [] }))]);
     estadoMl.pedidos = r.pedidos;
     estadoMl.erros = r.erros;
+    estadoMl.compras = c.compras;
   } catch (e) {
     estadoMl.pedidos = [];
     avisar(e.message, "perigo", 8000);

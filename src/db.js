@@ -312,8 +312,10 @@ export async function atualizarPerguntaML(id, campos) {
 // ---------- Produtos dos marketplaces ----------
 
 const CAMPOS_PRODUTO = ["nome", "descricao", "preco", "modo", "link_afiliado", "comissao", "fornecedor", "link_fornecedor", "custo", "sku", "marca", "modelo", "gtin", "condicao", "peso_g", "altura_cm", "largura_cm", "comprimento_cm", "ncm", "cfop_mesmo_estado", "cfop_outro_estado", "csosn", "origem", "fotos"];
-const lerProduto = (p) => p && { ...p, preco: Number(p.preco), fotos: JSON.parse(p.fotos ?? "[]") };
-const valorDoProduto = (p, c) => (c === "fotos" ? JSON.stringify(p.fotos ?? []) : p[c] ?? null);
+// Só a leitura do fornecedor mexe nestes: salvar o produto pelo painel não os apaga.
+const CAMPOS_DO_FORNECEDOR = ["fornecedor_chave", "estoque_fornecedor", "prazo_envio_dias", "atributos"];
+const lerProduto = (p) => p && { ...p, preco: Number(p.preco), fotos: JSON.parse(p.fotos ?? "[]"), atributos: p.atributos ? JSON.parse(p.atributos) : [] };
+const valorDoProduto = (p, c) => (c === "fotos" || c === "atributos" ? JSON.stringify(p[c] ?? []) : p[c] ?? null);
 
 export async function criarProduto(p) {
   const r = await um(
@@ -329,15 +331,50 @@ export async function atualizarProduto(id, p) {
 
 export const buscarProduto = async (id) => lerProduto(await um("SELECT * FROM produtos WHERE id = $1", [id]));
 
+/** Grava o que veio do fornecedor: cria pela chave dele ou atualiza o mesmo produto. Retorna o id. */
+export async function gravarProdutoDoFornecedor(p) {
+  const campos = [...CAMPOS_PRODUTO, ...CAMPOS_DO_FORNECEDOR];
+  const r = await um(
+    `INSERT INTO produtos (${campos.join(", ")}) VALUES (${campos.map((_, i) => `$${i + 1}`).join(", ")})
+     ON CONFLICT (fornecedor_chave) DO UPDATE SET ${campos.filter((c) => c !== "fornecedor_chave").map((c) => `${c} = excluded.${c}`).join(", ")}, atualizado_em = now()
+     RETURNING id`,
+    campos.map((c) => valorDoProduto(p, c))
+  );
+  return r.id;
+}
+
+export const produtoDoFornecedor = async (chave) => lerProduto(await um("SELECT * FROM produtos WHERE fornecedor_chave = $1", [chave]));
+export const produtosDoFornecedor = async (fornecedor) => (await q("SELECT * FROM produtos WHERE fornecedor = $1 AND fornecedor_chave IS NOT NULL ORDER BY id", [fornecedor])).map(lerProduto);
+export const publicacoesDoProduto = (id) => q("SELECT * FROM produto_publicacoes WHERE produto_id = $1 ORDER BY id", [id]);
+
+/** Uma venda a comprar no fornecedor. Retorna true só na primeira vez que o pedido aparece. */
+export async function inserirCompraFornecedor(c) {
+  const r = await q(
+    `INSERT INTO compras_fornecedor (id, conta_id, pedido_id, item_id, produto_id, titulo, quantidade, total, envio_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     ON CONFLICT (id) DO NOTHING RETURNING id`,
+    [c.id, String(c.conta_id), String(c.pedido_id), String(c.item_id), c.produto_id ?? null, c.titulo ?? null, c.quantidade ?? 1, c.total ?? null, c.envio_id ?? null]
+  );
+  return r.length > 0;
+}
+export const comprasFornecedor = (status) => q(
+  `SELECT c.*, p.link_fornecedor, p.fornecedor, p.custo FROM compras_fornecedor c LEFT JOIN produtos p ON p.id = c.produto_id
+    ${status ? "WHERE c.status = $1" : ""} ORDER BY c.criado_em DESC LIMIT 200`,
+  status ? [status] : []
+);
+export const compraFornecedor = (id) => um("SELECT * FROM compras_fornecedor WHERE id = $1", [id]);
+export async function mudarCompraFornecedor(id, status, agora = new Date()) {
+  await q("UPDATE compras_fornecedor SET status = $2, comprado_em = CASE WHEN $2 = 'comprado' THEN $3::timestamptz ELSE comprado_em END WHERE id = $1", [id, status, agora.toISOString()]);
+}
+
 export async function produtosCadastrados() {
-  const produtos = (await q("SELECT * FROM produtos ORDER BY atualizado_em DESC, id DESC LIMIT 300")).map(lerProduto);
+  const produtos = (await q("SELECT * FROM produtos ORDER BY atualizado_em DESC, id DESC LIMIT 1000")).map(lerProduto);
   const publicacoes = await q("SELECT * FROM produto_publicacoes ORDER BY id");
   return produtos.map((p) => ({ ...p, publicacoes: publicacoes.filter((x) => x.produto_id === p.id) }));
 }
 
 /** De quem comprar o que foi vendido: o fornecedor de cada anúncio publicado de dropshipping. */
 export const fornecedoresDosAnuncios = () => q(
-  `SELECT pub.externo_id, p.fornecedor, p.link_fornecedor, p.custo FROM produto_publicacoes pub JOIN produtos p ON p.id = pub.produto_id
+  `SELECT pub.externo_id, p.id AS produto_id, p.fornecedor, p.link_fornecedor, p.custo FROM produto_publicacoes pub JOIN produtos p ON p.id = pub.produto_id
     WHERE pub.externo_id IS NOT NULL AND p.modo = 'dropshipping'`
 );
 

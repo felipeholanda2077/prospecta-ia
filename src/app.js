@@ -34,6 +34,8 @@ import { buscarFornecedores, comIntegracoes, limparParaSalvar } from "./descober
 import * as mercadolivre from "./envio/mercadolivre.js";
 import * as shopee from "./envio/shopee.js";
 import * as produtos from "./vendas/produtos.js";
+import * as dropshipping from "./vendas/dropshipping.js";
+import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { rodadaDoMercadoLivre, enviarResposta, refazerSugestao, testarSugestao } from "./vendas/mercadolivre.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos, rodadaDasOutrasContas } from "./conteudo/instagram.js";
@@ -362,6 +364,10 @@ app.post("/webhooks/instagram", async (req, res) => {
 // consulta a API com o nosso acesso, no máximo uma vez por minuto. O resto fica para a passagem de 10 minutos.
 app.post("/webhooks/mercadolivre", async (req, res) => {
   res.sendStatus(200);
+  // Venda nova: a compra a fazer na C7 Drop aparece no painel e chega por e-mail.
+  if (["orders_v2", "orders"].includes(req.body?.topic) && (await db.travar("mercadolivre_aviso_pedido", 60_000))) {
+    return waitUntil(dropshipping.conferirVendas().catch((e) => console.error("Erro no aviso de pedido do Mercado Livre:", e.message)));
+  }
   if (req.body?.topic !== "questions" || !(await db.travar("mercadolivre_aviso", 60_000))) return;
   waitUntil(
     carregarCampanhaCompleta()
@@ -438,8 +444,11 @@ const TAREFAS_CRON = {
   linkedin: (c) => rodadaDoLinkedin(c),
   // A cada 5 minutos: os Reels do dia no TikTok, nos mesmos horários do Instagram.
   tiktok: (c) => rodadaDoTiktok(c),
-  // A cada 10 minutos: as perguntas novas do Mercado Livre, com a resposta sugerida.
-  mercadolivre: (c) => rodadaDoMercadoLivre(c),
+  // A cada 10 minutos: as perguntas novas do Mercado Livre, com a resposta sugerida, e as vendas a comprar na C7 Drop.
+  mercadolivre: async (c) => ({
+    ...(await rodadaDoMercadoLivre(c)),
+    ...(await dropshipping.conferirVendas().catch((e) => ({ compras: `erro: ${e.message}` }))),
+  }),
   // A cada hora: as parcelas perto de vencer e o que já foi pago, inclusive pelos links de pagamento.
   cobrancas: async () => ({ ...(await cobrancas.rodadaDeCobrancas()), ...(await entrada.conferirVendas()),
     ...(await checkoutsAsaas.conferirCheckoutsAsaas().catch((e) => ({ planos: `erro: ${e.message}` }))),
@@ -488,6 +497,28 @@ app.get("/api/midia/:chave", async (req, res) => {
   const midia = await db.lerMidia(chave);
   if (!midia) return res.sendStatus(404);
   res.set({ "Content-Type": midia.tipo, "Cache-Control": "private, max-age=3600" }).send(midia.dados);
+});
+
+// Foto do produto que fica no fornecedor (C7 Drop), entregue em JPEG para o Mercado Livre. Só com a assinatura do
+// próprio sistema e só do endereço de fotos do fornecedor, para não virar um repassador aberto.
+app.get("/api/produtos/foto-externa", async (req, res) => {
+  const url = produtos.fotoDoFornecedor(req.query.u);
+  if (!url || !iguais(String(req.query.a ?? ""), assinaturaDaMidia(url))) return res.sendStatus(403);
+  try {
+    const r = await fetch(url, { signal: AbortSignal.timeout(20_000), redirect: "error" });
+    if (!r.ok) return res.sendStatus(404);
+    const dados = Buffer.from(await r.arrayBuffer());
+    if (dados.length > 15 * 1024 * 1024) return res.sendStatus(413);
+    const imagem = await loadImage(dados);
+    const tela = createCanvas(imagem.width, imagem.height);
+    const ctx = tela.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, imagem.width, imagem.height);
+    ctx.drawImage(imagem, 0, 0);
+    res.set({ "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=86400" }).send(await tela.encode("jpeg", 92));
+  } catch {
+    res.sendStatus(502);
+  }
 });
 
 // ---------- Login do painel ----------
@@ -970,6 +1001,34 @@ app.post("/api/produtos/:id/status", rotaMl(async (req) => {
   await produtos.mudarStatusDaPublicacao(req.params.id, req.body ?? {});
   return { ok: true };
 }));
+
+// Dropshipping com a C7 Drop: o navegador logado manda o catálogo e as páginas (public/importar-fornecedor.html).
+app.post("/api/dropshipping/catalogo", rotaMl((req) => dropshipping.importarCatalogo(req.body?.itens)));
+app.get("/api/dropshipping/paginas", rotaMl((req) => dropshipping.paginasParaLer({ todos: req.query.todos === "1" })));
+app.post("/api/dropshipping/paginas", rotaMl((req) => dropshipping.receberPaginas(req.body?.paginas)));
+app.post("/api/dropshipping/publicar", rotaMl((req) => dropshipping.publicarEmLote({
+  conta: req.body?.conta, limite: Math.min(Math.max(Number.parseInt(req.body?.limite, 10) || 20, 1), 60), repetirErros: req.body?.repetirErros === true,
+})));
+app.get("/api/dropshipping/compras", rotaMl(async () => ({ compras: await db.comprasFornecedor() })));
+app.post("/api/dropshipping/compras/conferir", rotaMl(async () => ({ ...(await dropshipping.conferirVendas()), compras: await db.comprasFornecedor() })));
+app.post("/api/dropshipping/compras/:id/status", rotaMl(async (req) => {
+  const status = String(req.body?.status ?? "");
+  if (!["comprar", "comprado", "cancelado"].includes(status)) throw new Error("Status inválido");
+  if (!(await db.compraFornecedor(req.params.id))) throw new Error("Compra não encontrada");
+  await db.mudarCompraFornecedor(req.params.id, status);
+  return { compras: await db.comprasFornecedor() };
+}));
+// A etiqueta do Mercado Livre, para enviar à C7 Drop na compra em modo dropshipping.
+app.get("/api/dropshipping/compras/:id/etiqueta", async (req, res) => {
+  const c = await db.compraFornecedor(req.params.id);
+  if (!c?.envio_id) return res.status(404).json({ erro: "Esse pedido não tem envio do Mercado Livre." });
+  try {
+    const pdf = await mercadolivre.etiquetaDoEnvio(c.conta_id, c.envio_id);
+    res.set({ "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="etiqueta-${c.pedido_id}.pdf"` }).send(pdf);
+  } catch (e) {
+    res.status(e.status === 401 ? 401 : 400).json({ erro: e.message });
+  }
+});
 
 // Fornecedores de dropshipping: ficam fora do funil, então nunca recebem mensagem automática.
 const STATUS_FORNECEDOR = ["novo", "contatado", "aprovado", "descartado"];

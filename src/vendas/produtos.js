@@ -4,7 +4,7 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import * as ml from "../envio/mercadolivre.js";
 import * as shopee from "../envio/shopee.js";
-import { linkDaMidia } from "../conteudo/instagram.js";
+import { linkDaMidia, assinaturaDaMidia } from "../conteudo/instagram.js";
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
@@ -17,6 +17,23 @@ const TIPOS_DE_ANUNCIO = ["gold_special", "gold_pro", "free"];
 // venda. Os marketplaces exigem uma quantidade no anúncio, então ela é sempre esta, e nunca é pedida no painel.
 const QUANTIDADE_NO_ANUNCIO = 10;
 const HOST_DE_AFILIADO = /(^|\.)(shopee\.com\.br|shope\.ee)$/i;
+// Fotos que ficam no fornecedor (o produto importado da C7 Drop): o anúncio as recebe convertidas em JPEG por este
+// sistema, sem guardar cópia no banco.
+export const HOST_DE_FOTO_DO_FORNECEDOR = /^arquivos\.c7drop\.com\.br$/i;
+export function fotoDoFornecedor(v) {
+  try {
+    const u = new URL(String(v ?? ""));
+    return u.protocol === "https:" && HOST_DE_FOTO_DO_FORNECEDOR.test(u.hostname) ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+/** O endereço público de uma foto do produto, guardada aqui ou no fornecedor. */
+export const linkDaFoto = (f) => (fotoDoFornecedor(f)
+  ? `${config.painel.urlPublica}/api/produtos/foto-externa?u=${encodeURIComponent(f)}&a=${assinaturaDaMidia(f)}`
+  : linkDaMidia(f));
+/** O anúncio mostra o estoque do fornecedor até este limite (menos que isso, mostra o que ele tem). */
+const quantidadeNoAnuncio = (p) => (p.estoque_fornecedor == null ? QUANTIDADE_NO_ANUNCIO : Math.max(0, Math.min(QUANTIDADE_NO_ANUNCIO, p.estoque_fornecedor)));
 
 const texto = (v, max) => {
   const t = String(v ?? "").trim();
@@ -66,7 +83,7 @@ export function limparProduto(d = {}) {
   if (!nome || nome.length < 3) throw new Error("Escreva o nome do produto.");
   if (preco == null || preco <= 0) throw new Error("Informe um preço maior que zero.");
   const venda = dadosDeVenda(d, preco);
-  const fotos = (Array.isArray(d.fotos) ? d.fotos : []).filter((f) => /^produto-[0-9a-f-]+\.jpg$/.test(String(f))).slice(0, MAX_FOTOS);
+  const fotos = (Array.isArray(d.fotos) ? d.fotos : []).filter((f) => /^produto-[0-9a-f-]+\.jpg$/.test(String(f)) || fotoDoFornecedor(f)).slice(0, MAX_FOTOS);
   return {
     nome, preco: Math.round(preco * 100) / 100, ...venda, descricao: texto(d.descricao, 5000), sku: texto(d.sku, 60), marca: texto(d.marca, 60), modelo: texto(d.modelo, 60),
     gtin: soDigitos(d.gtin, 14), condicao: d.condicao === "used" ? "used" : "new",
@@ -125,10 +142,13 @@ export function anuncioDoMercadoLivre(p, { categoria, atributos = [], tipoAnunci
   const lista = atributos.filter((a) => a.id && (a.value_id || a.value_name)).map((a) => ({ id: a.id, ...(a.value_id ? { value_id: String(a.value_id) } : { value_name: String(a.value_name) }) }));
   const usados = new Set(lista.map((a) => a.id));
   for (const [id, valor] of [["BRAND", p.marca], ["MODEL", p.modelo], ["GTIN", p.gtin], ["SELLER_SKU", p.sku]]) if (valor && !usados.has(id)) lista.push({ id, value_name: valor });
+  // O prazo extra de despacho: o tempo que o fornecedor leva para postar depois que você compra lá.
+  const prazo = Number.isInteger(p.prazo_envio_dias) && p.prazo_envio_dias > 0 ? [{ id: "MANUFACTURING_TIME", value_name: `${p.prazo_envio_dias} dias` }] : [];
   return {
     ...(familia ? { family_name: p.nome.slice(0, 60) } : { title: p.nome.slice(0, 60) }),
-    category_id: categoria, price: p.preco, currency_id: "BRL", available_quantity: QUANTIDADE_NO_ANUNCIO, buying_mode: "buy_it_now",
+    category_id: categoria, price: p.preco, currency_id: "BRL", available_quantity: quantidadeNoAnuncio(p), buying_mode: "buy_it_now",
     listing_type_id: TIPOS_DE_ANUNCIO.includes(tipoAnuncio) ? tipoAnuncio : "gold_special", condition: p.condicao, pictures: fotos.map((source) => ({ source })), attributes: lista,
+    ...(prazo.length ? { sale_terms: prazo } : {}),
   };
 }
 
@@ -187,7 +207,7 @@ async function publicarNaShopee(p, { conta, categoria, atributos, pausado, soCon
  * Publica (ou só confere) o produto numa conta. Depois de criado, o produto não é criado de novo:
  * uma trava segura o clique duplo e o registro impede a repetição.
  */
-export async function publicarProduto(id, { canal, conta, categoria, atributos, tipoAnuncio, pausado = true, soConferir = false }, { apis = { mercadolivre: ml, shopee }, agora, link = linkDaMidia } = {}) {
+export async function publicarProduto(id, { canal, conta, categoria, atributos, tipoAnuncio, pausado = true, soConferir = false }, { apis = { mercadolivre: ml, shopee }, agora, link = linkDaFoto } = {}) {
   if (!CANAIS.includes(canal)) throw new Error("Escolha onde publicar.");
   if (!categoria) throw new Error("Escolha a categoria.");
   const p = await db.buscarProduto(id);
