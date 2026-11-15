@@ -49,6 +49,7 @@ import { receberFormulario, lerConfigFormulario, salvarConfigFormulario } from "
 import { paginaDoFormulario, paginaDeObrigado } from "./paginaContato.js";
 import * as contratos from "./contratos/contrato.js";
 import * as asaas from "./contratos/asaas.js";
+import * as fishaudio from "./conteudo/fishaudio.js";
 import * as anuncios from "./descoberta/anuncios.js";
 import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
@@ -2080,6 +2081,46 @@ app.post("/api/avatar/exemplo-de-voz", async (req, res) => {
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
+});
+
+// Fish Audio: a voz das mensagens em áudio, com a área de teste (homologação) e o saldo da conta.
+const fishParaPainel = async () => {
+  const s = await fishaudio.situacao();
+  const saldo = s.conectado ? await fishaudio.creditos().then((c) => ({ creditos: c }), (e) => ({ erroCreditos: e.message })) : {};
+  return { ...s, ...saldo, testes: await fishaudio.testes(), maxTexto: fishaudio.MAX_TEXTO_TESTE };
+};
+app.get("/api/fish-audio", async (req, res) => res.json(await fishParaPainel()));
+app.put("/api/fish-audio", async (req, res) => {
+  const { chave, modo, vozId, vozNome, modelo } = req.body ?? {};
+  const r = await fishaudio.salvar({ chave, modo, vozId, vozNome, modelo });
+  if (r.erro) return res.status(400).json({ erro: r.erro });
+  res.json(await fishParaPainel());
+});
+app.post("/api/fish-audio/desconectar", async (req, res) => {
+  await fishaudio.desconectar();
+  res.json(await fishParaPainel());
+});
+app.get("/api/fish-audio/vozes", async (req, res) => {
+  try {
+    res.json({ vozes: await fishaudio.vozes({ busca: String(req.query.busca ?? "") }) });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+// Gera um áudio de teste e devolve o MP3 para tocar no painel. Não envia para ninguém.
+app.post("/api/fish-audio/teste", async (req, res) => {
+  try {
+    const { texto, vozId, vozNome, modelo } = req.body ?? {};
+    const { teste, dados } = await fishaudio.gerarTeste({ texto, vozId, vozNome, modelo });
+    res.set({ "Content-Type": "audio/mpeg", "X-Teste": encodeURIComponent(teste.chave) }).send(dados);
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+app.get("/api/fish-audio/teste/:chave", async (req, res) => {
+  const midia = await fishaudio.audioDoTeste(req.params.chave);
+  if (!midia) return res.sendStatus(404);
+  res.set({ "Content-Type": midia.tipo, "Cache-Control": "private, max-age=86400" }).send(midia.dados);
 });
 
 app.post("/api/avatar/testar-runway", async (req, res) => {

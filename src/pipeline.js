@@ -25,6 +25,7 @@ import { imagemDaMensagem, legendaDaArte, roteiroDoAudio } from "./vendas/campan
 import { audioDoTexto, oggDoAudio } from "./conteudo/narracao.js";
 import { falarPelaRunway, lerConfigAvatar } from "./conteudo/avatar.js";
 import { linkDaMidia } from "./conteudo/instagram.js";
+import * as fishaudio from "./conteudo/fishaudio.js";
 import { verificarAgendamentos, aplicarLinkAgendamento, MARCADOR_LINK } from "./agenda/calendly.js";
 import { semSiteProprio, potencialDaEmpresa } from "./analise/prioridade.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
@@ -108,14 +109,23 @@ const AVISO_DESCONECTADO_MS = 6 * 3600 * 1000;
 export async function audioDaMensagem(id, corpo) {
   const roteiro = roteiroDoAudio(corpo);
   const { vozDasMensagens } = await lerConfigAvatar();
+  // Com a Fish Audio em produção, ela fala; se falhar, a voz de antes (Runway e as de reserva) fala no lugar.
+  const fish = (await fishaudio.emProducao()) ? await fishaudio.situacao() : null;
+  const voz = fish ? `fish:${fish.vozId}:${fish.modelo}` : vozDasMensagens;
   const prefixo = `audio-mensagem-${id}-`;
-  const chave = `${prefixo}${crypto.createHash("sha256").update(`${vozDasMensagens}:${roteiro}`).digest("hex").slice(0, 12)}.ogg`;
+  const chave = `${prefixo}${crypto.createHash("sha256").update(`${voz}:${roteiro}`).digest("hex").slice(0, 12)}.ogg`;
   const guardado = await db.lerMidia(chave);
   if (guardado) return { chave, dados: Buffer.from(guardado.dados) };
-  const dados = await falarPelaRunway(roteiro).then(oggDoAudio).catch((e) => {
+  const pelaVozDeAntes = () => falarPelaRunway(roteiro).then(oggDoAudio).catch((e) => {
     log(`⚠️  Voz da Runway indisponível (${e.message}); o áudio sai pelas outras vozes.`);
     return audioDoTexto(roteiro);
   });
+  const dados = fish
+    ? await fishaudio.falar(roteiro).then(oggDoAudio).catch((e) => {
+      log(`⚠️  Fish Audio indisponível (${e.message}); o áudio sai pela voz de antes.`);
+      return pelaVozDeAntes();
+    })
+    : await pelaVozDeAntes();
   await db.apagarMidias(prefixo);
   await db.gravarMidia(chave, "audio/ogg", dados);
   return { chave, dados };
