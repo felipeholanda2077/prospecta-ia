@@ -1964,10 +1964,11 @@
                   <input id="fish-busca" type="search" placeholder="Buscar voz pelo nome" style="flex:1;min-width:180px" autocomplete="off">
                   <button class="btn" type="button" id="fish-buscar">Buscar vozes em português</button>
                 </div>
-                <select id="fish-voz" style="margin-top:8px"><option value="">Salve a chave e busque as vozes</option></select>
+                <select id="fish-voz" style="margin-top:8px"><option value="">Cole a chave e salve para ver as vozes</option></select>
                 <input id="fish-voz-id" name="vozId" placeholder="Ou cole o ID da voz (reference_id) da Fish Audio" autocomplete="off" style="margin-top:8px">
                 <div id="fish-amostra" style="margin-top:8px"></div></div>
               <div class="campo"><label for="fish-modelo">Modelo</label><select id="fish-modelo" name="modelo"></select></div>
+              <div id="fish-sem-saldo" style="grid-column:1/-1"></div>
               <div id="fish-resultado" style="grid-column:1/-1"></div>
               <div class="campo" style="grid-column:1/-1;border-top:1px solid var(--borda, #8883);padding-top:14px"><label for="fish-texto">Áudio de teste</label>
                 <textarea id="fish-texto" style="min-height:90px">Oi, tudo bem? Aqui é o Felipe, da FluxDeck. Preparei uma ideia rápida pra sua empresa atender mais clientes pelo WhatsApp. Posso te mostrar em dois minutinhos?</textarea>
@@ -7329,7 +7330,17 @@ function mostrarFish(f) {
   $("#fish-texto").maxLength = f.maxTexto ?? 1000;
   contarFish();
   mostrarTestesFish(f.testes ?? []);
+  avisoCreditoFish(f);
+  if (f.conectado && !fishVozes.length && !$("#fish-buscar").disabled) buscarVozesFish();
 }
+// Sem saldo, a Fish Audio só aceita o modelo grátis: avisa antes de o teste (ou o envio) falhar.
+function avisoCreditoFish(f = fishAtual) {
+  fishAtual = f;
+  const semSaldo = f?.conectado && f.creditos?.valor === 0 && !$("#fish-modelo").value.endsWith("-free");
+  $("#fish-sem-saldo").innerHTML = semSaldo ? `<div class="alerta atencao">${ic("alert")}<div><b>Sem saldo na API.</b> Com este modelo o áudio não sai (em Produção, as mensagens voltam para a voz de antes). Escolha o modelo <b>S2.1 Pro grátis</b> ou coloque crédito na Fish Audio.</div></div>` : "";
+}
+let fishAtual = null;
+$("#fish-modelo").addEventListener("change", () => avisoCreditoFish());
 function contarFish() {
   const t = $("#fish-texto");
   $("#fish-contador").textContent = `${t.value.length}/${t.maxLength > 0 ? t.maxLength : 1000} caracteres`;
