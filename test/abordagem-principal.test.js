@@ -11,7 +11,7 @@ process.env.ANTHROPIC_API_KEY = "chave-de-teste";
 const db = await import("../src/db.js");
 const { escolherAbordagem, vaiPelaPrevia, ABORDAGEM_PRINCIPAL, ABORDAGENS } = await import("../src/ia/abordagens.js");
 const { gerarSequencia, comLinkDaPrevia } = await import("../src/ia/proposta.js");
-const { ordenarFilaDeEnvio, propor, abordagemPrincipalLigada } = await import("../src/pipeline.js");
+const { ordenarFilaDeEnvio, propor, abordagemPrincipalLigada, comAbordagemCerta } = await import("../src/pipeline.js");
 const { prioridadeNaFila } = await import("../src/analise/prioridade.js");
 const { semValores, ofertaLiberada, valoresPermitidos, classificarResposta } = await import("../src/ia/resposta.js");
 const { ofertaSiteAtiva, blocoDaOferta, OFERTA_SITE } = await import("../src/vendas/ofertaSite.js");
@@ -179,4 +179,31 @@ test("página da prévia: mostra a oferta da Black Friday enquanto vale", () => 
   const html = paginaDaPrevia(semSite, { marca: "FluxDeck", agora: DURANTE });
   assert.match(html, /Black Friday: este site no ar de <s>R\$ 950<\/s> por <b>R\$ 500<\/b>, valor único/);
   assert.doesNotMatch(paginaDaPrevia(semSite, { marca: "FluxDeck", agora: DEPOIS }), /Black Friday/);
+});
+
+test("fila parada (ex.: número reconectado): a primeira mensagem antiga sai já reescrita na abordagem principal", async () => {
+  await db.inserirLead({ place_id: "parada-1", nome: "Barbearia Parada", nicho: "barbearia", cidade: "Osasco - SP", site: null, origem: "maps" });
+  const [l] = await db.consultar("SELECT id FROM leads WHERE place_id = 'parada-1'");
+  await db.atualizarLead(l.id, { status: "proposta_gerada", abordagem: "dor_custo", oportunidades: "[]", whatsapp: "5511988887777" });
+  const ids = [];
+  for (const etapa of [1, 2, 3]) {
+    ids.push(await db.criarMensagem({ lead_id: l.id, canal: "whatsapp", destino: "5511988887777", corpo: `antiga ${etapa}`, etapa, tipo: etapa === 1 ? "inicial" : "sequencia", status: "aprovada" }));
+  }
+  const vez = [{ ...(await db.buscarMensagem(ids[0])), numeroDaVez: { modo: "uazap", numeroId: "n1" } }];
+
+  // Desligada: a dor_custo é do teste A/B, nada muda.
+  await db.gravarConfig("abordagem_principal", { ativa: false });
+  assert.equal((await comAbordagemCerta(vez, campanha))[0].corpo, "antiga 1");
+
+  await db.gravarConfig("abordagem_principal", { ativa: true });
+  respostaDaIA = {
+    servico_principal: "site", resumo_interno: "r", assunto_email: "a",
+    whatsapp: { etapa1: "Montei uma prévia do site da Barbearia Parada:\n{{PREVIA}}", etapa2: "de R$ 950 por R$ 500", etapa3: "última" }, email: { etapa1: "e1", etapa2: "e2", etapa3: "e3" },
+  };
+  const [saiu] = await comAbordagemCerta(vez, campanha);
+  assert.match(saiu.corpo, /fluxdeck\.com\.br\/previa\/[\w-]+$/);
+  assert.deepEqual(saiu.numeroDaVez, { modo: "uazap", numeroId: "n1" }); // continua no número da vez
+  assert.equal((await db.buscarLead(l.id)).abordagem, ABORDAGEM_PRINCIPAL);
+  assert.equal((await db.buscarMensagem(ids[1])).corpo, "de R$ 950 por R$ 500");
+  await db.gravarConfig("abordagem_principal", { ativa: false });
 });

@@ -12,7 +12,7 @@ export const AUTOMACAO_PADRAO = {
   ativo: false, // busca, aprova e envia sozinho
   respostaAutomatica: false, // a IA responde as conversas sozinha
   metaDiaria: { email: 100 }, // empresas novas por dia no e-mail (o WhatsApp não tem limite por dia: vale o intervalo)
-  intervaloEmpresasMin: 5, // minutos entre uma empresa nova e a próxima (sorteado entre o mínimo e o máximo)
+  intervaloEmpresasMin: 12, // minutos entre uma mensagem e a próxima no mesmo número (sorteado entre o mínimo e o máximo; 12 fixos desde 16/11/2026)
   intervaloEmpresasMax: 12,
   intervaloOficialMin: 2, // minutos entre uma empresa e a próxima no número da API oficial da Meta (sai mais rápido)
   intervaloOficialMax: 4,

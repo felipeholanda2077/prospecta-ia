@@ -61,10 +61,10 @@ const LOTE_POR_RODADA = 5;
 // Directs para quem nunca falou com a conta, por dia: mais que isso o Instagram costuma limitar a conta,
 // mesmo enviando na mão. O painel avisa quando você chega nesse número.
 export const LIMITE_DIRECT_DIA = 25;
-// Entre uma empresa nova e a próxima, de 5 a 12 minutos (sorteado a cada vez), para o número
+// Entre uma empresa nova e a próxima, 12 minutos (ajustável em Automação), para o número
 // e o e-mail não parecerem disparo em massa. Ajustável em Automação. As etapas 2 e 3 do WhatsApp
 // dividem essa mesma vez: o número manda uma mensagem por vez, nunca várias em sequência.
-const INTERVALO_EMPRESAS_MIN = [5, 12];
+const INTERVALO_EMPRESAS_MIN = [12, 12]; // 12 minutos fixos entre uma mensagem e a próxima no mesmo número (pedido de 16/11/2026)
 // Número da API oficial da Meta: não corre o risco de bloqueio do WhatsApp Web, então sai mais rápido. Com a empresa
 // ainda não verificada, a Meta deixa começar 250 conversas por dia: de 2 a 4 minutos dá umas 180 num dia de 9 h.
 const INTERVALO_OFICIAL_MIN = [2, 4];
@@ -190,7 +190,7 @@ export function dentroDoHorario(limites, agora = new Date(), fuso = config.timez
 }
 
 // WhatsApp sem limite de empresas novas por dia: o ritmo do número fica com o intervalo entre uma mensagem
-// e outra (5 a 12 minutos, ajustável em Automação). O e-mail continua com a meta do dia.
+// e outra (12 minutos, ajustável em Automação). O e-mail continua com a meta do dia.
 export const SEM_LIMITE = Infinity;
 
 /** Quantas mensagens de prospecção podem sair hoje por este canal (no WhatsApp, sem limite). */
@@ -1815,7 +1815,7 @@ export function conversaDaChamada(enviaveis, { somenteDaVez = false } = {}) {
  * Etapa 4: envia a fila (etapas aprovadas e já no dia agendado), com intervalo variável.
  * Nada sai fora do horário comercial de segunda a sexta. Com `distribuir`, a cota de
  * hoje é espalhada pelas rodadas que faltam, para não sair tudo de uma vez.
- * Empresas novas e etapas 2 e 3 do WhatsApp saem uma por vez em cada número, com 5 a 12 minutos entre elas
+ * Empresas novas e etapas 2 e 3 do WhatsApp saem uma por vez em cada número, com 12 minutos entre elas
  * no mesmo número (o agendador do banco chama `somenteDaVez` a cada minuto para respeitar esse intervalo).
  */
 export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false, somenteDaVez = false, agora = new Date() } = {}) {
@@ -1864,6 +1864,9 @@ export async function enviar(campanha, { ate = prazoPadrao(), distribuir = false
   // Cada número tem a sua vez: a vez é reservada no banco (com dois agendadores rodando juntos, só um envia)
   // e a próxima daquele número só sai depois do intervalo sorteado.
   const vezes = await escolherVezes(enviaveis, vagas, await pistasDaVez(), campanha);
+  // A primeira mensagem que ainda está na abordagem antiga sai já reescrita na abordagem certa (a principal, para
+  // quem não tem site), mesmo que tenha ficado parada na fila (ex.: número desconectado).
+  for (const v of vezes) v.mensagens = await comAbordagemCerta(v.mensagens, campanha);
   const fila = [...conversa, ...vezes.flatMap((v) => v.mensagens)];
   if (!fila.length) {
     if (!somenteDaVez) log("📭 Nada para enviar agora");
@@ -2084,18 +2087,59 @@ export async function reescreverSequenciasComPreco(campanha, { ate = prazoPadrao
  * estavam na fila com a abordagem antiga (elogio às avaliações etc.) são reescritas aos poucos, a cada rodada, na
  * ordem em que vão sair: só as que ainda não mandaram a etapa 1 do WhatsApp. As etapas já enviadas ficam como estão.
  */
+/** A abordagem certa para a empresa agora: a principal (sem site, com a chave ligada) ou uma do teste A/B. */
+const precisaReescrever = (lead, principal) => Boolean(lead) && lead.origem !== "contador" && (principal && vaiPelaPrevia(lead)
+  ? lead.abordagem !== ABORDAGEM_PRINCIPAL
+  : !ABORDAGENS[lead.abordagem]);
+
+/** Reescreve as etapas ainda não enviadas da empresa na abordagem certa. Retorna a abordagem nova. */
+async function reescreverNaAbordagemCerta(lead, campanha, { contagem, principal }) {
+  const abordagem = escolherAbordagem(contagem, Math.random, { lead, principal });
+  const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades || "[]"), campanha, { abordagem });
+  for (const m of await db.etapasPendentes(lead.id)) {
+    const corpo = (m.canal === "email" ? s.email : s.whatsapp)[m.etapa - 1];
+    if (!corpo) continue;
+    await db.atualizarMensagem(m.id, { corpo, assunto: m.canal === "email" ? (m.etapa === 1 ? s.assunto_email : `Re: ${s.assunto_email}`) : null });
+  }
+  await db.atualizarLead(lead.id, { abordagem, observacao: s.resumo_interno });
+  log(`✍️  Primeira mensagem de ${lead.nome} reescrita (${abordagemPorChave(abordagem).nome})`);
+  return abordagem;
+}
+
+/**
+ * Última conferência antes de sair (ex.: a fila parada enquanto o número estava desconectado): a primeira mensagem
+ * de WhatsApp de uma empresa ainda na abordagem antiga é reescrita na hora, na abordagem certa, e sai já assim.
+ * Se a reescrita falhar, a empresa não sai nesta vez (fica para a próxima, quando a reescrita tentar de novo).
+ */
+export async function comAbordagemCerta(mensagens, campanha) {
+  const inicial = mensagens.find((m) => m.canal === "whatsapp" && m.tipo === "inicial" && m.etapa <= 1);
+  if (!inicial) return mensagens;
+  const principal = await abordagemPrincipalLigada();
+  const lead = await db.buscarLead(inicial.lead_id);
+  if (!precisaReescrever(lead, principal)) return mensagens;
+  try {
+    const contagem = Object.fromEntries((await db.resultadoPorAbordagem()).map((r) => [r.abordagem, r]));
+    await reescreverNaAbordagemCerta(lead, campanha, { contagem, principal });
+  } catch (e) {
+    log(`⚠️  ${lead.nome} fica para a próxima vez: não foi possível reescrever a primeira mensagem (${e.message})`);
+    return [];
+  }
+  const novas = [];
+  for (const m of mensagens) {
+    const atual = await db.buscarMensagem(m.id);
+    if (atual?.status === "aprovada") novas.push({ ...atual, ...(m.numeroDaVez ? { numeroDaVez: m.numeroDaVez } : {}) });
+  }
+  return novas;
+}
+
 export async function reescreverAbordagensAntigas(campanha, { ate = prazoPadrao(), limite = 3 } = {}) {
   const fila = ordenarFilaDeEnvio(await db.filaDeEnvio(400));
   const principal = await abordagemPrincipalLigada();
-  // A abordagem certa para a empresa agora: a principal (sem site, com a chave ligada) ou uma do teste A/B.
-  const precisaReescrever = (lead) => (principal && vaiPelaPrevia(lead)
-    ? lead.abordagem !== ABORDAGEM_PRINCIPAL
-    : !ABORDAGENS[lead.abordagem]);
   const antigas = [];
   for (const m of fila) {
     if (m.canal !== "whatsapp" || m.tipo !== "inicial" || m.etapa > 1 || antigas.includes(m.lead_id)) continue;
     const lead = await db.buscarLead(m.lead_id);
-    if (lead && precisaReescrever(lead) && lead.origem !== "contador") antigas.push(m.lead_id);
+    if (precisaReescrever(lead, principal)) antigas.push(m.lead_id);
     if (antigas.length >= limite) break;
   }
   if (!antigas.length) return { reescritas: 0 };
@@ -2105,16 +2149,8 @@ export async function reescreverAbordagensAntigas(campanha, { ate = prazoPadrao(
     if (semTempo(ate)) break;
     const lead = await db.buscarLead(leadId);
     try {
-      const abordagem = escolherAbordagem(contagem, Math.random, { lead, principal });
-      const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades || "[]"), campanha, { abordagem });
-      for (const m of await db.etapasPendentes(leadId)) {
-        const corpo = (m.canal === "email" ? s.email : s.whatsapp)[m.etapa - 1];
-        if (!corpo) continue;
-        await db.atualizarMensagem(m.id, { corpo, assunto: m.canal === "email" ? (m.etapa === 1 ? s.assunto_email : `Re: ${s.assunto_email}`) : null });
-      }
-      await db.atualizarLead(leadId, { abordagem, observacao: s.resumo_interno });
+      await reescreverNaAbordagemCerta(lead, campanha, { contagem, principal });
       reescritas++;
-      log(`✍️  Primeira mensagem de ${lead.nome} reescrita (${abordagemPorChave(abordagem).nome})`);
     } catch (e) {
       log(`⚠️  Não foi possível reescrever a primeira mensagem de ${lead?.nome ?? leadId}: ${e.message}`);
     }

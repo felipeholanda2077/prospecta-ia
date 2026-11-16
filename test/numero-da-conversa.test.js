@@ -53,5 +53,5 @@ test("intervalo: o número oficial da Meta tem o próprio (2 a 4 min por padrão
   assert.equal(pipeline.intervaloDoOficialMs({}, 0), 2 * 60_000);
   assert.equal(pipeline.intervaloDoOficialMs({}, 1), 4 * 60_000);
   assert.equal(pipeline.intervaloDoOficialMs({ intervaloOficialMin: 1, intervaloOficialMax: 1 }, 0.7), 60_000);
-  assert.equal(pipeline.intervaloEntreEmpresasMs({}, 0), 5 * 60_000);
+  assert.equal(pipeline.intervaloEntreEmpresasMs({}, 0), 12 * 60_000); // UAZap: 12 min fixos
 });

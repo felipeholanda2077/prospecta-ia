@@ -12,7 +12,7 @@ const JOBS = [
   // A rodada completa: minuto 3, 13, 23... das 9h às 20h UTC (6h às 17h53 em Brasília), segunda a sexta.
   { nome: NOME_JOB, agenda: "3-59/10 9-20 * * 1-5", tarefa: "envios" },
   // A cada 2 minutos (era a cada minuto: cada chamada gasta processamento na Vercel): a próxima empresa nova, ou a
-  // etapa 2 ou 3 do WhatsApp, sai assim que termina o intervalo desde a anterior (5 a 12 min na UAZap, 2 a 4 no oficial). Das 7h às 01h59 UTC, para cobrir o horário comercial do Brasil, da
+  // etapa 2 ou 3 do WhatsApp, sai assim que termina o intervalo desde a anterior (12 min na UAZap, 2 a 4 no oficial). Das 7h às 01h59 UTC, para cobrir o horário comercial do Brasil, da
   // Europa (a partir das 8h de Lisboa) e dos Estados Unidos (até as 17h59 da Califórnia); cada mensagem só
   // sai no horário comercial do fuso da empresa, e fora do horário daqui a chamada termina na hora se não
   // houver mensagem para fora do Brasil.
