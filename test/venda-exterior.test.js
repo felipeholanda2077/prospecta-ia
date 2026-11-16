@@ -255,11 +255,13 @@ test("planos do Brasil com implantação e anual; apresentação de fora separad
   ]);
 
   const { lerApresentacao, gravarApresentacao, lerApresentacaoDeFora } = await import("../src/respostas/apresentacao.js");
-  const antes = await lerApresentacao();
+  // O texto salvo (sem a oferta do site da Black Friday, que entra sozinha na hora de usar enquanto vale).
+  const salvo = (lead = null) => lerApresentacao(lead, { comOferta: false });
+  const antes = await salvo();
   const usdAntes = (await stripe.precosPublicos("USD")).planos.map((x) => x.porMes);
   await gravarApresentacao(texto);
-  assert.equal(await lerApresentacao(), texto.trim());
-  assert.equal(await lerApresentacao({ pais: "BR" }), texto.trim());
+  assert.equal(await salvo(), texto.trim());
+  assert.equal(await salvo({ pais: "BR" }), texto.trim());
   // A primeira troca guarda os planos de antes para fora do Brasil.
   assert.equal(await lerApresentacaoDeFora(), antes);
   assert.equal(await lerApresentacao({ pais: "US" }), antes);

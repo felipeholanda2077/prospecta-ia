@@ -1,10 +1,10 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { classificarResposta, limparTextoResposta, escreverApresentacao, escreverEnvioDaApresentacao, recusouClaramente, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo } from "../ia/resposta.js";
+import { classificarResposta, limparTextoResposta, escreverApresentacao, escreverEnvioDaApresentacao, recusouClaramente, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo, valoresPermitidos } from "../ia/resposta.js";
 import { pediuApresentacaoComercial, linkDaApresentacao, apresentacaoJaEnviada, mensagemDaApresentacao } from "../vendas/apresentacaoComercial.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento, horariosLivres } from "../agenda/calendly.js";
-import { momentoDaPrevia, previaSoNaHora } from "../vendas/previa.js";
+import { momentoDaPrevia, previaSoNaHora, origemDaPrevia } from "../vendas/previa.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
 import { contatosLigados } from "./contatoNovo.js";
 import { variantesWhatsappBR } from "../analise/telefone.js";
@@ -211,7 +211,7 @@ const comPagamento = (c, lead, apresentacao) => (ehExterior(lead) ? aplicarLinkD
  * Últimos acertos antes de a resposta sair: sem "Bom dia!" de novo se a conversa já começou, e sem valores (R$)
  * se a pessoa ainda não perguntou de preço. Vale para todas as partes da resposta do agente também.
  */
-function ajustarResposta(c, historico, texto) {
+function ajustarResposta(c, historico, texto, lead = null) {
   if (!c) return c;
   // A mensagem com a apresentação comercial nunca leva valores: tudo é sob medida.
   const podeValores = pediuValor(texto, historico) && !c.semValores;
@@ -221,7 +221,8 @@ function ajustarResposta(c, historico, texto) {
   const ajustar = (t, i) => {
     let sem = i === 0 ? semCumprimentoRepetido(t, historico) : t;
     if (cedoParaConvite) sem = semConviteCedo(sem);
-    return podeValores ? sem : semValores(sem);
+    // Abordagem principal: a oferta do site da Black Friday pode ficar (só ela), mesmo sem a pessoa perguntar.
+    return podeValores ? sem : semValores(sem, { manter: valoresPermitidos(lead) });
   };
   if (c.partes?.length) {
     const partes = c.partes.map(ajustar).filter((p) => p?.trim());
@@ -340,7 +341,7 @@ export async function registrarResposta({
         // Fora do Brasil, vai só o link do Calendly (ele mostra os horários no fuso de quem abre).
         horarios: ehExterior(lead) ? [] : await horariosLivres(campanha.automacao?.calendly),
         apresentacao: await lerApresentacao(lead),
-        linkPrevia: momentoDaPrevia({ lead, historico, texto: limpo }),
+        linkPrevia: momentoDaPrevia({ lead, historico, texto: limpo, origem: origemDaPrevia(campanha) }),
       };
       ({ c, apresentou } = await pensarResposta(contexto, { classificar, apresentar, enviarSlides }));
     }
@@ -348,7 +349,7 @@ export async function registrarResposta({
     c = { classificacao: "outro", resumo: forcarHumano ? "Mandou um áudio." : `Não foi possível classificar automaticamente: ${e.message}`,
           sugestao_resposta: "", precisa_humano: true, motivo_humano: forcarHumano || "a IA não conseguiu ler esta resposta" };
   }
-  c = await comPagamento(ajustarResposta(c, historico, limpo), lead);
+  c = await comPagamento(ajustarResposta(c, historico, limpo, lead), lead);
 
   const id = await db.criarResposta({
     lead_id: lead.id,
@@ -482,14 +483,14 @@ export async function continuarComIA(respostaId, campanha, {
   await retomarIA(lead.id); // você mandou a IA continuar: sai da pausa
   const historico = await db.historicoConversa(lead.id);
   const contexto = {
-    texto: r.texto, assunto: r.assunto, lead, historico, campanha, canal: r.canal, linkPrevia: momentoDaPrevia({ lead, historico, texto: r.texto }),
+    texto: r.texto, assunto: r.assunto, lead, historico, campanha, canal: r.canal, linkPrevia: momentoDaPrevia({ lead, historico, texto: r.texto, origem: origemDaPrevia(campanha) }),
     linkAgendamento: agendaDa(campanha, lead, r.canal), horarios: ehExterior(lead) ? [] : await horariosLivres(campanha.automacao?.calendly),
     apresentacao: await lerApresentacao(lead),
     nota: String(nota ?? "").trim().slice(0, 500),
   };
   const pensado = await pensarResposta(contexto, { classificar, apresentar });
   const { apresentou } = pensado;
-  const c = await comPagamento(ajustarResposta(pensado.c, contexto.historico, r.texto), lead, contexto.apresentacao);
+  const c = await comPagamento(ajustarResposta(pensado.c, contexto.historico, r.texto, lead), lead, contexto.apresentacao);
   if (!c.sugestao_resposta?.trim()) throw new Error("A IA não escreveu uma resposta para esta conversa");
   await db.atualizarResposta(r.id, {
     precisa_humano: null, classificacao: c.classificacao, resumo: c.resumo, sugestao: c.sugestao_resposta,
@@ -514,7 +515,7 @@ async function continuarComAgente(r, lead, { nota, responderAgente }) {
   const c = ajustarResposta(await responderAgente({
     agente, fontes: await fontesDoAgente(agente), texto: r.texto, lead, historico,
     nota: String(nota ?? "").trim().slice(0, 500),
-  }), historico, r.texto);
+  }), historico, r.texto, lead);
   if (c.delegou) throw new Error(`O agente pediu de novo para você responder: ${c.motivo_humano}`);
   const partes = partesDa(c);
   if (!partes.length) throw new Error("O agente não escreveu uma resposta para esta conversa");
@@ -571,7 +572,7 @@ export async function revisarParadasPorRobo(campanha, { classificar = classifica
       itens.push({ ...base, decisao: "erro", ultima: texto.slice(0, 300), resumo: `A IA não conseguiu ler: ${e.message}`, texto: "" });
       continue;
     }
-    c = await comPagamento(ajustarResposta(c, antes, texto), lead, apresentacao);
+    c = await comPagamento(ajustarResposta(c, antes, texto, lead), lead, apresentacao);
     const sugestao = String(c.sugestao_resposta ?? "").trim();
     let decisao = "responder";
     if (c.classificacao === "descadastro") decisao = "descadastro";

@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { gerarJson } from "./cliente.js";
 import { MARCADOR_LINK } from "../agenda/calendly.js";
-import { ABORDAGENS, ABORDAGEM_PADRAO } from "./abordagens.js";
+import { ABORDAGENS, ABORDAGEM_PADRAO, ABORDAGEM_PRINCIPAL, PRINCIPAL, MARCADOR_PREVIA } from "./abordagens.js";
+import { enderecoDaPrevia, origemDaPrevia } from "../vendas/previa.js";
+import { OFERTA_SITE, ofertaSiteAtiva, PRECO_DE, PRECO_POR } from "../vendas/ofertaSite.js";
 import { vendeSemReuniao, linkDosSlides } from "../internacional.js";
 
 const Etapas = z.object({ etapa1: z.string(), etapa2: z.string(), etapa3: z.string() });
@@ -68,7 +70,79 @@ ${semValores
 Nunca invente nomes, telefones, sites, clientes, números ou resultados que não estejam aqui.`;
 }
 
+/**
+ * A sequência da abordagem principal (empresa sem site): a etapa 1 leva a prévia do site dela, a 2 a oferta da Black
+ * Friday (enquanto vale) e a 3 encerra pedindo só um "quero" para colocar o site no ar. É a única com preço.
+ */
+function sistemaDaPrevia(campanha, agora = new Date()) {
+  const oferta = ofertaSiteAtiva(agora);
+  return `${contextoEmpresa(campanha)}
+
+Sua tarefa: escrever uma SEQUÊNCIA de 3 mensagens para iniciar contato com uma empresa que ainda não conhece vocês e
+que NÃO tem site próprio. Vocês já montaram uma PRÉVIA do site dela (uma página de demonstração com o nome, o ramo, a
+cidade e o WhatsApp dela), para ela ver como o site dela fica feito pela ${campanha.empresa.nome}. O objetivo é ela abrir a
+prévia, gostar e querer o site no ar. Cada etapa só é enviada se a anterior não teve resposta; quando a empresa
+responder, a sequência para.
+- A dor: quem procura esse tipo de negócio no Google e não acha um site vai para o concorrente que aparece, e o
+  Instagram ou o Google Maps sozinhos não mostram o trabalho nem levam direto para o WhatsApp. Fale disso como algo comum
+  nesse tipo de negócio, nunca como defeito da empresa.
+- NUNCA diga nem dê a entender que a empresa "não tem site" ou que "falta" algo: diga só que você montou uma prévia de
+  como ficaria o site dela.
+- PROIBIDO elogiar ou citar a nota ou a quantidade de avaliações do Google, e PROIBIDO abrir com "vi que vocês...".
+
+Etapa 1 — primeiro contato (curta e leve):
+- WhatsApp e e-mail: ${PRINCIPAL.instrucao}
+- O marcador ${MARCADOR_PREVIA} vai SOZINHO numa linha, só na etapa 1, exatamente assim. Não escreva nenhum outro link.
+- PROIBIDO na etapa 1: preço, prazo, lista de serviços, pedido de reunião.
+- WhatsApp: no máximo 3 frases curtas (até ~300 caracteres, sem contar o link). E-mail: 40 a 70 palavras.
+
+Etapa 2 — se não houver resposta (WhatsApp: ~2 horas depois; e-mail: 1 dia útil depois):
+- Volte com naturalidade, sem cobrar resposta, e lembre da prévia em meia frase (sem repetir o link).
+- Em UMA frase, o que o site faz pelo negócio (aparecer no Google para quem procura o serviço na cidade, mostrar o
+  trabalho, levar o cliente direto para o WhatsApp), sem inventar números.
+${oferta ? `- Diga a oferta: o site no ar com a cara da prévia, de ${PRECO_DE} por ${PRECO_POR}, valor único, só nesta Black Friday (até ${OFERTA_SITE.ateTexto}).
+  Escreva os valores exatamente assim ("de ${PRECO_DE} por ${PRECO_POR}"). Nenhum outro valor, plano ou desconto.` : `- Ainda sem preço.`}
+- Termine com UMA pergunta simples (ex.: se quer que você coloque o site no ar com as fotos e informações deles).
+- WhatsApp: até ~350 caracteres. E-mail: 60 a 100 palavras.
+
+Etapa 3 — último toque (WhatsApp: ~2 horas depois da etapa 2; e-mail: 2 dias úteis depois da etapa 2):
+- Diga com gentileza que é a última mensagem e que tudo bem se não for o momento.
+- Se quiser o site no ar, é só responder aqui (ex.: um "quero") que você ajusta a prévia com as fotos e as informações
+  deles.${oferta ? ` Pode lembrar em meia frase que o valor de Black Friday (${PRECO_POR}) vale até ${OFERTA_SITE.ateTexto}.` : ""}
+- Sem link, sem convite para reunião ou bate-papo.
+- WhatsApp: até ~300 caracteres. E-mail: 50 a 90 palavras.
+
+Se os dados trazem o sócio que administra a empresa: use o PRIMEIRO nome dele, com a grafia certa em português (ex.:
+JOSE CARLOS DA SILVA → José) e cumprimente pelo nome ("Oi, José, tudo bem?"). Não diga de onde tirou o nome.
+
+No WhatsApp as 3 etapas saem no MESMO DIA, com cerca de 2 horas entre elas: escreva como quem volta à conversa
+algumas horas depois (nada de "semana passada" ou "dias atrás"). No e-mail cada etapa sai em outro dia: escreva como
+quem dá sequência ao e-mail anterior, sem citar o dia exato.
+
+Regras gerais:
+- Português do Brasil, tom cordial, simples e humano, como alguém da região escrevendo pessoalmente. Frases curtas.
+- Não repita a mesma informação entre as etapas; cada uma acrescenta algo novo.
+- Nada de urgência falsa além do prazo real da oferta, promessas de resultado, caixa alta, excesso de emojis (no máximo 1
+  por mensagem no WhatsApp) ou jargão técnico.
+- E-mail em texto simples, sem markdown; assine apenas na etapa 1 e de forma curta nas seguintes.
+- Não escreva rodapé de descadastro; ele é adicionado automaticamente.`;
+}
+
+/**
+ * Troca o marcador da prévia pelo link da prévia da empresa: na etapa 1 (se a IA esqueceu o marcador, o link vai no
+ * fim); nas outras, o marcador sai. Sem link (a empresa não pode ter a prévia), o marcador só sai.
+ */
+export function comLinkDaPrevia(texto, link, etapa) {
+  const t = String(texto ?? "");
+  if (etapa !== 1 || !link) {
+    return t.replace(/^[ \t]*\{\{PREVIA\}\}[ \t]*(?:\n|$)/gm, "").split(MARCADOR_PREVIA).join("").replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+  const com = t.split(MARCADOR_PREVIA).join(link);
+  return com.includes(link) ? com.trim() : `${com.trim()}\n${link}`;
+}
+
 function montarSistema(campanha, abordagem = ABORDAGEM_PADRAO) {
+  if (abordagem === ABORDAGEM_PRINCIPAL) return sistemaDaPrevia(campanha);
   if (!ABORDAGENS[abordagem]) abordagem = ABORDAGEM_PADRAO;
   return `${contextoEmpresa(campanha)}
 
@@ -233,6 +307,11 @@ export async function gerarSequencia(lead, oportunidades, campanha, { abordagem 
     jsonSchema: SEQUENCIA_JSON_SCHEMA,
     zodSchema: SequenciaSchema,
   });
+  if (abordagem === ABORDAGEM_PRINCIPAL) {
+    const link = enderecoDaPrevia(lead, origemDaPrevia(campanha));
+    const lista = (e) => [e.etapa1, e.etapa2, e.etapa3].map((t, i) => comLinkDaPrevia(t, link, i + 1));
+    return { ...r, email: lista(r.email), whatsapp: lista(r.whatsapp) };
+  }
   const lista = (e) => [e.etapa1, e.etapa2, e.etapa3].map((t, i) => (i === 2 ? comSlidesNoLugarDoConvite(t, lead) : t));
   return { ...r, email: lista(r.email), whatsapp: lista(r.whatsapp) };
 }

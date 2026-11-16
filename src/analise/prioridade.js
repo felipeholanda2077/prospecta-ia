@@ -50,5 +50,8 @@ export function prioridadeNaFila(lead, { andamento = null, temResposta = false, 
     return { pontos, nivel, rotulo: `Respondeu · chance ${andamento.rotulo.toLowerCase()}`, motivos: [andamento.proximoPasso] };
   }
   const rotulo = { alta: "Potencial alto", media: "Potencial médio", baixa: "Potencial baixo" }[potencial.nivel];
+  // Sem site próprio: na frente das outras empresas novas (abordagem principal, com a prévia do site), mas ainda
+  // atrás das conversas (a mais fria vale 200).
+  if (semSiteProprio(lead.site)) return { ...potencial, pontos: Math.min(199, 100 + potencial.pontos), rotulo: `Sem site · ${rotulo.toLowerCase()}` };
   return { ...potencial, rotulo };
 }

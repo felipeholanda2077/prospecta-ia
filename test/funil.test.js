@@ -306,7 +306,8 @@ test("prioridade: conversa esperando resposta > chance alta > potencial de venda
   const quente = prioridadeNaFila(pequena, { andamento: { chance: "quente", rotulo: "Alta", proximoPasso: "mandar o link" } });
   const nova = prioridadeNaFila(grande);
   assert.ok(esperando.pontos > quente.pontos && quente.pontos > nova.pontos);
-  assert.equal(nova.rotulo, "Potencial alto");
+  assert.equal(nova.rotulo, "Sem site · potencial alto"); // sem site: na frente das novas (abordagem principal)
+  assert.equal(prioridadeNaFila({ ...grande, site: "https://grande.com.br" }).rotulo, "Potencial médio");
 });
 
 test("ordem de envio: respostas, etapas seguintes e, entre as novas, as de mais potencial primeiro", () => {

@@ -9,7 +9,8 @@ import { buscarAnunciantes, podeBuscarSozinho, completarContatos, cortar } from 
 import { buscarEmpresasContratando, FUNCOES } from "./descoberta/vagas.js";
 import { buscarAnunciantesNoGoogle } from "./descoberta/googleAds.js";
 import { avaliacoesDoGoogle, oportunidadeDasAvaliacoes } from "./analise/avaliacoes.js";
-import { escolherAbordagem, ABORDAGENS } from "./ia/abordagens.js";
+import { escolherAbordagem, ABORDAGENS, ABORDAGEM_PRINCIPAL, abordagemPorChave, vaiPelaPrevia } from "./ia/abordagens.js";
+import { ofertaSiteAtiva } from "./vendas/ofertaSite.js";
 import { analisarSite } from "./analise/site.js";
 import { identificarOportunidades, oportunidadesParaSiteBom } from "./analise/oportunidades.js";
 import { ehCelularBR, normalizarTelefoneBR, variantesWhatsappBR } from "./analise/telefone.js";
@@ -1141,6 +1142,8 @@ export async function propor(campanha, { ate = prazoPadrao(), limite = campanha.
   const prontas = [];
   // Teste A/B da primeira mensagem: a contagem de cada abordagem, atualizada a cada empresa desta rodada.
   const contagem = leads.length ? Object.fromEntries((await db.resultadoPorAbordagem()).map((r) => [r.abordagem, r])) : {};
+  // Abordagem principal (empresa sem site recebe a prévia do site dela): só com a chave ligada na Automação.
+  const principal = leads.length ? await abordagemPrincipalLigada() : false;
 
   for (const lead of leads) {
     if (semTempo(ate)) break;
@@ -1185,7 +1188,7 @@ export async function propor(campanha, { ate = prazoPadrao(), limite = campanha.
         continue;
       }
       // A abordagem só é sorteada (e conta no teste) quando a sequência vai pelo WhatsApp.
-      const abordagem = destinosLivres.some(([c]) => c === "whatsapp") ? escolherAbordagem(contagem) : null;
+      const abordagem = destinosLivres.some(([c]) => c === "whatsapp") ? escolherAbordagem(contagem, Math.random, { lead, principal }) : null;
       const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades), campanha, abordagem ? { abordagem } : {});
       for (const [canal, destino] of destinosLivres) {
         const textos = canal === "email" ? s.email : s.whatsapp;
@@ -1540,9 +1543,14 @@ export async function responderConversa(respostaId, texto, campanha, { destino: 
  */
 export function ordenarFilaDeEnvio(fila) {
   const grupo = (m) => (m.tipo === "resposta" ? 0 : m.etapa > 1 ? 1 : 2);
+  // Entre as empresas novas, as sem site próprio vão primeiro (são as da abordagem principal, com a prévia do site).
+  const semSite = (m) => (grupo(m) === 2 && semSiteProprio(m.site) ? 1 : 0);
   const potencial = (m) => (grupo(m) === 2 ? potencialDaEmpresa(m).pontos : 0);
-  return [...fila].sort((a, b) => grupo(a) - grupo(b) || potencial(b) - potencial(a));
+  return [...fila].sort((a, b) => grupo(a) - grupo(b) || semSite(b) - semSite(a) || potencial(b) - potencial(a));
 }
+
+/** A chave "Abordagem principal" (Automação): empresa sem site recebe, na primeira mensagem, a prévia do site dela. */
+export const abordagemPrincipalLigada = async () => (await db.lerConfig("abordagem_principal"))?.ativa === true;
 
 /** Espera até a próxima empresa nova, em ms: sorteada entre o mínimo e o máximo da Automação. */
 export function intervaloEntreEmpresasMs(auto = {}, sorteio = Math.random()) {
@@ -2050,7 +2058,8 @@ async function rodada(campanha) {
  */
 export async function reescreverSequenciasComPreco(campanha, { ate = prazoPadrao(), limite = 3 } = {}) {
   let reescritas = 0;
-  for (const leadId of await db.leadsComPrecoPendente(limite)) {
+  // As da abordagem principal citam a oferta do site de propósito: só são reescritas depois que ela acaba.
+  for (const leadId of await db.leadsComPrecoPendente(limite, { comPrincipal: !ofertaSiteAtiva() })) {
     if (semTempo(ate)) break;
     const lead = await db.buscarLead(leadId);
     try {
@@ -2077,12 +2086,16 @@ export async function reescreverSequenciasComPreco(campanha, { ate = prazoPadrao
  */
 export async function reescreverAbordagensAntigas(campanha, { ate = prazoPadrao(), limite = 3 } = {}) {
   const fila = ordenarFilaDeEnvio(await db.filaDeEnvio(400));
-  const novas = new Set(Object.keys(ABORDAGENS));
+  const principal = await abordagemPrincipalLigada();
+  // A abordagem certa para a empresa agora: a principal (sem site, com a chave ligada) ou uma do teste A/B.
+  const precisaReescrever = (lead) => (principal && vaiPelaPrevia(lead)
+    ? lead.abordagem !== ABORDAGEM_PRINCIPAL
+    : !ABORDAGENS[lead.abordagem]);
   const antigas = [];
   for (const m of fila) {
     if (m.canal !== "whatsapp" || m.tipo !== "inicial" || m.etapa > 1 || antigas.includes(m.lead_id)) continue;
     const lead = await db.buscarLead(m.lead_id);
-    if (lead && !novas.has(lead.abordagem) && lead.origem !== "contador") antigas.push(m.lead_id);
+    if (lead && precisaReescrever(lead) && lead.origem !== "contador") antigas.push(m.lead_id);
     if (antigas.length >= limite) break;
   }
   if (!antigas.length) return { reescritas: 0 };
@@ -2092,7 +2105,7 @@ export async function reescreverAbordagensAntigas(campanha, { ate = prazoPadrao(
     if (semTempo(ate)) break;
     const lead = await db.buscarLead(leadId);
     try {
-      const abordagem = escolherAbordagem(contagem);
+      const abordagem = escolherAbordagem(contagem, Math.random, { lead, principal });
       const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades || "[]"), campanha, { abordagem });
       for (const m of await db.etapasPendentes(leadId)) {
         const corpo = (m.canal === "email" ? s.email : s.whatsapp)[m.etapa - 1];
@@ -2101,7 +2114,7 @@ export async function reescreverAbordagensAntigas(campanha, { ate = prazoPadrao(
       }
       await db.atualizarLead(leadId, { abordagem, observacao: s.resumo_interno });
       reescritas++;
-      log(`✍️  Primeira mensagem de ${lead.nome} reescrita pela dor (${ABORDAGENS[abordagem].nome})`);
+      log(`✍️  Primeira mensagem de ${lead.nome} reescrita (${abordagemPorChave(abordagem).nome})`);
     } catch (e) {
       log(`⚠️  Não foi possível reescrever a primeira mensagem de ${lead?.nome ?? leadId}: ${e.message}`);
     }

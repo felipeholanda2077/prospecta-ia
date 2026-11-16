@@ -63,11 +63,12 @@ const valorEmReais = (t) => Number(String(t).replace(/\./g, "").replace(",", "."
 export function planosDaApresentacao(texto) {
   const planos = [];
   for (const linha of String(texto ?? "").split("\n")) {
-    const m = linha.match(/^\s*-\s*([^(:]+?)\s*\(R\$\s?([\d.]+(?:,\d{1,2})?)\s*\/\s*(m[eê]s|ano)/i);
+    // "(R$ 500 pagamento único" (ou "valor único"): plano pago uma vez só, sem mensalidade (intervalo "once").
+    const m = linha.match(/^\s*-\s*([^(:]+?)\s*\(R\$\s?([\d.]+(?:,\d{1,2})?)\s*(?:\/\s*(m[eê]s|ano)|(?:pagamento|valor)\s+[uú]nico)/i);
     if (m) {
       // "implantação de R$ 1.950 grátis" não é cobrança: a implantação só vale sem "grátis" logo depois do valor.
       const implantacao = linha.match(/implanta[çc][aã]o\s+(?:de\s+)?R\$\s?([\d.]+(?:,\d{1,2})?)(?![\d.,])(?!\s*gr[aá]tis)/i);
-      planos.push({ nome: m[1].trim(), reais: valorEmReais(m[2]), intervalo: /ano/i.test(m[3]) ? "year" : "month",
+      planos.push({ nome: m[1].trim(), reais: valorEmReais(m[2]), intervalo: !m[3] ? "once" : /ano/i.test(m[3]) ? "year" : "month",
         ...(implantacao ? { implantacao: valorEmReais(implantacao[1]) } : {}) });
     }
     // Promoção ("... de R$ 4.500/mês por R$ 3.000/mês"): o valor promocional também vale para o mesmo plano.
@@ -179,7 +180,8 @@ export async function criarCheckoutsDosPlanos({ moedas = ["USD"] } = {}) {
   for (const moeda of moedas) {
     const vistos = new Set();
     for (const p of fontes[moeda] ?? fontes.USD) {
-      if (p.promocao || vistos.has(simples(p.nome)) || /diagn[oó]stico/i.test(p.nome)) continue;
+      // Pagamento único (a oferta do site da Black Friday) é só do Brasil, pelo Asaas.
+      if (p.promocao || p.intervalo === "once" || vistos.has(simples(p.nome)) || /diagn[oó]stico/i.test(p.nome)) continue;
       vistos.add(simples(p.nome));
       const emPortugues = moeda === "BRL";
       const valor = emPortugues ? p.reais : arredondarPreco(p.reais * cot[moeda] * (1 + conf.ajustePct / 100));

@@ -3,6 +3,7 @@ import * as asaas from "../contratos/asaas.js";
 import { lerApresentacao } from "../respostas/apresentacao.js";
 import { planosDaApresentacao } from "./stripe.js";
 import { cifrar, decifrar } from "../segredos.js";
+import { OFERTA_SITE, ofertaSiteAtiva } from "./ofertaSite.js";
 
 // Checkouts fixos dos planos do Brasil pelo Asaas (taxas menores que o Stripe para vendas nacionais), usados no
 // site e nos slides de fechamento. Plano mensal: o link cobra a implantação + a 1ª mensalidade (Pix, boleto ou
@@ -22,12 +23,24 @@ const simples = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").
 /** "WhatsApp com IA" → "whatsapp-com-ia": o endereço do checkout da FluxDeck (/checkout/<slug>) de cada plano. */
 export const slugDoPlano = (nome) => simples(nome).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 export const enderecoDoCheckout = (nome) => `/checkout/${slugDoPlano(nome)}`;
-export const planoDoCheckout = async (slug) => (await checkoutsAsaas()).find((l) => slugDoPlano(l.plano) === String(slug ?? "")) ?? null;
+// A oferta do site da Black Friday sai do ar sozinha depois do prazo (mesmo antes de os checkouts serem refeitos).
+export const planoDoCheckout = async (slug) => (await checkoutsAsaas())
+  .find((l) => slugDoPlano(l.plano) === String(slug ?? "") && (l.plano !== OFERTA_SITE.plano || ofertaSiteAtiva())) ?? null;
 // O pagamento é de um plano pelo link do Asaas (paymentLink) ou pelo checkout da FluxDeck (referência "checkout:<id do link>").
 const linkDoPagamento = (links, p) => links.find((l) => (p.paymentLink && l.id === p.paymentLink) || p.externalReference === `checkout:${l.id}`) ?? null;
 
 /** O que cada link cobra, a partir de um plano da apresentação do Brasil. */
 export function cobrancaDoPlano(p) {
+  // Pagamento único (a oferta do site da Black Friday): cobra uma vez, sem assinatura depois.
+  if (p.intervalo === "once") {
+    return {
+      anual: false, unico: true, primeiro: p.reais, mensal: null,
+      dados: {
+        name: `${p.nome} · pagamento único`, value: p.reais, billingType: "UNDEFINED", chargeType: "DETACHED",
+        description: `${p.nome}: pagamento único de ${reais(p.reais)}, sem mensalidade.`, dueDateLimitDays: DIAS_PARA_PAGAR,
+      },
+    };
+  }
   if (p.intervalo === "year") {
     return {
       anual: true, primeiro: p.reais, mensal: null,
@@ -61,12 +74,12 @@ export async function criarCheckoutsAsaas() {
     if (p.promocao || vistos.has(simples(p.nome)) || /diagn[oó]stico/i.test(p.nome)) continue;
     vistos.add(simples(p.nome));
     const c = cobrancaDoPlano(p);
-    const chave = `${simples(p.nome)}|${c.primeiro}|${c.mensal ?? ""}|${c.anual ? "ano" : "mes"}`;
+    const chave = `${simples(p.nome)}|${c.primeiro}|${c.mensal ?? ""}|${c.unico ? "unico" : c.anual ? "ano" : "mes"}`;
     const igual = antigos.find((a) => a.chave === chave);
     if (igual) { novos.push(igual); continue; }
     const link = await asaas.criarLink(c.dados);
     if (!/^https:\/\//.test(link?.url ?? "")) throw new Error(`O Asaas não devolveu o link do plano ${p.nome}`);
-    novos.push({ chave, plano: p.nome, primeiro: c.primeiro, mensal: c.mensal, implantacao: p.implantacao ?? null, anual: c.anual, url: link.url, id: link.id });
+    novos.push({ chave, plano: p.nome, primeiro: c.primeiro, mensal: c.mensal, implantacao: p.implantacao ?? null, anual: c.anual, ...(c.unico ? { unico: true } : {}), url: link.url, id: link.id });
   }
   for (const a of antigos) {
     if (!novos.some((n) => n.id === a.id)) await asaas.desativarLink(a.id).catch(() => {});
@@ -103,7 +116,7 @@ async function registrarPagamentoDoPlano(link, pagamento, agora, { avisar } = {}
   const lead = await db.leadPorContato({ whatsapps: numeros, email: cliente?.email ?? null });
   const quem = [cliente?.name, cliente?.email, cliente?.mobilePhone ?? cliente?.phone].filter(Boolean).join(" · ");
   const resumo = `Pagou pelo Asaas: ${link.plano} (${reais(pagamento.value ?? link.primeiro)})${quem ? ` · ${quem}` : ""}`;
-  const sobreAssinatura = link.anual ? "Plano anual: não tem mensalidade."
+  const sobreAssinatura = link.unico ? "Pagamento único: não tem mensalidade." : link.anual ? "Plano anual: não tem mensalidade."
     : assinatura?.billingType === "CREDIT_CARD" ? `A assinatura da mensalidade (${reais(link.mensal)} por mês) foi criada no Asaas, no mesmo cartão, com a 1ª cobrança em 30 dias.`
     : assinatura?.erro ? `ATENÇÃO: não consegui criar a assinatura da mensalidade (${assinatura.erro}). Crie no Asaas: ${reais(link.mensal)} por mês.`
       : `A assinatura da mensalidade (${reais(link.mensal)} por mês) foi criada no Asaas, com a 1ª cobrança em 30 dias.`;
@@ -206,7 +219,7 @@ async function cartaoDoPagamento(id) {
 
 /** O que a página mostra do plano (nada de ids do Asaas). */
 export const resumoDoPlano = (link) => ({
-  plano: link.plano, slug: slugDoPlano(link.plano), anual: Boolean(link.anual),
+  plano: link.plano, slug: slugDoPlano(link.plano), anual: Boolean(link.anual), unico: Boolean(link.unico),
   hoje: link.primeiro, mensal: link.mensal ?? null, implantacao: link.implantacao ?? null,
 });
 
@@ -246,7 +259,7 @@ export async function pagarCheckout(slug, corpo, { ip = "", agora = new Date() }
   const dias = forma === "BOLETO" ? 3 : forma === "PIX" ? 1 : 0;
   const dados = {
     customer: cliente.id, billingType: forma, dueDate: dataMais(new Date(`${hojeNoBrasil(agora)}T12:00:00Z`), dias),
-    description: link.anual ? `${link.plano}: 12 meses (implantação inclusa)` : `${link.plano}: ${link.implantacao ? "implantação + " : ""}1ª mensalidade. Depois ${reais(link.mensal)} por mês, sem fidelidade.`,
+    description: link.unico ? `${link.plano}: pagamento único, sem mensalidade.` : link.anual ? `${link.plano}: 12 meses (implantação inclusa)` : `${link.plano}: ${link.implantacao ? "implantação + " : ""}1ª mensalidade. Depois ${reais(link.mensal)} por mês, sem fidelidade.`,
     externalReference: `checkout:${link.id}`,
     ...(parcelas > 1 ? { installmentCount: parcelas, totalValue: link.primeiro } : { value: link.primeiro }),
   };
@@ -262,7 +275,7 @@ export async function pagarCheckout(slug, corpo, { ip = "", agora = new Date() }
   if (forma === "CREDIT_CARD") {
     if (asaas.SITUACOES[pagamento.status] !== "paga") throw new ErroDoCheckout("O cartão não foi aprovado. Confira os dados ou tente outro cartão ou o Pix.");
     const token = pagamento.creditCard?.creditCardToken;
-    if (token && !link.anual) await db.gravarEstado(`checkout_cartao:${pagamento.id}`, cifrar(JSON.stringify({ token, ip })));
+    if (token && !link.anual && !link.unico) await db.gravarEstado(`checkout_cartao:${pagamento.id}`, cifrar(JSON.stringify({ token, ip })));
     const { enviarNotificacao } = await import("../envio/email.js");
     await registrarPagamentoDoPlano(link, pagamento, agora, { avisar: enviarNotificacao }).catch(() => {});
     return { pago: true, id: pagamento.id };

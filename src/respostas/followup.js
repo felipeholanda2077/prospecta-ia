@@ -1,8 +1,8 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { escreverFollowup, pediuValor, semValores } from "../ia/resposta.js";
+import { escreverFollowup, pediuValor, semValores, valoresPermitidos } from "../ia/resposta.js";
 import { enderecoDoGuia } from "../vendas/campanha.js";
-import { momentoDaPrevia, semLinkDaPrevia } from "../vendas/previa.js";
+import { momentoDaPrevia, semLinkDaPrevia, origemDaPrevia } from "../vendas/previa.js";
 import { lerApresentacao } from "./apresentacao.js";
 import { iaPausada } from "./processar.js";
 import { contatosLigados } from "./contatoNovo.js";
@@ -71,7 +71,7 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
       const dela = await db.ultimaRespostaDaConversa(lead.id);
       if (!dela || !CANAIS.includes(dela.canal)) continue;
       // Prévia do site: só para empresa sem site, quando a conversa tocou em presença online e o link ainda não foi.
-      const linkPrevia = momentoDaPrevia({ lead, historico });
+      const linkPrevia = momentoDaPrevia({ lead, historico, origem: origemDaPrevia(campanha) });
       // Para quem vai: a pessoa indicada que ainda não respondeu recebe um follow-up escrito para ela.
       const ultimoWa = dela.canal === "whatsapp" ? historico.filter((h) => h.canal === "whatsapp" && h.contato).at(-1) : null;
       const indicado = ultimoWa?.autor === "nos" ? (await contatosLigados(lead.id)).find((c) => variantesWhatsappBR(c.numero).includes(String(ultimoWa.contato).replace(/\D/g, ""))) : null;
@@ -79,7 +79,7 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
         lead, historico, campanha, canal: dela.canal, numero: plano.numero, evitar: plano.evitar, contatoIndicado: indicado ?? null,
         apresentacao: await lerApresentacao(lead), linkMaterial: enderecoDoGuia(lead), linkPrevia,
       });
-      let corpo = pediuValor(dela.texto, historico) ? r.mensagem : semValores(r.mensagem);
+      let corpo = pediuValor(dela.texto, historico) ? r.mensagem : semValores(r.mensagem, { manter: valoresPermitidos(lead) });
       if (!linkPrevia || !corpo?.includes(linkPrevia)) corpo = semLinkDaPrevia(corpo);
       if (!corpo?.trim()) continue;
       // No WhatsApp, para quem falou por último: depois de escrevermos para a pessoa que a empresa indicou, o

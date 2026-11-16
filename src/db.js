@@ -715,20 +715,25 @@ export async function filaDeEnvio(limite = 100) {
       WHERE m.status = 'aprovada'
         AND (CASE WHEN m.etapa <= 1 THEN (m.agendada_para IS NULL OR m.agendada_para <= now())
                   ELSE (m.agendada_para IS NOT NULL AND m.agendada_para <= now()) END)
-      ORDER BY m.etapa, COALESCE(m.agendada_para, m.criado_em), m.id
+      -- Na etapa 1, as empresas sem site próprio primeiro (a abordagem principal), para não ficarem fora do limite.
+      ORDER BY m.etapa,
+        CASE WHEN m.etapa = 1 AND (l.site IS NULL OR l.site = '' OR l.site ~* 'instagram\\.com|facebook\\.com|linktr\\.ee|wa\\.me|ifood\\.com') THEN 0 ELSE 1 END,
+        COALESCE(m.agendada_para, m.criado_em), m.id
       LIMIT $1`,
     [limite]
   );
 }
 
 /** Empresas com etapas ainda não enviadas que citam preço (escritas antes da regra do bate-papo). */
-export async function leadsComPrecoPendente(limite = 10) {
+export async function leadsComPrecoPendente(limite = 10, { comPrincipal = false } = {}) {
+  // A abordagem principal (prévia do site) cita a oferta do site de propósito: fica de fora enquanto a oferta vale.
   return (
     await q(
-      `SELECT DISTINCT lead_id FROM mensagens
-        WHERE status IN ('rascunho', 'aprovada') AND tipo IN ('inicial', 'sequencia') AND corpo ~ 'R\\$ ?[0-9]'
+      `SELECT DISTINCT m.lead_id FROM mensagens m JOIN leads l ON l.id = m.lead_id
+        WHERE m.status IN ('rascunho', 'aprovada') AND m.tipo IN ('inicial', 'sequencia') AND m.corpo ~ 'R\\$ ?[0-9]'
+          AND ($2 OR l.abordagem IS DISTINCT FROM 'previa_do_site')
         LIMIT $1`,
-      [limite]
+      [limite, comPrincipal]
     )
   ).map((r) => r.lead_id);
 }

@@ -1,4 +1,6 @@
 import * as db from "../db.js";
+import { OFERTA_SITE, ofertaSiteAtiva, blocoDaOferta, origemDoSite } from "../vendas/ofertaSite.js";
+import { config } from "../config.js";
 
 // O que a IA conta para quem demonstra interesse: como funciona, os planos e o prazo, tirado do
 // site https://fluxdeck.com.br. Fica editável em Automação no painel; mude lá quando os planos mudarem.
@@ -34,10 +36,27 @@ const deFora = (lead) => Boolean(lead?.pais) && lead.pais !== "BR";
  * A apresentação (como funciona, planos e prazo) para a empresa: a do Brasil, ou, para empresa de fora do Brasil, a
  * de fora (os preços de lá são convertidos dela para dólar ou euro). Sem a de fora guardada, vale a do Brasil.
  */
-export async function lerApresentacao(lead = null) {
+export async function lerApresentacao(lead = null, { comOferta = true } = {}) {
   const doBrasil = (await db.lerConfig("apresentacao"))?.texto || APRESENTACAO_PADRAO;
-  if (!deFora(lead)) return doBrasil;
+  if (!deFora(lead)) return comOferta ? comOfertaDoSite(doBrasil) : doBrasil;
   return (await db.lerConfig("apresentacao_exterior"))?.texto || doBrasil;
+}
+
+/** O endereço do checkout da oferta do site, quando ele já foi criado no Asaas (Contratos → Cobranças). */
+async function checkoutDaOferta() {
+  const links = (await db.lerConfig("asaas_planos"))?.links ?? [];
+  if (!links.some((l) => l.plano === OFERTA_SITE.plano)) return "";
+  const slug = OFERTA_SITE.plano.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return `${origemDoSite((await db.lerConfig("empresa"))?.site, config.painel.urlPublica)}/checkout/${slug}`;
+}
+
+/**
+ * A apresentação do Brasil com a oferta de site da Black Friday no fim, enquanto ela vale (ver vendas/ofertaSite.js).
+ * Ela não é gravada no texto salvo: no painel aparece só o que você escreveu, e depois do prazo ela some sozinha.
+ */
+async function comOfertaDoSite(texto) {
+  if (!ofertaSiteAtiva() || texto.includes(OFERTA_SITE.plano)) return texto;
+  return `${texto.trim()}\n\n${blocoDaOferta({ checkout: await checkoutDaOferta() })}`;
 }
 
 /** A apresentação das empresas de fora do Brasil (base dos preços em dólar e euro). */

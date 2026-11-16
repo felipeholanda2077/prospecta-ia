@@ -1115,6 +1115,8 @@
               <span>Com a SerpApi conectada, a busca automática pega quem aparece patrocinado no topo do Google para o segmento e a cidade da rodada. O contato sai do site, na análise.</span></div></label>
             <label class="chave"><input type="checkbox" name="testarRamos"><div><b>A IA testa ramos novos</b>
               <span>Uma vez por dia a IA escolhe ramos que combinam com os seus serviços (2 por vez), busca nas mesmas cidades e compara com os seus. Fica com os que respondem bem (20% ou mais em 20 contatadas) e pausa os outros. O resultado aparece em Respostas.</span></div></label>
+            <label class="chave"><input type="checkbox" id="auto-abordagem-principal"><div><b>Abordagem principal: prévia do site para quem não tem site</b>
+              <span>Empresas sem site próprio vão para a frente da fila e recebem, já na primeira mensagem, o link de uma prévia do site delas (com o nome, o ramo e o WhatsApp delas). Na segunda mensagem vai a oferta de site da Black Friday: de R$ 950 por R$ 500, valor único, até 30/11. As empresas com site seguem no teste A/B. Salva na hora.</span></div></label>
             <label class="chave"><input type="checkbox" name="respostaAutomatica"><div><b>IA responde as conversas sozinha</b>
               <span>Responde em alguns minutos, em tom humano, uma informação por vez, até a pessoa marcar no Calendly. Passa para você se pedirem ligação, negociarem ou reclamarem.</span></div></label>
             <div class="config-grade">
@@ -3010,7 +3012,7 @@ async function mostrarCheckoutsDosPlanos() {
         <button class="btn ${doAsaas.length ? "" : "primario"} sm" type="button" data-criar-checkouts-asaas>${ic("refresh", "sm")}${doAsaas.length ? "Atualizar com a apresentação" : "Criar os checkouts no Asaas"}</button></div>
       <p class="muted" style="font-size:12.5px;margin:0">Os do site e dos slides de fechamento, na página de pagamento da FluxDeck (fluxdeck.com.br/checkout/…): o cliente paga sem sair do seu endereço e o Asaas processa. No cartão, a mensalidade fica no mesmo cartão. Plano mensal: o link cobra a implantação + o 1º mês (Pix, boleto ou cartão) e, quando cai, o sistema cria no Asaas a assinatura da mensalidade a partir do mês seguinte. Anual: o ano em até 12x.</p>
       ${doAsaas.map((l) => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
-        <span style="flex:1;min-width:180px">${esc(l.plano)} · <b>${esc(valor({ moeda: "BRL", valor: l.primeiro }))}</b> ${l.anual ? "(o ano, até 12x)" : `hoje, depois ${esc(valor({ moeda: "BRL", valor: l.mensal }))}/mês`}</span>
+        <span style="flex:1;min-width:180px">${esc(l.plano)} · <b>${esc(valor({ moeda: "BRL", valor: l.primeiro }))}</b> ${l.unico ? "(pagamento único)" : l.anual ? "(o ano, até 12x)" : `hoje, depois ${esc(valor({ moeda: "BRL", valor: l.mensal }))}/mês`}</span>
         <a class="btn sm" href="${esc(l.pagina || l.url)}" target="_blank" rel="noopener">${ic("external", "sm")}Abrir</a>
         <button class="btn sm" type="button" data-copiar-checkout="${esc(l.pagina || l.url)}">${ic("copy", "sm")}Copiar link</button></div>`).join("")}
     </div>`;
@@ -3977,12 +3979,14 @@ function htmlFunilVisual(f) {
 // Teste A/B da primeira mensagem do WhatsApp (ver src/ia/abordagens.js).
 // A e B falam da dor da empresa; as antigas (elogio etc.) saíram do teste e só aparecem embaixo, para comparar.
 const NOMES_DAS_ABORDAGENS = { dor_na_pratica: "A · A dor na prática", dor_custo: "B · O que a dor custa" };
+// A principal (empresa sem site recebe a prévia do site dela) fica fora do teste A/B: aparece em cima, só para acompanhar.
+const NOME_DA_PRINCIPAL = { previa_do_site: "Principal · Prévia do site (sem site)" };
 const NOMES_ANTIGOS = { elogio: "Elogio e pergunta (antiga)", pergunta: "Pergunta direta (antiga)", responsavel: "Pergunta pelo responsável (antiga)" };
 const MIN_POR_ABORDAGEM = 30;
 function htmlTesteDeAbordagem(todas = []) {
   if (!todas?.length) return "";
   const atuais = Object.keys(NOMES_DAS_ABORDAGENS).map((k) => todas.find((r) => r.abordagem === k) ?? { abordagem: k, contatadas: 0, responderam: 0, interessadas: 0 });
-  const linhas = [...atuais, ...todas.filter((r) => NOMES_ANTIGOS[r.abordagem])];
+  const linhas = [...todas.filter((r) => NOME_DA_PRINCIPAL[r.abordagem]), ...atuais, ...todas.filter((r) => NOMES_ANTIGOS[r.abordagem])];
   const taxa = (r) => (r.contatadas ? r.interessadas / r.contatadas : 0);
   const todasMedidas = Object.keys(NOMES_DAS_ABORDAGENS).every((k) => (linhas.find((r) => r.abordagem === k)?.contatadas ?? 0) >= MIN_POR_ABORDAGEM);
   const melhor = todasMedidas ? [...atuais].sort((a, b) => taxa(b) - taxa(a))[0]?.abordagem : null;
@@ -3990,7 +3994,7 @@ function htmlTesteDeAbordagem(todas = []) {
     ? "a IA usa mais a que gera mais interesse, e de vez em quando as outras"
     : `as duas abrem pela dor da empresa; cada uma vai para ${MIN_POR_ABORDAGEM} empresas (pelos números da UAZap) antes de a IA escolher`}</span>
     <table class="fv-ramos"><thead><tr><th>Abordagem</th><th>Contatadas</th><th>Responderam</th><th>Interessadas</th></tr></thead><tbody>
-    ${linhas.map((r) => `<tr${NOMES_ANTIGOS[r.abordagem] ? ' class="muted"' : ""}><td>${esc(NOMES_DAS_ABORDAGENS[r.abordagem] ?? NOMES_ANTIGOS[r.abordagem] ?? r.abordagem)}${r.abordagem === melhor ? ' <span class="pilula ok">Na frente</span>' : ""}</td><td>${r.contatadas}</td>
+    ${linhas.map((r) => `<tr${NOMES_ANTIGOS[r.abordagem] ? ' class="muted"' : ""}><td>${esc(NOME_DA_PRINCIPAL[r.abordagem] ?? NOMES_DAS_ABORDAGENS[r.abordagem] ?? NOMES_ANTIGOS[r.abordagem] ?? r.abordagem)}${r.abordagem === melhor ? ' <span class="pilula ok">Na frente</span>' : ""}</td><td>${r.contatadas}</td>
       <td><b>${pctDe(r.responderam, r.contatadas)}%</b> <span class="muted">(${r.responderam})</span></td>
       <td><b>${pctDe(r.interessadas, r.contatadas)}%</b> <span class="muted">(${r.interessadas})</span></td></tr>`).join("")}
     </tbody></table></div>`;
@@ -8918,6 +8922,7 @@ async function carregarAutomacao() {
     f.buscarNoGoogleAds.checked = a.buscarNoGoogleAds !== false;
     f.buscarNaSerpApi.checked = a.buscarNaSerpApi !== false;
     f.testarRamos.checked = a.testarRamos !== false;
+    $("#auto-abordagem-principal").checked = a.abordagemPrincipal === true;
     f.intervaloEmpresasMin.value = a.intervaloEmpresasMin;
     f.intervaloEmpresasMax.value = a.intervaloEmpresasMax;
     f.intervaloOficialMin.value = a.intervaloOficialMin ?? 2;
@@ -8956,6 +8961,22 @@ async function carregarAutomacao() {
     avisar(e.message, "perigo");
   }
 }
+
+// Abordagem principal (prévia do site para quem não tem site): salva na hora, fora do botão Salvar da Automação.
+$("#auto-abordagem-principal").addEventListener("change", async (ev) => {
+  const caixa = ev.target;
+  caixa.disabled = true;
+  try {
+    const r = await post("/api/abordagem/principal", { ativa: caixa.checked });
+    caixa.checked = r.ativa;
+    avisar(r.ativa ? "Abordagem principal ligada: as empresas sem site vão primeiro, com a prévia do site." : "Abordagem principal desligada: todas as empresas voltam para o teste A/B.", "ok", 7000);
+  } catch (e) {
+    caixa.checked = !caixa.checked;
+    avisar(e.message, "perigo", 8000);
+  } finally {
+    caixa.disabled = false;
+  }
+});
 
 $("#form-automacao").addEventListener("submit", async (ev) => {
   ev.preventDefault();

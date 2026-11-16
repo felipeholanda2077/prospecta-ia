@@ -63,7 +63,7 @@ export const enderecoDoGuia = (lead) => `${config.painel.urlPublica}/guia/${lead
 
 /** A IA passa a informar a promoção nas conversas. Repetir não duplica. */
 export async function garantirPromocaoNaApresentacao() {
-  const texto = await lerApresentacao();
+  const texto = await lerApresentacao(null, { comOferta: false }); // o texto salvo, sem a oferta do site (que entra sozinha)
   if (texto.includes("R$ 3.000")) return false;
   const linhas = texto.split("\n");
   const posicao = linhas.findIndex((l) => /^Promoção de Black Friday/i.test(l.trim()));

@@ -5,6 +5,32 @@
 // tem menos; depois, na maioria das vezes, a que gerou mais INTERESSE (e, no empate, mais resposta), e de vez em
 // quando a outra, para continuar medindo.
 
+import { podeTerPrevia } from "../vendas/previa.js";
+
+// ABORDAGEM PRINCIPAL (desde 16/11/2026): empresa SEM site próprio é chamada primeiro e já recebe, na primeira
+// mensagem, o link da prévia do site dela (a demonstração em /previa/<token>, com o nome, o ramo, a cidade e o
+// WhatsApp dela), para ver como o site dela fica feito pela FluxDeck. A oferta é a de site da Black Friday
+// (vendas/ofertaSite.js), dita na etapa 2. Fica fora do teste A/B: toda empresa que pode ter a prévia vai por ela,
+// enquanto a chave "Abordagem principal" (Automação) estiver ligada; as com site seguem no teste A/B abaixo.
+export const ABORDAGEM_PRINCIPAL = "previa_do_site";
+export const MARCADOR_PREVIA = "{{PREVIA}}";
+export const PRINCIPAL = {
+  nome: "Principal · Prévia do site (sem site)",
+  instrucao: `Cumprimente e diga quem é e o que faz em poucas palavras (ex.: "Sou o Felipe, da FluxDeck, a gente faz sites
+  para clínicas."), SEM elogio. Diga, em UMA frase natural, que você montou uma prévia de como ficaria o site da empresa
+  (use o nome dela), com a cara do negócio, para ela ver como fica. Coloque o marcador ${MARCADOR_PREVIA} SOZINHO numa linha:
+  ele vira o link da prévia. Termine perguntando, de forma simples, o que ela achou.`,
+};
+
+/** A empresa vai pela abordagem principal? (pode ter a prévia, é do Brasil e tem WhatsApp) */
+export function vaiPelaPrevia(lead) {
+  if (!lead || (lead.pais && lead.pais !== "BR")) return false;
+  return Boolean(lead.whatsapp) && podeTerPrevia(lead);
+}
+
+/** Todas as abordagens atuais (a principal e as do teste A/B), para escrever e mostrar a sequência. */
+export const abordagemPorChave = (k) => (k === ABORDAGEM_PRINCIPAL ? PRINCIPAL : ABORDAGENS[k]);
+
 export const ABORDAGENS = {
   dor_na_pratica: {
     nome: "A · A dor na prática",
@@ -30,10 +56,16 @@ export const MIN_POR_ABORDAGEM = 30;
 export const EXPLORAR = 0.2; // 20% das vezes vai outra abordagem, para continuar medindo
 
 /**
- * Escolhe a abordagem da próxima empresa. `contagem` = { abordagem: { contatadas, responderam, interessadas } };
+ * Escolhe a abordagem da próxima empresa. Com `principal` (a chave ligada) e uma empresa que pode ter a prévia, é a
+ * principal; senão, a do teste A/B. `contagem` = { abordagem: { contatadas, responderam, interessadas } };
  * ela é atualizada aqui (+1 contatada na escolhida), para uma rodada com várias empresas não mandar todas na mesma.
  */
-export function escolherAbordagem(contagem, sorteio = Math.random) {
+export function escolherAbordagem(contagem, sorteio = Math.random, { lead = null, principal = false } = {}) {
+  if (principal && vaiPelaPrevia(lead)) {
+    contagem[ABORDAGEM_PRINCIPAL] ??= { contatadas: 0, responderam: 0, interessadas: 0 };
+    contagem[ABORDAGEM_PRINCIPAL].contatadas++;
+    return ABORDAGEM_PRINCIPAL;
+  }
   const chaves = Object.keys(ABORDAGENS);
   for (const k of chaves) contagem[k] ??= { contatadas: 0, responderam: 0, interessadas: 0 };
   const taxa = (k, campo) => (contagem[k].contatadas ? contagem[k][campo] / contagem[k].contatadas : 0);

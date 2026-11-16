@@ -21,7 +21,7 @@ import * as propostaSlides from "./vendas/propostaSlides.js";
 import * as slides from "./vendas/slides.js";
 import { gerarSequencia } from "./ia/proposta.js";
 import { classificarResposta } from "./ia/resposta.js";
-import { ABORDAGENS } from "./ia/abordagens.js";
+import { ABORDAGENS, ABORDAGEM_PRINCIPAL, PRINCIPAL, vaiPelaPrevia } from "./ia/abordagens.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
 import { testarIA } from "./ia/cliente.js";
@@ -57,7 +57,7 @@ import * as checkoutsAsaas from "./vendas/checkoutsAsaas.js";
 import { paginaDoCheckout } from "./vendas/paginaCheckout.js";
 import { pdfDoGuia, prepararCampanha, imagemDaMensagem, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
-import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia } from "./vendas/previa.js";
+import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia, origemDaPrevia } from "./vendas/previa.js";
 import { PILAR_BLACK_FRIDAY } from "./ia/conteudo.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao, lerApresentacaoDeFora, gravarApresentacaoDeFora } from "./respostas/apresentacao.js";
@@ -1587,21 +1587,40 @@ app.post("/api/conversas/:leadId/simular", async (req, res) => {
   }
 });
 
-// Teste A/B da primeira mensagem: as duas versões (A e B) para uma empresa, sem salvar nada.
+// Teste A/B da primeira mensagem: as versões (A e B, e a principal se a empresa pode ter a prévia do site) para uma
+// empresa, sem salvar nada. Com ?so=previa_do_site, só a principal.
 app.post("/api/abordagem/previa", async (req, res) => {
   try {
     const lead = await db.buscarLead(Number(req.body?.leadId));
     if (!lead) return res.status(404).json({ erro: "Empresa não encontrada" });
     const campanha = await carregarCampanhaCompleta();
     const versoes = {};
-    for (const abordagem of Object.keys(ABORDAGENS)) {
+    const todas = { ...(vaiPelaPrevia(lead) ? { [ABORDAGEM_PRINCIPAL]: PRINCIPAL } : {}), ...ABORDAGENS };
+    for (const abordagem of Object.keys(todas)) {
+      if (req.body?.so && req.body.so !== abordagem) continue;
       const s = await gerarSequencia(lead, JSON.parse(lead.oportunidades || "[]"), campanha, { abordagem });
-      versoes[abordagem] = { nome: ABORDAGENS[abordagem].nome, whatsapp: s.whatsapp };
+      versoes[abordagem] = { nome: todas[abordagem].nome, whatsapp: s.whatsapp, email: s.email, assunto: s.assunto_email };
     }
     res.json({ empresa: lead.nome, versoes });
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
+});
+
+// Liga ou desliga a abordagem principal (empresa sem site recebe a prévia do site dela e a oferta de site da Black Friday).
+app.post("/api/abordagem/principal", async (req, res) => {
+  const ativa = req.body?.ativa === true;
+  await db.gravarConfig("abordagem_principal", { ativa, em: new Date().toISOString() });
+  res.json({ ativa });
+});
+
+// Empresas da fila que vão pela abordagem principal (sem site, podem ter a prévia), para ver exemplos antes de ligar.
+app.get("/api/abordagem/principal/exemplos", async (req, res) => {
+  const leads = [];
+  for (const status of ["proposta_gerada", "analisado"]) {
+    for (const l of await db.leadsPorStatus(status, 200)) if (vaiPelaPrevia(l) && leads.length < 10) leads.push({ id: l.id, nome: l.nome, nicho: l.nicho, cidade: l.cidade, status: l.status, origem: l.origem });
+  }
+  res.json({ leads });
 });
 
 // Escreve a proposta em slides desta empresa pela conversa (a dor e a solução). Não envia: a mensagem com o link vai
@@ -1771,7 +1790,7 @@ app.post("/api/respostas/:id/apresentacao", async (req, res) => {
     texto: r.texto, lead, historico, campanha, canal: r.canal,
     apresentacao: await lerApresentacao(lead), linkAgendamento: calendly.linkAgendamento(campanha.automacao?.calendly, lead, r.canal),
     horarios: await calendly.horariosLivres(campanha.automacao?.calendly),
-    linkPrevia: momentoDaPrevia({ lead, historico, texto: r.texto }),
+    linkPrevia: momentoDaPrevia({ lead, historico, texto: r.texto, origem: origemDaPrevia(campanha) }),
   });
   await marcarApresentacaoEnviada(lead.id);
   res.json({ texto });
@@ -1845,7 +1864,8 @@ app.get("/api/config/automacao", async (req, res) => {
     },
     calendlyConectado: (await calendly.status()).conectado,
     proximaEmpresaNova: await pipeline.proximaEmpresaNovaEm(),
-    apresentacao: await lerApresentacao(),
+    abordagemPrincipal: await pipeline.abordagemPrincipalLigada(),
+    apresentacao: await lerApresentacao(null, { comOferta: false }), // o texto salvo (a oferta do site entra só na hora de usar)
     apresentacaoExterior: await lerApresentacaoDeFora(),
   });
 });

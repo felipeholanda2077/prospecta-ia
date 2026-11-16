@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import { semSiteProprio } from "../analise/prioridade.js";
+import { ofertaSiteAtiva, PRECO_DE, PRECO_POR, OFERTA_SITE } from "./ofertaSite.js";
 
 // Prévia personalizada: para a empresa SEM site próprio, um rascunho de como ficaria o site dela (nome, ramo,
 // cidade, nota no Google, serviços típicos do ramo e botão de WhatsApp), numa página pública em /previa/<token>.
@@ -20,7 +21,20 @@ export function podeTerPrevia(lead) {
   return semSiteProprio(lead.site);
 }
 
-export const enderecoDaPrevia = (lead) => (podeTerPrevia(lead) ? `${config.painel.urlPublica}/previa/${lead.token}` : "");
+/**
+ * O link da prévia. `origem` = o endereço onde ela abre: o site da FluxDeck (fluxdeck.com.br/previa/..., que repassa
+ * para o sistema) quando há site cadastrado, para o link na conversa não ser o endereço técnico do sistema.
+ */
+export const enderecoDaPrevia = (lead, origem = config.painel.urlPublica) => (podeTerPrevia(lead) ? `${origem}/previa/${lead.token}` : "");
+
+/** O endereço onde a prévia abre: o do site da empresa (Configurações → Empresa) ou, sem ele, o do sistema. */
+export function origemDaPrevia(campanha) {
+  try {
+    return new URL(String(campanha?.empresa?.site ?? "")).origin;
+  } catch {
+    return config.painel.urlPublica;
+  }
+}
 
 // A pessoa falou de algo ligado a presença online (ou pediu algo para ver).
 const FALA_DE_PRESENCA = /\bsites?\b|\bp[aá]gina\b|\binternet\b|\bweb\b|\bgoogle\b|\bon-?line\b|\binstagram\b|\bredes? sociais\b|\baparecer\b|\bdivulga|\bapresenta[çc](?:[ãa]o|[õo]es)\b|\bportf[oó]lio\b|\bdar uma olhada\b|\bexemplos?\b|\bcomo (?:ficaria|fica)\b|\bpresen[çc]a\b|\bclientes? novos?\b|\bnovos? clientes?\b/i;
@@ -37,13 +51,13 @@ export const jaOfereceuPrevia = (historico = []) => historico.some((h) => h.auto
  * (site, Google, internet, Instagram, aparecer, pediu uma apresentação ou algo para dar uma olhada),
  * sem ter dito que já tem site ou que não quer.
  */
-export function momentoDaPrevia({ lead, historico = [], texto = "" }) {
+export function momentoDaPrevia({ lead, historico = [], texto = "", origem }) {
   // A prévia do site é em português: não vai para empresa de fora do Brasil.
   if (lead?.pais && lead.pais !== "BR") return "";
   if (!podeTerPrevia(lead) || jaOfereceuPrevia(historico)) return "";
   const dela = [...historico.filter((h) => h.autor === "lead").map((h) => h.texto ?? ""), texto ?? ""].join("\n");
   if (!FALA_DE_PRESENCA.test(dela) || JA_TEM_SITE.test(dela) || NAO_QUER.test(texto ?? "")) return "";
-  return enderecoDaPrevia(lead);
+  return enderecoDaPrevia(lead, origem);
 }
 
 // O link só sai numa conversa que segue: não para quem recusou, robô, despedida ou conversa que vai para o vendedor.
@@ -200,7 +214,7 @@ const GALERIA = ["Fachada", "Ambiente", "Equipe", "Nosso trabalho"];
  * correndo, números que contam, cartões que aparecem ao rolar, galeria (onde entram as fotos), passo a passo,
  * mapa com o pino pulsando e perguntas frequentes. Quem pede menos movimento no aparelho vê tudo parado.
  */
-export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", ano = new Date().getFullYear() } = {}) {
+export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", ano = new Date().getFullYear(), agora = new Date() } = {}) {
   const ramo = ramoDaPrevia(lead.nicho);
   const enfeites = ENFEITES[ramo.icone] ?? ENFEITES["⭐"];
   const nome = String(lead.nome).trim();
@@ -227,6 +241,10 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
   const gostou = zapMarca.length >= 10
     ? `<a href="https://wa.me/${zapMarca.startsWith("55") ? zapMarca : `55${zapMarca}`}?text=${encodeURIComponent(`Oi! Vi o rascunho do site da ${nome}.`)}" target="_blank" rel="noopener noreferrer">Gostou? Fale comigo</a>`
     : "<span>Gostou? É só responder a nossa conversa.</span>";
+  // A oferta do site da Black Friday (enquanto vale): este site no ar por R$ 500, valor único.
+  const oferta = ofertaSiteAtiva(agora)
+    ? `<span class="oferta">Black Friday: este site no ar de <s>${escapar(PRECO_DE)}</s> por <b>${escapar(PRECO_POR)}</b>, valor único, até ${escapar(OFERTA_SITE.ateTexto)}.</span>`
+    : "";
 
   const iniciais = nome.split(/\s+/).filter((p) => /^[\p{L}\p{N}]/u.test(p)).slice(0, 2).map((p) => p[0].toUpperCase()).join("") || "★";
   const subtitulo = [lead.nicho ? String(lead.nicho).trim() : "", cidade].filter(Boolean).join(" em ");
@@ -262,7 +280,7 @@ body{margin:0;background:var(--bg);color:var(--texto);font:16px/1.55 Inter,syste
 a{color:inherit}
 .progresso{position:fixed;top:0;left:0;right:0;height:3px;background:var(--cor);transform:scaleX(0);transform-origin:0 50%;z-index:20}
 .faixa{background:#14151f;color:#e9eaf3;font-size:13px;padding:9px 16px;display:flex;gap:6px 14px;justify-content:center;align-items:center;flex-wrap:wrap;text-align:center}
-.faixa b{color:#fff}.faixa a{color:#fff;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+.faixa b{color:#fff}.faixa .oferta{background:#ffd166;color:#14151f;border-radius:999px;padding:2px 10px;font-weight:600}.faixa .oferta b{color:#14151f}.faixa .oferta s{opacity:.7}.faixa a{color:#fff;font-weight:600;text-decoration:underline;text-underline-offset:3px}
 .topo{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--borda)}
 .topo .in{max-width:1120px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .logo{display:flex;align-items:center;gap:10px;font-weight:700;min-width:0}.logo span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -371,7 +389,7 @@ footer{border-top:1px solid var(--borda);color:var(--suave);font-size:13px;text-
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.msg,.digitando{opacity:1!important}.digitando{display:none!important}.js .rv{opacity:1;transform:none}.js .estrelas span{width:var(--cheio)!important}}
 </style></head><body>
 <div class="progresso" id="progresso"></div>
-<div class="faixa"><span><b>Rascunho</b> feito pela ${escapar(marca)} para a ${escapar(nome)}, com informações públicas${doGoogle ? " do Google" : ""}.</span>${gostou}</div>
+<div class="faixa"><span><b>Rascunho</b> feito pela ${escapar(marca)} para a ${escapar(nome)}, com informações públicas${doGoogle ? " do Google" : ""}.</span>${oferta}${gostou}</div>
 <header class="topo"><div class="in"><div class="logo"><span class="sigla">${escapar(iniciais)}</span><span>${escapar(nome)}</span></div>
 <nav><a href="#servicos">Serviços</a><a href="#galeria">Galeria</a><a href="#como">Como funciona</a><a href="#contato">Contato</a></nav>${link("botao")}</div></header>
 <div class="hero"><span class="bolha b1"></span><span class="bolha b2"></span>

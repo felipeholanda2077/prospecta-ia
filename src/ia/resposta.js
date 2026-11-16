@@ -2,6 +2,8 @@ import { z } from "zod";
 import { config } from "../config.js";
 import { gerarJson } from "./cliente.js";
 import { contextoEmpresa, identidade } from "./proposta.js";
+import { ABORDAGEM_PRINCIPAL } from "./abordagens.js";
+import { OFERTA_SITE, ofertaSiteAtiva, PRECO_DE, PRECO_POR, VALOR_DA_OFERTA } from "../vendas/ofertaSite.js";
 
 /** Data de hoje, para a IA saber se uma promoção (ex.: a de novembro) ainda vai começar, está valendo ou acabou. */
 const hoje = () => new Date().toLocaleDateString("pt-BR", { timeZone: config.timezone, day: "numeric", month: "long", year: "numeric" });
@@ -164,13 +166,15 @@ const ITEM_DE_LISTA = /^\s*([-•*]|\d+[.)])\s/;
  * Tira os valores de uma mensagem (para quando a pessoa ainda não perguntou): item de lista com valor sai
  * inteiro; num parágrafo, sai só a frase com o valor; um título que ficou sem itens ("Planos:") sai também.
  */
-export function semValores(texto) {
-  if (!texto || !TEM_VALOR.test(texto)) return texto;
+export function semValores(texto, { manter = null } = {}) {
+  // `manter`: valores que podem ficar mesmo assim (a oferta do site da Black Friday na abordagem principal).
+  const temValor = (t) => TEM_VALOR.test(manter ? String(t).replace(manter, "") : t);
+  if (!texto || !temValor(texto)) return texto;
   const linhas = [];
   for (const linha of String(texto).split("\n")) {
-    if (!TEM_VALOR.test(linha)) { linhas.push(linha); continue; }
+    if (!temValor(linha)) { linhas.push(linha); continue; }
     if (ITEM_DE_LISTA.test(linha)) continue;
-    const frases = linha.split(/(?<=[.!?])\s+/).filter((f) => !TEM_VALOR.test(f));
+    const frases = linha.split(/(?<=[.!?])\s+/).filter((f) => !temValor(f));
     if (frases.length) linhas.push(frases.join(" "));
   }
   const limpas = linhas.filter((l, i) => {
@@ -180,6 +184,24 @@ export function semValores(texto) {
   });
   return limpas.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 }
+
+/**
+ * A empresa veio pela abordagem principal (recebeu a prévia do site) e a oferta do site da Black Friday ainda vale:
+ * a IA pode citar essa oferta (e só ela) mesmo sem a pessoa ter perguntado de preço.
+ */
+export const ofertaLiberada = (lead, agora = new Date()) =>
+  lead?.abordagem === ABORDAGEM_PRINCIPAL && (!lead.pais || lead.pais === "BR") && ofertaSiteAtiva(agora);
+
+/** O que a trava de valores deixa passar para esta empresa (os valores da oferta, ou nada). */
+export const valoresPermitidos = (lead) => (ofertaLiberada(lead) ? VALOR_DA_OFERTA : null);
+
+/** A regra da oferta para os prompts das conversas da abordagem principal. */
+const REGRA_DA_OFERTA = `EXCEÇÃO: a ${"${empresa}"} recebeu a prévia do site dela. A oferta de site da Black Friday (${OFERTA_SITE.plano}: de ${PRECO_DE}
+  por ${PRECO_POR}, valor único, só até ${OFERTA_SITE.ateTexto}) PODE ser citada sem a pessoa perguntar, UMA vez, quando ela gostar da
+  prévia, quiser o site ou perguntar como funciona (se o histórico ainda não tem essa oferta). Escreva "de ${PRECO_DE} por ${PRECO_POR}".
+  Nenhum outro valor, plano com preço ou desconto. Se ela quiser fechar o site, mande o link de pagamento do
+  ${OFERTA_SITE.plano} que está na apresentação (se houver): para esse site não precisa de bate-papo.`;
+const regraDaOferta = (lead) => (ofertaLiberada(lead) ? REGRA_DA_OFERTA.replace("${empresa}", lead.nome) : "");
 
 const FALA_DE_CONVITE = /\b(bate-papo|bate papo|call|reuni[ãa]o)\b|\bmarcar(mos)? (um|uma) (conversa|liga[çc][ãa]o|videochamada)|calendly/i;
 
@@ -321,12 +343,14 @@ ${chegaDePerguntas ? `- AGORA PARE DE PERGUNTAR. Esta mensagem NÃO tem pergunta
 ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com o que está na apresentação.
 ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, como estão escritos. Orçamento exato, desconto ou
   condição especial: diga que isso vocês fecham no bate-papo, conforme o que ela precisa.` : `- Valores: a pessoa AINDA NÃO perguntou de preço. NÃO cite nenhum valor, preço ou R$, nem "a partir de". Se falar de
-  planos, diga só o que cada um faz. Valor só quando ela perguntar.`}
+  planos, diga só o que cada um faz. Valor só quando ela perguntar.${ofertaLiberada(lead) ? `
+  ${regraDaOferta(lead)}` : ""}`}
 - Se pedir algo que não está na apresentação nem no catálogo, não prometa: diga com sinceridade que vocês veem isso
   juntos no bate-papo.
 ` : `- Preço: não passe valor de cara. Se perguntarem, diga que depende do que eles precisam e convide para o bate-papo
   rápido, onde você mostra exemplos e passa o valor certo. Só se insistirem depois disso, diga o "a partir de" do catálogo.
-`}- Só convide para o bate-papo quando ${chegaDePerguntas ? "fizer sentido depois de explicar (já pode), ou " : ""}dor_entendida for true (você já sabe exatamente o que ela precisa e por quê) e
+${ofertaLiberada(lead) ? `  ${regraDaOferta(lead)}
+` : ""}`}- Só convide para o bate-papo quando ${chegaDePerguntas ? "fizer sentido depois de explicar (já pode), ou " : ""}dor_entendida for true (você já sabe exatamente o que ela precisa e por quê) e
   ela mostrar interesse, OU quando ela mesma pedir (ligação, reunião, call, orçamento, "como funciona"). Fora isso, NÃO
   fale de bate-papo, call, reunião nem agenda: continue descobrindo.
 - Na hora de convidar: convide para o bate-papo${comoConvidar(linkAgendamento, horarios)}.
@@ -454,7 +478,8 @@ A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa (${NOME_D
       ? `os planos: SÓ os planos da apresentação, com o nome e os valores exatamente como estão escritos (não invente
      planos, valores ou "a partir de", nem arredonde), uma linha cada, começando pelos que combinam com o que ela precisa;`
       : `os planos que combinam com o que ela precisa: SÓ o nome e para que serve, SEM NENHUM valor, preço ou R$ (ela ainda
-     não perguntou de preço); no fim, uma frase dizendo que você passa os valores se ela quiser;`}
+     não perguntou de preço); no fim, uma frase dizendo que você passa os valores se ela quiser;${ofertaLiberada(lead) ? `
+     ${regraDaOferta(lead)} Se ela quer site, comece pelo ${OFERTA_SITE.plano}, com "de ${PRECO_DE} por ${PRECO_POR}, valor único".` : ""}`}
    - em quanto tempo fica pronto.
 3. Se ela pediu algo que não está na apresentação, uma frase sincera dizendo que isso vocês veem juntos no bate-papo.${linkPrevia ? `
    E uma linha dizendo que você já fez um rascunho de como ficaria o site da ${lead.nome}, com este link exatamente como
@@ -524,7 +549,7 @@ ${contatoIndicado ? `ATENÇÃO: este follow-up vai para ${contatoIndicado.nome |
 ` : ""}Regras:
 - Nada de cobrança ("não sei se viu", "só passando para lembrar", "fico no aguardo"), nada de pressão.
 - Não cumprimente com "bom dia/boa tarde" nem se apresente de novo: vocês já conversaram. Um "Oi, [nome]!" leve pode.
-- ${podeValores ? "Se citar valores, só os da apresentação, como estão escritos." : "Não cite valores, preços ou R$: ela não perguntou de preço."}
+- ${podeValores ? "Se citar valores, só os da apresentação, como estão escritos." : `Não cite valores, preços ou R$: ela não perguntou de preço.${ofertaLiberada(lead) ? ` ${regraDaOferta(lead)}` : ""}`}
 - Não convide para bate-papo, call ou reunião, a menos que ela já tenha pedido isso na conversa.
 - Não repita frases que já estão no histórico. Não invente fatos.
 - No máximo 3 frases curtas (até ~400 caracteres), Português do Brasil, no máximo 1 emoji.${FORMATO_DO_CANAL[canal] ?? FORMATO_DO_CANAL.whatsapp}
