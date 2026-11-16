@@ -6,6 +6,7 @@
 // quando a outra, para continuar medindo.
 
 import { podeTerPrevia } from "../vendas/previa.js";
+import { semSiteConfirmado } from "../analise/prioridade.js";
 
 // ABORDAGEM PRINCIPAL (desde 16/11/2026): empresa SEM site próprio é chamada primeiro e já recebe, na primeira
 // mensagem, o link da prévia do site dela (a demonstração em /previa/<token>, com o nome, o ramo, a cidade e o
@@ -25,7 +26,8 @@ export const PRINCIPAL = {
 /** A empresa vai pela abordagem principal? (pode ter a prévia, é do Brasil e tem WhatsApp) */
 export function vaiPelaPrevia(lead) {
   if (!lead || (lead.pais && lead.pais !== "BR")) return false;
-  return Boolean(lead.whatsapp) && podeTerPrevia(lead);
+  // Do CNPJ não se sabe se tem site (o cadastro não informa): não recebe a prévia de cara.
+  return Boolean(lead.whatsapp) && semSiteConfirmado(lead) && podeTerPrevia(lead);
 }
 
 /** Todas as abordagens atuais (a principal e as do teste A/B), para escrever e mostrar a sequência. */

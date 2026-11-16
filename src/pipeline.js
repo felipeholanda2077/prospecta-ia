@@ -28,7 +28,7 @@ import { falarPelaRunway, lerConfigAvatar } from "./conteudo/avatar.js";
 import { linkDaMidia } from "./conteudo/instagram.js";
 import * as fishaudio from "./conteudo/fishaudio.js";
 import { verificarAgendamentos, aplicarLinkAgendamento, MARCADOR_LINK } from "./agenda/calendly.js";
-import { semSiteProprio, potencialDaEmpresa } from "./analise/prioridade.js";
+import { semSiteProprio, semSiteConfirmado, potencialDaEmpresa } from "./analise/prioridade.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 import { numerosComAgente } from "./respostas/agentes.js";
 import { followupsDeInteressados } from "./respostas/followup.js";
@@ -1544,7 +1544,7 @@ export async function responderConversa(respostaId, texto, campanha, { destino: 
 export function ordenarFilaDeEnvio(fila) {
   const grupo = (m) => (m.tipo === "resposta" ? 0 : m.etapa > 1 ? 1 : 2);
   // Entre as empresas novas, as sem site próprio vão primeiro (são as da abordagem principal, com a prévia do site).
-  const semSite = (m) => (grupo(m) === 2 && semSiteProprio(m.site) ? 1 : 0);
+  const semSite = (m) => (grupo(m) === 2 && semSiteConfirmado(m) ? 1 : 0);
   const potencial = (m) => (grupo(m) === 2 ? potencialDaEmpresa(m).pontos : 0);
   return [...fila].sort((a, b) => grupo(a) - grupo(b) || semSite(b) - semSite(a) || potencial(b) - potencial(a));
 }

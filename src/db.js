@@ -668,7 +668,7 @@ export async function leadsParadosPorRobo() {
 }
 
 const SELECT_MENSAGEM = `
-  SELECT m.*, l.nome AS empresa, l.nicho, l.cidade, l.site, l.maps_url, l.token, l.oportunidades, l.whatsapp_status,
+  SELECT m.*, l.nome AS empresa, l.nicho, l.cidade, l.site, l.origem, l.maps_url, l.token, l.oportunidades, l.whatsapp_status,
          l.avaliacao, l.total_avaliacoes, l.status AS status_lead, l.numero_wa AS numero_wa_lead,
          l.pais, l.idioma, l.fuso
     FROM mensagens m JOIN leads l ON l.id = m.lead_id`;
@@ -717,7 +717,7 @@ export async function filaDeEnvio(limite = 100) {
                   ELSE (m.agendada_para IS NOT NULL AND m.agendada_para <= now()) END)
       -- Na etapa 1, as empresas sem site próprio primeiro (a abordagem principal), para não ficarem fora do limite.
       ORDER BY m.etapa,
-        CASE WHEN m.etapa = 1 AND (l.site IS NULL OR l.site = '' OR l.site ~* 'instagram\\.com|facebook\\.com|linktr\\.ee|wa\\.me|ifood\\.com') THEN 0 ELSE 1 END,
+        CASE WHEN m.etapa = 1 AND l.origem IS DISTINCT FROM 'cnpj' AND (l.site IS NULL OR l.site = '' OR l.site ~* 'instagram\\.com|facebook\\.com|linktr\\.ee|wa\\.me|ifood\\.com') THEN 0 ELSE 1 END,
         COALESCE(m.agendada_para, m.criado_em), m.id
       LIMIT $1`,
     [limite]

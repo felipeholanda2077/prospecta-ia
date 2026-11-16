@@ -6,6 +6,10 @@ const SO_REDE_SOCIAL = /instagram\.com|facebook\.com|linktr\.ee|wa\.me|ifood\.co
 
 export const semSiteProprio = (site) => !site || SO_REDE_SOCIAL.test(site);
 
+// Sem site CONFIRMADO: a empresa do CNPJ não traz o site (o cadastro da Receita não informa), então lá "sem site" é
+// só "não sabemos". Essas não vão para a frente da fila nem recebem a prévia de cara (abordagem principal).
+export const semSiteConfirmado = (lead) => semSiteProprio(lead?.site) && lead?.origem !== "cnpj";
+
 /**
  * Potencial de venda de uma empresa que ainda não respondeu (0 a 100), com os motivos.
  * Sem site é o principal (é o que a FluxDeck vende); muitas avaliações indicam um negócio
@@ -52,6 +56,6 @@ export function prioridadeNaFila(lead, { andamento = null, temResposta = false, 
   const rotulo = { alta: "Potencial alto", media: "Potencial médio", baixa: "Potencial baixo" }[potencial.nivel];
   // Sem site próprio: na frente das outras empresas novas (abordagem principal, com a prévia do site), mas ainda
   // atrás das conversas (a mais fria vale 200).
-  if (semSiteProprio(lead.site)) return { ...potencial, pontos: Math.min(199, 100 + potencial.pontos), rotulo: `Sem site · ${rotulo.toLowerCase()}` };
+  if (semSiteConfirmado(lead)) return { ...potencial, pontos: Math.min(199, 100 + potencial.pontos), rotulo: `Sem site · ${rotulo.toLowerCase()}` };
   return { ...potencial, rotulo };
 }

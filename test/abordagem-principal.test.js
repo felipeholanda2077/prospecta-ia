@@ -47,6 +47,7 @@ test("abordagem principal: só com a chave ligada, e só para empresa do Brasil 
   assert.ok(!vaiPelaPrevia({ ...semSite, pais: "US" }));
   assert.ok(!vaiPelaPrevia({ ...semSite, whatsapp: null }));
   assert.ok(!vaiPelaPrevia({ ...semSite, origem: "contador" }));
+  assert.ok(!vaiPelaPrevia({ ...semSite, origem: "cnpj" })); // o cadastro do CNPJ não diz se tem site
 
   const contagem = {};
   assert.equal(escolherAbordagem(contagem, () => 0.5, { lead: semSite, principal: true }), ABORDAGEM_PRINCIPAL);
@@ -64,8 +65,9 @@ test("fila: entre as empresas novas, as sem site vão primeiro; conversas e etap
     { id: 3, tipo: "sequencia", etapa: 2, site: "https://a.com" },
     { id: 4, tipo: "resposta", etapa: 0, site: "https://a.com" },
     nova(5, "https://facebook.com/loja"),
+    nova(6, null, { origem: "cnpj" }), // não sabemos se tem site: fica com as outras, pelo potencial
   ]);
-  assert.deepEqual(fila.map((m) => m.id), [4, 3, 2, 5, 1]);
+  assert.deepEqual(fila.map((m) => m.id), [4, 3, 2, 5, 1, 6]);
 
   const comSite = prioridadeNaFila({ site: "https://x.com.br", total_avaliacoes: 900, avaliacao: 4.9, whatsapp_status: "verificado" });
   const sem = prioridadeNaFila({ site: null });
