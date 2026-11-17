@@ -26,7 +26,7 @@ Planos (todos sem fidelidade, com setup rápido e suporte humano; garantia de re
 - Loja virtual (R$ 1.470/mês): catálogo, carrinho, Pix e cartão, cálculo de frete e painel de pedidos, em 30 dias.
 - Sistema de gestão sob medida (R$ 2.370/mês): controle de clientes, estoque, financeiro e relatórios, em 45 dias.
 
-Promoção de Black Friday (só até 30/11/2026): o site da empresa de R$ 950 por R$ 500, valor único, em até 12x no cartão.
+Promoção de Black Friday (só até 30/11/2026): o site da empresa de R$ 950 por R$ 500, valor único, em até 12x sem juros no cartão.
 
 Prazo: projetos simples ficam prontos em 2 a 4 semanas; sistemas mais complexos levam de 2 a 3 meses. O cronograma exato sai na reunião inicial.`;
 

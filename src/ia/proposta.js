@@ -100,7 +100,7 @@ Etapa 2 — se não houver resposta (WhatsApp: ~2 horas depois; e-mail: 1 dia ú
 - Volte com naturalidade, sem cobrar resposta, e lembre da prévia em meia frase (sem repetir o link).
 - Em UMA frase, o que o site faz pelo negócio (aparecer no Google para quem procura o serviço na cidade, mostrar o
   trabalho, levar o cliente direto para o WhatsApp), sem inventar números.
-${oferta ? `- Diga a oferta: o site no ar com a cara da prévia, de ${PRECO_DE} por ${PRECO_POR}, valor único, em até 12x no cartão, só nesta Black Friday (até ${OFERTA_SITE.ateTexto}).
+${oferta ? `- Diga a oferta: o site no ar com a cara da prévia, de ${PRECO_DE} por ${PRECO_POR}, valor único, em até 12x sem juros no cartão, só nesta Black Friday (até ${OFERTA_SITE.ateTexto}).
   Escreva os valores exatamente assim ("de ${PRECO_DE} por ${PRECO_POR}"). Nenhum outro valor, plano ou desconto.` : `- Ainda sem preço.`}
 - Termine com UMA pergunta simples (ex.: se quer que você coloque o site no ar com as fotos e informações deles).
 - WhatsApp: até ~350 caracteres. E-mail: 60 a 100 palavras.

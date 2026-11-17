@@ -26,12 +26,12 @@ export function paginaDoCheckout(plano, { marca = "FluxDeck", telefone = "", log
     : [...(plano.implantacao ? [["Implantação (uma vez)", reais(plano.implantacao)]] : []), ["1ª mensalidade", reais(plano.mensal)]];
   // O plano anual e o de pagamento único (o site) parcelam em até 12x no cartão.
   const parcelado = plano.anual || plano.unico;
-  const depois = plano.unico ? `Valor único, sem mensalidade: à vista no Pix ou boleto, ou em até 12x de ${reais(Math.ceil((plano.hoje / 12) * 100) / 100)} no cartão.`
+  const depois = plano.unico ? `Valor único, sem mensalidade: à vista no Pix ou boleto, ou em até 12x de ${reais(Math.ceil((plano.hoje / 12) * 100) / 100)} sem juros no cartão.`
     : plano.anual
     ? `À vista no Pix ou boleto, ou em até 12x de ${reais(plano.hoje / 12)} no cartão.`
     : `Depois, ${reais(plano.mensal)} por mês. Sem fidelidade: cancele quando quiser.`;
   const parcelas = parcelado
-    ? Array.from({ length: 12 }, (_, k) => `<option value="${k + 1}">${k + 1}x de ${reais(Math.round((plano.hoje / (k + 1)) * 100) / 100)}${k ? "" : " (à vista)"}</option>`).join("")
+    ? Array.from({ length: 12 }, (_, k) => `<option value="${k + 1}">${k + 1}x de ${reais(Math.round((plano.hoje / (k + 1)) * 100) / 100)}${k ? (plano.unico ? " sem juros" : "") : " (à vista)"}</option>`).join("")
     : "";
   const whats = telefone ? `https://wa.me/55${String(telefone).replace(/\D/g, "").replace(/^55/, "")}` : "";
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -168,7 +168,7 @@ input::placeholder{color:#5c6789}
 (function(){
 var forma="pix",consulta=null;
 var $=function(id){return document.getElementById(id)};
-var dicas={pix:"Depois de clicar, aparece o QR Code. A confirmação é na hora.",cartao:"${plano.unico ? "Escolha em quantas vezes quer pagar (até 12x)." : plano.anual ? "Escolha em quantas vezes quer pagar." : "A mensalidade dos próximos meses é cobrada no mesmo cartão, sem fidelidade."}",boleto:"O boleto vence em 3 dias e a confirmação leva até 3 dias úteis."};
+var dicas={pix:"Depois de clicar, aparece o QR Code. A confirmação é na hora.",cartao:"${plano.unico ? "Escolha em quantas vezes quer pagar: até 12x sem juros." : plano.anual ? "Escolha em quantas vezes quer pagar." : "A mensalidade dos próximos meses é cobrada no mesmo cartão, sem fidelidade."}",boleto:"O boleto vence em 3 dias e a confirmação leva até 3 dias úteis."};
 function escolher(f){forma=f;document.querySelectorAll(".forma").forEach(function(b){b.setAttribute("aria-pressed",String(b.dataset.forma===f))});
   $("cartao").classList.toggle("ativo",f==="cartao");$("dica").textContent=dicas[f];}
 document.querySelectorAll(".forma").forEach(function(b){b.addEventListener("click",function(){escolher(b.dataset.forma)})});

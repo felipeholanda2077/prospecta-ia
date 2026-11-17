@@ -46,7 +46,7 @@ export function origemDoSite(site, reserva = "") {
  */
 export function blocoDaOferta({ checkout = "" } = {}) {
   return `Oferta de Black Friday para criação de site (só até ${OFERTA_SITE.ateTexto}; enquanto valer, é ESTA a oferta de site, no lugar do Site Essencial):
-- ${OFERTA_SITE.plano} (${PRECO_POR} pagamento único, de ${PRECO_DE}): o site profissional da empresa no ar, feito com a cara do negócio (como a prévia que mostramos): versão para celular, botão do WhatsApp, textos e SEO para aparecer no Google, domínio e publicação. Valor único, sem mensalidade, à vista ou em até 12x de ${PARCELA} no cartão.
-Como falar: "de ${PRECO_DE} por ${PRECO_POR}, valor único, em até 12x no cartão, só nesta Black Friday".${checkout ? `
+- ${OFERTA_SITE.plano} (${PRECO_POR} pagamento único, de ${PRECO_DE}): o site profissional da empresa no ar, feito com a cara do negócio (como a prévia que mostramos): versão para celular, botão do WhatsApp, textos e SEO para aparecer no Google, domínio e publicação. Valor único, sem mensalidade, à vista ou em até 12x de ${PARCELA} sem juros no cartão.
+Como falar: "de ${PRECO_DE} por ${PRECO_POR}, valor único, em até 12x sem juros no cartão, só nesta Black Friday".${checkout ? `
 Para fechar o ${OFERTA_SITE.plano}, o pagamento é por este link (Pix, boleto ou cartão): ${checkout}` : ""}`;
 }

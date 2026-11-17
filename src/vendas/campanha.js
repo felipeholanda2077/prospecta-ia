@@ -10,7 +10,7 @@ const GUIA = new URL("../../config/guia-empresas.md", import.meta.url);
 export const FIM_DA_PROMOCAO = "2026-11-30";
 // Desde 17/11/2026 (pedido do usuário) a campanha oferece o que está em fluxdeck.com.br, sem o plano de R$ 3.000:
 // o site por R$ 500 em até 12x e a IA no WhatsApp por R$ 497 + R$ 129,90/mês.
-export const PROMOCAO = "Na Black Friday, só até 30/11, a gente faz o site da sua empresa de R$ 950 por R$ 500, valor único, em até 12x no cartão, pronto para aparecer no Google e com o botão do WhatsApp. E se quiser uma IA atendendo o seu WhatsApp 24 horas, sai por R$ 497 de implantação e R$ 129,90 por mês.";
+export const PROMOCAO = "Na Black Friday, só até 30/11, a gente faz o site da sua empresa de R$ 950 por R$ 500, valor único, em até 12x sem juros no cartão, pronto para aparecer no Google e com o botão do WhatsApp. E se quiser uma IA atendendo o seu WhatsApp 24 horas, sai por R$ 497 de implantação e R$ 129,90 por mês.";
 // A linha antiga da apresentação (o plano de R$ 3.000), que sai do texto salvo se ainda estiver lá.
 const LINHA_ANTIGA = /^.*Professional com IA[^\n]*R\$ ?3\.000.*$\n?/gim;
 const DIAS_SEM_RESPOSTA = 2;
@@ -31,8 +31,12 @@ export async function pdfDoGuia(lead, { marca = "", cnpj = "" } = {}) {
 export function imagemDaMensagem(m, agora = new Date()) {
   if (m.canal !== "whatsapp" || m.etapa !== 0 || !/Black Friday/i.test(m.corpo ?? "")) return null;
   if (agora.toLocaleDateString("en-CA", { timeZone: config.timezone }) > FIM_DA_PROMOCAO) return null;
-  return `${config.painel.urlPublica}/whatsapp-black-friday-site.jpg`;
+  return ARTE_DA_OFERTA;
 }
+
+// A arte da oferta do site (de R$ 950 por R$ 500, em até 12x sem juros). Os arquivos antigos (a de R$ 3.000) foram
+// trocados por esta mesma arte, para nenhum link antigo mostrar o valor errado.
+export const ARTE_DA_OFERTA = `${config.painel.urlPublica}/whatsapp-black-friday-500.jpg`;
 
 // De escrito para falado: como uma pessoa fala num áudio de WhatsApp. O que a pessoa editar no painel e não
 // casar com estas frases continua igual, só com os valores por extenso e o "pra".
@@ -41,7 +45,7 @@ const JEITO_DE_FALAR = [
   [/Preparei um guia prático e gratuito para a ([^,]+), com passos simples para atrair mais clientes pelo site, pelo Google e pelo WhatsApp/g, "Olha, eu preparei um guia gratuito pra $1, bem prático, com uns passos simples pra atrair mais clientes, pelo site, pelo Google e pelo WhatsApp"],
   [/E um aviso: na Black Friday, só até 30\/11, a gente faz/g, "E aproveitando: agora na Black Friday, até o dia trinta, a gente tá fazendo"],
   [/Na Black Friday, só até 30\/11, a gente faz/g, "Olha, agora na Black Friday, até o dia trinta, a gente tá fazendo"],
-  [/de R\$ 950 por R\$ 500, valor único, em até 12x no cartão/g, "de novecentos e cinquenta por quinhentos reais, um valor só, e dá pra parcelar em até doze vezes no cartão"],
+  [/de R\$ 950 por R\$ 500, valor único, em até 12x sem juros no cartão/g, "de novecentos e cinquenta por quinhentos reais, um valor só, e dá pra parcelar em até doze vezes sem juros no cartão"],
   [/sai por R\$ 497 de implantação e R\$ 129,90 por mês\./g, "sai por quatrocentos e noventa e sete reais pra começar e cento e vinte e nove e noventa por mês."],
   [/24 horas/g, "vinte e quatro horas"],
   [/Se fizer sentido, me responde aqui que eu explico como funciona\./g, "Se fizer sentido, me responde aqui que eu te explico direitinho como funciona."],
@@ -115,7 +119,7 @@ export async function prepararCampanha(campanha, agora = new Date()) {
     if (await db.estaDescadastrado(destino)) continue;
     const comGuia = parouDeResponder(i, agora);
     await db.criarMensagem({
-      lead_id: i.id, canal: i.canal, destino, assunto: i.canal === "email" ? (comGuia ? `Um guia para a ${i.nome}, e a Black Friday` : "Black Friday: o site da sua empresa por R$ 500, em até 12x") : null,
+      lead_id: i.id, canal: i.canal, destino, assunto: i.canal === "email" ? (comGuia ? `Um guia para a ${i.nome}, e a Black Friday` : "Black Friday: o site da sua empresa por R$ 500, em até 12x sem juros") : null,
       corpo: mensagemDaCampanha({ lead: i, comGuia, responsavel: campanha.empresa.responsavel, empresa: campanha.empresa.nome }),
       status: "rascunho", tipo: "resposta", etapa: 0,
     });

@@ -202,7 +202,7 @@ export const valoresPermitidos = (lead) => (siteEmEuro(lead) ? VALOR_DO_SITE_EUR
 
 /** A regra da oferta para os prompts das conversas da abordagem principal. */
 const REGRA_DA_OFERTA = `EXCEÇÃO: a ${"${empresa}"} tem (ou vai receber) o site de exemplo dela. A oferta de site da Black Friday (${OFERTA_SITE.plano}: de ${PRECO_DE}
-  por ${PRECO_POR}, valor único, em até 12x no cartão, só até ${OFERTA_SITE.ateTexto}) PODE ser citada sem a pessoa perguntar, UMA vez, quando ela gostar da
+  por ${PRECO_POR}, valor único, em até 12x sem juros no cartão, só até ${OFERTA_SITE.ateTexto}) PODE ser citada sem a pessoa perguntar, UMA vez, quando ela gostar da
   prévia, quiser o site ou perguntar como funciona (se o histórico ainda não tem essa oferta). Escreva "de ${PRECO_DE} por ${PRECO_POR}".
   Nenhum outro valor, plano com preço ou desconto. Quando ela gostar do exemplo ou quiser o site: diga o valor e, no fim,
   mande o link de pagamento do ${OFERTA_SITE.plano} que está na apresentação (se houver). Nunca bate-papo nem reunião.`;
@@ -214,7 +214,7 @@ const REGRA_DA_OFERTA = `EXCEÇÃO: a ${"${empresa}"} tem (ou vai receber) o sit
 export function regraDoPlanoCerto(lead, agora = new Date()) {
   if (lead?.pais && lead.pais !== "BR") return "";
   const site = ofertaSiteAtiva(agora)
-    ? `o ${OFERTA_SITE.plano} (de ${PRECO_DE} por ${PRECO_POR}, valor único, em até 12x no cartão, até ${OFERTA_SITE.ateTexto})`
+    ? `o ${OFERTA_SITE.plano} (de ${PRECO_DE} por ${PRECO_POR}, valor único, em até 12x sem juros no cartão, até ${OFERTA_SITE.ateTexto})`
     : "o Site Essencial";
   return `- PLANO CERTO (nunca acima do que a pessoa pediu): quer só um site → ${site}; quer uma IA simples para atender o
   WhatsApp → o WhatsApp com IA (R$ 497 de implantação + R$ 129,90 por mês); quer os dois → os dois. Completo, CRM,

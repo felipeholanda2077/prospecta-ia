@@ -167,7 +167,8 @@ test("plano de pagamento único: lido da apresentação, cobrado uma vez e sem m
   assert.equal(c.dados.value, 500);
   const html = paginaDoCheckout(resumoDoPlano({ plano: p.nome, primeiro: 500, mensal: null, unico: true }), { marca: "FluxDeck" });
   assert.match(html, /Pagamento único/);
-  assert.match(html, /Valor único, sem mensalidade: à vista no Pix ou boleto, ou em até 12x de R\$\s?41,67 no cartão/);
+  assert.match(html, /Valor único, sem mensalidade: à vista no Pix ou boleto, ou em até 12x de R\$\s?41,67 sem juros no cartão/);
+  assert.match(html, /12x de R\$\s?41,67 sem juros<\/option>/);
   assert.match(html, /<select id="parcelas">/); // o site parcela em até 12x no cartão
   assert.doesNotMatch(html, /1ª mensalidade|Sem fidelidade/);
 
@@ -363,4 +364,24 @@ test("cena 3D: os objetos saem do que a empresa oferece (salão: esmalte; academ
   const html = paginaDaPrevia({ ...semSite, nicho: "Salão de beleza" }, { dados: { servicos: [["Unhas de gel", "Manicure com gel"], ["Cabelo", "Corte"]] } });
   assert.match(html, /<div class="obj3d"><span style="transform:translateZ\(0\.0px\)">💅<\/span>/);
   assert.match(html, /class="sat"[^>]*><i>💇‍♀️<\/i>/);
+});
+
+test("arte da oferta: vai junto da primeira mensagem que oferece o site de R$ 500 (uma vez só), nunca a de R$ 3.000", async () => {
+  const { arteDaOferta } = await import("../src/pipeline.js");
+  const { ARTE_DA_OFERTA } = await import("../src/vendas/campanha.js");
+  const { readFileSync } = await import("node:fs");
+  assert.match(ARTE_DA_OFERTA, /whatsapp-black-friday-500\.jpg$/);
+  // Os arquivos antigos da arte (o de R$ 3.000) são a mesma arte nova: nenhum link antigo mostra o valor errado.
+  const nova = readFileSync(new URL("../public/whatsapp-black-friday-500.jpg", import.meta.url));
+  assert.ok(nova.equals(readFileSync(new URL("../public/whatsapp-black-friday.jpg", import.meta.url))));
+  assert.ok(nova.equals(readFileSync(new URL("../public/whatsapp-black-friday-site.jpg", import.meta.url))));
+
+  const m = { canal: "whatsapp", tipo: "resposta", lead_id: 424242, corpo: "Fica de R$ 950 por R$ 500, em até 12x sem juros." };
+  assert.equal(await arteDaOferta(m, DURANTE), ARTE_DA_OFERTA);
+  assert.equal(await arteDaOferta({ ...m, corpo: "Entendi! Me conta mais." }, DURANTE), null);
+  assert.equal(await arteDaOferta({ ...m, pais: "PT" }, DURANTE), null);
+  assert.equal(await arteDaOferta({ ...m, canal: "email" }, DURANTE), null);
+  assert.equal(await arteDaOferta(m, DEPOIS), null);
+  await db.gravarEstado("arte_oferta:424242", new Date().toISOString());
+  assert.equal(await arteDaOferta(m, DURANTE), null); // a conversa já recebeu a arte
 });

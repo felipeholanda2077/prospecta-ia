@@ -22,7 +22,7 @@ import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, numerosOficia
 import { enviarDirect } from "./envio/instagram.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
-import { imagemDaMensagem as imagemDaPromocao, legendaDaArte, roteiroDoAudio } from "./vendas/campanha.js";
+import { imagemDaMensagem as imagemDaPromocao, legendaDaArte, roteiroDoAudio, ARTE_DA_OFERTA } from "./vendas/campanha.js";
 
 /**
  * A arte (e o áudio) da campanha só vão na mensagem da campanha, que termina com o aviso de descadastro. Uma resposta
@@ -156,6 +156,30 @@ async function enviarCampanhaEmAudio(integracao, destino, m, texto, imagem, opco
     semQueda(e, "O áudio");
     return integracao.enviarTexto(destino, texto, opcoes);
   }
+}
+
+/**
+ * A arte da oferta do site (de R$ 950 por R$ 500, em até 12x sem juros) para esta mensagem: só no WhatsApp, só
+ * empresa do Brasil, enquanto a oferta vale, quando o texto oferece o site de R$ 500 e a arte ainda não foi nessa conversa.
+ */
+export async function arteDaOferta(m, agora = new Date()) {
+  if (m?.canal !== "whatsapp" || !["resposta", "sequencia", "inicial"].includes(m.tipo) || (m.pais && m.pais !== "BR")) return null;
+  if (!ofertaSiteAtiva(agora)) return null;
+  const corpo = String(m.corpo ?? "");
+  if (!/R\$\s?500\b/.test(corpo) || !/950/.test(corpo)) return null;
+  return (await db.lerEstado(`arte_oferta:${m.lead_id}`)) ? null : ARTE_DA_OFERTA;
+}
+
+/** A arte primeiro, depois o texto. Se a arte falhar, o texto sai mesmo assim. Marca a conversa como "já recebeu a arte". */
+async function enviarComArte(integracao, destino, m, texto, arte, opcoes) {
+  try {
+    await integracao.enviarImagem(destino, arte, "", opcoes);
+    await db.gravarEstado(`arte_oferta:${m.lead_id}`, new Date().toISOString());
+  } catch (e) {
+    if (QUEDA_DO_WHATSAPP.test(e.message)) throw e;
+    log(`⚠️  A arte da oferta não foi enviada para ${m.empresa}: ${e.message}`);
+  }
+  return integracao.enviarTexto(destino, texto, opcoes);
 }
 
 /**
@@ -1371,9 +1395,12 @@ export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
       if (config.modoTeste.email && !config.modoTeste.whatsapp) throw new Error("modo teste ativo sem MODO_TESTE_WHATSAPP; WhatsApp não enviado");
       const destino = config.modoTeste.whatsapp || m.destino;
       const imagem = imagemDaMensagem(m);
+      // A arte da oferta do site vai junto da primeira mensagem da conversa que oferece o site de R$ 500 (uma vez só).
+      const arte = imagem ? null : await arteDaOferta(m);
       const enviarPara = (para) => (imagem
         ? enviarCampanhaEmAudio(INTEGRACOES_WHATSAPP[modo], para, m, m.corpo + rodape, imagem, { numeroId })
-        : INTEGRACOES_WHATSAPP[modo].enviarTexto(para, m.corpo + rodape, { numeroId }));
+        : arte ? enviarComArte(INTEGRACOES_WHATSAPP[modo], para, m, m.corpo + rodape, arte, { numeroId })
+          : INTEGRACOES_WHATSAPP[modo].enviarTexto(para, m.corpo + rodape, { numeroId }));
       try {
         messageId = await enviarPara(destino);
       } catch (e) {

@@ -37,7 +37,7 @@ export function cobrancaDoPlano(p) {
       anual: false, unico: true, primeiro: p.reais, mensal: null,
       dados: {
         name: `${p.nome} · pagamento único`, value: p.reais, billingType: "UNDEFINED", chargeType: "INSTALLMENT", maxInstallmentCount: 12,
-        description: `${p.nome}: ${reais(p.reais)}, valor único, sem mensalidade. À vista ou em até 12x no cartão.`, dueDateLimitDays: DIAS_PARA_PAGAR,
+        description: `${p.nome}: ${reais(p.reais)}, valor único, sem mensalidade. À vista ou em até 12x sem juros no cartão.`, dueDateLimitDays: DIAS_PARA_PAGAR,
       },
     };
   }

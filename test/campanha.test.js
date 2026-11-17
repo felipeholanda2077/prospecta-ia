@@ -100,10 +100,10 @@ test("campanha: acaba com a promoção; o plano antigo de R$ 3.000 sai da aprese
 
   // A mensagem e a arte da campanha: o site de R$ 500 em até 12x e a IA no WhatsApp, sem o plano de R$ 3.000.
   const texto = campanhaMod.mensagemDaCampanha({ lead: { nome: "Clínica X", token: "t" }, comGuia: false, responsavel: "Felipe", empresa: "FluxDeck" });
-  assert.match(texto, /de R\$ 950 por R\$ 500, valor único, em até 12x/);
+  assert.match(texto, /de R\$ 950 por R\$ 500, valor único, em até 12x sem juros/);
   assert.match(texto, /R\$ 497 de implantação e R\$ 129,90 por mês/);
   assert.doesNotMatch(texto, /3\.000|4\.500|Professional/);
-  assert.match(campanhaMod.imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo: texto }, AGORA), /whatsapp-black-friday-site\.jpg$/);
+  assert.match(campanhaMod.imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo: texto }, AGORA), /whatsapp-black-friday-500\.jpg$/);
   const audio = campanhaMod.roteiroDoAudio(texto);
   assert.match(audio, /quinhentos reais/);
   assert.match(audio, /doze vezes/);

@@ -156,10 +156,11 @@ test("uazap: contato novo é avaliado; cliente vira lead, e conversa pessoal ou 
 
 test("campanha: a arte e o áudio vão juntos, com o link na legenda, e sem eles o texto sai do mesmo jeito", async () => {
   const link = "https://prospecta.exemplo/guia/abc";
-  const corpo = `Oi! Preparei um guia para atrair clientes: ${link}\n\nE um aviso: na Black Friday o plano sai por menos.`;
+  // O fim "Se preferir não receber mais mensagens" marca a mensagem da campanha (só ela leva a arte e o áudio).
+  const corpo = `Oi! Preparei um guia para atrair clientes: ${link}\n\nE um aviso: na Black Friday o site sai por menos. Se preferir não receber mais mensagens, é só avisar.`;
   const { imagemDaMensagem, roteiroDoAudio, legendaDaArte } = await import("../src/vendas/campanha.js");
   const dia = new Date("2026-11-15T12:00:00Z");
-  assert.match(imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo }, dia), /\/whatsapp-black-friday-site\.jpg$/);
+  assert.match(imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo }, dia), /\/whatsapp-black-friday-500\.jpg$/);
   assert.equal(imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo }, new Date("2026-12-01T12:00:00Z")), null); // acabou a promoção
   assert.equal(imagemDaMensagem({ canal: "email", etapa: 0, corpo }, dia), null);
   assert.equal(imagemDaMensagem({ canal: "whatsapp", etapa: 1, corpo }, dia), null); // sequência normal
@@ -167,7 +168,7 @@ test("campanha: a arte e o áudio vão juntos, com o link na legenda, e sem eles
   assert.doesNotMatch(roteiroDoAudio(corpo), /https?:|\.\./);
   assert.match(roteiroDoAudio(corpo), /pra atrair clientes\. Deixei o link aqui na conversa, tá\?/);
   const escrita = (await import("../src/vendas/campanha.js")).mensagemDaCampanha({ lead: { nome: "Odontomania", token: "t" }, comGuia: true, responsavel: "Felipe", empresa: "FluxDeck" });
-  assert.match(escrita, /de R\$ 950 por R\$ 500, valor único, em até 12x no cartão/);
+  assert.match(escrita, /de R\$ 950 por R\$ 500, valor único, em até 12x sem juros no cartão/);
   const falada = roteiroDoAudio(escrita);
   assert.doesNotMatch(falada, /R\$|https?:|\bpara\b/);
   assert.match(falada, /guia gratuito pra Odontomania/);
