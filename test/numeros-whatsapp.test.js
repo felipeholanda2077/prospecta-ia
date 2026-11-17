@@ -159,7 +159,7 @@ test("campanha: a arte e o áudio vão juntos, com o link na legenda, e sem eles
   const corpo = `Oi! Preparei um guia para atrair clientes: ${link}\n\nE um aviso: na Black Friday o plano sai por menos.`;
   const { imagemDaMensagem, roteiroDoAudio, legendaDaArte } = await import("../src/vendas/campanha.js");
   const dia = new Date("2026-11-15T12:00:00Z");
-  assert.match(imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo }, dia), /\/whatsapp-black-friday\.jpg$/);
+  assert.match(imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo }, dia), /\/whatsapp-black-friday-site\.jpg$/);
   assert.equal(imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo }, new Date("2026-12-01T12:00:00Z")), null); // acabou a promoção
   assert.equal(imagemDaMensagem({ canal: "email", etapa: 0, corpo }, dia), null);
   assert.equal(imagemDaMensagem({ canal: "whatsapp", etapa: 1, corpo }, dia), null); // sequência normal
@@ -167,13 +167,13 @@ test("campanha: a arte e o áudio vão juntos, com o link na legenda, e sem eles
   assert.doesNotMatch(roteiroDoAudio(corpo), /https?:|\.\./);
   assert.match(roteiroDoAudio(corpo), /pra atrair clientes\. Deixei o link aqui na conversa, tá\?/);
   const escrita = (await import("../src/vendas/campanha.js")).mensagemDaCampanha({ lead: { nome: "Odontomania", token: "t" }, comGuia: true, responsavel: "Felipe", empresa: "FluxDeck" });
-  assert.match(escrita, /R\$ 1\.500 por mês, o equivalente a um funcionário/);
+  assert.match(escrita, /de R\$ 950 por R\$ 500, valor único, em até 12x no cartão/);
   const falada = roteiroDoAudio(escrita);
   assert.doesNotMatch(falada, /R\$|https?:|\bpara\b/);
   assert.match(falada, /guia gratuito pra Odontomania/);
-  assert.match(falada, /quatro mil e quinhentos reais, tá saindo por três mil por mês/);
-  assert.match(falada, /equivalente a um funcionário/);
-  assert.match(falada, /sistema próprio e também um aplicativo/);
+  assert.match(falada, /de novecentos e cinquenta por quinhentos reais/);
+  assert.match(falada, /doze vezes/);
+  assert.match(falada, /cento e vinte e nove e noventa por mês/);
   assert.equal(legendaDaArte(corpo), `Seu guia gratuito: ${link}`);
   assert.equal(legendaDaArte("Sem link."), "");
 

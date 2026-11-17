@@ -36,8 +36,8 @@ export function cobrancaDoPlano(p) {
     return {
       anual: false, unico: true, primeiro: p.reais, mensal: null,
       dados: {
-        name: `${p.nome} · pagamento único`, value: p.reais, billingType: "UNDEFINED", chargeType: "DETACHED",
-        description: `${p.nome}: pagamento único de ${reais(p.reais)}, sem mensalidade.`, dueDateLimitDays: DIAS_PARA_PAGAR,
+        name: `${p.nome} · pagamento único`, value: p.reais, billingType: "UNDEFINED", chargeType: "INSTALLMENT", maxInstallmentCount: 12,
+        description: `${p.nome}: ${reais(p.reais)}, valor único, sem mensalidade. À vista ou em até 12x no cartão.`, dueDateLimitDays: DIAS_PARA_PAGAR,
       },
     };
   }
@@ -242,7 +242,7 @@ export async function pagarCheckout(slug, corpo, { ip = "", agora = new Date() }
   if (!documentoValido(documento)) throw new ErroDoCheckout("Confira o CPF ou CNPJ.");
   if (celular.length < 10 || celular.length > 11) throw new ErroDoCheckout("Confira o WhatsApp com DDD.");
   const c = corpo?.cartao ?? {};
-  let mes; let ano; const parcelas = link.anual && forma === "CREDIT_CARD" ? Math.min(12, Math.max(1, Math.floor(Number(corpo?.parcelas) || 1))) : 1;
+  let mes; let ano; const parcelas = (link.anual || link.unico) && forma === "CREDIT_CARD" ? Math.min(12, Math.max(1, Math.floor(Number(corpo?.parcelas) || 1))) : 1;
   if (forma === "CREDIT_CARD") {
     [mes, ano] = String(c.validade ?? "").split("/").map((x) => digitos(x));
     if (ano?.length === 2) ano = `20${ano}`;

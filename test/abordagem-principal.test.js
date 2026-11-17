@@ -167,7 +167,8 @@ test("plano de pagamento único: lido da apresentação, cobrado uma vez e sem m
   assert.equal(c.dados.value, 500);
   const html = paginaDoCheckout(resumoDoPlano({ plano: p.nome, primeiro: 500, mensal: null, unico: true }), { marca: "FluxDeck" });
   assert.match(html, /Pagamento único/);
-  assert.match(html, /Valor único: sem mensalidade/);
+  assert.match(html, /Valor único, sem mensalidade: à vista no Pix ou boleto, ou em até 12x de R\$\s?41,67 no cartão/);
+  assert.match(html, /<select id="parcelas">/); // o site parcela em até 12x no cartão
   assert.doesNotMatch(html, /1ª mensalidade|Sem fidelidade/);
 
   // Na apresentação usada pela IA, a oferta entra sozinha enquanto vale; no texto salvo (o do painel), não.

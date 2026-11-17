@@ -42,12 +42,13 @@ test("campanha: quem parou recebe guia e promoção; quem está falando, só a p
   assert.deepEqual([a.status, a.tipo, a.etapa], ["rascunho", "resposta", 0]);
   assert.match(a.corpo, /Aqui é o Felipe, da FluxDeck/);
   assert.match(a.corpo, /\/guia\/[0-9a-f]{32}/);
-  assert.match(a.corpo, /R\$ 4\.500 por R\$ 3\.000 por mês/);
+  assert.match(a.corpo, /de R\$ 950 por R\$ 500, valor único, em até 12x/);
   assert.match(a.corpo, /é só avisar/);
 
   const [b] = await rascunhos(ativo);
   assert.ok(!b.corpo.includes("/guia/"));
-  assert.match(b.corpo, /R\$ 3\.000/);
+  assert.match(b.corpo, /R\$ 500/);
+  assert.doesNotMatch(b.corpo, /R\$ 3\.000/);
 });
 
 test("campanha: a resposta nossa depois da dela também conta como parou de responder", () => {
@@ -85,18 +86,28 @@ test("campanha: direct do Instagram fica de fora com o motivo, e-mail ganha assu
   assert.match(m.assunto, /Black Friday/);
 });
 
-test("campanha: acaba com a promoção, e a IA passa a informar o valor sem apagar o que existia", async () => {
+test("campanha: acaba com a promoção; o plano antigo de R$ 3.000 sai da apresentação e a oferta é o site de R$ 500 em até 12x", async () => {
   assert.match((await campanhaMod.prepararCampanha(campanha, new Date("2026-12-01T15:00:00Z"))).erro, /terminou/);
 
-  assert.match(APRESENTACAO_PADRAO, /R\$ 4\.500\/mês por R\$ 3\.000\/mês/);
-  await gravarApresentacao("Planos: Professional com IA R$ 4.500/mês.\nPromoção de Black Friday (só em novembro de 2026): criação de site por R$ 2.500/mês.\nPrazo: 2 semanas.");
+  assert.doesNotMatch(APRESENTACAO_PADRAO, /R\$ 3\.000/);
+  await gravarApresentacao("Planos: Site Essencial R$ 79,90/mês.\nPromoção de Black Friday (só em novembro de 2026): Professional com IA de atendimento no WhatsApp de R$ 4.500/mês por R$ 3.000/mês.\nPrazo: 2 semanas.");
   assert.equal(await campanhaMod.garantirPromocaoNaApresentacao(), true);
-  const linhas = (await lerApresentacao()).split("\n");
-  assert.equal(linhas[1], "Promoção de Black Friday (só em novembro de 2026): criação de site por R$ 2.500/mês.");
-  assert.equal(linhas[2], campanhaMod.LINHA_DA_PROMOCAO);
-  assert.equal(linhas[3], "Prazo: 2 semanas.");
+  const salvo = await lerApresentacao(null, { comOferta: false });
+  assert.doesNotMatch(salvo, /R\$ 3\.000/);
+  assert.match(salvo, /Site Essencial/);
+  assert.match(salvo, /Prazo: 2 semanas\./);
   assert.equal(await campanhaMod.garantirPromocaoNaApresentacao(), false);
-  assert.equal((await lerApresentacao()).split("R$ 3.000").length, 2);
+
+  // A mensagem e a arte da campanha: o site de R$ 500 em até 12x e a IA no WhatsApp, sem o plano de R$ 3.000.
+  const texto = campanhaMod.mensagemDaCampanha({ lead: { nome: "Clínica X", token: "t" }, comGuia: false, responsavel: "Felipe", empresa: "FluxDeck" });
+  assert.match(texto, /de R\$ 950 por R\$ 500, valor único, em até 12x/);
+  assert.match(texto, /R\$ 497 de implantação e R\$ 129,90 por mês/);
+  assert.doesNotMatch(texto, /3\.000|4\.500|Professional/);
+  assert.match(campanhaMod.imagemDaMensagem({ canal: "whatsapp", etapa: 0, corpo: texto }, AGORA), /whatsapp-black-friday-site\.jpg$/);
+  const audio = campanhaMod.roteiroDoAudio(texto);
+  assert.match(audio, /quinhentos reais/);
+  assert.match(audio, /doze vezes/);
+  assert.doesNotMatch(audio, /R\$/);
 });
 
 test("guia: o PDF abre pelo link de cada empresa, com marca-d'água, sem login", async () => {

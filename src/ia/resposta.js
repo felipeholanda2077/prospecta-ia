@@ -202,10 +202,27 @@ export const valoresPermitidos = (lead) => (siteEmEuro(lead) ? VALOR_DO_SITE_EUR
 
 /** A regra da oferta para os prompts das conversas da abordagem principal. */
 const REGRA_DA_OFERTA = `EXCEÇÃO: a ${"${empresa}"} tem (ou vai receber) o site de exemplo dela. A oferta de site da Black Friday (${OFERTA_SITE.plano}: de ${PRECO_DE}
-  por ${PRECO_POR}, valor único, só até ${OFERTA_SITE.ateTexto}) PODE ser citada sem a pessoa perguntar, UMA vez, quando ela gostar da
+  por ${PRECO_POR}, valor único, em até 12x no cartão, só até ${OFERTA_SITE.ateTexto}) PODE ser citada sem a pessoa perguntar, UMA vez, quando ela gostar da
   prévia, quiser o site ou perguntar como funciona (se o histórico ainda não tem essa oferta). Escreva "de ${PRECO_DE} por ${PRECO_POR}".
   Nenhum outro valor, plano com preço ou desconto. Quando ela gostar do exemplo ou quiser o site: diga o valor e, no fim,
   mande o link de pagamento do ${OFERTA_SITE.plano} que está na apresentação (se houver). Nunca bate-papo nem reunião.`;
+/**
+ * Plano certo (pedido de 17/11/2026): nunca oferecer mais do que a pessoa pediu. Quem quer só um site recebe o site
+ * (R$ 500 em até 12x na Black Friday); quem quer uma IA simples no WhatsApp, o WhatsApp com IA; os valores de
+ * fluxdeck.com.br (a apresentação do Brasil). Empresa de fora do Brasil tem a regra dela (internacional.js).
+ */
+export function regraDoPlanoCerto(lead, agora = new Date()) {
+  if (lead?.pais && lead.pais !== "BR") return "";
+  const site = ofertaSiteAtiva(agora)
+    ? `o ${OFERTA_SITE.plano} (de ${PRECO_DE} por ${PRECO_POR}, valor único, em até 12x no cartão, até ${OFERTA_SITE.ateTexto})`
+    : "o Site Essencial";
+  return `- PLANO CERTO (nunca acima do que a pessoa pediu): quer só um site → ${site}; quer uma IA simples para atender o
+  WhatsApp → o WhatsApp com IA (R$ 497 de implantação + R$ 129,90 por mês); quer os dois → os dois. Completo, CRM,
+  automação, dashboard ou sistema só se ela pedir essas coisas. Nunca cite plano ou valor que não esteja na apresentação,
+  e nunca proponha valores de milhares de reais para quem pediu um site ou uma IA básica.
+`;
+}
+
 const regraDaOferta = (lead) => (ofertaLiberada(lead) ? REGRA_DA_OFERTA.replace("${empresa}", lead.nome) : "");
 
 // A pessoa pediu para conversar (ligação, reunião, chamada): só aí a IA pode convidar e mandar o link de agendamento.
@@ -371,7 +388,7 @@ ${chegaDePerguntas ? `- AGORA PARE DE PERGUNTAR. Esta mensagem NÃO tem pergunta
   na mesma mensagem (ex.: "Desculpa pelas perguntas! Sou o Felipe, da FluxDeck: a gente faz a IA que responde o WhatsApp
   de lojas de carro na hora, para nenhum cliente esfriar esperando. Posso te mandar uma proposta rápida? Se não fizer
   sentido, paro por aqui.").` : ""}
-${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com o que está na apresentação.
+${apresentacao ? `${regraDoPlanoCerto(lead)}- Perguntas sobre como funciona, planos ou prazo: responda com o que está na apresentação.
 ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, como estão escritos. Orçamento exato, desconto ou
   condição especial: diga que isso vocês combinam por aqui, conforme o que ela precisa.` : `- Valores: a pessoa AINDA NÃO perguntou de preço. NÃO cite nenhum valor, preço ou R$, nem "a partir de". Se falar de
   planos, diga só o que cada um faz. Valor só quando ela perguntar.${ofertaLiberada(lead) ? `
@@ -515,6 +532,7 @@ A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa (${NOME_D
      não perguntou de preço); no fim, uma frase dizendo que você passa os valores se ela quiser;${ofertaLiberada(lead) ? `
      ${regraDaOferta(lead)} Se ela quer site, comece pelo ${OFERTA_SITE.plano}, com "de ${PRECO_DE} por ${PRECO_POR}, valor único".` : ""}`}
    - em quanto tempo fica pronto.
+${regraDoPlanoCerto(lead).replace(/^- /, "   ")}
 3. Se ela pediu algo que não está na apresentação, uma frase sincera dizendo que isso vocês combinam com ela.${linkPrevia ? `
    E uma linha dizendo que você já fez um rascunho de como ficaria o site da ${lead.nome}, com este link exatamente como
    está: ${linkPrevia}` : ""}

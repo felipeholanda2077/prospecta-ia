@@ -21,6 +21,9 @@ export const VALOR_DO_SITE_EUROPA = /€\s?150(?:,00)?(?![\d.,]*\d)|\b150(?:,00)
 const reais = (v) => `R$ ${Number(v).toLocaleString("pt-BR")}`;
 export const PRECO_DE = reais(OFERTA_SITE.de);
 export const PRECO_POR = reais(OFERTA_SITE.por);
+/** A parcela em 12x no cartão (R$ 41,67). */
+export const PARCELA = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Math.ceil((OFERTA_SITE.por / 12) * 100) / 100).replace(/\s/g, " ");
+export const PARCELAS_DO_SITE = 12;
 
 /** Os valores da oferta, para a trava de valores deixar passar só eles (R$ 500 e R$ 950, também "500 reais"). */
 export const VALOR_DA_OFERTA = new RegExp(
@@ -43,7 +46,7 @@ export function origemDoSite(site, reserva = "") {
  */
 export function blocoDaOferta({ checkout = "" } = {}) {
   return `Oferta de Black Friday para criação de site (só até ${OFERTA_SITE.ateTexto}; enquanto valer, é ESTA a oferta de site, no lugar do Site Essencial):
-- ${OFERTA_SITE.plano} (${PRECO_POR} pagamento único, de ${PRECO_DE}): o site profissional da empresa no ar, feito com a cara do negócio (como a prévia que mostramos): versão para celular, botão do WhatsApp, textos e SEO para aparecer no Google, domínio e publicação. Valor único, sem mensalidade.
-Como falar: "de ${PRECO_DE} por ${PRECO_POR}, valor único, só nesta Black Friday".${checkout ? `
+- ${OFERTA_SITE.plano} (${PRECO_POR} pagamento único, de ${PRECO_DE}): o site profissional da empresa no ar, feito com a cara do negócio (como a prévia que mostramos): versão para celular, botão do WhatsApp, textos e SEO para aparecer no Google, domínio e publicação. Valor único, sem mensalidade, à vista ou em até 12x de ${PARCELA} no cartão.
+Como falar: "de ${PRECO_DE} por ${PRECO_POR}, valor único, em até 12x no cartão, só nesta Black Friday".${checkout ? `
 Para fechar o ${OFERTA_SITE.plano}, o pagamento é por este link (Pix, boleto ou cartão): ${checkout}` : ""}`;
 }

@@ -24,11 +24,13 @@ export function paginaDoCheckout(plano, { marca = "FluxDeck", telefone = "", log
     : plano.anual
     ? [["12 meses, implantação inclusa", reais(plano.hoje)]]
     : [...(plano.implantacao ? [["Implantação (uma vez)", reais(plano.implantacao)]] : []), ["1ª mensalidade", reais(plano.mensal)]];
-  const depois = plano.unico ? "Valor único: sem mensalidade."
+  // O plano anual e o de pagamento único (o site) parcelam em até 12x no cartão.
+  const parcelado = plano.anual || plano.unico;
+  const depois = plano.unico ? `Valor único, sem mensalidade: à vista no Pix ou boleto, ou em até 12x de ${reais(Math.ceil((plano.hoje / 12) * 100) / 100)} no cartão.`
     : plano.anual
     ? `À vista no Pix ou boleto, ou em até 12x de ${reais(plano.hoje / 12)} no cartão.`
     : `Depois, ${reais(plano.mensal)} por mês. Sem fidelidade: cancele quando quiser.`;
-  const parcelas = plano.anual
+  const parcelas = parcelado
     ? Array.from({ length: 12 }, (_, k) => `<option value="${k + 1}">${k + 1}x de ${reais(Math.round((plano.hoje / (k + 1)) * 100) / 100)}${k ? "" : " (à vista)"}</option>`).join("")
     : "";
   const whats = telefone ? `https://wa.me/55${String(telefone).replace(/\D/g, "").replace(/^55/, "")}` : "";
@@ -124,7 +126,7 @@ input::placeholder{color:#5c6789}
 
       <div class="formas" role="group" aria-label="Forma de pagamento">
         <button type="button" class="forma" data-forma="pix" aria-pressed="true">${ICONE.pix}Pix<small>Aprovação na hora</small></button>
-        <button type="button" class="forma" data-forma="cartao" aria-pressed="false">${ICONE.cartao}Cartão<small>${plano.anual ? "Até 12x" : "Crédito"}</small></button>
+        <button type="button" class="forma" data-forma="cartao" aria-pressed="false">${ICONE.cartao}Cartão<small>${parcelado ? "Até 12x" : "Crédito"}</small></button>
         <button type="button" class="forma" data-forma="boleto" aria-pressed="false">${ICONE.boleto}Boleto<small>Até 3 dias úteis</small></button>
       </div>
 
@@ -135,7 +137,7 @@ input::placeholder{color:#5c6789}
         <div class="campo"><label for="cvv">CVV</label><input id="cvv" inputmode="numeric" autocomplete="cc-csc" placeholder="123"></div>
         <div class="campo"><label for="cep">CEP do titular</label><input id="cep" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000"></div>
         <div class="campo"><label for="numeroEndereco">Número do endereço</label><input id="numeroEndereco" autocomplete="address-line2"></div>
-        ${plano.anual ? `<div class="campo todo"><label for="parcelas">Parcelas</label><select id="parcelas">${parcelas}</select></div>` : ""}
+        ${parcelado ? `<div class="campo todo"><label for="parcelas">Parcelas</label><select id="parcelas">${parcelas}</select></div>` : ""}
       </div>
       <p class="dica" id="dica"></p>
 
@@ -166,7 +168,7 @@ input::placeholder{color:#5c6789}
 (function(){
 var forma="pix",consulta=null;
 var $=function(id){return document.getElementById(id)};
-var dicas={pix:"Depois de clicar, aparece o QR Code. A confirmação é na hora.",cartao:"${plano.unico ? "Pagamento único, à vista no cartão." : plano.anual ? "Escolha em quantas vezes quer pagar." : "A mensalidade dos próximos meses é cobrada no mesmo cartão, sem fidelidade."}",boleto:"O boleto vence em 3 dias e a confirmação leva até 3 dias úteis."};
+var dicas={pix:"Depois de clicar, aparece o QR Code. A confirmação é na hora.",cartao:"${plano.unico ? "Escolha em quantas vezes quer pagar (até 12x)." : plano.anual ? "Escolha em quantas vezes quer pagar." : "A mensalidade dos próximos meses é cobrada no mesmo cartão, sem fidelidade."}",boleto:"O boleto vence em 3 dias e a confirmação leva até 3 dias úteis."};
 function escolher(f){forma=f;document.querySelectorAll(".forma").forEach(function(b){b.setAttribute("aria-pressed",String(b.dataset.forma===f))});
   $("cartao").classList.toggle("ativo",f==="cartao");$("dica").textContent=dicas[f];}
 document.querySelectorAll(".forma").forEach(function(b){b.addEventListener("click",function(){escolher(b.dataset.forma)})});

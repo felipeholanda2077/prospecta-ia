@@ -46,7 +46,6 @@ test("IA: regras da venda sem reunião só para quem é de fora do Brasil e de P
 test("planos: os valores da apresentação viram a mensalidade na moeda da empresa", async () => {
   const planos = stripe.planosDaApresentacao(APRESENTACAO_PADRAO);
   assert.ok(planos.some((p) => p.nome === "Professional" && p.reais === 2500));
-  assert.ok(planos.some((p) => p.nome === "Professional com IA de atendimento no WhatsApp" && p.reais === 3000 && p.promocao));
   assert.deepEqual(await stripe.valorDoPlano({ plano: "Professional", valor: "910", lead: miami, apresentacao: APRESENTACAO_PADRAO }), { nome: "Professional", valor: 910, moeda: "USD" });
   // Valor que não é de nenhum plano não vale: fica o do plano pelo nome.
   assert.deepEqual(await stripe.valorDoPlano({ plano: "Professional", valor: "500", lead: alemanha, apresentacao: APRESENTACAO_PADRAO }), { nome: "Professional", valor: 810, moeda: "EUR" });
