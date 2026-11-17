@@ -449,6 +449,7 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .palco{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateX(6deg) rotateY(-14deg);transition:transform .6s cubic-bezier(.2,.7,.2,1);animation:balanco 9s ease-in-out infinite alternate}
 .palco.mexendo{animation:none}
 @keyframes balanco{from{transform:rotateX(7deg) rotateY(-20deg)}to{transform:rotateX(2deg) rotateY(-6deg)}}
+@keyframes balancoCurto{from{transform:rotateX(6deg) rotateY(-12deg)}to{transform:rotateX(2deg) rotateY(-3deg)}}
 .camada{position:absolute;transform-style:preserve-3d}
 .camada.fone{left:50%;top:50%;transform:translate3d(-50%,-50%,40px)}
 .cena3d .celular{width:250px;box-shadow:0 40px 70px -24px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08)}
@@ -474,7 +475,8 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
   .cena3d .conversa{min-height:190px;padding:12px 10px 16px}.orbe i{width:130px;height:130px}.camada.orbe{left:60%;top:3%}
   .camada.aneis{transform:translateZ(-70px) rotateX(74deg) scale(.72)}.chao i{width:240px;height:240px}
   .chip{padding:7px 10px;gap:8px;font-size:11px;max-width:52vw;border-radius:13px}.chip b{font-size:12.5px}.chip .ic3{width:28px;height:28px;font-size:14px;border-radius:9px}
-  .camada.k1{left:0;top:5%;transform:translateZ(110px)}.camada.k2{right:0;top:46%;transform:translateZ(140px)}.camada.k3{left:0;bottom:7%;transform:translateZ(90px)}
+  .camada.k1{left:7%;top:5%;transform:translateZ(60px)}.camada.k2{right:6%;top:58%;transform:translateZ(80px)}.camada.k3{left:7%;bottom:6%;transform:translateZ(50px)}
+  .palco{animation-name:balancoCurto}
   .hero .in{gap:12px}.piso3d{background-size:40px 40px}}
 @media (prefers-reduced-motion:reduce){.palco{transform:rotateX(5deg) rotateY(-12deg)!important}}
 .logo-img{flex:none;width:42px;height:42px;border-radius:12px;object-fit:cover;background:#fff;box-shadow:0 0 0 1px var(--borda)}.logo-img.larga{width:auto;max-width:170px;height:42px;object-fit:contain;border-radius:8px;padding:3px 6px;box-shadow:none}
