@@ -363,7 +363,10 @@ export async function intencaoDoCheckout(codigo) {
   };
   // Cartão (com Apple Pay e Google Pay) e Link, sempre. Se a conta não aceitar o Link, ficam os meios automáticos da conta.
   const pi = await chamar("/payment_intents", { metodo: "POST", campos: { ...base, "payment_method_types[0]": "card", "payment_method_types[1]": "link" } })
-    .catch(() => chamar("/payment_intents", { metodo: "POST", campos: { ...base, "automatic_payment_methods[enabled]": "true" } }));
+    .catch((e) => {
+      console.error("Checkout sem o Link:", e.message);
+      return chamar("/payment_intents", { metodo: "POST", campos: { ...base, "automatic_payment_methods[enabled]": "true" } });
+    });
   await db.gravarEstado(`checkout_x_pi:${codigo}`, pi.id);
   return { clientSecret: pi.client_secret };
 }
