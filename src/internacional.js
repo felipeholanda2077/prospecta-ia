@@ -251,7 +251,8 @@ SITE (esta regra vale acima das outras sobre valores, reunião e agendamento):
 - Nunca convide para reunião, chamada, videochamada ou bate-papo e nunca mande link de agendamento: a venda é por mensagem.
 - Quando a pessoa gostar do site de exemplo, quiser o site ou perguntar o preço: diga o valor (150 €, pagamento único,
   sem mensalidade) e o que inclui (o site no ar com a cara do exemplo, as fotos e os serviços dela, versão para telemóvel,
-  botão do WhatsApp e domínio), ${stripe ? `e escreva, sozinho na última linha, o marcador {{pagamento:${OFERTA_SITE_EUROPA.plano}|${OFERTA_SITE_EUROPA.valor}}}. Ele vira o
+  botão do WhatsApp e domínio), que o site fica pronto no prazo de uma semana e que, se preferirem, fazemos um contrato de
+  prestação de serviço, ${stripe ? `e escreva, sozinho na última linha, o marcador {{pagamento:${OFERTA_SITE_EUROPA.plano}|${OFERTA_SITE_EUROPA.valor}}}. Ele vira o
   link de pagamento seguro, em euro, cobrado uma vez só. Diga que, com o pagamento confirmado, vocês começam e pedem as
   fotos e os textos por aqui.` : "e diga que manda o link de pagamento em seguida (não invente link)."}`;
 }
