@@ -430,11 +430,11 @@ section h2.rv::after{content:"";display:block;width:58px;height:3px;border-radiu
 section h2.rv.in::after,html:not(.js) section h2.rv::after{transform:scaleX(1)}
 .js .cartao.rv .ic{transform:scale(.3) rotate(-14deg);opacity:0}.js .cartao.rv.in .ic{animation:salta .7s calc(var(--atraso,0s) + .2s) cubic-bezier(.3,1.6,.5,1) both}
 @keyframes salta{from{transform:scale(.3) rotate(-14deg);opacity:0}to{transform:none;opacity:1}}
-.js .foto.real.rv{opacity:1;transform:none;clip-path:inset(100% 0 0 0);transition:clip-path 1.1s cubic-bezier(.2,.7,.2,1) var(--atraso,0s)}.js .foto.real.rv.in{clip-path:inset(0 0 0 0)}
+.js .foto.real.rv{opacity:1;transform:none}.js .foto.real.rv img{clip-path:inset(100% 0 0 0);transition:clip-path 1.1s cubic-bezier(.2,.7,.2,1) var(--atraso,0s),transform .6s ease}.js .foto.real.rv.in img{clip-path:inset(0 0 0 0)}
 .depoimento{transition:transform .3s,box-shadow .3s}.depoimento:hover{transform:translateY(-5px) rotate(-.4deg);box-shadow:0 18px 36px -22px var(--cor)}
 .numero{transition:transform .3s}.numero:hover{transform:translateY(-4px)}
 @media (max-width:879px){.contato{grid-template-columns:1fr}.mapa-real,.mapa-real iframe{min-height:300px}}
-@media (prefers-reduced-motion:reduce){.js .cartao.rv .ic{opacity:1!important;transform:none!important}.js .foto.real.rv{clip-path:none!important}}
+@media (prefers-reduced-motion:reduce){.js .cartao.rv .ic{opacity:1!important;transform:none!important}.js .foto.real.rv img{clip-path:none!important}}
 @media (max-width:520px){.grade>.cartao{flex:0 1 calc((100% - 10px) / 2);min-width:0}.galeria.reais{grid-auto-rows:150px}.galeria.reais .foto:nth-child(1){grid-column:span 2;grid-row:span 2;aspect-ratio:auto}.numeros + .corre{margin-top:26px}}
 footer{border-top:1px solid var(--borda);color:var(--suave);font-size:13px;text-align:center;padding:26px 16px 96px}
 .flutua{position:fixed;right:16px;bottom:16px;z-index:12;width:58px;height:58px;border-radius:50%;background:#25d366;display:grid;place-items:center;box-shadow:0 10px 26px -8px rgba(0,0,0,.45);text-decoration:none}
