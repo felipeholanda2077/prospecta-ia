@@ -160,3 +160,29 @@ test("áudio pela Evolution é transcrito e chega para a IA como texto", async (
     delete process.env.GROQ_API_KEY;
   }
 });
+
+test("áudio pela UAZap é baixado (/message/download) e transcrito para a IA", async () => {
+  const uazap = await import("../src/envio/uazap.js");
+  const { textoDoAudio } = await import("../src/respostas/whatsapp.js");
+  await db.gravarConfig("uazap", { url: "https://x.uazapi.com", token: "T", segredoWebhook: "s" });
+  const m = uazap.extrairMensagemUazap({ EventType: "messages", message: { messageid: "AUD1", messageType: "AudioMessage", chatid: "5511943496300@s.whatsapp.net", text: "" } });
+  assert.equal(m.audio, true);
+  process.env.GROQ_API_KEY = "teste";
+  const original = globalThis.fetch;
+  const pedidos = [];
+  globalThis.fetch = async (url, opcoes = {}) => {
+    const u = String(url);
+    pedidos.push({ u, corpo: typeof opcoes.body === "string" ? JSON.parse(opcoes.body) : null });
+    if (u.endsWith("/message/download")) return new Response(JSON.stringify({ mimetype: "audio/mpeg", base64Data: Buffer.from("ID3").toString("base64") }), { status: 200 });
+    if (/groq\.com/.test(u)) return new Response(JSON.stringify({ text: "Tenho interesse, me explica melhor" }), { status: 200 });
+    return new Response("{}", { status: 404 });
+  };
+  try {
+    const r = await textoDoAudio(m, (x) => uazap.baixarAudio(uazap.PRINCIPAL, x));
+    assert.deepEqual(r, { texto: "[áudio] Tenho interesse, me explica melhor", forcarHumano: null });
+    assert.deepEqual(pedidos.find((p) => p.u.endsWith("/message/download")).corpo, { id: "AUD1", return_base64: true, generate_mp3: true });
+  } finally {
+    globalThis.fetch = original;
+    delete process.env.GROQ_API_KEY;
+  }
+});

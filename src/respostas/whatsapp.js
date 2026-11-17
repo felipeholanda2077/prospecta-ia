@@ -3,7 +3,7 @@ import { config } from "../config.js";
 import * as db from "../db.js";
 import { variantesWhatsappBR } from "../analise/telefone.js";
 import { registrarResposta } from "./processar.js";
-import { extrairMensagemUazap, buscarMensagens as buscarMensagensUazap, PRINCIPAL } from "../envio/uazap.js";
+import { extrairMensagemUazap, buscarMensagens as buscarMensagensUazap, baixarAudio as baixarAudioUazap, PRINCIPAL } from "../envio/uazap.js";
 import { extrairMensagemEvolution, baixarAudio } from "../envio/evolution.js";
 import { transcrever } from "../ia/transcricao.js";
 import { extrairContatosVcard } from "./indicacao.js";
@@ -102,7 +102,7 @@ export async function processarWebhookWhatsapp(payload, campanha) {
  * contato novo é avaliado: quem chamou por conta própria e é cliente entra, e conversa pessoal fica de fora.
  */
 export function processarWebhookUazap(payload, campanha, numeroId = null, opcoes = {}) {
-  return registrarMensagemWhatsappWeb(extrairMensagemUazap(payload), campanha, null, {
+  return registrarMensagemWhatsappWeb(extrairMensagemUazap(payload), campanha, (m) => baixarAudioUazap(numeroId, m), {
     numeroId, avaliarNovo: avaliarContato, buscar: (filtro) => buscarMensagensUazap(numeroId, filtro), ...opcoes,
   });
 }

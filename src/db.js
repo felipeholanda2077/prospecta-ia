@@ -883,6 +883,11 @@ export async function respostasEnviadasNaConversa(leadId) {
   return (await um("SELECT count(*)::int AS n FROM mensagens WHERE lead_id = $1 AND tipo = 'resposta' AND status IN ('aprovada', 'enviada')", [leadId])).n;
 }
 
+/** O texto de uma resposta (ex.: o áudio transcrito depois). */
+export async function atualizarTextoDaResposta(id, texto) {
+  await q("UPDATE respostas SET texto = $2 WHERE id = $1", [id, texto]);
+}
+
 export async function atualizarResposta(id, campos) {
   const permitidos = ["mensagem_id", "precisa_humano", "lida", "classificacao", "resumo", "sugestao", "temperatura", "proximo_passo"];
   const chaves = Object.keys(campos).filter((k) => permitidos.includes(k));

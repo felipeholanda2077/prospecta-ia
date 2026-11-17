@@ -167,6 +167,21 @@ async function chamar(id, caminho, opcoes) {
   return chamarCom(n, caminho, opcoes);
 }
 
+/**
+ * Baixa o áudio recebido por um número da UAZap (para transcrever). Vem em base64; se não vier, pelo link
+ * público que a UAZap devolve (vale 2 dias).
+ */
+export async function baixarAudio(numeroId, m) {
+  const dados = await chamar(numeroId, "/message/download", { method: "POST", corpo: { id: m.id, return_base64: true, generate_mp3: true } });
+  if (dados?.base64Data) return { audio: Buffer.from(dados.base64Data, "base64"), mimetype: dados.mimetype || "audio/mpeg" };
+  if (dados?.fileURL) {
+    const resp = await fetch(dados.fileURL, { signal: AbortSignal.timeout(30_000) });
+    if (!resp.ok) throw new Error(`a UAZap não entregou o áudio (${resp.status})`);
+    return { audio: Buffer.from(await resp.arrayBuffer()), mimetype: dados.mimetype || resp.headers.get("content-type") || "audio/mpeg" };
+  }
+  throw new Error("a UAZap não devolveu o áudio");
+}
+
 /** Converte a resposta de /instance/status e /instance/connect em algo simples para o painel. */
 export function resumirStatus(dados) {
   const inst = dados?.instance ?? {};
@@ -398,7 +413,7 @@ export function extrairMensagemUazap(payload) {
   const m = payload.message;
   if (!m || m.fromMe || m.isGroup || m.wasSentByApi) return null;
   const texto = String(m.text ?? "").trim();
-  // Áudio pela UAZap ainda não é transcrito: a conversa passa para você.
+  // Áudio: baixado pela UAZap (/message/download) e transcrito para a IA ler.
   const audio = /audio|ptt/i.test(`${m.messageType ?? ""} ${m.mediaType ?? ""}`);
   // Cartão de contato: o vCard pode vir em campos diferentes conforme a versão da UAZap.
   const vcard = [m.vcard, m.content?.vcard, m.content?.displayName && m.content?.vcard, typeof m.content === "string" ? m.content : null]

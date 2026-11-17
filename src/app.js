@@ -1791,6 +1791,24 @@ app.post("/api/leads/:id/pausar-ia", async (req, res) => {
 });
 
 // Conversa que a IA passou para você: ela retoma e responde sozinha.
+// Áudio que chegou e não deu para transcrever (ex.: antes da UAZap baixar áudios): baixa e transcreve de novo.
+app.post("/api/respostas/:id/transcrever", async (req, res) => {
+  try {
+    const r = await db.buscarResposta(req.params.id);
+    if (!r || r.canal !== "whatsapp" || !/^\[áudio\]/.test(String(r.texto ?? ""))) throw new Error("Esta resposta não é um áudio do WhatsApp");
+    const lead = await db.buscarLead(r.lead_id);
+    const { baixarAudio, PRINCIPAL } = await import("./envio/uazap.js");
+    const { transcrever } = await import("./ia/transcricao.js");
+    const numeroId = lead?.numero_wa && !whatsappOficial.ehNumeroOficial(lead.numero_wa) ? lead.numero_wa : PRINCIPAL;
+    const { audio, mimetype } = await baixarAudio(numeroId, { id: r.origem_id });
+    const texto = `[áudio] ${await transcrever(audio, mimetype)}`;
+    await db.atualizarTextoDaResposta(r.id, texto);
+    res.json({ texto });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.post("/api/respostas/:id/ia-continua", async (req, res) => {
   res.json(await continuarComIA(req.params.id, await carregarCampanhaCompleta(), { nota: req.body?.nota }));
 });
