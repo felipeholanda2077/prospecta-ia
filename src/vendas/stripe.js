@@ -351,13 +351,19 @@ export async function intencaoDoCheckout(codigo) {
   if (salvo) {
     const pi = await chamar(`/payment_intents/${encodeURIComponent(salvo)}`);
     if (pi.status === "succeeded") throw new Error(compra.pais === "PT" ? "Este pagamento já foi feito." : "This payment was already made.");
-    if (!["canceled"].includes(pi.status)) return { clientSecret: pi.client_secret };
+    // Intenção antiga sem o Link (criada antes de ele entrar): cancela e cria outra, com o Link.
+    const semLink = pi.status === "requires_payment_method" && !(pi.payment_method_types ?? []).includes("link");
+    if (semLink) await chamar(`/payment_intents/${encodeURIComponent(pi.id)}/cancel`, { metodo: "POST", campos: {} }).catch(() => null);
+    else if (pi.status !== "canceled") return { clientSecret: pi.client_secret };
   }
-  const pi = await chamar("/payment_intents", { metodo: "POST", campos: {
-    amount: String(Math.round(compra.valor * 100)), currency: compra.moeda.toLowerCase(), "automatic_payment_methods[enabled]": "true",
+  const base = {
+    amount: String(Math.round(compra.valor * 100)), currency: compra.moeda.toLowerCase(),
     description: `FluxDeck · ${compra.nome} · ${compra.empresa}`.slice(0, 300),
     "metadata[lead_id]": String(compra.leadId), "metadata[plano]": compra.nome, "metadata[checkout]": codigo,
-  } });
+  };
+  // Cartão (com Apple Pay e Google Pay) e Link, sempre. Se a conta não aceitar o Link, ficam os meios automáticos da conta.
+  const pi = await chamar("/payment_intents", { metodo: "POST", campos: { ...base, "payment_method_types[0]": "card", "payment_method_types[1]": "link" } })
+    .catch(() => chamar("/payment_intents", { metodo: "POST", campos: { ...base, "automatic_payment_methods[enabled]": "true" } }));
   await db.gravarEstado(`checkout_x_pi:${codigo}`, pi.id);
   return { clientSecret: pi.client_secret };
 }

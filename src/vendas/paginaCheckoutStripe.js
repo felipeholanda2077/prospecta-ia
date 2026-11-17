@@ -6,9 +6,9 @@ const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "
 
 const TEXTOS = {
   pt: {
-    lang: "pt-PT", contratando: "Está a contratar", total: "Total", unico: "Pagamento único, sem mensalidade.", mensal: "por mês",
+    lang: "pt-PT", inicio: "/pt", contratando: "Está a contratar", total: "Total", unico: "Pagamento único, sem mensalidade.", mensal: "por mês",
     email: "E-mail", nome: "Nome completo", pagar: "Pagar", seguro: "Pagamento seguro", processado: "Pagamento processado pelo Stripe",
-    processadoTxt: "Cartão, Apple Pay e Google Pay com a segurança do Stripe.", protegidos: "Os seus dados protegidos",
+    processadoTxt: "Cartão, Apple Pay, Google Pay e Link com a segurança do Stripe.", protegidos: "Os seus dados protegidos",
     protegidosTxt: "Ligação encriptada. Não guardamos os dados do seu cartão.", recibo: "Recibo no seu e-mail",
     reciboTxt: "E falamos consigo pelo WhatsApp para começar.", preencha: "Preencha o nome e o e-mail.", erro: "Não foi possível concluir. Tente outro cartão.",
     ok: "Pagamento confirmado!", okTxt: "Obrigado! Já recebemos o seu pagamento e vamos falar consigo pelo WhatsApp para começar o seu site.",
@@ -20,9 +20,9 @@ const TEXTOS = {
     itensSite: ["Site profissional com a cara da sua empresa", "Versão para telemóvel, rápida", "Botão do WhatsApp em todas as páginas", "Pronto para aparecer no Google", "Domínio e publicação incluídos", "Alterações sempre que precisar"],
   },
   en: {
-    lang: "en", contratando: "You're getting", total: "Total", unico: "One-time payment, no monthly fee.", mensal: "per month",
+    lang: "en", inicio: "/en", contratando: "You're getting", total: "Total", unico: "One-time payment, no monthly fee.", mensal: "per month",
     email: "Email", nome: "Full name", pagar: "Pay", seguro: "Secure payment", processado: "Payment processed by Stripe",
-    processadoTxt: "Card, Apple Pay and Google Pay with Stripe security.", protegidos: "Your data is protected",
+    processadoTxt: "Card, Apple Pay, Google Pay and Link with Stripe security.", protegidos: "Your data is protected",
     protegidosTxt: "Encrypted connection. We never store your card details.", recibo: "Receipt by email",
     reciboTxt: "We'll reach out on WhatsApp to get started.", preencha: "Please fill in your name and email.", erro: "We couldn't complete it. Please try another card.",
     ok: "Payment confirmed!", okTxt: "Thank you! We received your payment and will reach out on WhatsApp to start your website.",
@@ -86,7 +86,7 @@ const cabeca = (t, titulo, logo) => `<!doctype html><html lang="${t.lang}"><head
 <meta name="robots" content="noindex"><title>${esc(titulo)} · FluxDeck</title><link rel="icon" href="${esc(logo)}">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>${ESTILO}</style></head><body>
-<header class="topo"><a class="marca" href="/"><img src="${esc(logo)}" alt="">FluxDeck</a><div class="seguro">${CADEADO}<span>${esc(t.seguro)}</span></div></header>`;
+<header class="topo"><a class="marca" href="${esc(t.inicio)}"><img src="${esc(logo)}" alt="">FluxDeck</a><div class="seguro">${CADEADO}<span>${esc(t.seguro)}</span></div></header>`;
 
 /**
  * A página do checkout. `compra` = { plano, empresa, valor, moeda, unico, pais }; `publica` = a chave publicável do
@@ -117,7 +117,7 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
       <li>${RECIBO}<span><b>${esc(t.recibo)}</b>${esc(t.reciboTxt)}</span></li>
     </ul>
     <div class="quem"><span>${esc(t.empresaTitulo)}</span><b>FluxDeck</b><span>CNPJ ${CNPJ_FLUXDECK}</span>
-      <span><a href="${esc(site)}" target="_blank" rel="noopener">${esc(site.replace(/^https?:\/\//, "").replace(/\/.*$/, ""))}</a>${email ? ` · ${esc(email)}` : ""}</span>
+      <span><a href="${esc(site)}" target="_blank" rel="noopener">${esc(site.replace(/^https?:\/\//, "").replace(/\/$/, ""))}</a>${email ? ` · ${esc(email)}` : ""}</span>
       ${whatsapp ? `<span>${esc(t.duvidas)} <a href="${esc(whatsapp)}" target="_blank" rel="noopener">WhatsApp</a></span>` : ""}</div>
   </aside>
   <section class="painel pagamento">
@@ -125,7 +125,7 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
     <div id="caixa-rapido" hidden><div class="sub" style="margin-top:0">${esc(t.rapido)}</div><div id="rapido"></div><div class="ou">${esc(t.ouCartao)}</div></div>
     <form id="form">
       <div class="campo"><label for="nome">${esc(t.nome)}</label><input id="nome" autocomplete="name" required></div>
-      <div class="campo"><label for="email">${esc(t.email)}</label><input id="email" type="email" autocomplete="email" required></div>
+      <div class="campo"><label>${esc(t.email)}</label><div id="email-link"></div><input id="email" type="email" autocomplete="email" hidden></div>
       <div id="elemento"></div>
       <button class="pagar" id="pagar" type="submit">${esc(t.pagar)} ${esc(preco)}</button>
       <div class="msg" id="msg" role="alert"></div>
@@ -145,11 +145,18 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
   if (!r.clientSecret) { msg.textContent = r.erro || t.erro; botao.disabled = true; return; }
   var elements = stripe.elements({ clientSecret: r.clientSecret, appearance: { theme: "night", variables: { colorPrimary: "#00d4ff", colorBackground: "#131c33", borderRadius: "12px", fontFamily: "Plus Jakarta Sans, system-ui, sans-serif" } },
     fonts: [{ cssSrc: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600&display=swap" }] });
+  // O e-mail pelo Link do Stripe: quem já tem Link recebe o código e paga com os dados salvos.
+  var emailLink = "";
+  try {
+    var link = elements.create("linkAuthentication", { defaultValues: { email: "" } });
+    link.on("change", function(ev){ emailLink = (ev.value && ev.value.email) || ""; });
+    link.mount("#email-link");
+  } catch (e) { document.getElementById("email").hidden = false; }
   elements.create("payment", { layout: { type: "accordion", defaultCollapsed: false, radios: true, spacedAccordionItems: true }, wallets: { applePay: "auto", googlePay: "auto" },
     defaultValues: { billingDetails: { address: { country: ${JSON.stringify(compra.pais || "PT")} } } } }).mount("#elemento");
   // Apple Pay e Google Pay num toque (aparecem só no aparelho que tem).
   try {
-    var rapido = elements.create("expressCheckout", { buttonHeight: 48, buttonType: { applePay: "buy", googlePay: "buy" } });
+    var rapido = elements.create("expressCheckout", { buttonHeight: 48, buttonType: { applePay: "buy", googlePay: "buy" }, paymentMethods: { applePay: "auto", googlePay: "auto", link: "auto" } });
     rapido.on("ready", function(ev){ if (ev.availablePaymentMethods) document.getElementById("caixa-rapido").hidden = false; });
     rapido.on("confirm", async function(){
       var res = await stripe.confirmPayment({ elements: elements, confirmParams: { return_url: location.origin + ${JSON.stringify(`${base}/obrigado`)} } });
@@ -159,7 +166,7 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
   } catch (e) {}
   document.getElementById("form").addEventListener("submit", async function(ev){
     ev.preventDefault(); msg.textContent = "";
-    var nome = document.getElementById("nome").value.trim(), email = document.getElementById("email").value.trim();
+    var nome = document.getElementById("nome").value.trim(), email = (emailLink || document.getElementById("email").value).trim();
     if (!nome || !email) { msg.textContent = t.preencha; return; }
     botao.disabled = true;
     var res = await stripe.confirmPayment({ elements: elements, confirmParams: { return_url: location.origin + ${JSON.stringify(`${base}/obrigado`)}, receipt_email: email,
