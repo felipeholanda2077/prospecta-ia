@@ -2993,7 +2993,12 @@ async function mostrarStripe() {
         <span class="muted" style="font-size:12.5px;grid-column:1/-1">${s.conectado
           ? "Os links saem com o valor do plano na moeda da empresa (a mesma conversão e o mesmo ajuste de Automação). O Stripe avisa você por e-mail a cada pagamento."
           : `Crie a conta em <a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener">stripe.com</a> (dá para receber em reais na sua conta do Brasil). Depois, em Desenvolvedores → Chaves de API, copie a chave secreta e cole aqui. Sem o Stripe, a IA avisa que vai mandar o link e a conversa passa para você.`}</span>
-      </form>${s.conectado ? `<div id="stripe-planos" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px"></div>` : ""}`;
+      </form>${s.conectado ? `<form id="form-stripe-publica" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:end;margin-top:14px">
+        <div class="campo" style="grid-column:span 2"><label for="stripe-publica">Chave publicável (checkout transparente) ${s.checkoutTransparente ? '<span class="pilula ok">Ativo</span>' : '<span class="pilula">Falta colar</span>'}</label>
+          <input id="stripe-publica" spellcheck="false" autocomplete="off" placeholder="${s.checkoutTransparente ? "Salva (preencha só para trocar)" : "Cole a chave que começa com pk_live_"}"></div>
+        <button class="btn" type="submit">${ic("save")}Salvar</button>
+        <span class="muted" style="font-size:12.5px;grid-column:1/-1">Com ela, o pagamento das empresas de fora do Brasil abre na página da FluxDeck (fluxdeck.com.br/checkout/x/...), com a sua logo, e o cartão é digitado no campo seguro do Stripe, sem sair do site. Fica em Stripe → Desenvolvedores → Chaves de API → Chave publicável.</span>
+      </form><div id="stripe-planos" style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px"></div>` : ""}`;
     if (s.conectado) await mostrarCheckoutsDosPlanos();
   } catch (e) {
     alvo.innerHTML = `<div class="alerta perigo">${ic("alert")}<div>${esc(e.message)}</div></div>`;
@@ -3062,6 +3067,20 @@ document.addEventListener("click", async (ev) => {
 
 $("#stripe-conexao").addEventListener("submit", async (ev) => {
   ev.preventDefault();
+  // A chave publicável (checkout transparente) tem o formulário dela.
+  if (ev.target.id === "form-stripe-publica") {
+    const pk = $("#stripe-publica");
+    if (!pk.value.trim()) return avisar("Cole a chave publicável do Stripe (pk_live_...)", "atencao");
+    try {
+      await api("/api/stripe/publica", { method: "PUT", body: JSON.stringify({ publica: pk.value.trim() }) });
+      pk.value = "";
+      avisar("Checkout transparente ativo: o pagamento de fora do Brasil abre na página da FluxDeck", "ok", 7000);
+      await mostrarStripe();
+    } catch (e) {
+      avisar(e.message, "perigo", 8000);
+    }
+    return;
+  }
   const campo = $("#stripe-chave");
   if (!campo.value.trim()) return avisar("Cole a chave secreta do Stripe", "atencao");
   try {

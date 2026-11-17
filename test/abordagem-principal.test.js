@@ -385,3 +385,53 @@ test("arte da oferta: vai junto da primeira mensagem que oferece o site de R$ 50
   await db.gravarEstado("arte_oferta:424242", new Date().toISOString());
   assert.equal(await arteDaOferta(m, DURANTE), null); // a conversa já recebeu a arte
 });
+
+test("checkout transparente (Stripe): página da FluxDeck com o campo do cartão, intenção de pagamento e confirmação fecham a empresa", async () => {
+  const stripe = await import("../src/vendas/stripe.js");
+  const { paginaDoCheckoutStripe } = await import("../src/vendas/paginaCheckoutStripe.js");
+  const { cifrar } = await import("../src/segredos.js");
+  await db.inserirLead({ place_id: "pilates-1", nome: "Authentico Pilates", nicho: "pilates", cidade: "Lisboa, Portugal", origem: "campanha", pais: "PT", idioma: "pt-PT", fuso: "Europe/Lisbon" });
+  const [l] = await db.consultar("SELECT * FROM leads WHERE place_id = 'pilates-1'");
+  await db.gravarConfig("stripe", { chave: cifrar("sk_live_teste1234567890"), conta: "FluxDeck", teste: false });
+  await assert.rejects(stripe.salvarChavePublica("sk_live_errada123456"), /pk_live_/);
+
+  const antes = globalThis.fetch;
+  const chamadas = [];
+  globalThis.fetch = async (url, op = {}) => {
+    const u = String(url);
+    if (!u.startsWith("https://api.stripe.com")) return antes(url, op);
+    chamadas.push({ u, corpo: op.body ? Object.fromEntries(new URLSearchParams(op.body)) : null });
+    if (u.includes("/webhook_endpoints")) return Response.json({ data: [] , id: "we_1", secret: "whsec_1" });
+    if (u.endsWith("/payment_intents") && op.method === "POST") return Response.json({ id: "pi_1", client_secret: "pi_1_secret_x", status: "requires_payment_method" });
+    if (u.includes("/payment_intents/pi_1")) return Response.json({ id: "pi_1", client_secret: "pi_1_secret_x", status: "succeeded", metadata: { checkout: chamadas.find((c) => c.corpo?.["metadata[checkout]"])?.corpo["metadata[checkout]"] }, receipt_email: "ana@exemplo.pt" });
+    return Response.json({});
+  };
+  try {
+    await stripe.salvarChavePublica("pk_live_publica1234567890");
+    assert.equal((await stripe.situacao()).checkoutTransparente, true);
+    // O site da Europa (pagamento único) sai pelo checkout transparente, no endereço da FluxDeck.
+    const url = await stripe.linkDePagamento({ lead: l, nome: "Criação de site", valor: 150, moeda: "EUR", unico: true });
+    const codigo = url.match(/\/checkout\/x\/([\w-]+)$/)[1];
+    assert.equal(await stripe.linkDePagamento({ lead: l, nome: "Criação de site", valor: 150, moeda: "EUR", unico: true }), url); // o mesmo link
+    const compra = await stripe.compraDoCheckout(codigo);
+    assert.deepEqual([compra.plano, compra.valor, compra.moeda, compra.empresa], ["Criação de site", 150, "EUR", "Authentico Pilates"]);
+
+    const html = paginaDoCheckoutStripe(compra, { publica: "pk_live_publica1234567890", base: `/checkout/x/${codigo}` });
+    assert.match(html, /js\.stripe\.com\/v3/);
+    assert.match(html, /Stripe\("pk_live_publica1234567890"/);
+    assert.match(html, /\/checkout\/_\/logo\.jpg/); // a logo da FluxDeck
+    assert.match(html, /€\s?150,00|150,00\s?€/);
+    assert.match(html, /Pagamento único, sem mensalidade/); // em português de Portugal
+
+    assert.deepEqual(await stripe.intencaoDoCheckout(codigo), { clientSecret: "pi_1_secret_x" });
+    const pi = chamadas.find((c) => c.u.endsWith("/payment_intents") && c.corpo);
+    assert.deepEqual([pi.corpo.amount, pi.corpo.currency, pi.corpo["metadata[lead_id]"]], ["15000", "eur", String(l.id)]);
+
+    const r = await stripe.confirmarCheckout(codigo, "pi_1");
+    assert.equal(r.pago, true);
+    assert.equal((await db.buscarLead(l.id)).status, "fechado");
+  } finally {
+    globalThis.fetch = antes;
+    await db.gravarConfig("stripe", {});
+  }
+});

@@ -35,7 +35,7 @@ export async function situacao() {
   if (!c?.chave) return { conectado: false };
   const aberta = decifrar(c.chave);
   return { conectado: Boolean(aberta), trancada: !aberta, conta: c.conta ?? "", teste: Boolean(c.teste), conectadoEm: c.conectadoEm ?? null,
-    avisoDePagamento: Boolean(c.webhookId && c.webhookSegredo) };
+    avisoDePagamento: Boolean(c.webhookId && c.webhookSegredo), checkoutTransparente: Boolean(c.publica) };
 }
 
 /** Confere a chave no Stripe e guarda criptografada. `chave: null` desconecta. */
@@ -230,6 +230,8 @@ export async function criarCheckoutsDosPlanos({ moedas = ["USD"] } = {}) {
 
 /** O link de pagamento (mensalidade no cartão) para a empresa e o plano. Reaproveita o que já foi criado. */
 export async function linkDePagamento({ lead, nome, valor, moeda, unico = false }) {
+  // Pagamento único (o site) com a chave publicável salva: o checkout transparente da FluxDeck, no lugar do link do Stripe.
+  if (unico && (await chavePublica())) return checkoutTransparente({ lead, nome, valor, moeda, unico });
   const guarda = `stripe_link:${lead.id}:${simples(nome)}:${valor}${moeda}${unico ? ":unico" : ""}`;
   const salvo = await db.lerEstado(guarda);
   if (salvo) return salvo;
@@ -257,6 +259,104 @@ export async function linkDePagamento({ lead, nome, valor, moeda, unico = false 
 // ---------- Pagamento confirmado ----------
 
 const EVENTO_PAGO = "checkout.session.completed";
+const EVENTO_INTENCAO = "payment_intent.succeeded";
+
+// ---------- Checkout transparente (a página da FluxDeck, com o cartão no campo seguro do Stripe) ----------
+
+/** A chave publicável do Stripe (pk_live_...), que a página usa para mostrar o campo do cartão. Você cola no painel. */
+export const chavePublica = async () => (await db.lerConfig(CONFIG))?.publica ?? null;
+
+export async function salvarChavePublica(nova) {
+  const c = (await db.lerConfig(CONFIG)) ?? {};
+  if (nova === null) {
+    const { publica, ...resto } = c;
+    await db.gravarConfig(CONFIG, resto);
+    return { checkoutTransparente: false };
+  }
+  const pk = String(nova ?? "").trim();
+  if (!/^pk_(live|test)_[A-Za-z0-9]{10,}$/.test(pk)) throw new Error("Cole a chave publicável do Stripe (começa com pk_live_)");
+  if (c.chave && Boolean(c.teste) !== pk.includes("_test_")) throw new Error("A chave publicável e a secreta precisam ser do mesmo modo (as duas de produção, live)");
+  await db.gravarConfig(CONFIG, { ...c, publica: pk });
+  // O aviso de pagamento passa a incluir o pagamento pelo checkout transparente.
+  const { config } = await import("../config.js");
+  const webhook = c.chave ? await configurarWebhook(config.painel.urlPublica).catch((e) => ({ configurado: false, erro: e.message })) : null;
+  return { checkoutTransparente: true, webhook };
+}
+
+const chaveDoCheckout = (codigo) => `checkout_x:${codigo}`;
+
+/** Cria (ou reaproveita) o checkout transparente desta empresa e deste valor. Retorna o endereço da página. */
+export async function checkoutTransparente({ lead, nome, valor, moeda, unico = true }) {
+  const { origemDaPrevia } = await import("./previa.js");
+  const { carregarCampanhaCompleta } = await import("../campanha.js");
+  const guarda = `checkout_x_lead:${lead.id}:${simples(nome)}:${valor}${moeda}`;
+  let codigo = await db.lerEstado(guarda);
+  if (!codigo) {
+    codigo = crypto.randomBytes(12).toString("base64url");
+    await db.gravarEstado(chaveDoCheckout(codigo), JSON.stringify({ leadId: lead.id, nome, valor, moeda, unico }));
+    await db.gravarEstado(guarda, codigo);
+  }
+  return `${origemDaPrevia(await carregarCampanhaCompleta())}/checkout/x/${codigo}`;
+}
+
+/** O que o checkout cobra (sem nada do Stripe). Código que não existe: null. */
+export async function compraDoCheckout(codigo) {
+  if (!/^[A-Za-z0-9_-]{12,40}$/.test(String(codigo ?? ""))) return null;
+  const salvo = await db.lerEstado(chaveDoCheckout(codigo));
+  if (!salvo) return null;
+  const compra = JSON.parse(salvo);
+  const lead = await db.buscarLead(compra.leadId);
+  return lead ? { ...compra, codigo, plano: compra.nome, empresa: lead.nome, pais: lead.pais, lead } : null;
+}
+
+/** A intenção de pagamento do checkout (cria uma vez; reaproveita enquanto não foi paga). Retorna o client secret. */
+export async function intencaoDoCheckout(codigo) {
+  const compra = await compraDoCheckout(codigo);
+  if (!compra) throw new Error("Checkout não encontrado");
+  const salvo = await db.lerEstado(`checkout_x_pi:${codigo}`);
+  if (salvo) {
+    const pi = await chamar(`/payment_intents/${encodeURIComponent(salvo)}`);
+    if (pi.status === "succeeded") throw new Error(compra.pais === "PT" ? "Este pagamento já foi feito." : "This payment was already made.");
+    if (!["canceled"].includes(pi.status)) return { clientSecret: pi.client_secret };
+  }
+  const pi = await chamar("/payment_intents", { metodo: "POST", campos: {
+    amount: String(Math.round(compra.valor * 100)), currency: compra.moeda.toLowerCase(), "automatic_payment_methods[enabled]": "true",
+    description: `FluxDeck · ${compra.nome} · ${compra.empresa}`.slice(0, 300),
+    "metadata[lead_id]": String(compra.leadId), "metadata[plano]": compra.nome, "metadata[checkout]": codigo,
+  } });
+  await db.gravarEstado(`checkout_x_pi:${codigo}`, pi.id);
+  return { clientSecret: pi.client_secret };
+}
+
+/** Confere no Stripe se o pagamento do checkout entrou e, se entrou, registra (fecha a empresa e avisa você). */
+export async function confirmarCheckout(codigo, idDaIntencao = null) {
+  const compra = await compraDoCheckout(codigo);
+  if (!compra) return { compra: null, pago: false };
+  const id = idDaIntencao || (await db.lerEstado(`checkout_x_pi:${codigo}`));
+  if (!id) return { compra, pago: false };
+  const pi = await chamar(`/payment_intents/${encodeURIComponent(id)}`);
+  if (pi.metadata?.checkout !== codigo) return { compra, pago: false };
+  if (pi.status !== "succeeded") return { compra, pago: false };
+  await registrarPagamentoDoCheckout(compra, pi);
+  return { compra, pago: true };
+}
+
+async function registrarPagamentoDoCheckout(compra, pi) {
+  if (await db.lerEstado(`stripe_pago:${pi.id}`)) return null;
+  await db.gravarEstado(`stripe_pago:${pi.id}`, new Date().toISOString());
+  const { lead, nome, valor, moeda, unico } = compra;
+  const preco = new Intl.NumberFormat("pt-BR", { style: "currency", currency: moeda }).format(valor);
+  const email = pi.receipt_email ? ` (${pi.receipt_email})` : "";
+  const resumo = `Pagou pelo checkout da FluxDeck (Stripe): ${nome}, ${preco}${unico ? " (pagamento único)" : ""}${email}`;
+  await db.atualizarLead(lead.id, { status: "fechado", observacao: resumo });
+  await db.cancelarPendentes(lead.id, "a empresa pagou pelo checkout");
+  const { pausarIA } = await import("../respostas/processar.js");
+  await pausarIA(lead.id, `${resumo}: a conversa agora é com você (próximos passos do projeto)`);
+  const { enviarNotificacao } = await import("../envio/email.js");
+  await enviarNotificacao(`${lead.nome} pagou: ${nome} (${preco})`,
+    `${lead.nome}${lead.cidade ? `, de ${lead.cidade}` : ""}, pagou ${nome} (${preco}) pelo checkout da FluxDeck, pelo Stripe${email}.\n\nA empresa foi marcada como fechada, as mensagens de venda foram canceladas e a IA parou de responder: mande os próximos passos.`).catch(() => {});
+  return { leadId: lead.id };
+}
 const enderecoDoWebhook = (base) => `${String(base).replace(/\/$/, "")}/webhooks/stripe`;
 
 /**
@@ -270,12 +370,16 @@ export async function configurarWebhook(base) {
   const nosso = existentes.find((w) => w.url === url);
   if (nosso && c.webhookSegredo && decifrar(c.webhookSegredo) && c.webhookId === nosso.id) {
     if (nosso.status !== "enabled") await chamar(`/webhook_endpoints/${nosso.id}`, { metodo: "POST", campos: { disabled: "false" } });
+    // O pagamento pelo checkout transparente também avisa (aviso criado antes dele só tinha o da página do Stripe).
+    if (!(nosso.enabled_events ?? []).includes(EVENTO_INTENCAO)) {
+      await chamar(`/webhook_endpoints/${nosso.id}`, { metodo: "POST", campos: { "enabled_events[0]": EVENTO_PAGO, "enabled_events[1]": EVENTO_INTENCAO } });
+    }
     return { configurado: true, novo: false };
   }
   // Sem o segredo guardado não dá para conferir a assinatura: troca por um novo.
   if (nosso) await chamar(`/webhook_endpoints/${nosso.id}`, { metodo: "DELETE" });
   const novo = await chamar("/webhook_endpoints", { metodo: "POST", campos: {
-    url, "enabled_events[0]": EVENTO_PAGO, description: "Prospecta IA: pagamento das empresas de fora do Brasil",
+    url, "enabled_events[0]": EVENTO_PAGO, "enabled_events[1]": EVENTO_INTENCAO, description: "Prospecta IA: pagamento das empresas de fora do Brasil",
   } });
   await db.gravarConfig(CONFIG, { ...c, webhookId: novo.id, webhookSegredo: cifrar(novo.secret) });
   return { configurado: true, novo: true };
@@ -354,6 +458,10 @@ async function registrarPagamentoDoPlano(sessao) {
 export async function processarAviso(corpoBruto, cabecalho) {
   if (!(await assinaturaValida(corpoBruto, cabecalho))) return { aceito: false };
   const evento = JSON.parse(Buffer.from(corpoBruto).toString("utf8"));
+  if (evento.type === EVENTO_INTENCAO) {
+    const pi = evento.data?.object;
+    return { aceito: true, pagamento: pi?.metadata?.checkout ? (await confirmarCheckout(pi.metadata.checkout, pi.id)).pago : null };
+  }
   if (evento.type !== EVENTO_PAGO) return { aceito: true };
   return { aceito: true, pagamento: await registrarPagamento(evento.data?.object) };
 }

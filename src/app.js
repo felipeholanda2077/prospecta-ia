@@ -55,6 +55,7 @@ import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
 import * as checkoutsAsaas from "./vendas/checkoutsAsaas.js";
 import { paginaDoCheckout } from "./vendas/paginaCheckout.js";
+import { paginaDoCheckoutStripe, paginaDoCheckoutStripeFeito } from "./vendas/paginaCheckoutStripe.js";
 import { pdfDoGuia, prepararCampanha, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
 import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia, origemDaPrevia, enderecoDaPrevia } from "./vendas/previa.js";
@@ -160,6 +161,31 @@ app.get("/checkout/_/logo.jpg", async (req, res) => {
   const { readFile } = await import("node:fs/promises");
   res.set({ "Content-Type": "image/jpeg", "Cache-Control": "public, max-age=86400" }).send(await readFile(LOGO_DO_CHECKOUT));
 });
+// Checkout transparente da FluxDeck para empresas de fora do Brasil: a página é nossa (logo e cores da FluxDeck) e o
+// cartão vai no campo seguro do Stripe, dentro dela. fluxdeck.com.br/checkout/x/<código>.
+app.get("/checkout/x/:codigo", async (req, res) => {
+  const compra = await stripe.compraDoCheckout(req.params.codigo).catch(() => null);
+  const publica = await stripe.chavePublica();
+  if (!compra || !publica) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
+  const { empresa } = await carregarCampanhaCompleta();
+  const telefone = String(empresa.telefone ?? "").replace(/\D/g, "");
+  res.set(SEM_MOLDURA).send(paginaDoCheckoutStripe(compra, { publica, base: `/checkout/x/${compra.codigo}`, whatsapp: telefone ? `https://wa.me/${telefone.startsWith("55") ? telefone : `55${telefone}`}` : "" }));
+});
+app.post("/checkout/x/:codigo/intencao", async (req, res) => {
+  res.set(SEM_MOLDURA);
+  try {
+    res.json(await stripe.intencaoDoCheckout(req.params.codigo));
+  } catch (e) {
+    console.error("Checkout transparente:", e.message);
+    res.status(400).json({ erro: /já foi feito|already/i.test(e.message) ? e.message : "Não foi possível abrir o pagamento agora." });
+  }
+});
+app.get("/checkout/x/:codigo/obrigado", async (req, res) => {
+  const r = await stripe.confirmarCheckout(req.params.codigo, String(req.query.payment_intent ?? "") || null).catch(() => ({ compra: null }));
+  if (!r.compra) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
+  res.set(SEM_MOLDURA).send(paginaDoCheckoutStripeFeito(r.compra, { pago: r.pago }));
+});
+
 app.get("/checkout/:plano", async (req, res) => {
   const link = await checkoutsAsaas.planoDoCheckout(req.params.plano).catch(() => null);
   if (!link) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
@@ -1266,6 +1292,22 @@ app.post("/api/stripe/planos", async (req, res) => {
     res.status(400).json({ erro: e.message });
   }
 });
+// A chave publicável do Stripe (pk_live_...), para o checkout transparente da FluxDeck. Você cola no painel.
+app.put("/api/stripe/publica", async (req, res) => {
+  try {
+    res.json(await stripe.salvarChavePublica(req.body?.publica === null ? null : String(req.body?.publica ?? "")));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Envia agora uma mensagem da fila, mesmo fora do horário comercial (só quando você manda pelo painel).
+app.post("/api/mensagens/:id/enviar-agora", async (req, res) => {
+  const m = await db.buscarMensagem(req.params.id);
+  if (!m) return res.status(404).json({ erro: "Mensagem não encontrada" });
+  res.json(await pipeline.enviarMensagem(m, await carregarCampanhaCompleta(), { foraDoHorario: true }));
+});
+
 app.put("/api/stripe", async (req, res) => {
   try {
     res.json(await stripe.conectar({ chave: req.body?.chave === null ? null : String(req.body?.chave ?? "") }));

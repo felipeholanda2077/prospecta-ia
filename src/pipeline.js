@@ -1316,7 +1316,7 @@ export function comSaudacaoDoHorario(texto, agora = new Date(), fuso = config.ti
   return inicio ? saudacaoDoHorario(agora, fuso) + t.slice(inicio[0].length) : t;
 }
 
-export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
+export async function enviarMensagem(m, campanha, { agora = new Date(), foraDoHorario = false } = {}) {
   if (m.status !== "aprovada") return { enviada: false, motivo: `mensagem está como ${m.status}` };
   // A Meta não deixa a API mandar o primeiro direct: quem envia é você, pelo botão do painel.
   if (m.canal === "instagram" && m.tipo !== "resposta") return { enviada: false, manual: true, motivo: "direct do Instagram: envie pelo botão Abrir direct" };
@@ -1329,7 +1329,8 @@ export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
     return { enviada: false, motivo: bloqueio };
   }
   // O direct do Instagram responde a qualquer hora: a Meta só aceita até 24 h depois da mensagem da pessoa.
-  if (m.canal !== "instagram" && !dentroDoHorario(campanha.limites, agora, fusoDaMensagem(m))) {
+  // `foraDoHorario`: você mandou enviar agora pelo painel (a regra do horário vale para os envios automáticos).
+  if (m.canal !== "instagram" && !foraDoHorario && !dentroDoHorario(campanha.limites, agora, fusoDaMensagem(m))) {
     return { enviada: false, naFila: true, motivo: "fora do horário comercial; sai no próximo horário de envio" };
   }
   if (m.canal === "whatsapp" && (await whatsappDesconectado(modo))) {
