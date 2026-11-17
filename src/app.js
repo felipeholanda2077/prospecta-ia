@@ -167,9 +167,14 @@ app.get("/checkout/x/:codigo", async (req, res) => {
   const compra = await stripe.compraDoCheckout(req.params.codigo).catch(() => null);
   const publica = await stripe.chavePublica();
   if (!compra || !publica) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
-  const { empresa } = await carregarCampanhaCompleta();
+  const campanha = await carregarCampanhaCompleta();
+  const { empresa } = campanha;
   const telefone = String(empresa.telefone ?? "").replace(/\D/g, "");
-  res.set(SEM_MOLDURA).send(paginaDoCheckoutStripe(compra, { publica, base: `/checkout/x/${compra.codigo}`, whatsapp: telefone ? `https://wa.me/${telefone.startsWith("55") ? telefone : `55${telefone}`}` : "" }));
+  // O site de exemplo da empresa (quando ela tem), para quem paga ver de novo o que está a comprar.
+  const previa = (!compra.lead.pais || ["BR", "PT"].includes(compra.lead.pais)) ? enderecoDaPrevia(compra.lead, origemDaPrevia(campanha)) : "";
+  res.set(SEM_MOLDURA).send(paginaDoCheckoutStripe(compra, { publica, base: `/checkout/x/${compra.codigo}`, previa,
+    email: empresa.email || "", site: empresa.site || "https://fluxdeck.com.br",
+    whatsapp: telefone ? `https://wa.me/${telefone.startsWith("55") ? telefone : `55${telefone}`}` : "" }));
 });
 app.post("/checkout/x/:codigo/intencao", async (req, res) => {
   res.set(SEM_MOLDURA);

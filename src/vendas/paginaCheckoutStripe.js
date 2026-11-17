@@ -14,6 +14,10 @@ const TEXTOS = {
     ok: "Pagamento confirmado!", okTxt: "Obrigado! Já recebemos o seu pagamento e vamos falar consigo pelo WhatsApp para começar o seu site.",
     pendente: "Pagamento em processamento", pendenteTxt: "Assim que o Stripe confirmar, avisamos pelo WhatsApp.",
     contrato: "Ao pagar, aceita o contrato de serviço da FluxDeck", duvidas: "Dúvidas?",
+    rapido: "Pagamento rápido", ouCartao: "ou pague com cartão", incluido: "O que está incluído", depoisTitulo: "Depois do pagamento",
+    passos: ["Recebe a confirmação no e-mail.", "Falamos consigo pelo WhatsApp e pedimos as fotos e as informações.", "O seu site fica no ar no prazo de uma semana."],
+    exemplo: "Ver o exemplo do seu site", empresaTitulo: "Quem está a receber", aceitos: "Aceitamos", contratoOpc: "Se preferir, fazemos um contrato de prestação de serviço.",
+    itensSite: ["Site profissional com a cara da sua empresa", "Versão para telemóvel, rápida", "Botão do WhatsApp em todas as páginas", "Pronto para aparecer no Google", "Domínio e publicação incluídos", "Alterações sempre que precisar"],
   },
   en: {
     lang: "en", contratando: "You're getting", total: "Total", unico: "One-time payment, no monthly fee.", mensal: "per month",
@@ -24,6 +28,10 @@ const TEXTOS = {
     ok: "Payment confirmed!", okTxt: "Thank you! We received your payment and will reach out on WhatsApp to start your website.",
     pendente: "Payment processing", pendenteTxt: "As soon as Stripe confirms it, we'll let you know on WhatsApp.",
     contrato: "By paying, you agree to the FluxDeck Service Agreement", duvidas: "Questions?",
+    rapido: "Express checkout", ouCartao: "or pay with card", incluido: "What's included", depoisTitulo: "After payment",
+    passos: ["You get the confirmation by email.", "We reach out on WhatsApp for your photos and details.", "Your website goes live within one week."],
+    exemplo: "See your website preview", empresaTitulo: "Who you're paying", aceitos: "We accept", contratoOpc: "If you prefer, we sign a service agreement.",
+    itensSite: ["A professional website with your brand", "Fast mobile version", "WhatsApp button on every page", "Ready to show up on Google", "Domain and publishing included", "Changes whenever you need"],
   },
 };
 export const textosDoCheckout = (pais) => (pais === "PT" ? TEXTOS.pt : TEXTOS.en);
@@ -54,6 +62,14 @@ h1{font-size:28px;margin:6px 0 4px}.empresa{color:var(--suave);margin-bottom:18p
 .pagar:hover{transform:translateY(-1px);box-shadow:0 14px 30px -14px var(--ciano)}.pagar:disabled{opacity:.6;cursor:wait}
 .msg{margin-top:12px;font-size:14px;color:var(--erro);min-height:20px}
 .letra{color:var(--suave);font-size:12.5px;margin-top:12px}
+.incluido{list-style:none;display:grid;gap:9px;margin:18px 0 4px}.incluido li{display:flex;gap:10px;font-size:14.5px}.incluido li::before{content:"✓";flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;color:#06101f;background:linear-gradient(135deg,var(--ciano),#7cf3ff)}
+.sub{font-size:13px;color:var(--suave);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin:22px 0 10px}
+.passos{list-style:none;counter-reset:p;display:grid;gap:10px}.passos li{counter-increment:p;display:flex;gap:10px;font-size:14px;color:var(--suave)}.passos li::before{content:counter(p);flex:none;width:24px;height:24px;border-radius:8px;display:grid;place-items:center;font-weight:800;font-size:12.5px;color:var(--texto);background:var(--card2);border:1px solid var(--borda)}
+.exemplo{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;padding:12px;border-radius:12px;border:1px solid rgba(0,212,255,.35);background:rgba(0,212,255,.08);color:var(--texto);text-decoration:none;font-weight:700;font-size:14.5px}.exemplo:hover{background:rgba(0,212,255,.14)}
+.quem{margin-top:22px;padding:14px;border-radius:14px;background:var(--card2);border:1px solid var(--borda);font-size:13.5px;color:var(--suave);display:grid;gap:3px}.quem b{color:var(--texto)}
+#rapido{margin-bottom:6px}.ou{display:flex;align-items:center;gap:10px;color:var(--suave);font-size:13px;margin:14px 0}.ou::before,.ou::after{content:"";flex:1;height:1px;background:var(--borda)}
+.marcas{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:14px;color:var(--suave);font-size:12.5px}.marcas span{padding:4px 8px;border-radius:7px;background:#fff;color:#1a1f36;font-weight:800;font-size:11.5px;letter-spacing:.02em}
+.stripe{display:inline-flex;align-items:center;gap:6px;margin-top:12px;color:var(--suave);font-size:12.5px}.stripe b{color:#fff;background:#635bff;border-radius:6px;padding:2px 7px;font-size:12px;letter-spacing:.02em}
 .feito{text-align:center;padding:48px 26px}.feito svg{width:64px;height:64px;color:var(--ok)}.feito h1{margin-top:12px}.feito p{color:var(--suave);max-width:30em;margin:8px auto 0}`;
 
 const ESCUDO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>';
@@ -71,7 +87,10 @@ const cabeca = (t, titulo, logo) => `<!doctype html><html lang="${t.lang}"><head
  * A página do checkout. `compra` = { plano, empresa, valor, moeda, unico, pais }; `publica` = a chave publicável do
  * Stripe (pk_..., pública por natureza); `base` = o endereço desta página (para a intenção de pagamento e a volta).
  */
-export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkout/_/logo.jpg", contrato = "https://fluxdeck.com.br/en/terms", whatsapp = "" }) {
+// A FluxDeck, para quem paga saber quem recebe (o mesmo do rodapé de fluxdeck.com.br).
+const CNPJ_FLUXDECK = "57.167.092/0001-16";
+
+export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkout/_/logo.jpg", contrato = "https://fluxdeck.com.br/en/terms", whatsapp = "", email = "", previa = "", site = "https://fluxdeck.com.br" }) {
   const t = textosDoCheckout(compra.pais);
   const preco = new Intl.NumberFormat(t.lang, { style: "currency", currency: compra.moeda }).format(compra.valor);
   const local = compra.pais === "PT" ? "pt" : "en";
@@ -83,20 +102,29 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
     <div class="linha"><span>${esc(compra.plano)}</span><b>${esc(preco)}</b></div>
     <div class="total"><span>${esc(t.total)}</span><b>${esc(preco)}</b></div>
     <p class="depois">${esc(compra.unico ? t.unico : t.mensal)}</p>
+    ${/site/i.test(compra.plano) ? `<div class="sub">${esc(t.incluido)}</div><ul class="incluido">${t.itensSite.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : ""}
+    ${previa ? `<a class="exemplo" href="${esc(previa)}" target="_blank" rel="noopener">👀 ${esc(t.exemplo)}</a>` : ""}
+    <div class="sub">${esc(t.depoisTitulo)}</div><ol class="passos">${t.passos.map((p) => `<li>${esc(p)}</li>`).join("")}</ol>
+    <p class="depois" style="margin-top:12px">${esc(t.contratoOpc)}</p>
     <ul class="selos">
       <li>${ESCUDO}<span><b>${esc(t.processado)}</b>${esc(t.processadoTxt)}</span></li>
       <li>${CADEADO}<span><b>${esc(t.protegidos)}</b>${esc(t.protegidosTxt)}</span></li>
       <li>${RECIBO}<span><b>${esc(t.recibo)}</b>${esc(t.reciboTxt)}</span></li>
     </ul>
-    ${whatsapp ? `<p class="letra">${esc(t.duvidas)} <a href="${esc(whatsapp)}" target="_blank" rel="noopener">WhatsApp</a></p>` : ""}
+    <div class="quem"><span>${esc(t.empresaTitulo)}</span><b>FluxDeck</b><span>CNPJ ${CNPJ_FLUXDECK}</span>
+      <span><a href="${esc(site)}" target="_blank" rel="noopener">${esc(site.replace(/^https?:\/\//, ""))}</a>${email ? ` · ${esc(email)}` : ""}</span>
+      ${whatsapp ? `<span>${esc(t.duvidas)} <a href="${esc(whatsapp)}" target="_blank" rel="noopener">WhatsApp</a></span>` : ""}</div>
   </aside>
   <section class="painel">
+    <div id="caixa-rapido" hidden><div class="sub" style="margin-top:0">${esc(t.rapido)}</div><div id="rapido"></div><div class="ou">${esc(t.ouCartao)}</div></div>
     <form id="form">
       <div class="campo"><label for="nome">${esc(t.nome)}</label><input id="nome" autocomplete="name" required></div>
       <div class="campo"><label for="email">${esc(t.email)}</label><input id="email" type="email" autocomplete="email" required></div>
       <div id="elemento"></div>
       <button class="pagar" id="pagar" type="submit">${esc(t.pagar)} ${esc(preco)}</button>
       <div class="msg" id="msg" role="alert"></div>
+      <div class="marcas">${esc(t.aceitos)}: <span>VISA</span><span>Mastercard</span><span>AMEX</span><span>Apple Pay</span><span>Google Pay</span><span>Link</span></div>
+      <div class="stripe">${CADEADO.replace("<svg", '<svg width="14" height="14"')} SSL · <b>stripe</b></div>
       <p class="letra">${esc(t.contrato)}: <a href="${esc(contrato)}" target="_blank" rel="noopener">Service Agreement</a></p>
     </form>
   </section>
@@ -111,7 +139,17 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
   if (!r.clientSecret) { msg.textContent = r.erro || t.erro; botao.disabled = true; return; }
   var elements = stripe.elements({ clientSecret: r.clientSecret, appearance: { theme: "night", variables: { colorPrimary: "#00d4ff", colorBackground: "#131c33", borderRadius: "12px", fontFamily: "Plus Jakarta Sans, system-ui, sans-serif" } },
     fonts: [{ cssSrc: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600&display=swap" }] });
-  elements.create("payment", { layout: "tabs" }).mount("#elemento");
+  elements.create("payment", { layout: { type: "accordion", defaultCollapsed: false, radios: true, spacedAccordionItems: true }, wallets: { applePay: "auto", googlePay: "auto" } }).mount("#elemento");
+  // Apple Pay e Google Pay num toque (aparecem só no aparelho que tem).
+  try {
+    var rapido = elements.create("expressCheckout", { buttonHeight: 48, buttonType: { applePay: "buy", googlePay: "buy" } });
+    rapido.on("ready", function(ev){ if (ev.availablePaymentMethods) document.getElementById("caixa-rapido").hidden = false; });
+    rapido.on("confirm", async function(){
+      var res = await stripe.confirmPayment({ elements: elements, confirmParams: { return_url: location.origin + ${JSON.stringify(`${base}/obrigado`)} } });
+      if (res.error) msg.textContent = res.error.message || t.erro;
+    });
+    rapido.mount("#rapido");
+  } catch (e) {}
   document.getElementById("form").addEventListener("submit", async function(ev){
     ev.preventDefault(); msg.textContent = "";
     var nome = document.getElementById("nome").value.trim(), email = document.getElementById("email").value.trim();

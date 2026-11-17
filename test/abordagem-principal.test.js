@@ -422,6 +422,13 @@ test("checkout transparente (Stripe): página da FluxDeck com o campo do cartão
     assert.match(html, /\/checkout\/_\/logo\.jpg/); // a logo da FluxDeck
     assert.match(html, /€\s?150,00|150,00\s?€/);
     assert.match(html, /Pagamento único, sem mensalidade/); // em português de Portugal
+    // Credibilidade: o que está incluído, os próximos passos, quem recebe (com o CNPJ) e os meios aceitos, mais o Apple/Google Pay num toque.
+    assert.match(html, /O que está incluído/);
+    assert.match(html, /O seu site fica no ar no prazo de uma semana/);
+    assert.match(html, /CNPJ 57\.167\.092\/0001-16/);
+    assert.match(html, /expressCheckout/);
+    assert.match(html, /Apple Pay<\/span><span>Google Pay/);
+    assert.match(paginaDoCheckoutStripe(compra, { publica: "pk_live_publica1234567890", base: "/x", previa: "https://fluxdeck.com.br/previa/abc" }), /href="https:\/\/fluxdeck\.com\.br\/previa\/abc"[^>]*>👀 Ver o exemplo do seu site/);
 
     assert.deepEqual(await stripe.intencaoDoCheckout(codigo), { clientSecret: "pi_1_secret_x" });
     const pi = chamadas.find((c) => c.u.endsWith("/payment_intents") && c.corpo);
