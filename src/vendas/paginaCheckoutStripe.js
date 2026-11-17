@@ -145,7 +145,8 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
   if (!r.clientSecret) { msg.textContent = r.erro || t.erro; botao.disabled = true; return; }
   var elements = stripe.elements({ clientSecret: r.clientSecret, appearance: { theme: "night", variables: { colorPrimary: "#00d4ff", colorBackground: "#131c33", borderRadius: "12px", fontFamily: "Plus Jakarta Sans, system-ui, sans-serif" } },
     fonts: [{ cssSrc: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600&display=swap" }] });
-  elements.create("payment", { layout: { type: "accordion", defaultCollapsed: false, radios: true, spacedAccordionItems: true }, wallets: { applePay: "auto", googlePay: "auto" } }).mount("#elemento");
+  elements.create("payment", { layout: { type: "accordion", defaultCollapsed: false, radios: true, spacedAccordionItems: true }, wallets: { applePay: "auto", googlePay: "auto" },
+    defaultValues: { billingDetails: { address: { country: ${JSON.stringify(compra.pais || "PT")} } } } }).mount("#elemento");
   // Apple Pay e Google Pay num toque (aparecem só no aparelho que tem).
   try {
     var rapido = elements.create("expressCheckout", { buttonHeight: 48, buttonType: { applePay: "buy", googlePay: "buy" } });
