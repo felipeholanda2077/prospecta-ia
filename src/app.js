@@ -1838,6 +1838,27 @@ app.post("/api/robos/aplicar", async (req, res) => {
   res.json({ feitos: await aplicarRevisaoDeRobos(leadIds, { textos }) });
 });
 
+// O link de pagamento do site desta empresa: na Europa, o do Stripe em euro (150 €, pagamento único); no Brasil, o
+// checkout da FluxDeck do site da Black Friday (R$ 500 em até 12x sem juros). Só cria o link, não envia nada.
+app.post("/api/leads/:id/link-do-site", async (req, res) => {
+  try {
+    const lead = await db.buscarLead(req.params.id);
+    if (!lead) return res.status(404).json({ erro: "Empresa não encontrada" });
+    const { OFERTA_SITE_EUROPA, OFERTA_SITE, ofertaSiteAtiva } = await import("./vendas/ofertaSite.js");
+    if (internacional.PAISES[lead.pais]?.moeda === "EUR") {
+      if (!(await stripe.situacao()).conectado) return res.status(400).json({ erro: "Conecte o Stripe em Configurações" });
+      const link = await stripe.linkDePagamento({ lead, nome: OFERTA_SITE_EUROPA.plano, valor: OFERTA_SITE_EUROPA.valor, moeda: "EUR", unico: true });
+      return res.json({ link, valor: "150 €", plano: OFERTA_SITE_EUROPA.plano });
+    }
+    if (lead.pais && lead.pais !== "BR") return res.status(400).json({ erro: "Sem link de site para este país" });
+    if (!ofertaSiteAtiva()) return res.status(400).json({ erro: "A oferta do site da Black Friday já acabou" });
+    const origem = origemDaPrevia(await carregarCampanhaCompleta());
+    res.json({ link: `${origem}${checkoutsAsaas.enderecoDoCheckout(OFERTA_SITE.plano)}`, valor: "R$ 500 em até 12x sem juros", plano: OFERTA_SITE.plano });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 // O link da prévia do site desta empresa (o site de exemplo), para mandar na conversa. Sem prévia possível, 404.
 app.get("/api/leads/:id/previa", async (req, res) => {
   const lead = await db.buscarLead(req.params.id);

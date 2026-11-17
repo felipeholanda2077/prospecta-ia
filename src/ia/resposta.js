@@ -349,7 +349,7 @@ export async function classificarResposta({ texto, assunto, lead, historico, cam
   if (porRegra) return porRegra;
   const podeValores = pediuValor(texto, historico);
 
-  const limite = canal === "email" ? "até 100 palavras, com assinatura curta" : "no máximo 3 frases curtas (até ~400 caracteres), sem assinatura";
+  const limite = canal === "email" ? "até 100 palavras, com assinatura curta" : "no máximo 3 frases curtas (até ~350 caracteres, NUNCA mensagem longa nem lista de tópicos), sem assinatura";
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const feitas = perguntasFeitas(historico);
   const confusa = confusaOuCansada(texto);
@@ -516,6 +516,33 @@ ${(historico ?? []).slice(-12).map((h) => `${h.autor === "nos" ? quem : lead.nom
 export async function escreverApresentacao({ texto, lead, historico, campanha, canal = "whatsapp", apresentacao, linkAgendamento = "", horarios = [], linkPrevia = "" }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const podeValores = pediuValor(texto, historico);
+  // No WhatsApp a mensagem é CURTA (pedido de 17/11/2026: "nunca passe mensagens longas"): 2 ou 3 frases, sem tópicos.
+  if (canal !== "email") {
+    const r = await gerarJson({ lead,
+      system: `${contextoEmpresa(campanha, { semValores: true })}
+
+A pessoa demonstrou interesse (ou perguntou como funciona). Escreva a próxima mensagem do ${NOME_DO_CANAL[canal] ?? "WhatsApp"}, como ${quem},
+em primeira pessoa. MENSAGEM CURTA, como alguém escrevendo do celular: no máximo 3 frases curtas, até ~350 caracteres,
+sem tópicos, sem lista de planos e sem explicar etapas.
+- ${jaConversou(historico) ? "A conversa já começou: NÃO cumprimente e NÃO se apresente de novo." : "Comece com um cumprimento curto."}
+- Em 1 frase, como funciona (ex.: "a gente ajusta o site com as suas fotos e informações e coloca no ar").
+- O valor do que ela precisa, só ele, como está na apresentação${ofertaLiberada(lead) ? ` (site: "de ${PRECO_DE} por ${PRECO_POR}, valor único, em até 12x sem juros")` : ""}.
+${regraDoPlanoCerto(lead)}${linkPrevia ? `- Se ela ainda não viu, o link do site de exemplo, exatamente assim: ${linkPrevia}
+` : ""}- Feche com UMA pergunta curta para avançar (ex.: "Quer que eu já deixe o seu no ar?"). Nunca convide para reunião ou
+  chamada${pediuConversa(texto, historico) ? `, a não ser que ela tenha pedido: aí convide${comoConvidar(linkAgendamento, horarios, "ela")}` : ""}.
+Promoção com data: hoje é ${hoje()}; se já acabou, não cite. Português do Brasil, no máximo 1 emoji.${FORMATO_DO_CANAL[canal] ?? FORMATO_DO_CANAL.whatsapp}
+Nunca mencione assistente, robô, IA respondendo, sistema ou "equipe" respondendo por ${quem}. Não repita o que já está no histórico.
+
+<apresentacao>
+${apresentacao}
+</apresentacao>`,
+      pedido: `Empresa: ${lead.nome} (${lead.nicho ?? ""}, ${lead.cidade ?? ""})\n\nConversa:\n${formatarHistorico(historico)}\n\nÚltima mensagem dela: ${texto}\n\nEscreva a mensagem.`,
+      jsonSchema: APRESENTACAO_JSON_SCHEMA,
+      zodSchema: ApresentacaoSchema,
+      effort: "low",
+    });
+    return r.mensagem.trim();
+  }
   const r = await gerarJson({ lead,
     system: `${contextoEmpresa(campanha, { semValores: true })}
 
