@@ -1,7 +1,7 @@
 import { config } from "../config.js";
 import { semSiteProprio } from "../analise/prioridade.js";
 import { ofertaSiteAtiva, PRECO_DE, PRECO_POR, OFERTA_SITE } from "./ofertaSite.js";
-import { paletaDaMarca, luminancia } from "./marcaDaPrevia.js";
+import { paletaDaMarca } from "./marcaDaPrevia.js";
 
 // Prévia personalizada: para a empresa SEM site próprio, um rascunho de como ficaria o site dela (nome, ramo,
 // cidade, nota no Google, serviços típicos do ramo e botão de WhatsApp), numa página pública em /previa/<token>.
@@ -238,7 +238,7 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
   const elegante = ramo.icone === "✨"; // beleza e estética: títulos com fonte serifada, mais sofisticada
   // As cores da marca (tiradas da logo da empresa, ou escolhidas no painel); sem elas, a cor do ramo.
   const paleta = paletaDaMarca(dados.corDaMarca) ?? paletaDaMarca(base.cor);
-  paleta.luminosa = luminancia(paleta.cor) > 0.42;
+  paleta.luminosa = paleta.tinta !== "#ffffff"; // cor clara: o botão principal é da cor da marca, com texto escuro
   const logoImg = dados.temLogo && logoUrl ? logoUrl : "";
   const enfeites = ENFEITES[ramo.icone] ?? ENFEITES["⭐"];
   const nome = String(lead.nome).trim();

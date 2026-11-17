@@ -78,7 +78,7 @@ export async function dadosDaPrevia(lead, { buscar = buscarNoGoogle, agora = Dat
 // ---------- A logo e a cor da marca ----------
 
 export const chaveDaLogo = (leadId) => `previa-logo:${leadId}`;
-const chaveDaMarca = (leadId) => `previa_marca:${leadId}`;
+const chaveDaMarca = (leadId) => `previa_marca_v2:${leadId}`; // v2: a cor viva vale mesmo em pouca área da logo
 const DIAS_DA_MARCA = 7;
 const MAX_LOGO = 1_500_000;
 

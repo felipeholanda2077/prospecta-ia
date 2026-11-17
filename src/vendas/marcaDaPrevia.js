@@ -38,14 +38,15 @@ export function corPrincipal(pixels) {
       if (mx < 110) { escuros++; somaEscuro = [somaEscuro[0] + r, somaEscuro[1] + g, somaEscuro[2] + b]; }
       continue;
     }
-    const chave = `${r >> 4},${g >> 4},${b >> 4}`;
+    const chave = `${r >> 5},${g >> 5},${b >> 5}`;
     const c = caixas.get(chave) ?? { peso: 0, n: 0, r: 0, g: 0, b: 0 };
     c.peso += 1 + s; c.n++; c.r += r; c.g += g; c.b += b;
     caixas.set(chave, c);
   }
   if (!total) return null;
   const [melhor] = [...caixas.values()].sort((a, b) => b.peso - a.peso);
-  if (melhor && melhor.n >= total * 0.03) return hex(melhor.r / melhor.n, melhor.g / melhor.n, melhor.b / melhor.n);
+  // Logo costuma ter a cor da marca em pouca área (uma letra, um traço sobre fundo preto ou branco): 0,6% já vale.
+  if (melhor && melhor.n >= total * 0.006) return hex(melhor.r / melhor.n, melhor.g / melhor.n, melhor.b / melhor.n);
   if (escuros >= total * 0.05) return hex(somaEscuro[0] / escuros, somaEscuro[1] / escuros, somaEscuro[2] / escuros);
   return null;
 }
@@ -58,7 +59,8 @@ export function corPrincipal(pixels) {
 export function paletaDaMarca(cor) {
   if (!rgb(cor)) return null;
   const lum = luminancia(cor);
-  const tinta = lum > 0.42 ? "#111111" : "#ffffff";
+  // O texto em cima da cor: branco ou quase preto, o que tiver mais contraste (WCAG).
+  const tinta = 1.05 / (lum + 0.05) >= (lum + 0.05) / (luminancia("#111111") + 0.05) ? "#ffffff" : "#111111";
   let forte = cor;
   for (let t = 0.15; luminancia(forte) > 0.18 && t <= 0.85; t += 0.1) forte = misturar(cor, "#000000", t);
   const escura = misturar(cor, "#000000", 0.55);
@@ -72,7 +74,7 @@ export async function corDaLogo(dados) {
   try {
     const { createCanvas, loadImage } = await import("@napi-rs/canvas");
     const img = await loadImage(dados);
-    const lado = 64;
+    const lado = 128;
     const canvas = createCanvas(lado, lado);
     const ctx = canvas.getContext("2d");
     ctx.drawImage(img, 0, 0, lado, lado);
