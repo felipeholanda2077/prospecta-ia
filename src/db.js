@@ -1147,6 +1147,24 @@ export async function interessadosParaFollowup(agoraIso = new Date().toISOString
 }
 
 /**
+ * Conversas de quem mostrou interesse (ou está morna/quente) e ainda não recebeu o site de exemplo: do Brasil ou de
+ * Portugal, sem nada na fila e sem agente. O resto (sem site, IA pausada, recusa) é conferido em respostas/followup.js.
+ */
+export async function interessadosSemPrevia(limite = 40) {
+  return q(
+    `SELECT l.* FROM leads l
+      WHERE l.agente_id IS NULL AND l.status = 'respondeu' AND (l.pais IS NULL OR l.pais IN ('BR', 'PT'))
+        AND (EXISTS (SELECT 1 FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IN ('interessado', 'quer_informacoes'))
+             OR (SELECT r.temperatura FROM respostas r WHERE r.lead_id = l.id AND r.classificacao IS DISTINCT FROM 'automatica'
+                  ORDER BY r.recebida_em DESC LIMIT 1) IN ('morna', 'quente'))
+        AND NOT EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status IN ('rascunho', 'aprovada', 'enviando'))
+        AND NOT EXISTS (SELECT 1 FROM mensagens m WHERE m.lead_id = l.id AND m.status = 'enviada' AND m.corpo LIKE '%/previa/%')
+      ORDER BY l.id DESC LIMIT $1`,
+    [limite]
+  );
+}
+
+/**
  * Empresas para a reativação: receberam a sequência inteira, nunca responderam, nada na fila para elas e a
  * última mensagem saiu antes de `antesIso` (30 dias de pausa). Quem já foi reativada é conferido pelo registro.
  */

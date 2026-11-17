@@ -32,7 +32,7 @@ import { semAgendamento } from "./ia/resposta.js";
 import { semSiteProprio, semSiteConfirmado, potencialDaEmpresa } from "./analise/prioridade.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 import { numerosComAgente } from "./respostas/agentes.js";
-import { followupsDeInteressados } from "./respostas/followup.js";
+import { followupsDeInteressados, previasParaInteressados } from "./respostas/followup.js";
 import { encerrarRecusasAbertas } from "./respostas/processar.js";
 import { rodadaDeReativacao } from "./respostas/reativacao.js";
 import { salvarFotosDasEmpresas } from "./respostas/fotos.js";
@@ -2026,6 +2026,13 @@ async function rodada(campanha) {
   if (!semTempo(ate)) {
     resultado.followups = await followupsDeInteressados(campanha).catch((e) => {
       log(`⚠️  Falha nos follow-ups: ${e.message}`);
+      return { erro: e.message };
+    });
+  }
+  // O site de exemplo para quem já tinha mostrado interesse e ainda não recebeu (poucos por rodada).
+  if (!semTempo(ate)) {
+    resultado.previas = await previasParaInteressados(campanha).catch((e) => {
+      log(`⚠️  Falha no site de exemplo para os interessados: ${e.message}`);
       return { erro: e.message };
     });
   }

@@ -231,6 +231,9 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
   const depoimentos = (dados.avaliacoes ?? []).filter((d) => d?.texto).slice(0, 3);
   const horario = (dados.horario ?? []).filter(Boolean).slice(0, 7);
   const sobre = String(dados.sobre ?? "").trim();
+  const depoimentosHtml = depoimentos.length
+    ? `<div class="depoimentos">${depoimentos.map((d, i) => `<div class="depoimento rv" style="--atraso:${i * 0.12}s"><span class="est">★★★★★</span><p>${escapar(d.texto)}</p><b>${escapar(d.nome)}</b></div>`).join("")}</div>`
+    : "";
   const elegante = ramo.icone === "✨"; // beleza e estética: títulos com fonte serifada, mais sofisticada
   const enfeites = ENFEITES[ramo.icone] ?? ENFEITES["⭐"];
   const nome = String(lead.nome).trim();
@@ -238,6 +241,13 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
   const doGoogle = Boolean(lead.place_id || lead.maps_url);
   const mapa = /^https:\/\/(?:www\.)?(?:google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(lead.maps_url ?? "") ? lead.maps_url : "";
   const endereco = doGoogle ? String(lead.endereco ?? "").trim() : "";
+  // O mapa de verdade do Google, no ponto exato: as coordenadas da empresa (com o nome no pino) ou, sem elas, o nome
+  // e o endereço do perfil no Google. Empresa do CNPJ (endereço da Receita, que pode ser a casa da pessoa) fica sem mapa.
+  const lat = Number(lead.lat);
+  const lng = Number(lead.lng);
+  const temCoordenadas = doGoogle && Number.isFinite(lat) && Number.isFinite(lng) && (lat !== 0 || lng !== 0);
+  const consultaDoMapa = temCoordenadas ? `${String(lead.nome).trim()}@${lat},${lng}` : endereco ? `${String(lead.nome).trim()}, ${endereco}` : "";
+  const mapaEmbed = consultaDoMapa ? `https://www.google.com/maps?q=${encodeURIComponent(consultaDoMapa)}&z=17&hl=pt&output=embed` : "";
   const nota = Number(lead.avaliacao) || 0;
   const avaliacoes = Number(lead.total_avaliacoes) || 0;
   const temNota = doGoogle && nota > 0 && avaliacoes > 0;
@@ -405,7 +415,27 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .depoimentos{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}.depoimento{background:var(--card);border:1px solid var(--borda);border-radius:18px;padding:22px;position:relative}
 .depoimento::before{content:"“";position:absolute;top:-6px;right:18px;font-size:72px;line-height:1;color:var(--clara);font-family:Georgia,serif}.depoimento p{margin:8px 0 12px;font-size:15.5px}.depoimento b{font-size:14px;color:var(--suave)}.depoimento .est{color:#f5a524;letter-spacing:2px}
 .horario{list-style:none;padding:0;margin:10px 0 0;font-size:14px;color:var(--suave)}.horario li{padding:4px 0;border-bottom:1px dashed var(--borda)}
-@media (max-width:520px){.galeria.reais{grid-template-columns:1fr 1fr}.galeria.reais .foto:nth-child(1){grid-column:span 2;grid-row:auto;aspect-ratio:4/3}}
+@media (max-width:520px){.galeria.reais{grid-template-columns:1fr 1fr}}
+.numeros + .corre{margin-top:34px}
+.grade{display:flex;flex-wrap:wrap;justify-content:center}.grade>.cartao{flex:0 1 calc((100% - 28px) / 3);min-width:230px}
+.galeria.reais{grid-auto-rows:210px}.foto.real{aspect-ratio:auto}
+.contato{grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);align-items:stretch}.contato.sem-mapa{grid-template-columns:1fr}.contato .cartao b{margin-top:6px}
+.mapa-real{border-radius:18px;overflow:hidden;border:1px solid var(--borda);min-height:380px;background:#e8eef3;box-shadow:0 24px 50px -30px rgba(0,0,0,.45)}.mapa-real iframe{display:block;width:100%;height:100%;min-height:380px;border:0}
+.avaliacao + .depoimentos{margin-top:16px}
+/* Movimento: foto do topo em zoom lento, brilho nos botões, sublinhado dos títulos e ícones que "saltam" */
+.fundo-foto{animation:zoomLento 26s ease-in-out infinite alternate}@keyframes zoomLento{from{transform:scale(1)}to{transform:scale(1.14) translate(-2%,-1%)}}
+.botao{position:relative;overflow:hidden;isolation:isolate}.botao::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.4) 50%,transparent 65%);transform:translateX(-130%);animation:brilhoBotao 4.2s ease-in-out infinite}
+@keyframes brilhoBotao{0%,55%{transform:translateX(-130%)}85%,100%{transform:translateX(130%)}}
+section h2.rv::after{content:"";display:block;width:58px;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--cor),color-mix(in srgb,var(--cor) 40%,#f5a524));margin-top:10px;transform:scaleX(0);transform-origin:0 50%;transition:transform .9s .25s cubic-bezier(.2,.7,.2,1)}
+section h2.rv.in::after,html:not(.js) section h2.rv::after{transform:scaleX(1)}
+.js .cartao.rv .ic{transform:scale(.3) rotate(-14deg);opacity:0}.js .cartao.rv.in .ic{animation:salta .7s calc(var(--atraso,0s) + .2s) cubic-bezier(.3,1.6,.5,1) both}
+@keyframes salta{from{transform:scale(.3) rotate(-14deg);opacity:0}to{transform:none;opacity:1}}
+.js .foto.real.rv{opacity:1;transform:none;clip-path:inset(100% 0 0 0);transition:clip-path 1.1s cubic-bezier(.2,.7,.2,1) var(--atraso,0s)}.js .foto.real.rv.in{clip-path:inset(0 0 0 0)}
+.depoimento{transition:transform .3s,box-shadow .3s}.depoimento:hover{transform:translateY(-5px) rotate(-.4deg);box-shadow:0 18px 36px -22px var(--cor)}
+.numero{transition:transform .3s}.numero:hover{transform:translateY(-4px)}
+@media (max-width:879px){.contato{grid-template-columns:1fr}.mapa-real,.mapa-real iframe{min-height:300px}}
+@media (prefers-reduced-motion:reduce){.js .cartao.rv .ic{opacity:1!important;transform:none!important}.js .foto.real.rv{clip-path:none!important}}
+@media (max-width:520px){.grade>.cartao{flex:0 1 calc((100% - 10px) / 2);min-width:0}.galeria.reais{grid-auto-rows:150px}.galeria.reais .foto:nth-child(1){grid-column:span 2;grid-row:span 2;aspect-ratio:auto}.numeros + .corre{margin-top:26px}}
 footer{border-top:1px solid var(--borda);color:var(--suave);font-size:13px;text-align:center;padding:26px 16px 96px}
 .flutua{position:fixed;right:16px;bottom:16px;z-index:12;width:58px;height:58px;border-radius:50%;background:#25d366;display:grid;place-items:center;box-shadow:0 10px 26px -8px rgba(0,0,0,.45);text-decoration:none}
 .flutua::before{content:"";position:absolute;inset:0;border-radius:50%;background:#25d366;animation:pulso 2.2s ease-out infinite;z-index:-1}
@@ -439,27 +469,27 @@ ${temNota ? `<div class="nota sobe d4"><span class="est">${estrelas(nota)}</span
 <div class="conversa"><div class="msg ela m1">Oi! Queria saber sobre ${escapar(primeiro.toLowerCase())} 😊</div><div class="digitando"><i></i><i></i><i></i></div>
 <div class="msg nos m2">Oi! Claro, te explico agora. Qual o melhor horário para você?</div><div class="msg ela m3">Perfeito, obrigado pela rapidez! 🙌</div></div></div></div>
 </div></div>
-<div class="corre" aria-hidden="true"><div class="trilho">${marquee}${marquee}</div></div>
 <section class="numeros">${numeros.map((x, i) => `<div class="numero rv" style="--atraso:${i * 0.1}s"><em>${x.icone}</em><b data-conta="${x.valor}" data-casas="${x.casas}">${escapar(x.texto)}</b><span>${escapar(x.rotulo)}</span></div>`).join("")}</section>
+<div class="corre" aria-hidden="true"><div class="trilho">${marquee}${marquee}</div></div>
 <section id="servicos"><h2 class="rv">Serviços</h2><p class="sub rv">O que a ${escapar(nome)} oferece${cidade ? ` em ${escapar(cidade)}` : ""}.</p>
 <div class="grade">${ramo.servicos.map(([t, d], i) => `<div class="cartao rv" style="--atraso:${(i % 3) * 0.1}s"><div class="ic">${enfeites[i % enfeites.length]}</div><h3>${escapar(t)}</h3><p>${escapar(d)}</p></div>`).join("")}</div></section>
 ${sobre ? `<section id="sobre"><div class="sobre"><div><h2 class="rv">Sobre a ${escapar(nome)}</h2>${sobre.split(/\n+/).map((t) => `<p class="rv">${escapar(t)}</p>`).join("")}<p class="rv">${link("botao")}</p></div>${fotos[1] ? `<img class="rv" src="${escapar(fotos[1])}" alt="${escapar(nome)}" loading="lazy">` : ""}</div></section>` : ""}
 ${fotos.length ? `<section id="galeria"><h2 class="rv">Galeria</h2><p class="sub rv">O espaço e o trabalho da ${escapar(nome)}.</p>
-<div class="galeria reais">${fotos.slice(0, 7).map((f, i) => `<div class="foto real rv" style="--atraso:${(i % 4) * 0.08}s"><img src="${escapar(f)}" alt="${escapar(nome)}, foto ${i + 1}" loading="lazy"></div>`).join("")}</div></section>`
+<div class="galeria reais">${fotos.slice(0, fotos.length >= 5 ? 5 : fotos.length >= 3 ? 3 : fotos.length).map((f, i) => `<div class="foto real rv" style="--atraso:${(i % 4) * 0.08}s"><img src="${escapar(f)}" alt="${escapar(nome)}, foto ${i + 1}" loading="lazy"></div>`).join("")}</div></section>`
     : `<section id="galeria"><h2 class="rv">Galeria</h2><p class="sub rv">Aqui entram as fotos da ${escapar(nome)}: o espaço, a equipe e o trabalho de vocês.</p>
 <div class="galeria">${GALERIA.map((g, i) => `<div class="foto rv" style="--atraso:${i * 0.1}s"><span class="grande" style="animation-delay:-${i * 1.3}s">${enfeites[i % enfeites.length]}</span><b>${g}</b><small>sua foto aqui</small></div>`).join("")}</div></section>`}
 <section id="como"><h2 class="rv">Como funciona</h2><p class="sub rv">Simples, rápido e sem fila.</p>
 <ol class="passos rv">${passos.map(([t, d], i) => `<li class="passo"><span class="n">${i + 1}</span><h3>${escapar(t)}</h3><p>${escapar(d)}</p></li>`).join("")}</ol></section>
 <section><h2 class="rv">Por que escolher a ${escapar(nome)}</h2><p class="sub rv">Quem conhece, recomenda.</p>
 <ul class="motivos">${ramo.motivos.map((m, i) => `<li class="rv" style="--atraso:${i * 0.1}s">${escapar(m)}</li>`).join("")}</ul></section>
-${temNota ? `<section><h2 class="rv">O que os clientes dizem</h2><p class="sub rv">A nota da ${escapar(nome)} no Google.</p>
-<div class="avaliacao rv"><div class="grande" data-conta="${nota}" data-casas="1">${notaTexto}</div><div><span class="estrelas rv" style="--cheio:${Math.round((nota / 5) * 100)}%" aria-label="${notaTexto} de 5">★★★★★<span>★★★★★</span></span><p>${avaliacoesTexto} ${avaliacoes === 1 ? "pessoa avaliou" : "pessoas avaliaram"} no Google</p></div>${mapa ? link("botao claro", "Ver as avaliações", mapa) : ""}</div></section>` : ""}
-${depoimentos.length ? `<section id="depoimentos"><h2 class="rv">Quem já foi, recomenda</h2><p class="sub rv">Avaliações reais no Google.</p>
-<div class="depoimentos">${depoimentos.map((d, i) => `<div class="depoimento rv" style="--atraso:${i * 0.1}s"><span class="est">★★★★★</span><p>${escapar(d.texto)}</p><b>${escapar(d.nome)}</b></div>`).join("")}</div></section>` : ""}
+${temNota ? `<section id="depoimentos"><h2 class="rv">O que os clientes dizem</h2><p class="sub rv">${depoimentos.length ? "Avaliações reais no Google." : `A nota da ${escapar(nome)} no Google.`}</p>
+<div class="avaliacao rv"><div class="grande" data-conta="${nota}" data-casas="1">${notaTexto}</div><div><span class="estrelas rv" style="--cheio:${Math.round((nota / 5) * 100)}%" aria-label="${notaTexto} de 5">★★★★★<span>★★★★★</span></span><p>${avaliacoesTexto} ${avaliacoes === 1 ? "pessoa avaliou" : "pessoas avaliaram"} no Google</p></div>${mapa ? link("botao claro", "Ver as avaliações", mapa) : ""}</div>${depoimentosHtml}</section>`
+    : depoimentos.length ? `<section id="depoimentos"><h2 class="rv">O que os clientes dizem</h2><p class="sub rv">Avaliações reais no Google.</p>${depoimentosHtml}</section>` : ""}
 <section id="contato"><h2 class="rv">Fale com a gente</h2><p class="sub rv">Atendimento rápido pelo WhatsApp.</p>
-<div class="contato">
-<div class="cartao rv"><b>WhatsApp</b><span>${zap.length >= 10 || fone.length >= 8 ? "Resposta rápida, sem fila." : "Em breve."}</span><p style="margin-top:14px">${link("botao")}</p></div>
-${endereco || cidade ? `<div class="cartao rv" style="--atraso:.1s"><b>Onde estamos</b><span>${escapar(endereco || cidade)}</span>${horario.length ? `<ul class="horario">${horario.map((h) => `<li>${escapar(h)}</li>`).join("")}</ul>` : ""}<div class="mapa" aria-hidden="true"><span class="rio"></span><span class="onda"></span><span class="pino"></span></div>${mapa ? link("botao claro", "Abrir no mapa", mapa) : ""}</div>` : ""}
+<div class="contato${mapaEmbed ? "" : " sem-mapa"}">
+<div class="cartao rv"><b>WhatsApp</b><span>${zap.length >= 10 || fone.length >= 8 ? "Resposta rápida, sem fila." : "Em breve."}</span><p style="margin:14px 0 18px">${link("botao")}</p>
+${endereco || cidade ? `<b>Onde estamos</b><span>${escapar(endereco || cidade)}</span>` : ""}${horario.length ? `<b style="margin-top:14px">Horário</b><ul class="horario">${horario.map((h) => `<li>${escapar(h)}</li>`).join("")}</ul>` : ""}${mapa ? `<p style="margin:16px 0 0">${link("botao claro", "Abrir no Google Maps", mapa)}</p>` : ""}</div>
+${mapaEmbed ? `<div class="mapa-real rv" style="--atraso:.1s"><iframe src="${escapar(mapaEmbed)}" title="Mapa: ${escapar(nome)}" loading="lazy" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe></div>` : ""}
 </div></section>
 <section><h2 class="rv">Perguntas frequentes</h2><p class="sub rv">As dúvidas mais comuns, respondidas.</p>
 ${perguntas.map(([p, r], i) => `<details class="rv" style="--atraso:${i * 0.08}s"${i === 0 ? " open" : ""}><summary>${escapar(p)}</summary><p>${escapar(r)}</p></details>`).join("")}</section>

@@ -105,6 +105,50 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
   return { criados };
 }
 
+// ---------- O site de exemplo para quem já tinha mostrado interesse (pedido de 17/11/2026) ----------
+
+const PREVIAS_POR_RODADA = 2;
+const ESPERA_DEPOIS_DA_NOSSA_MS = 2 * 3600_000;
+
+/** A mensagem com o site de exemplo, no português de cada país (conversa já começada: sem bom dia de novo). */
+export function mensagemDaPrevia(lead, link) {
+  return lead.pais === "PT"
+    ? `Lembrei-me de vocês e preparei um exemplo de como ficaria o site do ${lead.nome}, já com as vossas fotos, os serviços e as avaliações do Google:\n${link}\nDiga-me o que acha!`
+    : `Lembrei de vocês e montei um exemplo de como ficaria o site da ${lead.nome}, já com as fotos, os serviços e as avaliações do Google:\n${link}\nMe conta o que achou!`;
+}
+
+/**
+ * Quem mostrou interesse antes e ainda não recebeu o site de exemplo recebe agora, pela fila de respostas (poucos
+ * por rodada). Só empresa sem site do Brasil ou de Portugal, com a conversa parada do nosso lado (a última mensagem é
+ * nossa, há 2 horas ou mais), sem recusa, sem dizer que já tem site e com a IA ligada nessa conversa.
+ */
+export async function previasParaInteressados(campanha, { limite = PREVIAS_POR_RODADA, agora = new Date() } = {}) {
+  if (!campanha.automacao?.respostaAutomatica) return { criadas: 0 };
+  let criadas = 0;
+  for (const lead of await db.interessadosSemPrevia()) {
+    if (criadas >= limite) break;
+    if (await iaPausada(lead.id)) continue;
+    const historico = await db.historicoConversa(lead.id);
+    const ultima = historico.at(-1);
+    if (!ultima || ultima.autor !== "nos" || +agora - +new Date(ultima.quando) < ESPERA_DEPOIS_DA_NOSSA_MS) continue;
+    const dela = await db.ultimaRespostaDaConversa(lead.id);
+    if (!dela || !["whatsapp", "email"].includes(dela.canal)) continue;
+    const link = momentoDaPrevia({ lead, historico, texto: dela.texto, origem: origemDaPrevia(campanha) });
+    if (!link) continue;
+    const ultimoContato = dela.canal === "whatsapp" ? historico.filter((h) => h.canal === "whatsapp" && h.contato).at(-1)?.contato : null;
+    const id = await db.criarMensagem({
+      lead_id: lead.id, canal: dela.canal, destino: ultimoContato || dela.de || (dela.canal === "email" ? lead.email : lead.whatsapp),
+      assunto: dela.canal === "email" ? (/^re:/i.test(dela.assunto ?? "") ? dela.assunto : `Re: ${dela.assunto ?? lead.nome}`) : null,
+      corpo: mensagemDaPrevia(lead, link), status: "aprovada", tipo: "resposta", etapa: 0,
+      em_resposta_a: dela.canal === "email" ? dela.origem_id : null,
+    });
+    await db.atualizarMensagem(id, { agendada_para: new Date(+agora + (2 + Math.random() * 6) * 60_000).toISOString() });
+    criadas++;
+    log(`🌐 Site de exemplo para ${lead.nome} (mostrou interesse antes)`);
+  }
+  return { criadas };
+}
+
 /**
  * Para o painel: o próximo follow-up de uma conversa, com os dados que a lista de conversas já tem.
  * Retorna { quando, numero, de } (sai a partir de `quando`, na rodada em horário comercial), { fim: true, de }

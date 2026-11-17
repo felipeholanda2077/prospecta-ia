@@ -264,4 +264,41 @@ test("prévia com a cara da empresa: fotos do Google, avaliações reais, horár
   assert.match(html, /Sobre a Beauty By Ju/);
   assert.match(html, /Cormorant/);
   assert.doesNotMatch(html, /a sua foto aqui/);
+  // Mapa de verdade do Google, no endereço do perfil (e nas coordenadas exatas, quando há).
+  assert.match(html, /<iframe src="https:\/\/www\.google\.com\/maps\?q=Beauty%20By%20Ju%2C%20Av\.%20Exemplo%201&amp;z=17&amp;hl=pt&amp;output=embed"/);
+  assert.match(paginaDaPrevia({ ...lead, lat: 38.738, lng: -9.1497 }, { dados }), /maps\?q=Beauty%20By%20Ju%4038\.738%2C-9\.1497/);
+  // Empresa do CNPJ (endereço da Receita): sem mapa.
+  assert.doesNotMatch(paginaDaPrevia({ ...lead, place_id: null, maps_url: null, origem: "cnpj" }, { dados: {} }), /<iframe/);
+});
+
+test("interessados antigos sem o site de exemplo: recebem a mensagem com o link, uma vez, só se a conversa parou do nosso lado", async () => {
+  const { previasParaInteressados, mensagemDaPrevia } = await import("../src/respostas/followup.js");
+  assert.match(mensagemDaPrevia({ nome: "Beauty By Ju", pais: "PT" }, "L"), /Diga-me o que acha!/);
+  assert.match(mensagemDaPrevia({ nome: "Clínica X" }, "L"), /Me conta o que achou!/);
+  const camp = { ...campanha, automacao: { respostaAutomatica: true } };
+  const criar = async (place, { site = null, ultimaNossa = true } = {}) => {
+    await db.inserirLead({ place_id: place, nome: `Empresa ${place}`, nicho: "salão", cidade: "Osasco - SP", site, origem: "maps" });
+    const [l] = await db.consultar("SELECT id FROM leads WHERE place_id = $1", [place]);
+    await db.atualizarLead(l.id, { status: "respondeu", whatsapp: `5511977${place.slice(-6)}` });
+    const m = await db.criarMensagem({ lead_id: l.id, canal: "whatsapp", destino: `5511977${place.slice(-6)}`, corpo: "Oi", tipo: "inicial", etapa: 1 });
+    await db.atualizarMensagem(m, { status: "enviada", enviada_em: new Date(Date.now() - 50 * 3600_000).toISOString() });
+    await db.criarResposta({ lead_id: l.id, canal: "whatsapp", origem_id: `r-${place}`, de: `5511977${place.slice(-6)}`, texto: "Tenho interesse", classificacao: "interessado", resumo: "x" });
+    await db.consultar("UPDATE respostas SET recebida_em = $2 WHERE lead_id = $1", [l.id, new Date(Date.now() - 49 * 3600_000).toISOString()]);
+    if (ultimaNossa) {
+      const m2 = await db.criarMensagem({ lead_id: l.id, canal: "whatsapp", destino: `5511977${place.slice(-6)}`, corpo: "Entendi!", tipo: "resposta", etapa: 0 });
+      await db.atualizarMensagem(m2, { status: "enviada", enviada_em: new Date(Date.now() - 48 * 3600_000).toISOString() });
+    }
+    return l.id;
+  };
+  const vai = await criar("int-000001");
+  const comSite = await criar("int-000002", { site: "https://x.com.br" });
+  const esperandoResposta = await criar("int-000003", { ultimaNossa: false });
+  await previasParaInteressados(camp, { limite: 10 });
+  const fila = async (id) => db.consultar("SELECT corpo FROM mensagens WHERE lead_id = $1 AND status = 'aprovada'", [id]);
+  assert.match((await fila(vai))[0].corpo, /\/previa\/[\w-]+/);
+  assert.equal((await fila(comSite)).length, 0);
+  assert.equal((await fila(esperandoResposta)).length, 0); // a resposta dela é a IA da conversa que responde
+  await db.consultar("UPDATE mensagens SET status = 'enviada', enviada_em = now() - interval '3 hours' WHERE lead_id = $1", [vai]);
+  await previasParaInteressados(camp, { limite: 10 });
+  assert.equal((await fila(vai)).length, 0); // uma vez só
 });
