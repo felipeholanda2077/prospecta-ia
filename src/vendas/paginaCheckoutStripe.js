@@ -70,6 +70,11 @@ h1{font-size:28px;margin:6px 0 4px}.empresa{color:var(--suave);margin-bottom:18p
 #rapido{margin-bottom:6px}.ou{display:flex;align-items:center;gap:10px;color:var(--suave);font-size:13px;margin:14px 0}.ou::before,.ou::after{content:"";flex:1;height:1px;background:var(--borda)}
 .marcas{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:14px;color:var(--suave);font-size:12.5px}.marcas span{padding:4px 8px;border-radius:7px;background:#fff;color:#1a1f36;font-weight:800;font-size:11.5px;letter-spacing:.02em}
 .stripe{display:inline-flex;align-items:center;gap:6px;margin-top:12px;color:var(--suave);font-size:12.5px}.stripe b{color:#fff;background:#635bff;border-radius:6px;padding:2px 7px;font-size:12px;letter-spacing:.02em}
+.resumo-movel{display:none}
+@media (max-width:859px){.grade{display:flex;flex-direction:column}.grade>.pagamento{order:-1}
+  .resumo-movel{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--borda)}
+  .resumo-movel b{font-size:24px;background:linear-gradient(90deg,var(--ciano),var(--violeta));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .resumo-movel span{color:var(--suave);font-size:14px}}
 .feito{text-align:center;padding:48px 26px}.feito svg{width:64px;height:64px;color:var(--ok)}.feito h1{margin-top:12px}.feito p{color:var(--suave);max-width:30em;margin:8px auto 0}`;
 
 const ESCUDO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>';
@@ -115,7 +120,8 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
       <span><a href="${esc(site)}" target="_blank" rel="noopener">${esc(site.replace(/^https?:\/\//, ""))}</a>${email ? ` · ${esc(email)}` : ""}</span>
       ${whatsapp ? `<span>${esc(t.duvidas)} <a href="${esc(whatsapp)}" target="_blank" rel="noopener">WhatsApp</a></span>` : ""}</div>
   </aside>
-  <section class="painel">
+  <section class="painel pagamento">
+    <div class="resumo-movel"><span>${esc(compra.plano)} · ${esc(compra.empresa)}</span><b>${esc(preco)}</b></div>
     <div id="caixa-rapido" hidden><div class="sub" style="margin-top:0">${esc(t.rapido)}</div><div id="rapido"></div><div class="ou">${esc(t.ouCartao)}</div></div>
     <form id="form">
       <div class="campo"><label for="nome">${esc(t.nome)}</label><input id="nome" autocomplete="name" required></div>
