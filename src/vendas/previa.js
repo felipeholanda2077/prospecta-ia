@@ -311,6 +311,12 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
     ["Onde vocês ficam?", endereco || (cidade ? `Em ${cidade}. Chame no WhatsApp que passamos o endereço.` : "Chame no WhatsApp que passamos o endereço.")],
     [`Como sei o que a ${nome} oferece?`, `Os serviços estão logo acima. Para valores e horários, fale com a gente pelo WhatsApp.`],
   ];
+  // Os cartões de vidro que flutuam na cena 3D do topo: resposta rápida, o serviço principal e a nota (ou a cidade).
+  const chips = [
+    ["⚡", "Resposta rápida", "direto no WhatsApp"],
+    [ramo.icone, primeiro, "Agende pelo WhatsApp"],
+    temNota ? ["⭐", `${notaTexto} no Google`, `${avaliacoesTexto} avaliações`] : cidade ? ["📍", cidade, "Perto de você"] : ["💬", "Atendimento", "humano e próximo"],
+  ];
   const marquee = ramo.servicos.map(([t]) => `<span>${ramo.icone} ${escapar(t)}</span>`).join("");
 
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -427,6 +433,50 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .horario{list-style:none;padding:0;margin:10px 0 0;font-size:14px;color:var(--suave)}.horario li{padding:4px 0;border-bottom:1px dashed var(--borda)}
 @media (max-width:520px){.galeria.reais{grid-template-columns:1fr 1fr}}
 .numeros + .corre{margin-top:34px}
+/* Primeira dobra em 3D: o celular em perspectiva, uma esfera e anéis da cor da marca, um piso quadriculado e cartões
+   de vidro em profundidades diferentes. Tudo inclina com o mouse (ou girando o celular) e balança sozinho parado. */
+.hero .in{grid-template-columns:1fr}
+@media (min-width:880px){.hero .in{grid-template-columns:1.05fr .95fr;padding:64px 16px 72px;min-height:min(640px,88vh)}}
+.hero h1{font-size:clamp(30px,6.4vw,58px);text-shadow:0 2px 24px rgba(0,0,0,.25)}
+.tag::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#4ade80;margin-right:8px;vertical-align:1px;animation:pulsoVerde 2s infinite}
+@keyframes pulsoVerde{0%{box-shadow:0 0 0 0 rgba(74,222,128,.7)}70%{box-shadow:0 0 0 8px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
+.piso3d{position:absolute;left:-50%;right:-50%;bottom:-30%;height:70%;pointer-events:none;opacity:.32;
+  background-image:linear-gradient(color-mix(in srgb,var(--cor) 55%,#fff) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--cor) 55%,#fff) 1px,transparent 1px);
+  background-size:56px 56px;transform:perspective(520px) rotateX(68deg);transform-origin:50% 0;animation:pisoAnda 5s linear infinite;
+  -webkit-mask-image:linear-gradient(to top,transparent 0,#000 55%,transparent 100%);mask-image:linear-gradient(to top,transparent 0,#000 55%,transparent 100%)}
+@keyframes pisoAnda{to{background-position:0 56px,0 0}}
+.cena3d{position:relative;justify-self:center;width:min(460px,100%);height:540px;perspective:1100px;perspective-origin:50% 40%}
+.palco{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateX(6deg) rotateY(-14deg);transition:transform .6s cubic-bezier(.2,.7,.2,1);animation:balanco 9s ease-in-out infinite alternate}
+.palco.mexendo{animation:none}
+@keyframes balanco{from{transform:rotateX(7deg) rotateY(-20deg)}to{transform:rotateX(2deg) rotateY(-6deg)}}
+.camada{position:absolute;transform-style:preserve-3d}
+.camada.fone{left:50%;top:50%;transform:translate3d(-50%,-50%,40px)}
+.cena3d .celular{width:250px;box-shadow:0 40px 70px -24px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08)}
+.camada.orbe{left:56%;top:4%;transform:translateZ(-150px)}
+.orbe i{display:block;width:200px;height:200px;border-radius:50%;animation:flutua 7s ease-in-out infinite alternate;
+  background:radial-gradient(circle at 32% 28%,#fff 0,color-mix(in srgb,var(--cor) 55%,#fff) 12%,var(--cor) 45%,var(--hero2) 100%);
+  box-shadow:0 30px 90px -10px color-mix(in srgb,var(--cor) 70%,transparent),inset -20px -26px 44px rgba(0,0,0,.35)}
+.camada.aneis{left:50%;top:58%;width:0;height:0;transform:translateZ(-70px) rotateX(74deg)}
+.aneis i{position:absolute;left:0;top:0;border-radius:50%;border:2px solid color-mix(in srgb,var(--cor) 60%,#fff);animation:gira 18s linear infinite}
+.aneis i:nth-child(1){width:400px;height:400px;margin:-200px 0 0 -200px;border-style:dashed;opacity:.6}
+.aneis i:nth-child(2){width:310px;height:310px;margin:-155px 0 0 -155px;opacity:.4;animation-duration:12s;animation-direction:reverse}
+.aneis i:nth-child(3){width:220px;height:220px;margin:-110px 0 0 -110px;opacity:.75;border-width:3px;border-color:transparent;border-top-color:color-mix(in srgb,var(--cor) 40%,#fff);border-right-color:color-mix(in srgb,var(--cor) 40%,#fff);animation-duration:6s}
+@keyframes gira{to{transform:rotate(360deg)}}
+.camada.chao{left:50%;top:90%;transform:translate3d(-50%,-50%,-10px) rotateX(82deg)}.chao i{display:block;width:320px;height:320px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.5),transparent)}
+.chip{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:16px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:#fff;font-size:12.5px;line-height:1.25;white-space:nowrap;max-width:230px;
+  box-shadow:0 22px 44px -18px rgba(0,0,0,.65);animation:flutua 5s ease-in-out infinite alternate}
+.chip b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis}.chip small{display:block;opacity:.82}.chip>span:last-child{min-width:0}
+.chip .ic3{flex:none;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:18px;background:var(--cor);color:var(--tinta);box-shadow:0 8px 18px -8px var(--cor)}
+.camada.k1{left:-4%;top:9%;transform:translateZ(120px)}.camada.k2{right:-6%;top:44%;transform:translateZ(150px)}.camada.k3{left:-2%;bottom:9%;transform:translateZ(100px)}
+@media (min-width:521px) and (max-width:879px){.cena3d{height:520px;width:min(480px,100%)}}
+@media (max-width:520px){.cena3d{height:430px;width:100%;margin-top:-6px}.cena3d .celular{width:200px;border-radius:28px;padding:8px}.cena3d .tela{border-radius:22px;font-size:12.5px}
+  .cena3d .conversa{min-height:190px;padding:12px 10px 16px}.orbe i{width:130px;height:130px}.camada.orbe{left:60%;top:3%}
+  .camada.aneis{transform:translateZ(-70px) rotateX(74deg) scale(.72)}.chao i{width:240px;height:240px}
+  .chip{padding:7px 10px;gap:8px;font-size:11px;max-width:52vw;border-radius:13px}.chip b{font-size:12.5px}.chip .ic3{width:28px;height:28px;font-size:14px;border-radius:9px}
+  .camada.k1{left:0;top:5%;transform:translateZ(110px)}.camada.k2{right:0;top:46%;transform:translateZ(140px)}.camada.k3{left:0;bottom:7%;transform:translateZ(90px)}
+  .hero .in{gap:12px}.piso3d{background-size:40px 40px}}
+@media (prefers-reduced-motion:reduce){.palco{transform:rotateX(5deg) rotateY(-12deg)!important}}
 .logo-img{flex:none;width:42px;height:42px;border-radius:12px;object-fit:cover;background:#fff;box-shadow:0 0 0 1px var(--borda)}.logo-img.larga{width:auto;max-width:170px;height:42px;object-fit:contain;border-radius:8px;padding:3px 6px;box-shadow:none}
 .logo-redonda{border-radius:50%;object-fit:cover;padding:0;background:#fff}
 .hero-logo.larga{width:auto;max-width:min(300px,80%);height:auto;max-height:110px;object-fit:contain;padding:14px 22px}
@@ -471,7 +521,7 @@ footer{border-top:1px solid var(--borda);color:var(--suave);font-size:13px;text-
 <div class="faixa"><span><b>Rascunho</b> feito pela ${escapar(marca)} para a ${escapar(nome)}, com informações públicas${doGoogle ? " do Google" : ""}.</span>${oferta}${gostou}</div>
 <header class="topo"><div class="in"><div class="logo">${logo}</div>
 <nav><a href="#servicos">Serviços</a><a href="#galeria">Galeria</a><a href="#como">Como funciona</a><a href="#contato">Contato</a></nav>${link("botao")}</div></header>
-<div class="hero">${fotos[0] ? `<span class="fundo-foto" style="background-image:url('${escapar(fotos[0])}')"></span>` : ""}<span class="bolha b1"></span><span class="bolha b2"></span>
+<div class="hero">${fotos[0] ? `<span class="fundo-foto" style="background-image:url('${escapar(fotos[0])}')"></span>` : ""}<span class="piso3d"></span><span class="bolha b1"></span><span class="bolha b2"></span>
 ${enfeites.map((e, i) => `<span class="enfeite" style="left:${[6, 82, 48, 18, 70][i]}%;top:${[18, 12, 78, 70, 55][i]}%;animation-delay:-${i * 1.7}s;animation-duration:${8 + i * 1.5}s">${e}</span>`).join("")}
 <div class="in"><div>
 ${logoImg ? `<img class="hero-logo sobe${dados.logoLarga ? " larga" : ""}" src="${escapar(logoImg)}" alt="Logo ${escapar(nome)}"${dados.logoLarga ? fundoLogo : ""}>` : ""}${subtitulo ? `<span class="tag sobe">${escapar(subtitulo)}</span>` : ""}
@@ -480,9 +530,13 @@ ${logoImg ? `<img class="hero-logo sobe${dados.logoLarga ? " larga" : ""}" src="
 <div class="acoes sobe d3">${link("botao")}${mapa ? link("botao vazado", "Como chegar", mapa) : link("botao vazado", "Ver serviços", "#servicos")}</div>
 ${temNota ? `<div class="nota sobe d4"><span class="est">${estrelas(nota)}</span><span><b>${notaTexto}</b> · ${avaliacoesTexto} avaliações no Google</span></div>` : ""}
 </div>
-<div class="celular" aria-hidden="true"><div class="tela"><header>${logoImg ? `<img class="sigla logo-redonda" src="${escapar(logoImg)}" alt="">` : `<span class="sigla">${escapar(iniciais)}</span>`}<div><b>${escapar(nome)}</b><small>online</small></div></header>
+<div class="cena3d" aria-hidden="true"><div class="palco">
+<div class="camada orbe"><i></i></div><div class="camada aneis"><i></i><i></i><i></i></div><div class="camada chao"><i></i></div>
+<div class="camada fone"><div class="celular"><div class="tela"><header>${logoImg ? `<img class="sigla logo-redonda" src="${escapar(logoImg)}" alt="">` : `<span class="sigla">${escapar(iniciais)}</span>`}<div><b>${escapar(nome)}</b><small>online</small></div></header>
 <div class="conversa"><div class="msg ela m1">Oi! Queria saber sobre ${escapar(primeiro.toLowerCase())} 😊</div><div class="digitando"><i></i><i></i><i></i></div>
-<div class="msg nos m2">Oi! Claro, te explico agora. Qual o melhor horário para você?</div><div class="msg ela m3">Perfeito, obrigado pela rapidez! 🙌</div></div></div></div>
+<div class="msg nos m2">Oi! Claro, te explico agora. Qual o melhor horário para você?</div><div class="msg ela m3">Perfeito, obrigado pela rapidez! 🙌</div></div></div></div></div>
+${chips.map((c, i) => `<div class="camada k${i + 1}"><div class="chip" style="animation-delay:-${i * 1.6}s"><span class="ic3">${c[0]}</span><span><b>${escapar(c[1])}</b><small>${escapar(c[2])}</small></span></div></div>`).join("")}
+</div></div>
 </div></div>
 <section class="numeros">${numeros.map((x, i) => `<div class="numero rv" style="--atraso:${i * 0.1}s"><em>${x.icone}</em><b data-conta="${x.valor}" data-casas="${x.casas}">${escapar(x.texto)}</b><span>${escapar(x.rotulo)}</span></div>`).join("")}</section>
 <div class="corre" aria-hidden="true"><div class="trilho">${marquee}${marquee}</div></div>
@@ -528,6 +582,14 @@ ${perguntas.map(([p, r], i) => `<details class="rv" style="--atraso:${i * 0.08}s
     var io = new IntersectionObserver(function(es){ es.forEach(function(e){ if (e.isIntersecting) { mostrar(e.target); io.unobserve(e.target); } }); }, { threshold: 0.15 });
     document.querySelectorAll(".rv").forEach(function(el){ io.observe(el); });
   }
+  // Cena 3D do topo: inclina com o mouse ou girando o celular; parada, balança sozinha.
+  var hero = document.querySelector(".hero"), palco = document.querySelector(".palco");
+  if (hero && palco && !parado) {
+    var inclinar = function(x, y){ palco.classList.add("mexendo"); palco.style.transform = "rotateX(" + (6 - y * 16).toFixed(2) + "deg) rotateY(" + (-12 + x * 30).toFixed(2) + "deg)"; };
+    hero.addEventListener("pointermove", function(e){ if (e.pointerType !== "mouse") return; var r = hero.getBoundingClientRect(); inclinar((e.clientX - r.left) / r.width - .5, (e.clientY - r.top) / r.height - .5); });
+    hero.addEventListener("pointerleave", function(){ palco.classList.remove("mexendo"); palco.style.transform = ""; });
+    addEventListener("deviceorientation", function(e){ if (e.gamma == null || e.beta == null) return; inclinar(Math.max(-1, Math.min(1, e.gamma / 35)) * .5, Math.max(-1, Math.min(1, (e.beta - 50) / 35)) * .5); });
+  }
   var barra = document.getElementById("progresso");
   addEventListener("scroll", function(){ var h = document.documentElement.scrollHeight - innerHeight; barra.style.transform = "scaleX(" + (h > 0 ? scrollY / h : 0) + ")"; }, { passive: true });
 })();
@@ -548,7 +610,8 @@ const PORTUGAL = [
   ["Vocês atendem pelo WhatsApp?", "Atendem pelo WhatsApp?"], ["Sim! Toque no botão verde e fale direto com a gente.", "Sim! Toque no botão verde e fale connosco diretamente."],
   ["Onde vocês ficam?", "Onde ficam?"], ["Chame no WhatsApp que passamos o endereço.", "Fale connosco no WhatsApp e enviamos a morada."],
   ["fale com a gente pelo WhatsApp", "fale connosco pelo WhatsApp"], ["responde rapidinho pelo WhatsApp", "responde num instante pelo WhatsApp"],
-  ["Resposta rápida, sem fila.", "Resposta rápida, sem filas."], ["<b>Equipe</b>", "<b>Equipa</b>"],
+  ["Resposta rápida, sem fila.", "Resposta rápida, sem filas."], ["direto no WhatsApp", "diretamente no WhatsApp"],
+  ["Agende pelo WhatsApp", "Marque pelo WhatsApp"], ["Perto de você", "Perto de si"], ["<b>Equipe</b>", "<b>Equipa</b>"],
   // Salão de beleza e estética
   ["Beleza e autoestima com hora marcada", "Beleza e autoestima, com marcação"], ["num espaço pensado para você.", "num espaço pensado para si."],
   ["Corte, coloração, escova e tratamentos.", "Corte, coloração, brushing e tratamentos."], ["Manicure, pedicure e alongamento.", "Manicure, pedicure e unhas de gel."],
