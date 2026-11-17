@@ -117,7 +117,7 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
       <li>${RECIBO}<span><b>${esc(t.recibo)}</b>${esc(t.reciboTxt)}</span></li>
     </ul>
     <div class="quem"><span>${esc(t.empresaTitulo)}</span><b>FluxDeck</b><span>CNPJ ${CNPJ_FLUXDECK}</span>
-      <span><a href="${esc(site)}" target="_blank" rel="noopener">${esc(site.replace(/^https?:\/\//, ""))}</a>${email ? ` · ${esc(email)}` : ""}</span>
+      <span><a href="${esc(site)}" target="_blank" rel="noopener">${esc(site.replace(/^https?:\/\//, "").replace(/\/.*$/, ""))}</a>${email ? ` · ${esc(email)}` : ""}</span>
       ${whatsapp ? `<span>${esc(t.duvidas)} <a href="${esc(whatsapp)}" target="_blank" rel="noopener">WhatsApp</a></span>` : ""}</div>
   </aside>
   <section class="painel pagamento">

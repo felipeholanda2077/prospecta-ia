@@ -173,7 +173,8 @@ app.get("/checkout/x/:codigo", async (req, res) => {
   // O site de exemplo da empresa (quando ela tem), para quem paga ver de novo o que está a comprar.
   const previa = (!compra.lead.pais || ["BR", "PT"].includes(compra.lead.pais)) ? enderecoDaPrevia(compra.lead, origemDaPrevia(campanha)) : "";
   res.set(SEM_MOLDURA).send(paginaDoCheckoutStripe(compra, { publica, base: `/checkout/x/${compra.codigo}`, previa,
-    email: empresa.email || "", site: empresa.site || "https://fluxdeck.com.br",
+    // O site de fora do Brasil (fluxdeck.com.br/en, com os preços em euro), nunca a versão do Brasil em reais.
+    email: empresa.email || "", site: `${origemDaPrevia(campanha)}/en`,
     whatsapp: telefone ? `https://wa.me/${telefone.startsWith("55") ? telefone : `55${telefone}`}` : "" }));
 });
 app.post("/checkout/x/:codigo/intencao", async (req, res) => {
