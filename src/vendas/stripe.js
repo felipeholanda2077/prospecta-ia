@@ -317,19 +317,6 @@ export async function registrarDominio(dominio) {
   return { dominio: d.domain_name, applePay: d.apple_pay?.status ?? null, googlePay: d.google_pay?.status ?? null, link: d.link?.status ?? null, id: d.id };
 }
 
-/** Liga o Link na configuração de meios de pagamento da conta (uma vez; se a conta não puder, só registra). */
-async function garantirLink() {
-  if (await db.lerEstado("stripe_link_ligado")) return;
-  try {
-    const r = await ligarMeiosDePagamento(["link"]);
-    const link = r.meios.find((m) => m.tipo === "link");
-    if (!link?.ligado) console.error("Link do Stripe não ficou ligado:", JSON.stringify(link ?? "a conta não tem o Link"));
-    await db.gravarEstado("stripe_link_ligado", JSON.stringify({ em: new Date().toISOString(), link: link ?? null }));
-  } catch (e) {
-    console.error("Não deu para ligar o Link do Stripe:", e.message);
-  }
-}
-
 const chaveDoCheckout = (codigo) => `checkout_x:${codigo}`;
 
 /** Cria (ou reaproveita) o checkout transparente desta empresa e deste valor. Retorna o endereço da página. */
@@ -364,20 +351,14 @@ export async function intencaoDoCheckout(codigo) {
   if (salvo) {
     const pi = await chamar(`/payment_intents/${encodeURIComponent(salvo)}`);
     if (pi.status === "succeeded") throw new Error(compra.pais === "PT" ? "Este pagamento já foi feito." : "This payment was already made.");
-    // Intenção antiga sem o Link (criada antes de ele ser ligado na conta): cancela e cria outra, uma vez só.
-    const semLink = pi.status === "requires_payment_method" && !(pi.payment_method_types ?? []).includes("link")
-      && !(await db.lerEstado(`checkout_x_semlink:${pi.id}`));
-    if (semLink) await chamar(`/payment_intents/${encodeURIComponent(pi.id)}/cancel`, { metodo: "POST", campos: {} }).catch(() => null);
-    else if (pi.status !== "canceled") return { clientSecret: pi.client_secret };
+    if (pi.status !== "canceled") return { clientSecret: pi.client_secret };
   }
-  // Os meios vêm da configuração da conta (o Stripe não aceita mais escolher no código): o Link é ligado nela.
-  await garantirLink();
+  // Os meios vêm da configuração da conta no Stripe. O Link não existe para conta do Brasil (o Stripe não oferece).
   const pi = await chamar("/payment_intents", { metodo: "POST", campos: {
     amount: String(Math.round(compra.valor * 100)), currency: compra.moeda.toLowerCase(), "automatic_payment_methods[enabled]": "true",
     description: `FluxDeck · ${compra.nome} · ${compra.empresa}`.slice(0, 300),
     "metadata[lead_id]": String(compra.leadId), "metadata[plano]": compra.nome, "metadata[checkout]": codigo,
   } });
-  if (!(pi.payment_method_types ?? []).includes("link")) await db.gravarEstado(`checkout_x_semlink:${pi.id}`, "1");
   await db.gravarEstado(`checkout_x_pi:${codigo}`, pi.id);
   return { clientSecret: pi.client_secret };
 }
