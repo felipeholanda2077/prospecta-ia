@@ -185,10 +185,8 @@ Etapa 2 — se não houver resposta (WhatsApp: ~2 horas depois; e-mail: 1 dia ú
 - WhatsApp: até ~350 caracteres. E-mail: 60 a 100 palavras.
 
 Etapa 3 — último toque (WhatsApp: ~2 horas depois da etapa 2; e-mail: 2 dias úteis depois da etapa 2):
-- Convide para um bate-papo rápido de 15 minutos, sem compromisso, para mostrar exemplos parecidos com o negócio deles
-  e entender o que precisam.
-- Coloque o marcador ${MARCADOR_LINK} SOZINHO na última linha: ele vira o link para a pessoa escolher o horário.
-  Escreva o convite de modo que faça sentido mesmo se essa linha for removida.
+- Ofereça preparar, sem compromisso, um exemplo de como ficaria para eles (o site ou o atendimento, ligado à dor): é
+  só responder aqui (ex.: um "quero ver"). NÃO convide para reunião, chamada ou bate-papo e não coloque link.
 - Deixe claro, com gentileza, que é a última mensagem e que tudo bem se não for o momento.
 - WhatsApp: até ~350 caracteres além do link. E-mail: 60 a 100 palavras além do link.
 

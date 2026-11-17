@@ -203,6 +203,32 @@ const REGRA_DA_OFERTA = `EXCEÇÃO: a ${"${empresa}"} recebeu a prévia do site 
   ${OFERTA_SITE.plano} que está na apresentação (se houver): para esse site não precisa de bate-papo.`;
 const regraDaOferta = (lead) => (ofertaLiberada(lead) ? REGRA_DA_OFERTA.replace("${empresa}", lead.nome) : "");
 
+// A pessoa pediu para conversar (ligação, reunião, chamada): só aí a IA pode convidar e mandar o link de agendamento.
+const PEDIU_CONVERSA = /\b(liga[çc][ãa]o|ligar|liga pra|telefonar|reuni[ãa]o|call|chamada|videochamada|bate-?papo|conversar por|falar com (?:voc[eê]|algu[eé]m))\b/i;
+export const pediuConversa = (texto, historico = []) => [texto, ...(historico ?? []).filter((h) => h.autor === "lead").map((h) => h.texto)]
+  .some((t) => PEDIU_CONVERSA.test(String(t ?? "").replace(/^\[áudio\]\s*/, "")));
+
+// Convite para reunião ou chamada, ou link de agendamento (Calendly), numa frase.
+const CONVITE_PARA_AGENDAR = /calendly\.com|\b(?:numa|uma|na|pela|por)\s+(?:chamada|call|videochamada|reuni[ãa]o|liga[çc][ãa]o)\b|\bmarc(?:ar|arem|armos|amos|ue|uem|quem)\b[^.!?\n]{0,40}\b(?:conversa|chamada|call|reuni[ãa]o|bate-?papo|liga[çc][ãa]o|hor[áa]rio)\b|\bbate-?papo\b/i;
+
+/**
+ * Sem pedido de conversa, a mensagem não leva convite para reunião/chamada nem link de agendamento (pedido de
+ * 17/11/2026: a IA mostra o site de exemplo em vez de agendar). Sai a frase (ou o item) com o convite; se não sobrar
+ * nada, a mensagem fica como está.
+ */
+export function semAgendamento(texto) {
+  if (!texto || !CONVITE_PARA_AGENDAR.test(texto)) return texto;
+  const linhas = [];
+  for (const linha of String(texto).split("\n")) {
+    if (!CONVITE_PARA_AGENDAR.test(linha)) { linhas.push(linha); continue; }
+    if (ITEM_DE_LISTA.test(linha)) continue;
+    const frases = linha.split(/(?<=[.!?])\s+/).filter((f) => !CONVITE_PARA_AGENDAR.test(f));
+    if (frases.length) linhas.push(frases.join(" "));
+  }
+  const limpo = linhas.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  return limpo || texto;
+}
+
 const FALA_DE_CONVITE = /\b(bate-papo|bate papo|call|reuni[ãa]o)\b|\bmarcar(mos)? (um|uma) (conversa|liga[çc][ãa]o|videochamada)|calendly/i;
 
 /**
@@ -287,13 +313,12 @@ function comoConvidar(linkAgendamento, horarios = [], ela = "a pessoa") {
  */
 function comoOferecerPrevia(linkPrevia, lead) {
   if (!linkPrevia) return "";
-  return `- PRÉVIA DO SITE: a ${lead.nome} não tem site próprio, e você já deixou pronto um rascunho de como ficaria o site
-  dela: ${linkPrevia}
-  Se a dor ou a pergunta tem a ver com presença online (site, aparecer no Google, mostrar o trabalho na internet, pediu
-  uma apresentação, um exemplo ou algo para dar uma olhada) e a pessoa não recusou, ofereça o link UMA vez, numa frase
-  natural (ex.: "Fiz um rascunho de como ficaria o site de vocês, dá uma olhada: <link>"), e termine perguntando o que
-  ela achou ou o que mudaria. Mande o link exatamente como está. É um presente, não uma proposta: sem preço e sem convite
-  para bate-papo por causa dele. Se a dor é outra (atendimento, agenda, gestão), não mande o link.
+  return `- SITE DE EXEMPLO (o próximo passo desta conversa): a ${lead.nome} não tem site próprio, e você já deixou pronto
+  um exemplo de como ficaria o site dela, com o nome, os serviços e o WhatsApp dela: ${linkPrevia}
+  Mande o link quando a pessoa pedir um exemplo, uma apresentação, "como ficaria", ou mostrar interesse (ou quando você
+  iria propor uma reunião: no lugar da reunião, vai o exemplo). UMA vez, numa frase natural (ex.: "Preparei um exemplo
+  de como ficaria o site de vocês, dá uma olhada: <link>"), e termine perguntando o que ela achou ou o que mudaria.
+  Mande o link exatamente como está. Nunca diga que o exemplo fica para uma reunião ou chamada.
 `;
 }
 
@@ -312,7 +337,8 @@ export async function classificarResposta({ texto, assunto, lead, historico, cam
     system: `${contextoEmpresa(campanha, { semValores: Boolean(apresentacao) })}
 
 Você conduz, aos poucos e com naturalidade, uma conversa com uma empresa (de prospecção, ou de alguém que chamou
-por conta própria). O objetivo é levar a empresa a marcar um bate-papo${linkAgendamento ? " pelo link de agendamento" : ""}. Classifique a última resposta
+por conta própria). O objetivo é a empresa ver um exemplo concreto do que vocês fazem${linkPrevia ? " (o site de exemplo dela)" : ""}, gostar e querer
+contratar: NÃO puxe para reunião, chamada ou agendamento (só se ela pedir). Classifique a última resposta
 e escreva a PRÓXIMA mensagem da conversa.
 ${apresentacao ? `
 Apresentação da ${campanha.empresa.nome} (como funciona, planos e prazos; use só o que está aqui). Hoje é ${hoje()}:
@@ -350,10 +376,9 @@ ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, co
 ` : `- Preço: não passe valor de cara. Se perguntarem, diga que depende do que eles precisam e convide para o bate-papo
   rápido, onde você mostra exemplos e passa o valor certo. Só se insistirem depois disso, diga o "a partir de" do catálogo.
 ${ofertaLiberada(lead) ? `  ${regraDaOferta(lead)}
-` : ""}`}- Só convide para o bate-papo quando ${chegaDePerguntas ? "fizer sentido depois de explicar (já pode), ou " : ""}dor_entendida for true (você já sabe exatamente o que ela precisa e por quê) e
-  ela mostrar interesse, OU quando ela mesma pedir (ligação, reunião, call, orçamento, "como funciona"). Fora isso, NÃO
-  fale de bate-papo, call, reunião nem agenda: continue descobrindo.
-- Na hora de convidar: convide para o bate-papo${comoConvidar(linkAgendamento, horarios)}.
+` : ""}`}- Reunião, chamada, bate-papo ou agenda: SÓ se a pessoa pedir (ligação, reunião, falar com alguém). Aí convide${comoConvidar(linkAgendamento, horarios)}.
+  Fora isso, NUNCA convide nem mande link de agendamento: quando ela mostrar interesse ou pedir um exemplo, o próximo
+  passo é mostrar o exemplo${linkPrevia ? " (o site de exemplo acima)" : ""}${chegaDePerguntas ? "" : ", ou continuar entendendo o que ela precisa"}.
 - Se a pessoa já recebeu o link e disse que vai marcar, agradeça em uma frase, sem insistir.
 ${comoOferecerPrevia(linkPrevia, lead)}- Nunca repita frases ou informações que já aparecem no histórico. Não invente fatos, prazos ou descontos.
 - Se o histórico já tem mensagem sua, NÃO cumprimente de novo (nada de "Bom dia!", "Boa tarde!", "Olá!") e NÃO se
@@ -390,7 +415,7 @@ ${comoOferecerPrevia(linkPrevia, lead)}- Nunca repita frases ou informações qu
   "do que se trata?"): responda normalmente.
 - Marque precisa_humano só quando: pedirem ligação, negociarem preço ou condições, reclamarem, ou o assunto não tiver
   nada a ver com o seu trabalho (ex.: currículo, cobrança, fornecedor). Mesmo assim escreva uma sugestão curta, em primeira pessoa, para ${quem} revisar. Pedir um serviço que
-  não está na lista não é motivo para isso: responda e leve para o bate-papo.
+  não está na lista não é motivo para isso: responda e mostre como vocês resolveriam.
 - Tamanho: ${limite}. Português do Brasil, frases curtas, no máximo 1 emoji.
 - Sem interesse: a sugestão é um agradecimento curto e cordial (1 ou 2 frases), sem pergunta, sem oferta, sem link,
   deixando a porta aberta (ex.: "Imagina, obrigado pelo retorno! Fico à disposição se precisarem no futuro.").
@@ -481,10 +506,12 @@ A pessoa demonstrou interesse. Escreva a próxima mensagem da conversa (${NOME_D
      não perguntou de preço); no fim, uma frase dizendo que você passa os valores se ela quiser;${ofertaLiberada(lead) ? `
      ${regraDaOferta(lead)} Se ela quer site, comece pelo ${OFERTA_SITE.plano}, com "de ${PRECO_DE} por ${PRECO_POR}, valor único".` : ""}`}
    - em quanto tempo fica pronto.
-3. Se ela pediu algo que não está na apresentação, uma frase sincera dizendo que isso vocês veem juntos no bate-papo.${linkPrevia ? `
+3. Se ela pediu algo que não está na apresentação, uma frase sincera dizendo que isso vocês combinam com ela.${linkPrevia ? `
    E uma linha dizendo que você já fez um rascunho de como ficaria o site da ${lead.nome}, com este link exatamente como
    está: ${linkPrevia}` : ""}
-4. Feche dizendo que, se ela quiser saber mais, vocês marcam um bate-papo${comoConvidar(linkAgendamento, horarios, "ela")}.
+4. Feche com UMA pergunta simples sobre avançar (ex.: o que ela achou do exemplo, ou se quer que você prepare o dela).
+   NÃO convide para reunião, chamada ou bate-papo e não mande link de agendamento${pediuConversa(texto, historico) ? `, a não ser que ela tenha pedido: aí convide${comoConvidar(linkAgendamento, horarios, "ela")}` : ""}.
+   Nunca diga que o exemplo fica para uma reunião.
 Promoção com data (ex.: só em novembro): hoje é ${hoje()}. Se ainda não começou, conte como novidade que vem aí; se
 já acabou, não cite.
 Até ~1.200 caracteres. Português do Brasil, simples e direto, no máximo 1 emoji.${FORMATO_DO_CANAL[canal] ?? FORMATO_DO_CANAL.whatsapp}

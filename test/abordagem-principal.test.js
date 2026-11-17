@@ -207,3 +207,17 @@ test("fila parada (ex.: número reconectado): a primeira mensagem antiga sai já
   assert.equal((await db.buscarMensagem(ids[1])).corpo, "de R$ 950 por R$ 500");
   await db.gravarConfig("abordagem_principal", { ativa: false });
 });
+
+test("prévia de Portugal: português de Portugal, WhatsApp com o 351 e sem a oferta em reais", () => {
+  const lead = { nome: "Beauty By Ju", nicho: "Salão de beleza", cidade: "Lisboa, Portugal", pais: "PT", place_id: "x", maps_url: "https://maps.google.com/?cid=1",
+    endereco: "Av. Exemplo 1, Lisboa", avaliacao: 5, total_avaliacoes: 144, whatsapp: "351912253028", telefone: "+351 912 253 028", token: "t", origem: "campanha" };
+  const html = paginaDaPrevia(lead, { marca: "FluxDeck", agora: DURANTE });
+  assert.match(html, /lang="pt-PT"/);
+  assert.match(html, /wa\.me\/351912253028\?/);
+  assert.doesNotMatch(html, /wa\.me\/55351/);
+  assert.doesNotMatch(html, /R\$|Black Friday/);
+  assert.match(html, /Fale connosco/);
+  assert.match(html, /Beleza e autoestima, com marcação em Lisboa/);
+  const texto = html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/g, "");
+  assert.doesNotMatch(texto, /você|a gente|Equipe|Oi!/i);
+});

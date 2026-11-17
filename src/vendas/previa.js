@@ -36,29 +36,37 @@ export function origemDaPrevia(campanha) {
   }
 }
 
-// A pessoa falou de algo ligado a presença online (ou pediu algo para ver).
-const FALA_DE_PRESENCA = /\bsites?\b|\bp[aá]gina\b|\binternet\b|\bweb\b|\bgoogle\b|\bon-?line\b|\binstagram\b|\bredes? sociais\b|\baparecer\b|\bdivulga|\bapresenta[çc](?:[ãa]o|[õo]es)\b|\bportf[oó]lio\b|\bdar uma olhada\b|\bexemplos?\b|\bcomo (?:ficaria|fica)\b|\bpresen[çc]a\b|\bclientes? novos?\b|\bnovos? clientes?\b/i;
 // ...mas já tem site, ou disse que não quer: a prévia não faz sentido.
 const JA_TEM_SITE = /\bj[aá] (?:temos|tenho|tem|possu[ií]mos|possuo)\s+(?:um\s+)?site\b|\b(?:nosso|meu)\s+site\b|\bsite\s+(?:nosso|pr[oó]prio)\s+j[aá]\b/i;
+const PAISES_DA_PREVIA = ["BR", "PT"];
 const NAO_QUER = /\bn[aã]o\s+(?:quero|queremos|preciso|precisamos|tenho interesse|temos interesse|me interessa|nos interessa)\b/i;
 
 /** O link da prévia já foi mandado nesta conversa (por nós). */
 export const jaOfereceuPrevia = (historico = []) => historico.some((h) => h.autor === "nos" && /\/previa\/[\w-]+/.test(h.texto ?? ""));
 
 /**
- * É hora de oferecer a prévia? Retorna o link (para a IA usar) ou "" (a IA nem fica sabendo dele).
- * Precisa: empresa sem site próprio, link ainda não mandado, e a pessoa ter falado de presença online
- * (site, Google, internet, Instagram, aparecer, pediu uma apresentação ou algo para dar uma olhada),
- * sem ter dito que já tem site ou que não quer.
+ * A prévia está disponível para esta conversa? Retorna o link (para a IA usar) ou "" (a IA nem fica sabendo dele).
+ * Precisa: empresa sem site próprio (do Brasil ou de Portugal), link ainda não mandado, sem a pessoa ter dito que já
+ * tem site ou que não quer. Desde 17/11/2026 a prévia é o próximo passo da conversa no lugar da reunião: a IA manda
+ * quando a pessoa mostra interesse ou pede um exemplo (pedido do usuário).
  */
 export function momentoDaPrevia({ lead, historico = [], texto = "", origem }) {
-  // A prévia do site é em português: não vai para empresa de fora do Brasil.
-  if (lead?.pais && lead.pais !== "BR") return "";
+  // A prévia do site é em português (do Brasil, ou de Portugal para as empresas de lá).
+  if (lead?.pais && !PAISES_DA_PREVIA.includes(lead.pais)) return "";
   if (!podeTerPrevia(lead) || jaOfereceuPrevia(historico)) return "";
   const dela = [...historico.filter((h) => h.autor === "lead").map((h) => h.texto ?? ""), texto ?? ""].join("\n");
-  if (!FALA_DE_PRESENCA.test(dela) || JA_TEM_SITE.test(dela) || NAO_QUER.test(texto ?? "")) return "";
+  if (JA_TEM_SITE.test(dela) || NAO_QUER.test(texto ?? "")) return "";
   return enderecoDaPrevia(lead, origem);
 }
+
+/** A pessoa pediu para ver um exemplo (ou como ficaria): aí a prévia vai, sempre, em vez de explicação ou reunião. */
+export const pediuExemplo = (texto) => PEDIU_EXEMPLO.test(String(texto ?? "").replace(/^\[áudio\]\s*/, ""));
+const PEDIU_EXEMPLO = /\bexemplos?\b|\bcomo (?:ficaria|fica|seria)\b|\b(?:me |nos )?mostr(?:a|ar|e|em)\b|\bquero ver\b|\bpode(?:mos)? ver\b|\bdar uma (?:olhada|vista de olhos)\b|\bmodelo\b|\bportf[oó]lio\b/i;
+
+/** A frase da prévia que vai junto quando a IA esqueceu o link (no português de cada país). */
+export const fraseDaPrevia = (lead, link) => (lead?.pais === "PT"
+  ? `Preparei um exemplo de como ficaria o vosso site: ${link}\nDiga-me o que acha!`
+  : `Montei um exemplo de como ficaria o site de vocês: ${link}\nMe conta o que achou!`);
 
 // O link só sai numa conversa que segue: não para quem recusou, robô, despedida ou conversa que vai para o vendedor.
 const CLASSIFICACOES_COM_PREVIA = ["interessado", "quer_informacoes", "outro"];
@@ -230,10 +238,13 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
 
   const zap = digitos(lead.whatsapp);
   const fone = digitos(lead.telefone);
+  // Número do Brasil ganha o 55; o de fora já vem com o código do país (ex.: 351 de Portugal).
+  const deFora = Boolean(lead.pais) && lead.pais !== "BR";
+  const comPais = (d) => (deFora || d.startsWith("55") ? d : `55${d}`);
   const textoZap = encodeURIComponent(`Olá! Vi o site da ${nome} e queria mais informações.`);
   const contato = zap.length >= 10
-    ? { href: `https://wa.me/${zap.startsWith("55") ? zap : `55${zap}`}?text=${textoZap}`, rotulo: "Chamar no WhatsApp" }
-    : fone.length >= 8 ? { href: `tel:+${fone.startsWith("55") ? fone : `55${fone}`}`, rotulo: "Ligar agora" } : { href: "#contato", rotulo: "Fale com a gente" };
+    ? { href: `https://wa.me/${comPais(zap)}?text=${textoZap}`, rotulo: "Chamar no WhatsApp" }
+    : fone.length >= 8 ? { href: `tel:+${comPais(fone)}`, rotulo: "Ligar agora" } : { href: "#contato", rotulo: "Fale com a gente" };
   const link = (classe, rotulo = contato.rotulo, href = contato.href) =>
     `<a class="${classe}" href="${escapar(href)}"${href.startsWith("#") ? "" : ' target="_blank" rel="noopener noreferrer"'}>${escapar(rotulo)}</a>`;
 
@@ -242,7 +253,7 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
     ? `<a href="https://wa.me/${zapMarca.startsWith("55") ? zapMarca : `55${zapMarca}`}?text=${encodeURIComponent(`Oi! Vi o rascunho do site da ${nome}.`)}" target="_blank" rel="noopener noreferrer">Gostou? Fale comigo</a>`
     : "<span>Gostou? É só responder a nossa conversa.</span>";
   // A oferta do site da Black Friday (enquanto vale): este site no ar por R$ 500, valor único.
-  const oferta = ofertaSiteAtiva(agora)
+  const oferta = !deFora && ofertaSiteAtiva(agora)
     ? `<span class="oferta">Black Friday: este site no ar de <s>${escapar(PRECO_DE)}</s> por <b>${escapar(PRECO_POR)}</b>, valor único, até ${escapar(OFERTA_SITE.ateTexto)}.</span>`
     : "";
 
@@ -270,7 +281,7 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
   ];
   const marquee = ramo.servicos.map(([t]) => `<span>${ramo.icone} ${escapar(t)}</span>`).join("");
 
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="theme-color" content="${ramo.cor}">
 <title>${escapar(nome)} · rascunho do site</title>
 <script>document.documentElement.classList.add("js")</script><style>
@@ -449,4 +460,25 @@ ${perguntas.map(([p, r], i) => `<details class="rv" style="--atraso:${i * 0.08}s
 })();
 </script>
 </body></html>`;
+  return lead.pais === "PT" ? paraPortugal(html) : html;
 }
+
+// Empresa de Portugal: a mesma página em português de Portugal (só textos visíveis, frase a frase).
+const PORTUGAL = [
+  ['lang="pt-BR"', 'lang="pt-PT"'], ["Chamar no WhatsApp", "Falar no WhatsApp"], ["Fale com a gente", "Fale connosco"],
+  [">Contato<", ">Contacto<"], ["Gostou? É só responder a nossa conversa.", "Gostou? É só responder à nossa conversa."],
+  ["Oi! Queria saber sobre", "Olá! Queria saber sobre"], ["Oi! Claro, te explico agora. Qual o melhor horário para você?", "Olá! Claro, explico já. Qual é o melhor horário para si?"],
+  ["a equipe e o trabalho de vocês", "a equipa e o vosso trabalho"], ["sua foto aqui", "a sua foto aqui"],
+  ["Você chama", "Fala connosco"], ["direto do site da", "diretamente do site da"], ["A gente responde", "Nós respondemos"],
+  ["Tira suas dúvidas e combina o melhor horário para você.", "Esclarecemos as suas dúvidas e combinamos o melhor horário para si."],
+  ["Você é atendido", "É atendida"], ["Simples, rápido e sem fila.", "Simples, rápido e sem filas."],
+  ["Vocês atendem pelo WhatsApp?", "Atendem pelo WhatsApp?"], ["Sim! Toque no botão verde e fale direto com a gente.", "Sim! Toque no botão verde e fale connosco diretamente."],
+  ["Onde vocês ficam?", "Onde ficam?"], ["Chame no WhatsApp que passamos o endereço.", "Fale connosco no WhatsApp e enviamos a morada."],
+  ["fale com a gente pelo WhatsApp", "fale connosco pelo WhatsApp"], ["responde rapidinho pelo WhatsApp", "responde num instante pelo WhatsApp"],
+  ["Resposta rápida, sem fila.", "Resposta rápida, sem filas."], ["<b>Equipe</b>", "<b>Equipa</b>"],
+  // Salão de beleza e estética
+  ["Beleza e autoestima com hora marcada", "Beleza e autoestima, com marcação"], ["num espaço pensado para você.", "num espaço pensado para si."],
+  ["Corte, coloração, escova e tratamentos.", "Corte, coloração, brushing e tratamentos."], ["Manicure, pedicure e alongamento.", "Manicure, pedicure e unhas de gel."],
+  ["Horário marcado sem espera", "Marcação sem espera"], ["Combos para noivas, festas e eventos.", "Pacotes para noivas, festas e eventos."],
+];
+export const paraPortugal = (html) => PORTUGAL.reduce((t, [de, para]) => t.split(de).join(para), html);

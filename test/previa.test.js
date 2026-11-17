@@ -50,7 +50,7 @@ test("prévia: só para empresa sem site próprio, prospectada por nós, nem cli
   assert.equal(enderecoDaPrevia({ ...base, site: "https://clinicax.com.br" }), "");
 });
 
-test("prévia: a hora de oferecer é quando a conversa toca em presença online, uma vez só", () => {
+test("prévia: disponível em toda conversa de empresa sem site (Brasil e Portugal), uma vez só, menos se recusou ou já tem site", () => {
   const lead = { nome: "Clínica X", token: "tok123", origem: "campanha", status: "respondeu", site: null };
   const link = enderecoDaPrevia(lead);
   // O caso real: pediu "uma apresentação ou um site para dar uma olhada".
@@ -59,9 +59,11 @@ test("prévia: a hora de oferecer é quando a conversa toca em presença online,
   assert.equal(momentoDaPrevia({ lead, texto: "Queria mais clientes novos" }), link);
   // O assunto pode ter vindo antes, no histórico dela.
   assert.equal(momentoDaPrevia({ lead, historico: [nos("Como vocês atraem clientes?"), ela("Hoje só pelo Instagram")], texto: "Isso" }), link);
-  // Dor que não é presença online: nada de prévia.
-  assert.equal(momentoDaPrevia({ lead, texto: "Nosso problema é demorar para responder no WhatsApp" }), "");
-  assert.equal(momentoDaPrevia({ lead, texto: "Quero organizar a agenda dos pacientes" }), "");
+  // Desde 17/11/2026 o site de exemplo é o próximo passo de qualquer conversa (no lugar da reunião): a IA decide a hora.
+  assert.equal(momentoDaPrevia({ lead, texto: "Nosso problema é demorar para responder no WhatsApp" }), link);
+  // Portugal também (a página sai em português de Portugal); outros países, não.
+  assert.equal(momentoDaPrevia({ lead: { ...lead, pais: "PT" }, texto: "Sim, pode dar um exemplo" }), link);
+  assert.equal(momentoDaPrevia({ lead: { ...lead, pais: "US" }, texto: "Send me an example" }), "");
   // Já tem site, ou não quer.
   assert.equal(momentoDaPrevia({ lead, texto: "Já temos site, obrigado" }), "");
   assert.equal(momentoDaPrevia({ lead, texto: "Não precisamos de site" }), "");
@@ -181,11 +183,12 @@ test("IA da conversa: o pedido leva o link da prévia só quando é a hora", asy
   respostaDaIA = CLASSIFICACAO;
   await classificarResposta({ texto: "Tem um site para dar uma olhada?", lead, historico: [], campanha, canal: "whatsapp", linkPrevia: link });
   const comLink = pedidosAIA.at(-1).system;
-  assert.match(comLink, /PRÉVIA DO SITE/);
+  assert.match(comLink, /SITE DE EXEMPLO/);
   assert.ok(comLink.includes(link));
-  assert.match(comLink, /sem preço e sem convite/);
+  assert.match(comLink, /NÃO puxe para reunião/);
+  assert.match(comLink, /Nunca diga que o exemplo fica para uma reunião/);
   await classificarResposta({ texto: "Demoramos a responder no WhatsApp", lead, historico: [], campanha, canal: "whatsapp", linkPrevia: "" });
-  assert.doesNotMatch(pedidosAIA.at(-1).system, /PRÉVIA DO SITE|\/previa\//);
+  assert.doesNotMatch(pedidosAIA.at(-1).system, /SITE DE EXEMPLO|\/previa\//);
 
   respostaDaIA = { opcao: "previa", mensagem: `Fiz um rascunho do site de vocês: ${link} O que achou?` };
   const f = await escreverFollowup({ lead, historico: [nos("Oi"), ela("Queria aparecer no Google")], campanha, linkMaterial: "https://g/guia/x", linkPrevia: link });
@@ -197,7 +200,7 @@ test("IA da conversa: o pedido leva o link da prévia só quando é a hora", asy
   assert.match(pedidosAIA.at(-1).system, /NÃO use a opção previa/);
 });
 
-test("conversa: quem pergunta de site recebe o link da prévia; outra dor não recebe; recusa tira o link", async () => {
+test("conversa: quem pede exemplo recebe o link da prévia (mesmo se a IA esquecer, e sem convite para chamada); recusa tira o link", async () => {
   const lead = await empresa();
   const link = enderecoDaPrevia(lead);
   const vistos = [];
@@ -210,10 +213,13 @@ test("conversa: quem pergunta de site recebe o link da prévia; outra dor não r
   assert.equal(vistos.at(-1), link);
   assert.ok((await db.buscarResposta(r1.id)).sugestao.includes(link));
 
-  const outra = await empresa();
-  await registrarResposta({ lead: outra, canal: "whatsapp", origem_id: "PV2", de: outra.whatsapp,
-    texto: "Nosso problema é a demora para responder os pacientes", campanha, classificar });
-  assert.equal(vistos.at(-1), "");
+  // O caso real (Beauty By Ju): pediu um exemplo e a IA só explicou e mandou para uma chamada. Agora o link vai sempre.
+  const pediu = await empresa();
+  const r2 = await registrarResposta({ lead: pediu, canal: "whatsapp", origem_id: "PV2", de: pediu.whatsapp, texto: "Bom dia\nSim, já agora pode dar um exemplo por favor", campanha,
+    classificar: async () => ({ ...CLASSIFICACAO, classificacao: "interessado", sugestao_resposta: "Claro, com certeza! O exemplo visual prefiro mostrá-lo numa chamada. Marque neste link: https://calendly.com/x/30min" }) });
+  const sugestao = (await db.buscarResposta(r2.id)).sugestao;
+  assert.ok(sugestao.includes(enderecoDaPrevia(pediu)), sugestao);
+  assert.doesNotMatch(sugestao, /calendly|chamada/);
 
   const recusou = await empresa();
   const r3 = await registrarResposta({ lead: recusou, canal: "whatsapp", origem_id: "PV3", de: recusou.whatsapp, texto: "Sobre o site, agora não", campanha,
@@ -234,10 +240,10 @@ async function conversaParada(texto, h = 30) {
   return db.buscarLead(lead.id);
 }
 
-test("follow-up: oferece a prévia quando a conversa falou de site, e o link nunca sai fora de hora", async () => {
+test("follow-up: a prévia fica disponível para as empresas sem site, e o link nunca sai fora de hora", async () => {
   await db.consultar("UPDATE mensagens SET status = 'enviada' WHERE status = 'aprovada'");
   const site = await conversaParada("Queria muito aparecer no Google, só temos Instagram");
-  const atendimento = await conversaParada("O problema é responder rápido no WhatsApp");
+  const atendimento = await conversaParada("O problema é responder rápido no WhatsApp, e já temos site");
   const links = new Map();
   const escrever = async (ctx) => {
     links.set(ctx.lead.id, ctx.linkPrevia);

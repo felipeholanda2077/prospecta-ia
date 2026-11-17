@@ -753,7 +753,14 @@ test("descoberta antes da call: sem entender a dor, nada de apresentação nem c
     texto: "Perdemos muito cliente porque ninguém responde o WhatsApp à noite.",
     classificar: resposta({ dor_entendida: true, pediu_conversa: false, sugestao_resposta: "Entendi." }) });
   assert.equal(apresentou, 1);
-  assert.match(rb.sugestao_resposta, /bate-papo/);
+  // Desde 17/11/2026 a IA não puxa para reunião: o convite sai, a não ser que a pessoa peça para conversar.
+  assert.equal(rb.sugestao_resposta, "Como funciona: ...");
+  const c = await novoLead("Pediu Reuniao", "reuniao@teste.com");
+  await enviada(c, 1);
+  const rc = await registrarResposta({ lead: c, canal: "email", origem_id: "dor-3", de: "reuniao@teste.com", campanha: camp, apresentar,
+    texto: "Perdemos clientes à noite. Podemos fazer uma reunião?",
+    classificar: resposta({ dor_entendida: true, pediu_conversa: true, sugestao_resposta: "Claro." }) });
+  assert.match(rc.sugestao_resposta, /bate-papo/);
 });
 
 test("funil: conta quem recusou e onde cada empresa contatada está agora (uma etapa por empresa)", async () => {

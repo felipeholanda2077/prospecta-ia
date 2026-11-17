@@ -1,10 +1,10 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { classificarResposta, limparTextoResposta, escreverApresentacao, escreverEnvioDaApresentacao, recusouClaramente, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo, valoresPermitidos } from "../ia/resposta.js";
+import { classificarResposta, limparTextoResposta, escreverApresentacao, escreverEnvioDaApresentacao, recusouClaramente, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo, valoresPermitidos, semAgendamento, pediuConversa } from "../ia/resposta.js";
 import { pediuApresentacaoComercial, linkDaApresentacao, apresentacaoJaEnviada, mensagemDaApresentacao } from "../vendas/apresentacaoComercial.js";
 import { enviarNotificacao } from "../envio/email.js";
 import { linkAgendamento, horariosLivres } from "../agenda/calendly.js";
-import { momentoDaPrevia, previaSoNaHora, origemDaPrevia } from "../vendas/previa.js";
+import { momentoDaPrevia, previaSoNaHora, origemDaPrevia, pediuExemplo, fraseDaPrevia } from "../vendas/previa.js";
 import { contatosNoTexto, contatarIndicados } from "./indicacao.js";
 import { contatosLigados } from "./contatoNovo.js";
 import { variantesWhatsappBR } from "../analise/telefone.js";
@@ -218,9 +218,12 @@ function ajustarResposta(c, historico, texto, lead = null) {
   // Ainda descobrindo a dor e a pessoa não pediu conversa: nada de convite para bate-papo ou call.
   // Depois de 2 perguntas (ou se a pessoa não entendeu), a IA explica e propõe: o convite pode sair.
   const cedoParaConvite = c.dor_entendida === false && c.pediu_conversa === false && !c.chegaDePerguntas;
+  // Sem a pessoa pedir conversa, nada de convite para reunião/chamada nem link de agendamento (vai o site de exemplo).
+  const semPedidoDeConversa = !pediuConversa(texto, historico);
   const ajustar = (t, i) => {
     let sem = i === 0 ? semCumprimentoRepetido(t, historico) : t;
     if (cedoParaConvite) sem = semConviteCedo(sem);
+    if (semPedidoDeConversa) sem = semAgendamento(sem);
     // Abordagem principal: a oferta do site da Black Friday pode ficar (só ela), mesmo sem a pessoa perguntar.
     return podeValores ? sem : semValores(sem, { manter: valoresPermitidos(lead) });
   };
@@ -229,6 +232,13 @@ function ajustarResposta(c, historico, texto, lead = null) {
     return { ...c, partes, sugestao_resposta: partes.join("\n\n") };
   }
   return { ...c, sugestao_resposta: c.sugestao_resposta ? ajustar(c.sugestao_resposta, 0) : c.sugestao_resposta };
+}
+
+/** A resposta leva o link do site de exemplo: se a IA não o colocou, a frase com o link vai no fim. */
+function comExemplo(c, { linkPrevia, lead }) {
+  if (!c?.sugestao_resposta || c.precisa_humano || c.robo || c.encerrar || c.sugestao_resposta.includes(linkPrevia)) return c;
+  const { partes, ...resto } = c;
+  return { ...resto, sugestao_resposta: `${semAgendamento(c.sugestao_resposta).trim()}\n\n${fraseDaPrevia(lead, linkPrevia)}` };
 }
 
 /**
@@ -252,6 +262,8 @@ async function pensarResposta(contexto, { classificar, apresentar, enviarSlides 
     const { partes, ...resto } = c;
     return { c: { ...resto, sugestao_resposta: mensagem, semValores: true }, apresentou: false };
   }
+  // Pediu um exemplo e a empresa pode ter a prévia: vai o site de exemplo dela (nunca só explicação ou reunião).
+  if (contexto.linkPrevia && pediuExemplo(contexto.texto)) return { c: previaSoNaHora(comExemplo(c, contexto), contexto.linkPrevia), apresentou: false };
   // A apresentação (planos e convite) só vai depois de entender a dor, ou quando a pessoa pede (como funciona, valores, call).
   const descobrindo = c.dor_entendida === false && c.pediu_conversa === false;
   if (QUER_SABER.includes(c.classificacao) && c.sugestao_resposta && !c.precisa_humano && !descobrindo && !(await jaApresentou(contexto.lead.id))) {
