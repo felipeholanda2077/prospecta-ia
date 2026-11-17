@@ -1686,10 +1686,11 @@ app.get("/api/slides/empresas", async (req, res) => {
 });
 
 app.post("/api/slides", async (req, res) => {
-  const leadId = Number(req.body?.leadId);
-  if (!leadId) return res.status(400).json({ erro: "Escolha a empresa" });
+  const leadId = Number(req.body?.leadId) || null;
+  const contexto = req.body?.contexto?.empresa ? req.body.contexto : null;
+  if (!leadId && !contexto) return res.status(400).json({ erro: "Escolha a empresa" });
   try {
-    res.json(slidesParaPainel(await slides.gerarSlides({ leadId, nota: req.body?.nota, modo: req.body?.modo }, await carregarCampanhaCompleta())));
+    res.json(slidesParaPainel(await slides.gerarSlides({ leadId, nota: req.body?.nota, modo: req.body?.modo, para: req.body?.para, contexto }, await carregarCampanhaCompleta())));
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
@@ -1804,6 +1805,16 @@ app.post("/api/respostas/:id/transcrever", async (req, res) => {
     const texto = `[áudio] ${await transcrever(audio, mimetype)}`;
     await db.atualizarTextoDaResposta(r.id, texto);
     res.json({ texto });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Transcrição dos áudios recebidos: a chave do Groq colada no painel.
+app.get("/api/transcricao", async (req, res) => res.json(await (await import("./ia/transcricao.js")).situacao()));
+app.put("/api/transcricao", async (req, res) => {
+  try {
+    res.json(await (await import("./ia/transcricao.js")).salvarChave(req.body?.chave));
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }

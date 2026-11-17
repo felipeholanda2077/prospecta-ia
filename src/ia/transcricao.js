@@ -1,23 +1,62 @@
+import * as db from "../db.js";
+import { cifrar, decifrar } from "../segredos.js";
+
 // Transcrição dos áudios recebidos no WhatsApp. O Claude lê texto, não áudio, então o
-// áudio vira texto antes: pelo Groq (tem plano grátis) ou pela OpenAI, conforme a chave
-// cadastrada nas variáveis de ambiente.
+// áudio vira texto antes: pelo Groq (tem plano grátis) ou pela OpenAI. A chave vem das variáveis de ambiente
+// ou, a do Groq, colada no painel (Testes → Transcrição de áudios), cifrada no banco.
+const CHAVE_CONFIG = "transcricao";
 const PROVEDORES = [
   { nome: "Groq", chave: "GROQ_API_KEY", url: "https://api.groq.com/openai/v1/audio/transcriptions", modelo: "whisper-large-v3-turbo" },
   { nome: "OpenAI", chave: "OPENAI_API_KEY", url: "https://api.openai.com/v1/audio/transcriptions", modelo: "gpt-4o-mini-transcribe" },
 ];
 
-const provedor = () => PROVEDORES.find((p) => process.env[p.chave]);
+const daVercel = () => PROVEDORES.find((p) => process.env[p.chave]);
 
-export function transcricaoConfigurada() {
-  return Boolean(provedor());
+async function chaveDoPainel() {
+  try {
+    const c = (await db.lerConfig(CHAVE_CONFIG)) ?? {};
+    return c.chave ? decifrar(c.chave) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function provedor() {
+  const env = daVercel();
+  if (env) return { ...env, token: process.env[env.chave] };
+  const token = await chaveDoPainel();
+  return token ? { ...PROVEDORES[0], token } : null;
+}
+
+/** Para o painel: se a transcrição está ligada, por qual provedor e de onde vem a chave. */
+export async function situacao() {
+  const env = daVercel();
+  if (env) return { configurada: true, provedor: env.nome, origem: "vercel" };
+  const guardada = (await db.lerConfig(CHAVE_CONFIG).catch(() => null))?.chave;
+  const abre = Boolean(guardada && decifrar(guardada));
+  return { configurada: abre, provedor: abre ? "Groq" : null, origem: abre ? "painel" : null, trancada: Boolean(guardada) && !abre };
+}
+
+/** Guarda a chave do Groq colada no painel (conferida no próprio Groq). Sem chave, tira. */
+export async function salvarChave(chave, { buscar = fetch } = {}) {
+  const texto = String(chave ?? "").trim();
+  if (!texto) {
+    await db.gravarConfig(CHAVE_CONFIG, {});
+    return situacao();
+  }
+  if (!/^gsk_\S{20,}$/.test(texto)) throw new Error("Cole a chave de API do Groq: ela começa com gsk_");
+  const r = await buscar("https://api.groq.com/openai/v1/models", { headers: { Authorization: `Bearer ${texto}` }, signal: AbortSignal.timeout(15_000) });
+  if (!r.ok) throw new Error(r.status === 401 ? "O Groq recusou essa chave. Confira se copiou inteira." : `O Groq respondeu ${r.status}`);
+  await db.gravarConfig(CHAVE_CONFIG, { chave: cifrar(texto), salvaEm: new Date().toISOString() });
+  return situacao();
 }
 
 const EXTENSOES = { "audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/aac": "m4a", "audio/wav": "wav", "audio/webm": "webm" };
 
 /** Transcreve um áudio (Buffer) em português. Retorna o texto falado. */
 export async function transcrever(audio, mimetype = "audio/ogg") {
-  const p = provedor();
-  if (!p) throw new Error("transcrição de áudio não configurada (cadastre GROQ_API_KEY ou OPENAI_API_KEY na Vercel)");
+  const p = await provedor();
+  if (!p) throw new Error("transcrição de áudio não configurada: cole a chave do Groq em Testes → Transcrição de áudios (ou cadastre GROQ_API_KEY na Vercel)");
   const tipo = String(mimetype).split(";")[0].trim().toLowerCase();
   const form = new FormData();
   form.append("file", new Blob([audio], { type: tipo }), `audio.${EXTENSOES[tipo] ?? "ogg"}`);
@@ -27,7 +66,7 @@ export async function transcrever(audio, mimetype = "audio/ogg") {
 
   const resp = await fetch(p.url, {
     method: "POST",
-    headers: { Authorization: `Bearer ${process.env[p.chave]}` },
+    headers: { Authorization: `Bearer ${p.token}` },
     body: form,
     signal: AbortSignal.timeout(60_000),
   });

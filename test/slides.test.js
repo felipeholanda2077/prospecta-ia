@@ -177,3 +177,12 @@ test("slides de fechamento: um botão de contratar para cada plano com checkout"
   assert.match(html, /class="pagar outro"/);
   assert.doesNotMatch(html, /plano-sem-link/);
 });
+
+test("slides sem empresa no sistema: só com o contexto informado", async () => {
+  let pedido;
+  const r = await gerarSlides({ contexto: { empresa: "Lava-rápido", ramo: "lava-rápido" }, modo: "fechamento", nota: "IA, agendamento e Instagram" }, campanha, { gerar: async (p) => { pedido = p; return respostaDaIA(); } });
+  assert.ok(r.id);
+  assert.equal(r.lead_id, null);
+  assert.match(pedido.pedido, /Empresa: Lava-rápido/);
+  await assert.rejects(gerarSlides({}, campanha, { gerar: async () => respostaDaIA() }), /Empresa não encontrada/);
+});

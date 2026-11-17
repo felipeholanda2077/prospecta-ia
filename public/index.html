@@ -1947,6 +1947,16 @@
 
       <!-- Testes: homologação das vozes de IA, sem enviar nada para ninguém -->
       <section id="view-testes" hidden>
+          <form class="cartao" id="form-transcricao" style="margin-bottom:16px">
+            <div class="cartao-cab"><span class="kpi-ic" data-ic-span="mic"></span><div class="titulos"><h3>Transcrição de áudios <span id="trans-status"></span></h3>
+              <div class="meta">Os áudios que chegam no WhatsApp viram texto para a IA ler e responder. Usa o Groq, que é grátis.</div></div></div>
+            <div class="cartao-corpo config-grade">
+              <div class="campo" style="grid-column:1/-1"><label for="trans-chave">Chave de API do Groq</label>
+                <input id="trans-chave" name="chave" type="password" autocomplete="off" placeholder="gsk_...">
+                <span class="muted" style="font-size:12.5px">Em console.groq.com, entre (é grátis), abra API Keys e clique em Create API Key. Cole aqui: ela é conferida, fica cifrada no banco e não volta a aparecer.</span></div>
+              <div style="grid-column:1/-1;display:flex;gap:8px"><button class="btn primario" type="submit">Salvar</button></div>
+            </div>
+          </form>
           <form class="cartao" id="form-fish">
             <div class="cartao-cab"><span class="kpi-ic" data-ic-span="spark"></span><div class="titulos"><h3>Vozes com IA (Fish Audio) <span id="fish-status"></span></h3>
               <div class="meta">A Fish Audio cria a voz das mensagens em áudio. Em <b>Teste</b>, ela só gera os áudios de teste daqui, sem enviar para ninguém. Em <b>Produção</b>, ela gera os áudios enviados; se falhar, eles saem pela voz de antes.</div></div></div>
@@ -7363,6 +7373,7 @@ function vozFishEscolhida() {
   return { vozId: id, vozNome: daLista?.nome ?? $("#fish-voz-id").dataset.nome ?? "" };
 }
 async function carregarFish() {
+  mostrarTranscricao();
   try {
     mostrarFish(await api("/api/fish-audio"));
   } catch (e) {
@@ -7401,6 +7412,28 @@ $("#fish-voz").addEventListener("change", (ev) => {
 });
 $("#fish-voz-id").addEventListener("input", () => { $("#fish-voz-id").dataset.nome = ""; mostrarAmostraFish(); });
 $("#fish-texto").addEventListener("input", contarFish);
+async function mostrarTranscricao() {
+  try {
+    const s = await api("/api/transcricao");
+    $("#trans-status").innerHTML = s.configurada ? `<span class="pilula ok">ligada · ${esc(s.provedor)}${s.origem === "vercel" ? " (Vercel)" : ""}</span>` : `<span class="pilula">${s.trancada ? "cole a chave de novo" : "sem chave"}</span>`;
+    $("#trans-chave").placeholder = s.configurada ? "•••••••• já salva (preencha só para trocar)" : "gsk_...";
+  } catch {}
+}
+$("#form-transcricao").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = $("button[type=submit]", ev.target);
+  btn.disabled = true;
+  try {
+    await api("/api/transcricao", { method: "PUT", body: JSON.stringify({ chave: $("#trans-chave").value }) });
+    $("#trans-chave").value = "";
+    await mostrarTranscricao();
+    avisar("Salvo. Os áudios do WhatsApp passam a ser transcritos para a IA responder.", "ok", 6000);
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  } finally {
+    btn.disabled = false;
+  }
+});
 $("#form-fish").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const f = ev.target;

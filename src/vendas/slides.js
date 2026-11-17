@@ -196,8 +196,7 @@ ${conversa}${para ? `\n\nA apresentação é para ${para}, pessoalmente: fale co
 export async function gerarSlides({ leadId, id = null, nota = "", modo = null, para = null, contexto = null }, campanha, { gerar = gerarJson } = {}) {
   const atual = id ? await db.buscarSlides(id) : null;
   if (id && !atual) throw new Error("Apresentação não encontrada");
-  const lead = await db.buscarLead(atual?.lead_id ?? leadId);
-  if (!lead) throw new Error("Empresa não encontrada");
+  const leadAchado = (atual?.lead_id ?? leadId) ? await db.buscarLead(atual?.lead_id ?? leadId) : null;
   nota = corta(nota, 500);
   // Refazer mantém o tipo (normal ou de fechamento), a não ser que venha outro.
   let anterior = {};
@@ -206,6 +205,9 @@ export async function gerarSlides({ leadId, id = null, nota = "", modo = null, p
   para = corta(para ?? anterior.para ?? "", 60);
   const outra = contexto ?? anterior.contexto ?? null;
   contexto = outra?.empresa ? { empresa: corta(outra.empresa, 80), ramo: corta(outra.ramo, 120) } : null;
+  // Sem empresa no sistema (ex.: proposta para um lava-rápido que alguém indicou): só com o contexto informado.
+  if (!leadAchado && !contexto) throw new Error("Empresa não encontrada");
+  const lead = leadAchado ?? { id: null, nome: contexto.empresa, nicho: contexto.ramo };
   const dados = arrumarSlides(await gerar({
     system: modo === "fechamento" ? sistemaDeFechamento(campanha) : sistema(campanha),
     pedido: await pedidoDaEmpresa(lead, nota, campanha, { comValores: modo === "fechamento", para, contexto }),
