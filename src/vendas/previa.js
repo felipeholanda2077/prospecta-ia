@@ -1,6 +1,7 @@
 import { config } from "../config.js";
 import { semSiteProprio } from "../analise/prioridade.js";
 import { ofertaSiteAtiva, PRECO_DE, PRECO_POR, OFERTA_SITE } from "./ofertaSite.js";
+import { paletaDaMarca, luminancia } from "./marcaDaPrevia.js";
 
 // Prévia personalizada: para a empresa SEM site próprio, um rascunho de como ficaria o site dela (nome, ramo,
 // cidade, nota no Google, serviços típicos do ramo e botão de WhatsApp), numa página pública em /previa/<token>.
@@ -222,7 +223,7 @@ const GALERIA = ["Fachada", "Ambiente", "Equipe", "Nosso trabalho"];
  * correndo, números que contam, cartões que aparecem ao rolar, galeria (onde entram as fotos), passo a passo,
  * mapa com o pino pulsando e perguntas frequentes. Quem pede menos movimento no aparelho vê tudo parado.
  */
-export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", ano = new Date().getFullYear(), agora = new Date(), dados = {}, fotoUrl = (n) => `${n}` } = {}) {
+export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", ano = new Date().getFullYear(), agora = new Date(), dados = {}, fotoUrl = (n) => `${n}`, logoUrl = "" } = {}) {
   // `dados` (vendas/dadosDaPrevia.js): fotos reais do perfil do Google, avaliações, horário e o que o painel acrescentou.
   const base = ramoDaPrevia(lead.nicho);
   const ramo = { ...base, ...(dados.servicos?.length ? { servicos: dados.servicos } : {}), ...(dados.titulo ? { titulo: dados.titulo } : {}),
@@ -235,6 +236,10 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
     ? `<div class="depoimentos">${depoimentos.map((d, i) => `<div class="depoimento rv" style="--atraso:${i * 0.12}s"><span class="est">★★★★★</span><p>${escapar(d.texto)}</p><b>${escapar(d.nome)}</b></div>`).join("")}</div>`
     : "";
   const elegante = ramo.icone === "✨"; // beleza e estética: títulos com fonte serifada, mais sofisticada
+  // As cores da marca (tiradas da logo da empresa, ou escolhidas no painel); sem elas, a cor do ramo.
+  const paleta = paletaDaMarca(dados.corDaMarca) ?? paletaDaMarca(base.cor);
+  paleta.luminosa = luminancia(paleta.cor) > 0.42;
+  const logoImg = dados.temLogo && logoUrl ? logoUrl : "";
   const enfeites = ENFEITES[ramo.icone] ?? ENFEITES["⭐"];
   const nome = String(lead.nome).trim();
   const cidade = cidadeCurta(lead.cidade);
@@ -280,8 +285,9 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
   const titulo = dados.titulo ? ramo.titulo : cidade ? `${ramo.titulo} em ${cidade}` : ramo.titulo;
   // Logo em texto (ex.: "BEAUTY" + "by Ju", como na fachada), quando sabemos como a empresa escreve o nome.
   const logo = dados.logo
-    ? `<span class="logo-texto">${escapar(dados.logo)}${dados.logoDetalhe ? `<small>${escapar(dados.logoDetalhe)}</small>` : ""}</span>`
-    : `<span class="sigla">${escapar(iniciais)}</span><span>${escapar(nome)}</span>`;
+    ? `${logoImg ? `<img class="logo-img" src="${escapar(logoImg)}" alt="">` : ""}<span class="logo-texto">${escapar(dados.logo)}${dados.logoDetalhe ? `<small>${escapar(dados.logoDetalhe)}</small>` : ""}</span>`
+    : logoImg ? `<img class="logo-img" src="${escapar(logoImg)}" alt="Logo ${escapar(nome)}"><span>${escapar(nome)}</span>`
+      : `<span class="sigla">${escapar(iniciais)}</span><span>${escapar(nome)}</span>`;
   const [primeiro] = ramo.servicos[0];
 
   // Números do topo: só o que é verdade (nota e avaliações do Google, os serviços da página, o WhatsApp a um clique).
@@ -304,11 +310,11 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
   const marquee = ramo.servicos.map(([t]) => `<span>${ramo.icone} ${escapar(t)}</span>`).join("");
 
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="theme-color" content="${ramo.cor}">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><meta name="theme-color" content="${paleta.hero1}">
 <title>${escapar(nome)} · rascunho do site</title>
 ${elegante ? '<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">' : ""}
 <script>document.documentElement.classList.add("js")</script><style>
-:root{--cor:${ramo.cor};--escura:color-mix(in srgb,var(--cor) 55%,#000);--clara:color-mix(in srgb,var(--cor) 12%,#fff);--bg:#f7f7fb;--card:#fff;--texto:#16171f;--suave:#5c6070;--borda:#e6e7ef}
+:root{--cor:${paleta.cor};--tinta:${paleta.tinta};--forte:${paleta.forte};--escura:${paleta.escura};--hero1:${paleta.hero1};--hero2:${paleta.hero2};--clara:${paleta.clara};--cta-bg:${paleta.luminosa ? paleta.cor : "#fff"};--cta-tx:${paleta.luminosa ? paleta.tinta : paleta.forte};--bg:#f7f7fb;--card:#fff;--texto:#16171f;--suave:#5c6070;--borda:#e6e7ef}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--texto);font:16px/1.55 Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
 a{color:inherit}
@@ -318,12 +324,12 @@ a{color:inherit}
 .topo{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--borda)}
 .topo .in{max-width:1120px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .logo{display:flex;align-items:center;gap:10px;font-weight:700;min-width:0}.logo span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sigla{flex:none;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--cor),var(--escura));color:#fff;display:grid;place-items:center;font-size:15px;letter-spacing:.02em}
-nav{display:flex;gap:22px;font-size:15px;color:var(--suave)}nav a{text-decoration:none}nav a:hover{color:var(--cor)}
-.botao{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;text-decoration:none;border-radius:12px;padding:13px 20px;background:var(--cor);color:#fff;border:0;white-space:nowrap;transition:transform .2s,box-shadow .2s}
+.sigla{flex:none;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--hero1),var(--hero2));color:#fff;display:grid;place-items:center;font-size:15px;letter-spacing:.02em}
+nav{display:flex;gap:22px;font-size:15px;color:var(--suave)}nav a{text-decoration:none}nav a:hover{color:var(--forte)}
+.botao{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;text-decoration:none;border-radius:12px;padding:13px 20px;background:var(--cor);color:var(--tinta);border:0;white-space:nowrap;transition:transform .2s,box-shadow .2s}
 .botao:hover{transform:translateY(-2px);box-shadow:0 10px 24px -10px var(--cor)}.botao.claro{background:#fff;color:var(--texto);border:1px solid var(--borda)}.topo .botao{padding:9px 14px;font-size:14px}
 /* Topo: fundo em movimento, bolhas e ícones flutuando, e o celular com a conversa */
-.hero{position:relative;overflow:hidden;color:#fff;background:linear-gradient(120deg,var(--cor),var(--escura),color-mix(in srgb,var(--cor) 70%,#7c3aed));background-size:220% 220%;animation:fundo 14s ease-in-out infinite alternate}
+.hero{position:relative;overflow:hidden;color:#fff;background:linear-gradient(120deg,var(--hero1),var(--hero2),color-mix(in srgb,var(--hero1) 75%,var(--cor)));background-size:220% 220%;animation:fundo 14s ease-in-out infinite alternate}
 @keyframes fundo{to{background-position:100% 100%}}
 .bolha{position:absolute;border-radius:50%;filter:blur(40px);opacity:.35;background:#fff;animation:boia 12s ease-in-out infinite alternate}
 .bolha.b1{width:260px;height:260px;top:-80px;right:-60px}.bolha.b2{width:200px;height:200px;bottom:-90px;left:-50px;animation-duration:15s;opacity:.22}
@@ -336,7 +342,7 @@ nav{display:flex;gap:22px;font-size:15px;color:var(--suave)}nav a{text-decoratio
 .tag{display:inline-block;font-size:13px;font-weight:600;background:rgba(255,255,255,.16);padding:5px 12px;border-radius:999px;margin-bottom:16px}.tag::first-letter{text-transform:uppercase}
 h1{font-size:clamp(28px,7vw,50px);line-height:1.1;letter-spacing:-.02em;margin:0 0 14px;max-width:15em}
 .hero p{font-size:clamp(16px,4.2vw,19px);opacity:.92;margin:0 0 26px;max-width:32em}
-.acoes{display:flex;gap:10px;flex-wrap:wrap}.acoes .botao{background:#fff;color:var(--cor)}.acoes .botao.vazado{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
+.acoes{display:flex;gap:10px;flex-wrap:wrap}.acoes .botao{background:var(--cta-bg);color:var(--cta-tx)}.acoes .botao.vazado{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.55)}
 .nota{display:inline-flex;align-items:center;gap:8px;margin-top:22px;background:rgba(0,0,0,.18);padding:8px 14px;border-radius:12px;font-size:14px}.nota .est{color:#ffd166;letter-spacing:1px}
 .celular{justify-self:center;width:min(300px,100%);background:#0f1115;border-radius:34px;padding:10px;box-shadow:0 30px 60px -20px rgba(0,0,0,.55);animation:sobe .9s .3s both,flutua 6s 1.2s ease-in-out infinite alternate}
 @keyframes flutua{to{transform:translateY(-10px)}}
@@ -363,7 +369,7 @@ section{max-width:1120px;margin:0 auto;padding:56px 16px}h2{font-size:clamp(23px
 .js .rv{opacity:0;transform:translateY(26px);transition:opacity .7s ease,transform .7s cubic-bezier(.2,.7,.2,1);transition-delay:var(--atraso,0s)}.js .rv.in{opacity:1;transform:none}
 .numeros{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:-34px;position:relative;z-index:2;padding-top:0;padding-bottom:0}
 .numero{background:var(--card);border:1px solid var(--borda);border-radius:16px;padding:18px;box-shadow:0 18px 40px -26px rgba(20,21,40,.45)}
-.numero b{display:block;font-size:30px;line-height:1.1;color:var(--cor);letter-spacing:-.02em}.numero span{color:var(--suave);font-size:14px}.numero em{font-style:normal;float:right;font-size:22px}
+.numero b{display:block;font-size:30px;line-height:1.1;color:var(--forte);letter-spacing:-.02em}.numero span{color:var(--suave);font-size:14px}.numero em{font-style:normal;float:right;font-size:22px}
 .grade{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr))}
 .cartao{background:var(--card);border:1px solid var(--borda);border-radius:16px;padding:20px;transition:transform .25s,box-shadow .25s,border-color .25s}
 .cartao:hover{transform:translateY(-4px);box-shadow:0 16px 34px -20px var(--cor);border-color:color-mix(in srgb,var(--cor) 40%,var(--borda))}
@@ -381,11 +387,11 @@ section{max-width:1120px;margin:0 auto;padding:56px 16px}h2{font-size:clamp(23px
 .passos::before{content:"";position:absolute;top:24px;left:16%;right:16%;height:3px;background:var(--clara);border-radius:3px}
 .passos::after{content:"";position:absolute;top:24px;left:16%;right:16%;height:3px;background:var(--cor);border-radius:3px;transform:scaleX(0);transform-origin:0 50%;transition:transform 1.4s .3s ease}
 .passos.in::after,html:not(.js) .passos::after{transform:scaleX(1)}
-.passo{position:relative;z-index:1;text-align:center}.passo .n{width:50px;height:50px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:19px;color:#fff;background:var(--cor);box-shadow:0 0 0 6px var(--bg)}
+.passo{position:relative;z-index:1;text-align:center}.passo .n{width:50px;height:50px;margin:0 auto 12px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:19px;color:var(--tinta);background:var(--cor);box-shadow:0 0 0 6px var(--bg)}
 .passo h3{margin:0 0 4px;font-size:17px}.passo p{margin:0;color:var(--suave);font-size:15px}
 .motivos{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));list-style:none;padding:0;margin:0}
 .motivos li{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--borda);border-radius:14px;padding:14px 16px;font-weight:600}
-.motivos li::before{content:"✓";flex:none;width:28px;height:28px;border-radius:50%;background:var(--clara);color:var(--cor);display:grid;place-items:center;font-size:14px}
+.motivos li::before{content:"✓";flex:none;width:28px;height:28px;border-radius:50%;background:var(--clara);color:var(--forte);display:grid;place-items:center;font-size:14px}
 .avaliacao{background:var(--card);border:1px solid var(--borda);border-radius:18px;padding:26px;display:flex;flex-wrap:wrap;gap:18px 28px;align-items:center}
 .avaliacao .grande{font-size:56px;font-weight:800;line-height:1;color:var(--texto)}.avaliacao p{margin:4px 0 0;color:var(--suave)}
 .estrelas{position:relative;display:inline-block;font-size:24px;letter-spacing:3px;color:#e3e5ef}.estrelas span{position:absolute;inset:0;overflow:hidden;white-space:nowrap;color:#f5a524;width:var(--cheio);transition:width 1.4s .2s ease}
@@ -401,13 +407,13 @@ section{max-width:1120px;margin:0 auto;padding:56px 16px}h2{font-size:clamp(23px
 @keyframes onda{from{transform:scale(1);opacity:.9}to{transform:scale(5);opacity:0}}
 details{background:var(--card);border:1px solid var(--borda);border-radius:14px;padding:4px 18px;margin-bottom:10px}
 summary{cursor:pointer;font-weight:600;padding:14px 0;list-style:none;display:flex;justify-content:space-between;gap:12px}summary::-webkit-details-marker{display:none}
-summary::after{content:"+";color:var(--cor);font-size:22px;line-height:1;transition:transform .25s}details[open] summary::after{transform:rotate(45deg)}
+summary::after{content:"+";color:var(--forte);font-size:22px;line-height:1;transition:transform .25s}details[open] summary::after{transform:rotate(45deg)}
 details p{margin:0 0 16px;color:var(--suave)}
-.final{max-width:1088px;margin:0 16px 56px;border-radius:24px;padding:40px 24px;text-align:center;color:#fff;background:linear-gradient(120deg,var(--cor),var(--escura));background-size:200% 200%;animation:fundo 10s ease-in-out infinite alternate}
+.final{max-width:1088px;margin:0 16px 56px;border-radius:24px;padding:40px 24px;text-align:center;color:#fff;background:linear-gradient(120deg,var(--hero1),var(--hero2));background-size:200% 200%;animation:fundo 10s ease-in-out infinite alternate}
 @media (min-width:1120px){.final{margin:0 auto 56px}}
-.final h2{margin-bottom:10px}.final p{opacity:.9;margin:0 0 22px}.final .botao{background:#fff;color:var(--cor)}
+.final h2{margin-bottom:10px}.final p{opacity:.9;margin:0 0 22px}.final .botao{background:var(--cta-bg);color:var(--cta-tx)}
 ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;letter-spacing:0}h1{font-weight:600;font-size:clamp(34px,8vw,58px)}h2{font-weight:600;font-size:clamp(28px,6vw,40px)}" : ""}
-.logo-texto{display:flex;align-items:baseline;gap:6px;font-weight:700;font-size:22px;letter-spacing:.12em;text-transform:uppercase;color:var(--escura)}.logo-texto small{font-size:17px;letter-spacing:0;text-transform:none;font-style:italic;font-weight:500;color:var(--cor)}
+.logo-texto{display:flex;align-items:baseline;gap:6px;font-weight:700;font-size:22px;letter-spacing:.12em;text-transform:uppercase;color:var(--escura)}.logo-texto small{font-size:17px;letter-spacing:0;text-transform:none;font-style:italic;font-weight:500;color:var(--forte)}
 .fundo-foto{position:absolute;inset:0;background-size:cover;background-position:center;opacity:.28;mix-blend-mode:luminosity}
 .foto img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .6s ease}.foto:hover img{transform:scale(1.06)}.foto.real::after{display:none}.foto.real{padding:0}
 .galeria.reais{grid-template-columns:repeat(4,1fr)}.galeria.reais .foto:nth-child(1){grid-column:span 2;grid-row:span 2;aspect-ratio:auto}
@@ -417,6 +423,10 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .horario{list-style:none;padding:0;margin:10px 0 0;font-size:14px;color:var(--suave)}.horario li{padding:4px 0;border-bottom:1px dashed var(--borda)}
 @media (max-width:520px){.galeria.reais{grid-template-columns:1fr 1fr}}
 .numeros + .corre{margin-top:34px}
+.logo-img{flex:none;width:42px;height:42px;border-radius:12px;object-fit:cover;background:#fff;box-shadow:0 0 0 1px var(--borda)}
+.logo-redonda{border-radius:50%;object-fit:cover;padding:0;background:#fff}
+.hero-logo{display:block;width:84px;height:84px;border-radius:22px;object-fit:cover;background:#fff;margin-bottom:18px;box-shadow:0 18px 40px -16px rgba(0,0,0,.55),0 0 0 4px rgba(255,255,255,.18);animation:sobe .8s cubic-bezier(.2,.7,.2,1) both,respira 5s 1s ease-in-out infinite alternate}
+@keyframes respira{to{transform:translateY(-4px) scale(1.03)}}
 .grade{display:flex;flex-wrap:wrap;justify-content:center}.grade>.cartao{flex:0 1 calc((100% - 28px) / 3);min-width:230px}
 .galeria.reais{grid-auto-rows:210px}.foto.real{aspect-ratio:auto}
 .contato{grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);align-items:stretch}.contato.sem-mapa{grid-template-columns:1fr}.contato .cartao b{margin-top:6px}
@@ -459,13 +469,13 @@ footer{border-top:1px solid var(--borda);color:var(--suave);font-size:13px;text-
 <div class="hero">${fotos[0] ? `<span class="fundo-foto" style="background-image:url('${escapar(fotos[0])}')"></span>` : ""}<span class="bolha b1"></span><span class="bolha b2"></span>
 ${enfeites.map((e, i) => `<span class="enfeite" style="left:${[6, 82, 48, 18, 70][i]}%;top:${[18, 12, 78, 70, 55][i]}%;animation-delay:-${i * 1.7}s;animation-duration:${8 + i * 1.5}s">${e}</span>`).join("")}
 <div class="in"><div>
-${subtitulo ? `<span class="tag sobe">${escapar(subtitulo)}</span>` : ""}
+${logoImg ? `<img class="hero-logo sobe" src="${escapar(logoImg)}" alt="Logo ${escapar(nome)}">` : ""}${subtitulo ? `<span class="tag sobe">${escapar(subtitulo)}</span>` : ""}
 <h1 class="sobe d1">${escapar(titulo)}</h1>
 <p class="sobe d2">${escapar(ramo.frase)}</p>
 <div class="acoes sobe d3">${link("botao")}${mapa ? link("botao vazado", "Como chegar", mapa) : link("botao vazado", "Ver serviços", "#servicos")}</div>
 ${temNota ? `<div class="nota sobe d4"><span class="est">${estrelas(nota)}</span><span><b>${notaTexto}</b> · ${avaliacoesTexto} avaliações no Google</span></div>` : ""}
 </div>
-<div class="celular" aria-hidden="true"><div class="tela"><header><span class="sigla">${escapar(iniciais)}</span><div><b>${escapar(nome)}</b><small>online</small></div></header>
+<div class="celular" aria-hidden="true"><div class="tela"><header>${logoImg ? `<img class="sigla logo-redonda" src="${escapar(logoImg)}" alt="">` : `<span class="sigla">${escapar(iniciais)}</span>`}<div><b>${escapar(nome)}</b><small>online</small></div></header>
 <div class="conversa"><div class="msg ela m1">Oi! Queria saber sobre ${escapar(primeiro.toLowerCase())} 😊</div><div class="digitando"><i></i><i></i><i></i></div>
 <div class="msg nos m2">Oi! Claro, te explico agora. Qual o melhor horário para você?</div><div class="msg ela m3">Perfeito, obrigado pela rapidez! 🙌</div></div></div></div>
 </div></div>

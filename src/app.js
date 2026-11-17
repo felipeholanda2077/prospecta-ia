@@ -58,7 +58,7 @@ import { paginaDoCheckout } from "./vendas/paginaCheckout.js";
 import { pdfDoGuia, prepararCampanha, imagemDaMensagem, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
 import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia, origemDaPrevia, enderecoDaPrevia } from "./vendas/previa.js";
-import { dadosDaPrevia, gravarExtraDaPrevia, chaveDaFoto } from "./vendas/dadosDaPrevia.js";
+import { dadosDaPrevia, gravarExtraDaPrevia, chaveDaFoto, chaveDaLogo } from "./vendas/dadosDaPrevia.js";
 import { PILAR_BLACK_FRIDAY } from "./ia/conteudo.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao, lerApresentacaoDeFora, gravarApresentacaoDeFora } from "./respostas/apresentacao.js";
@@ -273,7 +273,17 @@ app.get("/previa/:token", async (req, res) => {
   // Fotos, avaliações e horário do perfil da empresa no Google (buscados uma vez e guardados) e o que o painel acrescentou.
   const dados = await dadosDaPrevia(lead).catch(() => ({}));
   const fotoUrl = (n) => `/previa/${lead.token}/foto/${n}`;
-  res.set({ ...SEM_CACHE, "Referrer-Policy": "no-referrer" }).send(paginaDaPrevia(lead, { marca: empresa.nome, telefoneMarca: empresa.telefone, dados, fotoUrl }));
+  const logoUrl = `/previa/${lead.token}/logo`;
+  res.set({ ...SEM_CACHE, "Referrer-Policy": "no-referrer" }).send(paginaDaPrevia(lead, { marca: empresa.nome, telefoneMarca: empresa.telefone, dados, fotoUrl, logoUrl }));
+});
+
+// A logo da empresa na prévia (a foto de perfil do WhatsApp em tamanho cheio, ou a do Instagram, guardada no banco).
+app.get("/previa/:token/logo", async (req, res) => {
+  const lead = await db.buscarLeadPorToken(String(req.params.token ?? ""));
+  if (!podeTerPrevia(lead)) return res.sendStatus(404);
+  const logo = await db.lerMidia(chaveDaLogo(lead.id));
+  if (!logo?.tipo?.startsWith("image/")) return res.sendStatus(404);
+  res.set({ "Content-Type": logo.tipo, "Cache-Control": "public, max-age=86400" }).send(logo.dados);
 });
 
 // As fotos da prévia (as do perfil da própria empresa no Google, guardadas no banco).

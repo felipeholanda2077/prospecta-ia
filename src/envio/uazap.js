@@ -352,8 +352,9 @@ export async function enviarAudio(destino, audio, { numeroId } = {}) {
 }
 
 /** O link (temporário) da foto de perfil do contato no WhatsApp, pelo número `numeroId`; "" quando não tem foto. */
-export async function fotoDoContato(destino, { numeroId } = {}) {
-  const dados = await chamar(numeroId, "/chat/avatar", { method: "POST", corpo: { number: paraUazap(destino), preview: true } });
+export async function fotoDoContato(destino, { numeroId, grande = false } = {}) {
+  // `grande`: a foto em tamanho cheio (a logo da empresa na prévia do site); sem ele, a miniatura dos avatares.
+  const dados = await chamar(numeroId, "/chat/avatar", { method: "POST", corpo: { number: paraUazap(destino), preview: !grande } });
   return String(dados?.url ?? "");
 }
 

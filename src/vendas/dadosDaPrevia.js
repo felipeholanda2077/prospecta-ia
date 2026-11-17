@@ -1,5 +1,6 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
+import { corDaLogo } from "./marcaDaPrevia.js";
 
 // O que deixa a prévia com a cara da empresa, tirado do próprio perfil dela no Google (Places API): as fotos que ela
 // mesma publicou (o espaço, a fachada com a logo, os trabalhos), as melhores avaliações e o horário. Busca uma vez
@@ -69,8 +70,61 @@ export async function dadosDaPrevia(lead, { buscar = buscarNoGoogle, agora = Dat
       dados ??= { fotos: 0, avaliacoes: [], horario: [] };
     }
   }
+  const marca = await marcaDaEmpresa(lead).catch(() => ({}));
   const extra = (await db.lerConfig(`previa_extra:${lead.id}`)) ?? {};
-  return { ...dados, ...extra };
+  return { ...dados, temLogo: Boolean(marca.logo), corDaMarca: marca.cor ?? null, ...extra };
+}
+
+// ---------- A logo e a cor da marca ----------
+
+export const chaveDaLogo = (leadId) => `previa-logo:${leadId}`;
+const chaveDaMarca = (leadId) => `previa_marca:${leadId}`;
+const DIAS_DA_MARCA = 7;
+const MAX_LOGO = 1_500_000;
+
+async function baixar(url) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(TEMPO_MS) });
+  const tipo = r.headers.get("content-type") ?? "";
+  if (!r.ok || !tipo.startsWith("image/")) return null;
+  const dados = Buffer.from(await r.arrayBuffer());
+  return dados.length > 500 && dados.length <= MAX_LOGO ? { tipo, dados } : null;
+}
+
+/** A logo da empresa: a foto de perfil do WhatsApp em tamanho cheio, a do Instagram ou, por fim, a miniatura salva. */
+async function buscarLogo(lead) {
+  const uazap = await import("../envio/uazap.js");
+  const telefone = String(lead.whatsapp ?? "").replace(/\D/g, "");
+  if (telefone && (await uazap.configurada().catch(() => false))) {
+    const url = await uazap.fotoDoContato(telefone, { numeroId: lead.numero_wa || null, grande: true }).catch(() => "");
+    const img = url ? await baixar(url).catch(() => null) : null;
+    if (img) return img;
+  }
+  let insta = null;
+  try { insta = JSON.parse(lead.instagram_dados || "null")?.foto ?? null; } catch {}
+  const doInsta = insta ? await baixar(insta).catch(() => null) : null;
+  if (doInsta) return doInsta;
+  const salva = await db.lerMidia(`foto-lead-${lead.id}`);
+  return salva?.tipo?.startsWith("image/") ? salva : null;
+}
+
+/**
+ * A marca da empresa para a prévia: { logo: true/false, cor } (a cor principal da logo). Busca uma vez e guarda
+ * (a logo no banco); renova a cada 7 dias. Sem logo, a prévia fica com a cor do ramo.
+ */
+export async function marcaDaEmpresa(lead, { buscar = buscarLogo, agora = Date.now(), cor = corDaLogo } = {}) {
+  let marca = null;
+  try { marca = JSON.parse((await db.lerEstado(chaveDaMarca(lead.id))) ?? "null"); } catch {}
+  if (marca && agora - (marca.em ?? 0) < DIAS_DA_MARCA * 86_400_000) return marca;
+  try {
+    const logo = await buscar(lead);
+    if (logo) await db.gravarMidia(chaveDaLogo(lead.id), logo.tipo, logo.dados);
+    marca = { logo: Boolean(logo) || Boolean(marca?.logo), cor: (logo ? await cor(logo.dados) : null) ?? marca?.cor ?? null, em: agora };
+  } catch (e) {
+    console.error(`Logo de ${lead.nome}: ${e.message}`);
+    marca = { logo: Boolean(marca?.logo), cor: marca?.cor ?? null, em: agora };
+  }
+  await db.gravarEstado(chaveDaMarca(lead.id), JSON.stringify(marca));
+  return marca;
 }
 
 /** Grava o que sabemos a mais desta empresa (serviços, frase, descrição, logo em texto), para a prévia usar. */
@@ -81,6 +135,7 @@ export async function gravarExtraDaPrevia(leadId, extra) {
   for (const [campo, max] of [["titulo", 90], ["frase", 200], ["sobre", 600], ["logo", 40], ["logoDetalhe", 40], ["instagram", 60]]) {
     if (extra?.[campo] !== undefined) limpo[campo] = texto(extra[campo], max);
   }
+  if (/^#[0-9a-f]{6}$/i.test(String(extra?.corDaMarca ?? ""))) limpo.corDaMarca = extra.corDaMarca;
   if (Array.isArray(extra?.motivos)) limpo.motivos = extra.motivos.slice(0, 4).map((m) => texto(m, 60)).filter(Boolean);
   await db.gravarConfig(`previa_extra:${leadId}`, limpo);
   return limpo;

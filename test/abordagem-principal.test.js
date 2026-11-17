@@ -302,3 +302,37 @@ test("interessados antigos sem o site de exemplo: recebem a mensagem com o link,
   await previasParaInteressados(camp, { limite: 10 });
   assert.equal((await fila(vai)).length, 0); // uma vez só
 });
+
+test("marca da empresa: a logo (foto de perfil) aparece na prévia e as cores saem dela, com contraste certo", async () => {
+  const { corPrincipal, paletaDaMarca, corDaLogo } = await import("../src/vendas/marcaDaPrevia.js");
+  const { marcaDaEmpresa } = await import("../src/vendas/dadosDaPrevia.js");
+  const pixels = (cores) => new Uint8ClampedArray(cores.flatMap(([c, n]) => Array.from({ length: n }, () => [...c, 255]).flat()));
+  // Logo amarela e preta em fundo branco: vale o amarelo (a cor viva), não o branco do fundo.
+  assert.equal(corPrincipal(pixels([[[255, 255, 255], 600], [[240, 190, 20], 300], [[20, 20, 20], 100]])), "#f0be14");
+  // Logo só preta: o preto.
+  assert.equal(corPrincipal(pixels([[[255, 255, 255], 700], [[15, 15, 15], 300]])), "#0f0f0f");
+  // Cor clara: o texto em cima fica escuro e o topo, escuro; cor forte: texto branco.
+  assert.equal(paletaDaMarca("#f0be14").tinta, "#111111");
+  assert.equal(paletaDaMarca("#c2185b").tinta, "#ffffff");
+
+  // De uma imagem de verdade (PNG feito no canvas): vermelho.
+  const { createCanvas } = await import("@napi-rs/canvas");
+  const c = createCanvas(40, 40); const ctx = c.getContext("2d");
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, 40, 40); ctx.fillStyle = "#d32f2f"; ctx.fillRect(8, 8, 24, 24);
+  const png = c.toBuffer("image/png");
+  assert.equal(await corDaLogo(png), "#d32f2f");
+
+  const lead = { id: 55501, nome: "Panobianco Teste" };
+  let buscas = 0;
+  const marca = await marcaDaEmpresa(lead, { buscar: async () => { buscas++; return { tipo: "image/png", dados: png }; } });
+  assert.deepEqual([marca.logo, marca.cor], [true, "#d32f2f"]);
+  await marcaDaEmpresa(lead, { buscar: async () => { buscas++; return null; } });
+  assert.equal(buscas, 1); // guardada por 7 dias
+
+  const html = paginaDaPrevia({ ...semSite, nicho: "academia" }, { dados: { temLogo: true, corDaMarca: "#f0be14" }, logoUrl: "/previa/x/logo" });
+  assert.match(html, /--cor:#f0be14;--tinta:#111111/);
+  assert.match(html, /<img class="logo-img" src="\/previa\/x\/logo"/);
+  assert.match(html, /<img class="hero-logo sobe" src="\/previa\/x\/logo"/);
+  // Sem logo: a cor do ramo e as iniciais.
+  assert.doesNotMatch(paginaDaPrevia({ ...semSite, nicho: "academia" }, { dados: {} }), /<img class="(?:logo-img|hero-logo)/);
+});
