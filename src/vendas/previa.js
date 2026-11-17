@@ -483,7 +483,7 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .camada{position:absolute;transform-style:preserve-3d}
 .camada.fone{left:50%;top:50%;transform:translate3d(-50%,-50%,40px)}
 .cena3d .celular{width:250px;box-shadow:0 40px 70px -24px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08)}
-.camada.objeto{left:60%;top:6%;transform:translateZ(-60px)}
+.camada.objeto{left:64%;top:-1%;transform:translateZ(70px)}
 .objeto .brilho{position:absolute;left:50%;top:50%;width:230px;height:230px;margin:-115px 0 0 -115px;border-radius:50%;transform:translateZ(-40px);
   background:radial-gradient(closest-side,color-mix(in srgb,var(--cor) 75%,#fff),color-mix(in srgb,var(--cor) 40%,transparent) 55%,transparent);opacity:.55;filter:blur(6px);animation:pulsaBrilho 4s ease-in-out infinite alternate}
 @keyframes pulsaBrilho{to{opacity:.85;transform:translateZ(-40px) scale(1.08)}}
@@ -497,10 +497,10 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
   animation:desgira 16s linear infinite}
 @keyframes desgira{from{transform:rotate(0deg) rotateX(-74deg)}to{transform:rotate(-360deg) rotateX(-74deg)}}
 .camada.aneis{left:50%;top:58%;width:0;height:0;transform:translateZ(-70px) rotateX(74deg)}
-.aneis i{position:absolute;left:0;top:0;border-radius:50%;border:2px solid color-mix(in srgb,var(--cor) 60%,#fff);animation:gira 18s linear infinite}
-.aneis i:nth-child(1){width:400px;height:400px;margin:-200px 0 0 -200px;border-style:dashed;opacity:.6}
-.aneis i:nth-child(2){width:310px;height:310px;margin:-155px 0 0 -155px;opacity:.4;animation-duration:12s;animation-direction:reverse}
-.aneis i:nth-child(3){width:220px;height:220px;margin:-110px 0 0 -110px;opacity:.75;border-width:3px;border-color:transparent;border-top-color:color-mix(in srgb,var(--cor) 40%,#fff);border-right-color:color-mix(in srgb,var(--cor) 40%,#fff);animation-duration:6s}
+.aneis>i{position:absolute;left:0;top:0;border-radius:50%;border:2px solid color-mix(in srgb,var(--cor) 60%,#fff);animation:gira 18s linear infinite}
+.aneis>i:nth-child(1){width:400px;height:400px;margin:-200px 0 0 -200px;border-style:dashed;opacity:.6}
+.aneis>i:nth-child(2){width:310px;height:310px;margin:-155px 0 0 -155px;opacity:.4;animation-duration:12s;animation-direction:reverse}
+.aneis>i:nth-child(3){width:220px;height:220px;margin:-110px 0 0 -110px;opacity:.75;border-width:3px;border-color:transparent;border-top-color:color-mix(in srgb,var(--cor) 40%,#fff);border-right-color:color-mix(in srgb,var(--cor) 40%,#fff);animation-duration:6s}
 @keyframes gira{to{transform:rotate(360deg)}}
 .camada.chao{left:50%;top:90%;transform:translate3d(-50%,-50%,-10px) rotateX(82deg)}.chao i{display:block;width:320px;height:320px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.5),transparent)}
 .chip{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:16px;background:color-mix(in srgb,var(--hero2) 62%,transparent);border:1px solid rgba(255,255,255,.28);
@@ -508,10 +508,10 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
   box-shadow:0 22px 44px -18px rgba(0,0,0,.65);animation:flutua 5s ease-in-out infinite alternate}
 .chip b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis}.chip small{display:block;opacity:.82}.chip>span:last-child{min-width:0}
 .chip .ic3{flex:none;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:18px;background:var(--cor);color:var(--tinta);box-shadow:0 8px 18px -8px var(--cor)}
-.camada.k1{left:-4%;top:9%;transform:translateZ(120px)}.camada.k2{right:-6%;top:44%;transform:translateZ(150px)}.camada.k3{left:-2%;bottom:9%;transform:translateZ(100px)}
+.camada.k1{left:-6%;top:14%;transform:translateZ(120px)}.camada.k2{right:-6%;top:44%;transform:translateZ(150px)}.camada.k3{left:-2%;bottom:9%;transform:translateZ(100px)}
 @media (min-width:521px) and (max-width:879px){.cena3d{height:520px;width:min(480px,100%)}}
 @media (max-width:520px){.cena3d{height:430px;width:100%;margin-top:-6px}.cena3d .celular{width:200px;border-radius:28px;padding:8px}.cena3d .tela{border-radius:22px;font-size:12.5px}
-  .cena3d .conversa{min-height:190px;padding:12px 10px 16px}.obj3d{width:110px;height:110px}.obj3d span{font-size:84px}.objeto .brilho{width:170px;height:170px;margin:-85px 0 0 -85px}.camada.objeto{left:58%;top:4%}
+  .cena3d .conversa{min-height:190px;padding:12px 10px 16px}.obj3d{width:110px;height:110px}.obj3d span{font-size:84px}.objeto .brilho{width:170px;height:170px;margin:-85px 0 0 -85px}.camada.objeto{left:63%;top:-2%;transform:translateZ(40px)}
   .sat i{width:44px;height:44px;margin:-22px 0 0 -22px;font-size:22px}
   .camada.aneis{transform:translateZ(-70px) rotateX(74deg) scale(.72)}.chao i{width:240px;height:240px}
   .chip{padding:7px 10px;gap:8px;font-size:11px;max-width:52vw;border-radius:13px}.chip b{font-size:12.5px}.chip .ic3{width:28px;height:28px;font-size:14px;border-radius:9px}
