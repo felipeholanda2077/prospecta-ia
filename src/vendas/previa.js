@@ -487,9 +487,9 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .objeto .brilho{position:absolute;left:50%;top:50%;width:230px;height:230px;margin:-115px 0 0 -115px;border-radius:50%;transform:translateZ(-40px);
   background:radial-gradient(closest-side,color-mix(in srgb,var(--cor) 75%,#fff),color-mix(in srgb,var(--cor) 40%,transparent) 55%,transparent);opacity:.55;filter:blur(6px);animation:pulsaBrilho 4s ease-in-out infinite alternate}
 @keyframes pulsaBrilho{to{opacity:.85;transform:translateZ(-40px) scale(1.08)}}
-.obj3d{position:relative;width:150px;height:150px;transform-style:preserve-3d;animation:giraObjeto 12s linear infinite}
+.obj3d{position:relative;width:150px;height:150px;transform-style:preserve-3d;animation:giraObjeto 5s ease-in-out infinite alternate}
 .obj3d span{position:absolute;inset:0;display:grid;place-items:center;font-size:118px;line-height:1;backface-visibility:visible;filter:drop-shadow(0 18px 24px rgba(0,0,0,.45))}
-@keyframes giraObjeto{0%{transform:rotateY(0) rotateX(8deg) translateY(0)}50%{transform:rotateY(180deg) rotateX(-6deg) translateY(-12px)}100%{transform:rotateY(360deg) rotateX(8deg) translateY(0)}}
+@keyframes giraObjeto{from{transform:rotateY(-38deg) rotateX(10deg) translateY(0)}to{transform:rotateY(38deg) rotateX(-4deg) translateY(-12px)}}
 .giro{position:absolute;left:0;top:0;transform-style:preserve-3d;animation:gira 16s linear infinite}
 .sat{position:absolute;left:0;top:0;transform-style:preserve-3d;transform:rotate(var(--ang)) translateX(200px) rotate(calc(var(--ang) * -1))}
 .sat i{display:grid;place-items:center;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;font-style:normal;font-size:30px;
