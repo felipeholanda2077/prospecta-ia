@@ -215,6 +215,35 @@ const ENFEITES = {
 // A galeria mostra onde entram as fotos da empresa (o rascunho não inventa fotos).
 const GALERIA = ["Fachada", "Ambiente", "Equipe", "Nosso trabalho"];
 
+// Os objetos da cena 3D do topo, pelo que a empresa oferece: cada serviço (ou o ramo) vira um objeto que faz sentido
+// (unha → esmalte, musculação → haltere, dente → dente...). O primeiro é o objeto grande que gira; os outros orbitam.
+const OBJETOS = [
+  [/unha|manicure|pedicure|esmalte|gel\b|nail/i, "💅"], [/cabel|corte|escova|brushing|madeixa|color|penteado|cabeleir/i, "💇‍♀️"],
+  [/maqui|make|batom/i, "💄"], [/sobrancel|c[ií]lio|pestana/i, "👁️"], [/depila|laser/i, "✨"], [/massag|spa\b|relax/i, "💆‍♀️"],
+  [/barb|barbear/i, "💈"], [/est[eé]tica|pele|facial|limpeza de pele/i, "🧴"], [/noiva|festa|evento/i, "👰"],
+  [/muscula|academia|treino|fitness|crossfit/i, "🏋️"], [/pilates|yoga|alongamento/i, "🧘"], [/luta|boxe|jiu|muay/i, "🥊"],
+  [/aulas? coletiv|spinning|funcional|zumba/i, "🤸"], [/dan[çc]a/i, "💃"], [/nata[çc]|piscina/i, "🏊"], [/aula experimental|personal|avalia[çc][aã]o f[ií]sica/i, "⏱️"],
+  [/clareamento|sorriso/i, "😁"], [/limpeza|preven[çc]|higien/i, "🪥"], [/dent|odonto|implante|ortodon|c[aá]rie/i, "🦷"], [/consulta|m[eé]dic|cl[ií]nica|sa[uú]de|exame/i, "🩺"],
+  [/vacina/i, "💉"], [/banho|tosa/i, "🛁"], [/\bpet|c[aã]o|cachorro|gato|veterin/i, "🐾"], [/ra[çc][aã]o/i, "🦴"],
+  [/pizza/i, "🍕"], [/hamb[uú]rg|lanche/i, "🍔"], [/caf[eé]/i, "☕"], [/bolo|doce|confeit/i, "🎂"], [/a[çc]a[ií]/i, "🫐"],
+  [/sushi|japon/i, "🍣"], [/delivery|entrega/i, "🛵"], [/card[aá]pio|prato|restaurante|comida|marmit/i, "🍽️"], [/reserva/i, "🍷"],
+  [/carro|ve[ií]cul|seminov|estoque|test drive/i, "🚗"], [/pneu/i, "🛞"], [/[oó]leo/i, "🛢️"], [/revis[aã]o|mec[aâ]nic|freio|diagn[oó]stico/i, "🔧"],
+  [/financ/i, "💳"], [/direito|jur[ií]dic|advoga|contrato/i, "⚖️"], [/contab|imposto|fiscal|folha|mei\b/i, "📊"],
+  [/im[oó]v|aluguel|casa|apartamento/i, "🏠"], [/constru|reforma|obra/i, "🏗️"], [/pintur/i, "🎨"], [/el[eé]tric/i, "💡"],
+  [/curso|escola|idioma|ingl[eê]s|refor[çc]o/i, "🎓"], [/roupa|moda|boutique/i, "👗"], [/cal[çc]ado|t[eê]nis/i, "👟"], [/joia|semijoia|acess[oó]rio/i, "💍"],
+  [/[oó]culos|[oó]tica/i, "👓"], [/perfum/i, "🌸"], [/whatsapp|or[çc]amento|atendimento/i, "💬"],
+];
+/** Até 4 objetos (sem repetir): o do ramo da empresa e os dos serviços dela; sem nada, o ícone do ramo. */
+export function objetosDaEmpresa({ servicos = [], nicho = "", icone = "⭐" } = {}) {
+  const achados = [];
+  // O ramo primeiro (pizzaria → pizza, dentista → dente), depois cada serviço.
+  for (const texto of [String(nicho ?? ""), ...servicos.map(([t, d]) => `${t} ${d ?? ""}`)]) {
+    for (const [teste, emoji] of OBJETOS) if (teste.test(texto) && !achados.includes(emoji)) { achados.push(emoji); break; }
+  }
+  if (!achados.includes(icone)) achados.push(icone);
+  return achados.slice(0, 4);
+}
+
 /**
  * O HTML da prévia de uma empresa. Usa só os dados públicos dela: nome, ramo, cidade, nota e número de avaliações
  * do Google, telefone/WhatsApp e, se ela tem perfil no Google Maps, o endereço. `marca` = nome da FluxDeck;
@@ -317,6 +346,7 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
     [ramo.icone, primeiro, "Agende pelo WhatsApp"],
     temNota ? ["⭐", `${notaTexto} no Google`, `${avaliacoesTexto} avaliações`] : cidade ? ["📍", cidade, "Perto de você"] : ["💬", "Atendimento", "humano e próximo"],
   ];
+  const objetos = objetosDaEmpresa({ servicos: ramo.servicos, nicho: lead.nicho, icone: ramo.icone });
   const marquee = ramo.servicos.map(([t]) => `<span>${ramo.icone} ${escapar(t)}</span>`).join("");
 
   const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -453,10 +483,19 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .camada{position:absolute;transform-style:preserve-3d}
 .camada.fone{left:50%;top:50%;transform:translate3d(-50%,-50%,40px)}
 .cena3d .celular{width:250px;box-shadow:0 40px 70px -24px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08)}
-.camada.orbe{left:56%;top:4%;transform:translateZ(-150px)}
-.orbe i{display:block;width:200px;height:200px;border-radius:50%;animation:flutua 7s ease-in-out infinite alternate;
-  background:radial-gradient(circle at 32% 28%,#fff 0,color-mix(in srgb,var(--cor) 55%,#fff) 12%,var(--cor) 45%,var(--hero2) 100%);
-  box-shadow:0 30px 90px -10px color-mix(in srgb,var(--cor) 70%,transparent),inset -20px -26px 44px rgba(0,0,0,.35)}
+.camada.objeto{left:60%;top:6%;transform:translateZ(-60px)}
+.objeto .brilho{position:absolute;left:50%;top:50%;width:230px;height:230px;margin:-115px 0 0 -115px;border-radius:50%;transform:translateZ(-40px);
+  background:radial-gradient(closest-side,color-mix(in srgb,var(--cor) 75%,#fff),color-mix(in srgb,var(--cor) 40%,transparent) 55%,transparent);opacity:.55;filter:blur(6px);animation:pulsaBrilho 4s ease-in-out infinite alternate}
+@keyframes pulsaBrilho{to{opacity:.85;transform:translateZ(-40px) scale(1.08)}}
+.obj3d{position:relative;width:150px;height:150px;transform-style:preserve-3d;animation:giraObjeto 12s linear infinite}
+.obj3d span{position:absolute;inset:0;display:grid;place-items:center;font-size:118px;line-height:1;backface-visibility:visible;filter:drop-shadow(0 18px 24px rgba(0,0,0,.45))}
+@keyframes giraObjeto{0%{transform:rotateY(0) rotateX(8deg) translateY(0)}50%{transform:rotateY(180deg) rotateX(-6deg) translateY(-12px)}100%{transform:rotateY(360deg) rotateX(8deg) translateY(0)}}
+.giro{position:absolute;left:0;top:0;transform-style:preserve-3d;animation:gira 16s linear infinite}
+.sat{position:absolute;left:0;top:0;transform-style:preserve-3d;transform:rotate(var(--ang)) translateX(200px) rotate(calc(var(--ang) * -1))}
+.sat i{display:grid;place-items:center;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;font-style:normal;font-size:30px;
+  background:color-mix(in srgb,var(--hero2) 55%,transparent);border:1px solid rgba(255,255,255,.3);box-shadow:0 14px 30px -12px rgba(0,0,0,.6);
+  animation:desgira 16s linear infinite}
+@keyframes desgira{from{transform:rotate(0deg) rotateX(-74deg)}to{transform:rotate(-360deg) rotateX(-74deg)}}
 .camada.aneis{left:50%;top:58%;width:0;height:0;transform:translateZ(-70px) rotateX(74deg)}
 .aneis i{position:absolute;left:0;top:0;border-radius:50%;border:2px solid color-mix(in srgb,var(--cor) 60%,#fff);animation:gira 18s linear infinite}
 .aneis i:nth-child(1){width:400px;height:400px;margin:-200px 0 0 -200px;border-style:dashed;opacity:.6}
@@ -472,7 +511,8 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .camada.k1{left:-4%;top:9%;transform:translateZ(120px)}.camada.k2{right:-6%;top:44%;transform:translateZ(150px)}.camada.k3{left:-2%;bottom:9%;transform:translateZ(100px)}
 @media (min-width:521px) and (max-width:879px){.cena3d{height:520px;width:min(480px,100%)}}
 @media (max-width:520px){.cena3d{height:430px;width:100%;margin-top:-6px}.cena3d .celular{width:200px;border-radius:28px;padding:8px}.cena3d .tela{border-radius:22px;font-size:12.5px}
-  .cena3d .conversa{min-height:190px;padding:12px 10px 16px}.orbe i{width:130px;height:130px}.camada.orbe{left:60%;top:3%}
+  .cena3d .conversa{min-height:190px;padding:12px 10px 16px}.obj3d{width:110px;height:110px}.obj3d span{font-size:84px}.objeto .brilho{width:170px;height:170px;margin:-85px 0 0 -85px}.camada.objeto{left:58%;top:4%}
+  .sat i{width:44px;height:44px;margin:-22px 0 0 -22px;font-size:22px}
   .camada.aneis{transform:translateZ(-70px) rotateX(74deg) scale(.72)}.chao i{width:240px;height:240px}
   .chip{padding:7px 10px;gap:8px;font-size:11px;max-width:52vw;border-radius:13px}.chip b{font-size:12.5px}.chip .ic3{width:28px;height:28px;font-size:14px;border-radius:9px}
   .camada.k1{left:7%;top:5%;transform:translateZ(60px)}.camada.k2{right:6%;top:58%;transform:translateZ(80px)}.camada.k3{left:7%;bottom:6%;transform:translateZ(50px)}
@@ -533,7 +573,8 @@ ${logoImg ? `<img class="hero-logo sobe${dados.logoLarga ? " larga" : ""}" src="
 ${temNota ? `<div class="nota sobe d4"><span class="est">${estrelas(nota)}</span><span><b>${notaTexto}</b> · ${avaliacoesTexto} avaliações no Google</span></div>` : ""}
 </div>
 <div class="cena3d" aria-hidden="true"><div class="palco">
-<div class="camada orbe"><i></i></div><div class="camada aneis"><i></i><i></i><i></i></div><div class="camada chao"><i></i></div>
+<div class="camada objeto"><span class="brilho"></span><div class="obj3d">${Array.from({ length: 12 }, (_, i) => `<span style="transform:translateZ(${(i * -1.6).toFixed(1)}px)${i ? `;filter:brightness(${(0.78 - i * 0.03).toFixed(2)})` : ""}">${objetos[0]}</span>`).join("")}</div></div>
+<div class="camada aneis"><i></i><i></i><i></i><div class="giro">${objetos.slice(1).map((o, i, l) => `<span class="sat" style="--ang:${Math.round((360 / l.length) * i + 30)}deg"><i>${o}</i></span>`).join("")}</div></div><div class="camada chao"><i></i></div>
 <div class="camada fone"><div class="celular"><div class="tela"><header>${logoImg ? `<img class="sigla logo-redonda${dados.logoLarga ? " larga" : ""}" src="${escapar(logoImg)}" alt=""${dados.logoLarga ? fundoLogo : ""}>` : `<span class="sigla">${escapar(iniciais)}</span>`}<div><b>${escapar(nome)}</b><small>online</small></div></header>
 <div class="conversa"><div class="msg ela m1">Oi! Queria saber sobre ${escapar(primeiro.toLowerCase())} 😊</div><div class="digitando"><i></i><i></i><i></i></div>
 <div class="msg nos m2">Oi! Claro, te explico agora. Qual o melhor horário para você?</div><div class="msg ela m3">Perfeito, obrigado pela rapidez! 🙌</div></div></div></div></div>

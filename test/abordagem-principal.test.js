@@ -353,3 +353,13 @@ test("logo com margem de fundo liso é recortada (fica grande e legível) e larg
   assert.match(html, /<img class="logo-img larga" src="\/l" alt="Logo Clínica Sorriso" style="background:#000000">/);
   assert.doesNotMatch(html, /<img class="logo-img larga"[^>]*><span>Clínica Sorriso<\/span>/);
 });
+
+test("cena 3D: os objetos saem do que a empresa oferece (salão: esmalte; academia: haltere; dentista: dente)", async () => {
+  const { objetosDaEmpresa } = await import("../src/vendas/previa.js");
+  assert.deepEqual(objetosDaEmpresa({ servicos: [["Unhas de gel", "Manicure"], ["Cabelo", "Corte"], ["Depilação a laser", ""]], nicho: "Salão de beleza", icone: "✨" }), ["💅", "💇‍♀️", "✨"]);
+  assert.equal(objetosDaEmpresa({ servicos: [["Musculação", ""], ["Aulas coletivas", ""]], nicho: "academia", icone: "💪" })[0], "🏋️");
+  assert.ok(objetosDaEmpresa({ servicos: [["Implantes", ""]], nicho: "clínica odontológica", icone: "🦷" }).includes("🦷"));
+  const html = paginaDaPrevia({ ...semSite, nicho: "Salão de beleza" }, { dados: { servicos: [["Unhas de gel", "Manicure com gel"], ["Cabelo", "Corte"]] } });
+  assert.match(html, /<div class="obj3d"><span style="transform:translateZ\(0\.0px\)">💅<\/span>/);
+  assert.match(html, /class="sat"[^>]*><i>💇‍♀️<\/i>/);
+});
