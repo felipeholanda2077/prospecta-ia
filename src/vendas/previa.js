@@ -464,7 +464,7 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .aneis i:nth-child(3){width:220px;height:220px;margin:-110px 0 0 -110px;opacity:.75;border-width:3px;border-color:transparent;border-top-color:color-mix(in srgb,var(--cor) 40%,#fff);border-right-color:color-mix(in srgb,var(--cor) 40%,#fff);animation-duration:6s}
 @keyframes gira{to{transform:rotate(360deg)}}
 .camada.chao{left:50%;top:90%;transform:translate3d(-50%,-50%,-10px) rotateX(82deg)}.chao i{display:block;width:320px;height:320px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.5),transparent)}
-.chip{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:16px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);
+.chip{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:16px;background:color-mix(in srgb,var(--hero2) 62%,transparent);border:1px solid rgba(255,255,255,.28);
   -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:#fff;font-size:12.5px;line-height:1.25;white-space:nowrap;max-width:230px;
   box-shadow:0 22px 44px -18px rgba(0,0,0,.65);animation:flutua 5s ease-in-out infinite alternate}
 .chip b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis}.chip small{display:block;opacity:.82}.chip>span:last-child{min-width:0}
@@ -480,7 +480,7 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
   .hero .in{gap:12px}.piso3d{background-size:40px 40px}}
 @media (prefers-reduced-motion:reduce){.palco{transform:rotateX(5deg) rotateY(-12deg)!important}}
 .logo-img{flex:none;width:42px;height:42px;border-radius:12px;object-fit:cover;background:#fff;box-shadow:0 0 0 1px var(--borda)}.logo-img.larga{width:auto;max-width:170px;height:42px;object-fit:contain;border-radius:8px;padding:3px 6px;box-shadow:none}
-.logo-redonda{border-radius:50%;object-fit:cover;padding:0;background:#fff}
+.logo-redonda{border-radius:50%;object-fit:cover;padding:0;background:#fff}.logo-redonda.larga{object-fit:contain;padding:3px}
 .hero-logo.larga{width:auto;max-width:min(300px,80%);height:auto;max-height:110px;object-fit:contain;padding:14px 22px}
 .hero-logo{display:block;width:84px;height:84px;border-radius:22px;object-fit:cover;background:#fff;margin-bottom:18px;box-shadow:0 18px 40px -16px rgba(0,0,0,.55),0 0 0 4px rgba(255,255,255,.18);animation:sobe .8s cubic-bezier(.2,.7,.2,1) both,respira 5s 1s ease-in-out infinite alternate}
 @keyframes respira{to{transform:translateY(-4px) scale(1.03)}}
@@ -534,7 +534,7 @@ ${temNota ? `<div class="nota sobe d4"><span class="est">${estrelas(nota)}</span
 </div>
 <div class="cena3d" aria-hidden="true"><div class="palco">
 <div class="camada orbe"><i></i></div><div class="camada aneis"><i></i><i></i><i></i></div><div class="camada chao"><i></i></div>
-<div class="camada fone"><div class="celular"><div class="tela"><header>${logoImg ? `<img class="sigla logo-redonda" src="${escapar(logoImg)}" alt="">` : `<span class="sigla">${escapar(iniciais)}</span>`}<div><b>${escapar(nome)}</b><small>online</small></div></header>
+<div class="camada fone"><div class="celular"><div class="tela"><header>${logoImg ? `<img class="sigla logo-redonda${dados.logoLarga ? " larga" : ""}" src="${escapar(logoImg)}" alt=""${dados.logoLarga ? fundoLogo : ""}>` : `<span class="sigla">${escapar(iniciais)}</span>`}<div><b>${escapar(nome)}</b><small>online</small></div></header>
 <div class="conversa"><div class="msg ela m1">Oi! Queria saber sobre ${escapar(primeiro.toLowerCase())} 😊</div><div class="digitando"><i></i><i></i><i></i></div>
 <div class="msg nos m2">Oi! Claro, te explico agora. Qual o melhor horário para você?</div><div class="msg ela m3">Perfeito, obrigado pela rapidez! 🙌</div></div></div></div></div>
 ${chips.map((c, i) => `<div class="camada k${i + 1}"><div class="chip" style="animation-delay:-${i * 1.6}s"><span class="ic3">${c[0]}</span><span><b>${escapar(c[1])}</b><small>${escapar(c[2])}</small></span></div></div>`).join("")}
