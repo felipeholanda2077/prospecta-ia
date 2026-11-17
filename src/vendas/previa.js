@@ -240,6 +240,8 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
   const paleta = paletaDaMarca(dados.corDaMarca) ?? paletaDaMarca(base.cor);
   paleta.luminosa = paleta.tinta !== "#ffffff"; // cor clara: o botão principal é da cor da marca, com texto escuro
   const logoImg = dados.temLogo && logoUrl ? logoUrl : "";
+  // Logo larga (letreiro) vai num cartão da cor do fundo dela (preto, branco...), para não virar uma caixa solta.
+  const fundoLogo = /^#[0-9a-f]{6}$/i.test(String(dados.fundoDaLogo ?? "")) ? ` style="background:${dados.fundoDaLogo}"` : "";
   const enfeites = ENFEITES[ramo.icone] ?? ENFEITES["⭐"];
   const nome = String(lead.nome).trim();
   const cidade = cidadeCurta(lead.cidade);
@@ -284,9 +286,11 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
   const subtitulo = [lead.nicho ? String(lead.nicho).trim() : "", cidade].filter(Boolean).join(" em ");
   const titulo = dados.titulo ? ramo.titulo : cidade ? `${ramo.titulo} em ${cidade}` : ramo.titulo;
   // Logo em texto (ex.: "BEAUTY" + "by Ju", como na fachada), quando sabemos como a empresa escreve o nome.
-  const logo = dados.logo
-    ? `${logoImg ? `<img class="logo-img" src="${escapar(logoImg)}" alt="">` : ""}<span class="logo-texto">${escapar(dados.logo)}${dados.logoDetalhe ? `<small>${escapar(dados.logoDetalhe)}</small>` : ""}</span>`
-    : logoImg ? `<img class="logo-img" src="${escapar(logoImg)}" alt="Logo ${escapar(nome)}"><span>${escapar(nome)}</span>`
+  // A logo de verdade (imagem) vem antes da logo em texto; logo larga (letreiro) já traz o nome, sem repetir ao lado.
+  const logo = logoImg
+    ? `<img class="logo-img${dados.logoLarga ? " larga" : ""}" src="${escapar(logoImg)}" alt="Logo ${escapar(nome)}"${dados.logoLarga ? fundoLogo : ""}>${dados.logoLarga ? "" : `<span>${escapar(nome)}</span>`}`
+    : dados.logo
+      ? `<span class="logo-texto">${escapar(dados.logo)}${dados.logoDetalhe ? `<small>${escapar(dados.logoDetalhe)}</small>` : ""}</span>`
       : `<span class="sigla">${escapar(iniciais)}</span><span>${escapar(nome)}</span>`;
   const [primeiro] = ramo.servicos[0];
 
@@ -423,8 +427,9 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .horario{list-style:none;padding:0;margin:10px 0 0;font-size:14px;color:var(--suave)}.horario li{padding:4px 0;border-bottom:1px dashed var(--borda)}
 @media (max-width:520px){.galeria.reais{grid-template-columns:1fr 1fr}}
 .numeros + .corre{margin-top:34px}
-.logo-img{flex:none;width:42px;height:42px;border-radius:12px;object-fit:cover;background:#fff;box-shadow:0 0 0 1px var(--borda)}
+.logo-img{flex:none;width:42px;height:42px;border-radius:12px;object-fit:cover;background:#fff;box-shadow:0 0 0 1px var(--borda)}.logo-img.larga{width:auto;max-width:170px;height:42px;object-fit:contain;border-radius:8px;padding:3px 6px;box-shadow:none}
 .logo-redonda{border-radius:50%;object-fit:cover;padding:0;background:#fff}
+.hero-logo.larga{width:auto;max-width:min(300px,80%);height:auto;max-height:110px;object-fit:contain;padding:14px 22px}
 .hero-logo{display:block;width:84px;height:84px;border-radius:22px;object-fit:cover;background:#fff;margin-bottom:18px;box-shadow:0 18px 40px -16px rgba(0,0,0,.55),0 0 0 4px rgba(255,255,255,.18);animation:sobe .8s cubic-bezier(.2,.7,.2,1) both,respira 5s 1s ease-in-out infinite alternate}
 @keyframes respira{to{transform:translateY(-4px) scale(1.03)}}
 .grade{display:flex;flex-wrap:wrap;justify-content:center}.grade>.cartao{flex:0 1 calc((100% - 28px) / 3);min-width:230px}
@@ -469,7 +474,7 @@ footer{border-top:1px solid var(--borda);color:var(--suave);font-size:13px;text-
 <div class="hero">${fotos[0] ? `<span class="fundo-foto" style="background-image:url('${escapar(fotos[0])}')"></span>` : ""}<span class="bolha b1"></span><span class="bolha b2"></span>
 ${enfeites.map((e, i) => `<span class="enfeite" style="left:${[6, 82, 48, 18, 70][i]}%;top:${[18, 12, 78, 70, 55][i]}%;animation-delay:-${i * 1.7}s;animation-duration:${8 + i * 1.5}s">${e}</span>`).join("")}
 <div class="in"><div>
-${logoImg ? `<img class="hero-logo sobe" src="${escapar(logoImg)}" alt="Logo ${escapar(nome)}">` : ""}${subtitulo ? `<span class="tag sobe">${escapar(subtitulo)}</span>` : ""}
+${logoImg ? `<img class="hero-logo sobe${dados.logoLarga ? " larga" : ""}" src="${escapar(logoImg)}" alt="Logo ${escapar(nome)}"${dados.logoLarga ? fundoLogo : ""}>` : ""}${subtitulo ? `<span class="tag sobe">${escapar(subtitulo)}</span>` : ""}
 <h1 class="sobe d1">${escapar(titulo)}</h1>
 <p class="sobe d2">${escapar(ramo.frase)}</p>
 <div class="acoes sobe d3">${link("botao")}${mapa ? link("botao vazado", "Como chegar", mapa) : link("botao vazado", "Ver serviços", "#servicos")}</div>

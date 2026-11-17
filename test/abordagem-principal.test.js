@@ -336,3 +336,20 @@ test("marca da empresa: a logo (foto de perfil) aparece na prévia e as cores sa
   // Sem logo: a cor do ramo e as iniciais.
   assert.doesNotMatch(paginaDaPrevia({ ...semSite, nicho: "academia" }, { dados: {} }), /<img class="(?:logo-img|hero-logo)/);
 });
+
+test("logo com margem de fundo liso é recortada (fica grande e legível) e larga vai sem repetir o nome", async () => {
+  const { aparaLogo } = await import("../src/vendas/marcaDaPrevia.js");
+  const { createCanvas } = await import("@napi-rs/canvas");
+  const c = createCanvas(400, 400); const ctx = c.getContext("2d");
+  ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, 400, 400); ctx.fillStyle = "#c9a45c"; ctx.fillRect(60, 170, 280, 60);
+  const r = await aparaLogo(c.toBuffer("image/png"));
+  assert.ok(r.largura < 330 && r.altura < 100 && r.largura > r.altura * 1.4, JSON.stringify([r.largura, r.altura]));
+  assert.equal(r.fundo, "#ffffff");
+  // Foto (tudo é conteúdo): fica como está.
+  const f = createCanvas(100, 100); const fx = f.getContext("2d");
+  for (let i = 0; i < 100; i++) { fx.fillStyle = `hsl(${i * 3.6},70%,50%)`; fx.fillRect(i, 0, 1, 100); }
+  assert.equal(await aparaLogo(f.toBuffer("image/png")), null);
+  const html = paginaDaPrevia({ ...semSite }, { dados: { temLogo: true, logoLarga: true, fundoDaLogo: "#000000", corDaMarca: "#f88d06" }, logoUrl: "/l" });
+  assert.match(html, /<img class="logo-img larga" src="\/l" alt="Logo Clínica Sorriso" style="background:#000000">/);
+  assert.doesNotMatch(html, /<img class="logo-img larga"[^>]*><span>Clínica Sorriso<\/span>/);
+});

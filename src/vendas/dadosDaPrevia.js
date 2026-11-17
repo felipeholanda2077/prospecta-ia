@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import * as db from "../db.js";
-import { corDaLogo } from "./marcaDaPrevia.js";
+import { corDaLogo, aparaLogo } from "./marcaDaPrevia.js";
 
 // O que deixa a prévia com a cara da empresa, tirado do próprio perfil dela no Google (Places API): as fotos que ela
 // mesma publicou (o espaço, a fachada com a logo, os trabalhos), as melhores avaliações e o horário. Busca uma vez
@@ -72,13 +72,13 @@ export async function dadosDaPrevia(lead, { buscar = buscarNoGoogle, agora = Dat
   }
   const marca = await marcaDaEmpresa(lead).catch(() => ({}));
   const extra = (await db.lerConfig(`previa_extra:${lead.id}`)) ?? {};
-  return { ...dados, temLogo: Boolean(marca.logo), corDaMarca: marca.cor ?? null, ...extra };
+  return { ...dados, temLogo: Boolean(marca.logo), logoLarga: Boolean(marca.larga), fundoDaLogo: marca.fundo ?? null, corDaMarca: marca.cor ?? null, ...extra };
 }
 
 // ---------- A logo e a cor da marca ----------
 
 export const chaveDaLogo = (leadId) => `previa-logo:${leadId}`;
-const chaveDaMarca = (leadId) => `previa_marca_v2:${leadId}`; // v2: a cor viva vale mesmo em pouca área da logo
+const chaveDaMarca = (leadId) => `previa_marca_v3:${leadId}`; // v2: a cor viva vale mesmo em pouca área da logo
 const DIAS_DA_MARCA = 7;
 const MAX_LOGO = 1_500_000;
 
@@ -111,14 +111,18 @@ async function buscarLogo(lead) {
  * A marca da empresa para a prévia: { logo: true/false, cor } (a cor principal da logo). Busca uma vez e guarda
  * (a logo no banco); renova a cada 7 dias. Sem logo, a prévia fica com a cor do ramo.
  */
-export async function marcaDaEmpresa(lead, { buscar = buscarLogo, agora = Date.now(), cor = corDaLogo } = {}) {
+export async function marcaDaEmpresa(lead, { buscar = buscarLogo, agora = Date.now(), cor = corDaLogo, aparar = aparaLogo } = {}) {
   let marca = null;
   try { marca = JSON.parse((await db.lerEstado(chaveDaMarca(lead.id))) ?? "null"); } catch {}
   if (marca && agora - (marca.em ?? 0) < DIAS_DA_MARCA * 86_400_000) return marca;
   try {
     const logo = await buscar(lead);
-    if (logo) await db.gravarMidia(chaveDaLogo(lead.id), logo.tipo, logo.dados);
-    marca = { logo: Boolean(logo) || Boolean(marca?.logo), cor: (logo ? await cor(logo.dados) : null) ?? marca?.cor ?? null, em: agora };
+    // Logo com margem de fundo liso: recortada, para aparecer grande; a proporção diz se ela é larga (letreiro).
+    const aparada = logo ? await aparar(logo.dados) : null;
+    const final = aparada ?? logo;
+    if (final) await db.gravarMidia(chaveDaLogo(lead.id), final.tipo, final.dados);
+    marca = { logo: Boolean(final) || Boolean(marca?.logo), larga: Boolean(aparada && aparada.largura > aparada.altura * 1.4), fundo: aparada?.fundo ?? null,
+      cor: (logo ? await cor(logo.dados) : null) ?? marca?.cor ?? null, em: agora };
   } catch (e) {
     console.error(`Logo de ${lead.nome}: ${e.message}`);
     marca = { logo: Boolean(marca?.logo), cor: marca?.cor ?? null, em: agora };

@@ -83,3 +83,37 @@ export async function corDaLogo(dados) {
     return null;
   }
 }
+
+/**
+ * Recorta a margem de fundo liso da logo (ex.: letras douradas no meio de um quadrado branco), para ela aparecer
+ * grande e legível. Foto (sem fundo liso) ou imagem que não dá para ler fica como está. Devolve PNG.
+ */
+export async function aparaLogo(dados) {
+  try {
+    const { createCanvas, loadImage } = await import("@napi-rs/canvas");
+    const img = await loadImage(dados);
+    const w = img.width; const h = img.height;
+    const canvas = createCanvas(w, h);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+    const px = ctx.getImageData(0, 0, w, h).data;
+    const fundo = [px[0], px[1], px[2]];
+    const diferente = (i) => Math.abs(px[i] - fundo[0]) + Math.abs(px[i + 1] - fundo[1]) + Math.abs(px[i + 2] - fundo[2]) > 60;
+    let x0 = w; let y0 = h; let x1 = -1; let y1 = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (!diferente((y * w + x) * 4)) continue;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    if (x1 < 0) return null;
+    const cw = x1 - x0 + 1; const ch = y1 - y0 + 1;
+    if (cw * ch > w * h * 0.8) return null; // quase tudo é conteúdo: é foto ou logo sem margem
+    const m = Math.round(Math.max(cw, ch) * 0.06);
+    const ax = Math.max(0, x0 - m); const ay = Math.max(0, y0 - m);
+    const aw = Math.min(w - ax, cw + 2 * m); const ah = Math.min(h - ay, ch + 2 * m);
+    const saida = createCanvas(aw, ah);
+    saida.getContext("2d").drawImage(img, ax, ay, aw, ah, 0, 0, aw, ah);
+    return { tipo: "image/png", dados: saida.toBuffer("image/png"), largura: aw, altura: ah, fundo: hex(...fundo) };
+  } catch {
+    return null;
+  }
+}
