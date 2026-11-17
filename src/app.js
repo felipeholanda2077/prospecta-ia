@@ -55,7 +55,7 @@ import * as cobrancas from "./contratos/cobranca.js";
 import * as entrada from "./vendas/entrada.js";
 import * as checkoutsAsaas from "./vendas/checkoutsAsaas.js";
 import { paginaDoCheckout } from "./vendas/paginaCheckout.js";
-import { pdfDoGuia, prepararCampanha, imagemDaMensagem, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
+import { pdfDoGuia, prepararCampanha, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
 import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia, origemDaPrevia, enderecoDaPrevia } from "./vendas/previa.js";
 import { dadosDaPrevia, gravarExtraDaPrevia, chaveDaFoto, chaveDaLogo } from "./vendas/dadosDaPrevia.js";
@@ -1320,7 +1320,7 @@ function prepararMensagem({ token, ...m }, modo) {
     rodape,
     previa: m.corpo + rodape,
     // A arte e o áudio só saem pelo WhatsApp Web: o link manual e o texto pela API oficial não os levam.
-    imagem: automatico && modo !== "oficial" ? imagemDaMensagem(m) : null,
+    imagem: automatico && modo !== "oficial" ? pipeline.imagemDaMensagem(m) : null,
     envioManual: !automatico,
     linkWhatsapp: directManual ? `https://ig.me/m/${encodeURIComponent(m.destino.replace(/^@/, ""))}`
       : !automatico ? linkWhatsapp(m.destino, m.corpo, m.tipo !== "resposta") : null,
@@ -1380,7 +1380,7 @@ app.post("/api/mensagens/:id/audio", async (req, res) => {
   const m = await db.buscarMensagem(req.params.id);
   if (!m) return res.status(404).json({ erro: "Mensagem não encontrada" });
   const corpo = String(req.body?.corpo ?? "").trim() || m.corpo;
-  if (!imagemDaMensagem({ ...m, corpo })) return res.status(400).json({ erro: "Esta mensagem não vai por áudio" });
+  if (!pipeline.imagemDaMensagem({ ...m, corpo })) return res.status(400).json({ erro: "Esta mensagem não vai por áudio" });
   try {
     const { dados } = await pipeline.audioDaMensagem(m.id, corpo);
     res.set("Content-Type", "audio/ogg").send(dados);

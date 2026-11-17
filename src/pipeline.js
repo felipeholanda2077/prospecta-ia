@@ -22,7 +22,13 @@ import { enviarWhatsapp, enviarTextoWhatsappOficial, oficialAtiva, numerosOficia
 import { enviarDirect } from "./envio/instagram.js";
 import * as uazap from "./envio/uazap.js";
 import * as evolution from "./envio/evolution.js";
-import { imagemDaMensagem, legendaDaArte, roteiroDoAudio } from "./vendas/campanha.js";
+import { imagemDaMensagem as imagemDaPromocao, legendaDaArte, roteiroDoAudio } from "./vendas/campanha.js";
+
+/**
+ * A arte (e o áudio) da campanha só vão na mensagem da campanha, que termina com o aviso de descadastro. Uma resposta
+ * comum que fala da Black Friday (ex.: a IA oferecendo o site) sai só com o texto.
+ */
+export const imagemDaMensagem = (m) => (/Se preferir não receber mais mensagens/i.test(m?.corpo ?? "") ? imagemDaPromocao(m) : null);
 import { audioDoTexto, oggDoAudio } from "./conteudo/narracao.js";
 import { falarPelaRunway, lerConfigAvatar } from "./conteudo/avatar.js";
 import { linkDaMidia } from "./conteudo/instagram.js";
