@@ -283,6 +283,40 @@ export async function salvarChavePublica(nova) {
   return { checkoutTransparente: true, webhook };
 }
 
+// ---------- Meios de pagamento da conta (o que aparece no checkout transparente) ----------
+
+const CAMPOS_DA_CONFIG = new Set(["id", "object", "active", "application", "is_default", "livemode", "name", "parent"]);
+
+/** A configuração padrão de meios de pagamento da conta: cada meio, se a conta pode usar e se está ligado. */
+export async function meiosDePagamento() {
+  const lista = (await chamar("/payment_method_configurations?limit=20")).data ?? [];
+  const padrao = lista.find((c) => c.is_default && !c.application) ?? lista.find((c) => !c.application) ?? null;
+  if (!padrao) return { id: null, meios: [] };
+  const meios = Object.entries(padrao)
+    .filter(([k, v]) => !CAMPOS_DA_CONFIG.has(k) && v && typeof v === "object" && "available" in v)
+    .map(([tipo, v]) => ({ tipo, disponivel: Boolean(v.available), ligado: v.display_preference?.value === "on" }));
+  return { id: padrao.id, meios };
+}
+
+/** Liga, na configuração padrão, os meios que a conta pode usar (todos os disponíveis, ou só os de `tipos`). */
+export async function ligarMeiosDePagamento(tipos = null) {
+  const { id, meios } = await meiosDePagamento();
+  if (!id) throw new Error("A conta do Stripe não tem configuração de meios de pagamento");
+  const alvo = meios.filter((m) => m.disponivel && !m.ligado && (!tipos || tipos.includes(m.tipo)));
+  if (!alvo.length) return { ligados: [], ...(await meiosDePagamento()) };
+  await chamar(`/payment_method_configurations/${encodeURIComponent(id)}`, { metodo: "POST",
+    campos: Object.fromEntries(alvo.map((m) => [`${m.tipo}[display_preference][preference]`, "on"])) });
+  return { ligados: alvo.map((m) => m.tipo), ...(await meiosDePagamento()) };
+}
+
+/** Registra o domínio do checkout (fluxdeck.com.br) no Stripe, para Apple Pay, Google Pay e Link aparecerem nele. */
+export async function registrarDominio(dominio) {
+  const existentes = (await chamar("/payment_method_domains?limit=100")).data ?? [];
+  const ja = existentes.find((d) => d.domain_name === dominio);
+  const d = ja ?? (await chamar("/payment_method_domains", { metodo: "POST", campos: { domain_name: dominio } }));
+  return { dominio: d.domain_name, applePay: d.apple_pay?.status ?? null, googlePay: d.google_pay?.status ?? null, link: d.link?.status ?? null, id: d.id };
+}
+
 const chaveDoCheckout = (codigo) => `checkout_x:${codigo}`;
 
 /** Cria (ou reaproveita) o checkout transparente desta empresa e deste valor. Retorna o endereço da página. */

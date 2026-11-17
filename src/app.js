@@ -1292,6 +1292,20 @@ app.post("/api/stripe/planos", async (req, res) => {
     res.status(400).json({ erro: e.message });
   }
 });
+// Meios de pagamento do Stripe no checkout transparente: listar, ligar os disponíveis e registrar o domínio do checkout.
+app.get("/api/stripe/meios", async (req, res) => {
+  try { res.json(await stripe.meiosDePagamento()); } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.post("/api/stripe/meios", async (req, res) => {
+  try { res.json(await stripe.ligarMeiosDePagamento(Array.isArray(req.body?.tipos) ? req.body.tipos.map(String) : null)); } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.post("/api/stripe/dominio", async (req, res) => {
+  try {
+    const site = (await carregarCampanhaCompleta()).empresa.site;
+    res.json(await stripe.registrarDominio(new URL(site).hostname));
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+
 // A chave publicável do Stripe (pk_live_...), para o checkout transparente da FluxDeck. Você cola no painel.
 app.put("/api/stripe/publica", async (req, res) => {
   try {
