@@ -3,7 +3,9 @@ import { config } from "../config.js";
 import { gerarJson } from "./cliente.js";
 import { contextoEmpresa, identidade } from "./proposta.js";
 import { ABORDAGEM_PRINCIPAL } from "./abordagens.js";
-import { OFERTA_SITE, ofertaSiteAtiva, PRECO_DE, PRECO_POR, VALOR_DA_OFERTA } from "../vendas/ofertaSite.js";
+import { OFERTA_SITE, ofertaSiteAtiva, PRECO_DE, PRECO_POR, VALOR_DA_OFERTA, VALOR_DO_SITE_EUROPA } from "../vendas/ofertaSite.js";
+import { podeTerPrevia } from "../vendas/previa.js";
+import { PAISES } from "../internacional.js";
 
 /** Data de hoje, para a IA saber se uma promoção (ex.: a de novembro) ainda vai começar, está valendo ou acabou. */
 const hoje = () => new Date().toLocaleDateString("pt-BR", { timeZone: config.timezone, day: "numeric", month: "long", year: "numeric" });
@@ -190,17 +192,20 @@ export function semValores(texto, { manter = null } = {}) {
  * a IA pode citar essa oferta (e só ela) mesmo sem a pessoa ter perguntado de preço.
  */
 export const ofertaLiberada = (lead, agora = new Date()) =>
-  lead?.abordagem === ABORDAGEM_PRINCIPAL && (!lead.pais || lead.pais === "BR") && ofertaSiteAtiva(agora);
+  (!lead?.pais || lead.pais === "BR") && ofertaSiteAtiva(agora) && (lead?.abordagem === ABORDAGEM_PRINCIPAL || podeTerPrevia(lead));
 
-/** O que a trava de valores deixa passar para esta empresa (os valores da oferta, ou nada). */
-export const valoresPermitidos = (lead) => (ofertaLiberada(lead) ? VALOR_DA_OFERTA : null);
+/** Empresa de um país do euro: o site é 150 €, valor fixo (o valor pode sair sem a pessoa perguntar). */
+export const siteEmEuro = (lead) => PAISES[lead?.pais]?.moeda === "EUR";
+
+/** O que a trava de valores deixa passar para esta empresa (o valor do site, ou nada). */
+export const valoresPermitidos = (lead) => (siteEmEuro(lead) ? VALOR_DO_SITE_EUROPA : ofertaLiberada(lead) ? VALOR_DA_OFERTA : null);
 
 /** A regra da oferta para os prompts das conversas da abordagem principal. */
-const REGRA_DA_OFERTA = `EXCEÇÃO: a ${"${empresa}"} recebeu a prévia do site dela. A oferta de site da Black Friday (${OFERTA_SITE.plano}: de ${PRECO_DE}
+const REGRA_DA_OFERTA = `EXCEÇÃO: a ${"${empresa}"} tem (ou vai receber) o site de exemplo dela. A oferta de site da Black Friday (${OFERTA_SITE.plano}: de ${PRECO_DE}
   por ${PRECO_POR}, valor único, só até ${OFERTA_SITE.ateTexto}) PODE ser citada sem a pessoa perguntar, UMA vez, quando ela gostar da
   prévia, quiser o site ou perguntar como funciona (se o histórico ainda não tem essa oferta). Escreva "de ${PRECO_DE} por ${PRECO_POR}".
-  Nenhum outro valor, plano com preço ou desconto. Se ela quiser fechar o site, mande o link de pagamento do
-  ${OFERTA_SITE.plano} que está na apresentação (se houver): para esse site não precisa de bate-papo.`;
+  Nenhum outro valor, plano com preço ou desconto. Quando ela gostar do exemplo ou quiser o site: diga o valor e, no fim,
+  mande o link de pagamento do ${OFERTA_SITE.plano} que está na apresentação (se houver). Nunca bate-papo nem reunião.`;
 const regraDaOferta = (lead) => (ofertaLiberada(lead) ? REGRA_DA_OFERTA.replace("${empresa}", lead.nome) : "");
 
 // A pessoa pediu para conversar (ligação, reunião, chamada): só aí a IA pode convidar e mandar o link de agendamento.
@@ -368,13 +373,13 @@ ${chegaDePerguntas ? `- AGORA PARE DE PERGUNTAR. Esta mensagem NÃO tem pergunta
   sentido, paro por aqui.").` : ""}
 ${apresentacao ? `- Perguntas sobre como funciona, planos ou prazo: responda com o que está na apresentação.
 ${podeValores ? `- Valores: a pessoa perguntou; use só os da apresentação, como estão escritos. Orçamento exato, desconto ou
-  condição especial: diga que isso vocês fecham no bate-papo, conforme o que ela precisa.` : `- Valores: a pessoa AINDA NÃO perguntou de preço. NÃO cite nenhum valor, preço ou R$, nem "a partir de". Se falar de
+  condição especial: diga que isso vocês combinam por aqui, conforme o que ela precisa.` : `- Valores: a pessoa AINDA NÃO perguntou de preço. NÃO cite nenhum valor, preço ou R$, nem "a partir de". Se falar de
   planos, diga só o que cada um faz. Valor só quando ela perguntar.${ofertaLiberada(lead) ? `
   ${regraDaOferta(lead)}` : ""}`}
 - Se pedir algo que não está na apresentação nem no catálogo, não prometa: diga com sinceridade que vocês veem isso
-  juntos no bate-papo.
-` : `- Preço: não passe valor de cara. Se perguntarem, diga que depende do que eles precisam e convide para o bate-papo
-  rápido, onde você mostra exemplos e passa o valor certo. Só se insistirem depois disso, diga o "a partir de" do catálogo.
+  juntos por aqui.
+` : `- Preço: não passe valor de cara. Se perguntarem, diga que depende do que eles precisam e mostre um exemplo (o site
+  de exemplo, se houver). Só se insistirem depois disso, diga o "a partir de" do catálogo.
 ${ofertaLiberada(lead) ? `  ${regraDaOferta(lead)}
 ` : ""}`}- Reunião, chamada, bate-papo ou agenda: SÓ se a pessoa pedir (ligação, reunião, falar com alguém). Aí convide${comoConvidar(linkAgendamento, horarios)}.
   Fora isso, NUNCA convide nem mande link de agendamento: quando ela mostrar interesse ou pedir um exemplo, o próximo
@@ -678,7 +683,7 @@ Escreva a PRIMEIRA mensagem para essa pessoa indicada, por ${canal === "email" ?
   dela se ela se apresentou na conversa${nomeDeQuemIndicou ? ` (o nome no WhatsApp é "${nomeDeQuemIndicou}", que pode ser só o nome da empresa)` : ""};
   se não souber, diga "o pessoal da ${lead.nome}".
 - Em uma frase, o motivo: o que você conversou e como pode ajudar (use a conversa abaixo, sem repetir tudo).
-- Termine com UMA pergunta simples e aberta, ou o convite para um bate-papo rápido. Sem preço, sem prazo, sem link.
+- Termine com UMA pergunta simples e aberta (sem convite para reunião ou bate-papo). Sem preço, sem prazo, sem link.
 - ${formato}
 - Tom humano, primeira pessoa, no máximo 1 emoji no WhatsApp e nenhum no e-mail. Não escreva rodapé de descadastro.`,
     pedido: `Contato indicado: ${contato.nome || "(sem nome)"}${contato.empresa ? ` · ${contato.empresa}` : ""} · ${contato.email ?? contato.numero}

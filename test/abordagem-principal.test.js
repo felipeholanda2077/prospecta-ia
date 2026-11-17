@@ -132,9 +132,11 @@ test("oferta: só os valores dela passam na trava, e só para a abordagem princi
   const lead = { abordagem: ABORDAGEM_PRINCIPAL, nome: "Clínica" };
   assert.ok(ofertaLiberada(lead, DURANTE));
   assert.ok(!ofertaLiberada(lead, DEPOIS));
-  assert.ok(!ofertaLiberada({ abordagem: "dor_custo" }, DURANTE));
+  assert.ok(!ofertaLiberada({ abordagem: "dor_custo", site: "https://x.com.br" }, DURANTE));
   assert.ok(!ofertaLiberada({ ...lead, pais: "PT" }, DURANTE));
-  assert.equal(valoresPermitidos({ abordagem: "dor_custo" }), null);
+  assert.equal(valoresPermitidos({ abordagem: "dor_custo", site: "https://x.com.br" }), null);
+  // Europa: o site é 150 € (só esse valor passa), para qualquer empresa de país do euro.
+  assert.equal(semValores("Fica 150 €, pagamento único. O plano mensal sai 400 €.", { manter: valoresPermitidos({ pais: "PT" }) }), "Fica 150 €, pagamento único.");
 
   const t = "Que bom que gostou! Fica de R$ 950 por R$ 500, valor único. O WhatsApp com IA sai R$ 497.\n- Site Essencial: R$ 450";
   const re = /R\$\s?(?:500|950)(?:,00)?(?![\d.,]*\d)|\b(?:500|950)\s?reais\b/gi;
@@ -149,8 +151,9 @@ test("conversa da abordagem principal: a IA pode citar a oferta sem a pessoa per
   const lead = { ...semSite, abordagem: ABORDAGEM_PRINCIPAL };
   await classificarResposta({ texto: "Gostei muito!", lead, historico: [], campanha, canal: "whatsapp", apresentacao: "Planos: ..." });
   const sistema = pedidosAIA.at(-1).system;
-  if (ofertaSiteAtiva()) assert.match(sistema, /EXCEÇÃO: a Clínica Sorriso recebeu a prévia/);
-  await classificarResposta({ texto: "Gostei muito!", lead: { ...lead, abordagem: "dor_custo" }, historico: [], campanha, canal: "whatsapp", apresentacao: "Planos: ..." });
+  if (ofertaSiteAtiva()) assert.match(sistema, /EXCEÇÃO: a Clínica Sorriso tem \(ou vai receber\) o site de exemplo/);
+  // Empresa com site (sem prévia): nenhuma exceção de valor.
+  await classificarResposta({ texto: "Gostei muito!", lead: { ...lead, abordagem: "dor_custo", site: "https://clinica.com.br" }, historico: [], campanha, canal: "whatsapp", apresentacao: "Planos: ..." });
   assert.doesNotMatch(pedidosAIA.at(-1).system, /EXCEÇÃO/);
 });
 
@@ -220,4 +223,45 @@ test("prévia de Portugal: português de Portugal, WhatsApp com o 351 e sem a of
   assert.match(html, /Beleza e autoestima, com marcação em Lisboa/);
   const texto = html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/g, "");
   assert.doesNotMatch(texto, /você|a gente|Equipe|Oi!/i);
+});
+
+test("Europa: site de 150 € com valor fixo, link do Stripe de pagamento único, e a IA não convida para reunião", async () => {
+  const { valorDoPlano } = await import("../src/vendas/stripe.js");
+  const { localizarParaEmpresa } = await import("../src/internacional.js");
+  assert.deepEqual(await valorDoPlano({ plano: "Criação de site", valor: "150", lead: { pais: "PT" } }), { nome: "Criação de site", valor: 150, moeda: "EUR", unico: true });
+  assert.deepEqual(await valorDoPlano({ plano: "criacao de site", lead: { pais: "ES" } }), { nome: "Criação de site", valor: 150, moeda: "EUR", unico: true });
+  await db.gravarConfig("stripe", { chave: "x" });
+  const sistema = await localizarParaEmpresa("Base.", { nome: "Beauty By Ju", pais: "PT", idioma: "pt-PT", cidade: "Lisboa" });
+  assert.match(sistema, /150 € \(valor fixo, pagamento único, sem mensalidade\)/);
+  assert.match(sistema, /\{\{pagamento:Criação de site\|150\}\}/);
+  assert.match(sistema, /Nunca convide para reunião/);
+  await db.gravarConfig("stripe", {});
+});
+
+test("fila antiga: a etapa 3 que convidava para o bate-papo sai sem o convite e sem o link de agendamento", async () => {
+  const { semAgendamento } = await import("../src/ia/resposta.js");
+  assert.equal(semAgendamento("Essa é a minha última mensagem. Que tal um bate-papo de 15 minutos para eu mostrar exemplos? Se não for o momento, tudo bem!\n"),
+    "Essa é a minha última mensagem. Se não for o momento, tudo bem!");
+  assert.equal(semAgendamento("Ficou ótimo! O exemplo visual prefiro mostrá-lo numa chamada. Marque aqui: https://calendly.com/x"), "Ficou ótimo!");
+});
+
+test("prévia com a cara da empresa: fotos do Google, avaliações reais, horário e o que o painel acrescentou", async () => {
+  const { dadosDaPrevia, gravarExtraDaPrevia } = await import("../src/vendas/dadosDaPrevia.js");
+  const lead = { id: 98765, nome: "Beauty By Ju", nicho: "Salão de beleza", cidade: "Lisboa, Portugal", pais: "PT", place_id: "ChIJabcdefghijklmnopqrst",
+    maps_url: "https://maps.google.com/?cid=1", endereco: "Av. Exemplo 1", avaliacao: 5, total_avaliacoes: 144, whatsapp: "351912253028", token: "tk", origem: "campanha" };
+  let buscas = 0;
+  const buscar = async () => { buscas++; return { fotos: 3, avaliacoes: [{ nome: "Ana L.", texto: "Ambiente super tranquilo e saio sempre de lá no meu melhor look!" }], horario: ["segunda-feira: 10:00–19:00"] }; };
+  await gravarExtraDaPrevia(lead.id, { logo: "Beauty", logoDetalhe: "by Ju", servicos: [["Unhas de gel", "Manicure com gel que dura."]], sobre: "Um espaço acolhedor." });
+  const dados = await dadosDaPrevia(lead, { buscar });
+  await dadosDaPrevia(lead, { buscar });
+  assert.equal(buscas, 1); // guardado: não busca no Google a cada visita
+  const html = paginaDaPrevia(lead, { marca: "FluxDeck", dados, fotoUrl: (n) => `/previa/tk/foto/${n}` });
+  assert.match(html, /<img src="\/previa\/tk\/foto\/0"/);
+  assert.match(html, /Ambiente super tranquilo/);
+  assert.match(html, /segunda-feira: 10:00–19:00/);
+  assert.match(html, /Unhas de gel/);
+  assert.match(html, /class="logo-texto">Beauty<small>by Ju<\/small>/);
+  assert.match(html, /Sobre a Beauty By Ju/);
+  assert.match(html, /Cormorant/);
+  assert.doesNotMatch(html, /a sua foto aqui/);
 });

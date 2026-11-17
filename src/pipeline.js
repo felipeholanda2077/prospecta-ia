@@ -28,6 +28,7 @@ import { falarPelaRunway, lerConfigAvatar } from "./conteudo/avatar.js";
 import { linkDaMidia } from "./conteudo/instagram.js";
 import * as fishaudio from "./conteudo/fishaudio.js";
 import { verificarAgendamentos, aplicarLinkAgendamento, MARCADOR_LINK } from "./agenda/calendly.js";
+import { semAgendamento } from "./ia/resposta.js";
 import { semSiteProprio, semSiteConfirmado, potencialDaEmpresa } from "./analise/prioridade.js";
 import { verificarRespostasEmail } from "./respostas/email.js";
 import { numerosComAgente } from "./respostas/agentes.js";
@@ -1325,7 +1326,12 @@ export async function enviarMensagem(m, campanha, { agora = new Date() } = {}) {
   // O marcador da última etapa vira o link de agendamento desta empresa (e fica salvo no histórico).
   // Fora do Brasil e de Portugal não tem agendamento: o marcador que sobrar vira o link dos slides.
   const corpoBase = vendeSemReuniao(m) ? String(m.corpo).split(MARCADOR_LINK).join(linkDosSlides({ nome: m.empresa })) : m.corpo;
-  const corpoFinal = aplicarLinkAgendamento(corpoBase, campanha.automacao?.calendly, { token: m.token, email: m.destino }, m.canal);
+  // Desde 17/11/2026 a prospecção não convida para reunião (vai o site de exemplo): nas mensagens da sequência que já
+  // estavam na fila, o marcador do agendamento e as frases de convite saem. Respostas escritas na conversa ficam como estão.
+  const semConvite = m.tipo !== "resposta" && !vendeSemReuniao(m);
+  const corpoFinal = semConvite
+    ? semAgendamento(aplicarLinkAgendamento(corpoBase, "", { token: m.token, email: m.destino }, m.canal))
+    : aplicarLinkAgendamento(corpoBase, campanha.automacao?.calendly, { token: m.token, email: m.destino }, m.canal);
   // Primeira mensagem do WhatsApp para alguém (etapa 1, ou a primeira para um contato indicado): o "Oi" vira bom dia,
   // boa tarde ou boa noite, pela hora em que sai no fuso da empresa (o texto foi escrito antes, sem saber a hora).
   let corpoComSaudacao = corpoFinal;

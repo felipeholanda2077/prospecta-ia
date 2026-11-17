@@ -191,7 +191,7 @@ Etapa 3 — último toque (WhatsApp: ~2 horas depois da etapa 2; e-mail: 2 dias 
 - WhatsApp: até ~350 caracteres além do link. E-mail: 60 a 100 palavras além do link.
 
 Regras gerais:
-- PROIBIDO em todas as etapas: preço, "a partir de", valores em R$ e prazo de entrega. Isso fica para o bate-papo.
+- PROIBIDO em todas as etapas: preço, "a partir de", valores em R$ e prazo de entrega. Isso fica para a conversa.
 - Português do Brasil, tom cordial, simples e humano, como alguém da região escrevendo pessoalmente. Frases curtas.
 - Não repita a mesma informação entre as etapas; cada uma acrescenta algo novo.
 - Nada de urgência falsa, promessas de resultado, caixa alta, excesso de emojis (no máximo 1 por mensagem no WhatsApp) ou jargão técnico.

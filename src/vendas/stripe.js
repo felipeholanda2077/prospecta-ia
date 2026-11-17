@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { OFERTA_SITE_EUROPA } from "./ofertaSite.js";
 import * as db from "../db.js";
 import { cifrar, decifrar } from "../segredos.js";
 import { PAISES, arredondarPreco, configInternacional, cotacoes } from "../internacional.js";
@@ -87,6 +88,10 @@ const simples = (t) => String(t ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").
 export async function valorDoPlano({ plano, valor, lead, apresentacao }) {
   const pais = PAISES[lead?.pais];
   if (!pais || lead.pais === "BR") return null;
+  // O site da Europa tem valor fixo em euro (sem conversão) e é pago uma vez só.
+  if (pais.moeda === "EUR" && simples(plano) === simples(OFERTA_SITE_EUROPA.plano)) {
+    return { nome: OFERTA_SITE_EUROPA.plano, valor: OFERTA_SITE_EUROPA.valor, moeda: "EUR", unico: true };
+  }
   const [cot, conf] = await Promise.all([cotacoes(), configInternacional()]);
   const local = (reais) => arredondarPreco(reais * cot[pais.moeda] * (1 + conf.ajustePct / 100));
   const planos = planosDaApresentacao(apresentacao ?? (await lerApresentacao(lead))).map((p) => ({ ...p, local: local(p.reais) }));
@@ -224,26 +229,28 @@ export async function criarCheckoutsDosPlanos({ moedas = ["USD"] } = {}) {
 }
 
 /** O link de pagamento (mensalidade no cartão) para a empresa e o plano. Reaproveita o que já foi criado. */
-export async function linkDePagamento({ lead, nome, valor, moeda }) {
-  const guarda = `stripe_link:${lead.id}:${simples(nome)}:${valor}${moeda}`;
+export async function linkDePagamento({ lead, nome, valor, moeda, unico = false }) {
+  const guarda = `stripe_link:${lead.id}:${simples(nome)}:${valor}${moeda}${unico ? ":unico" : ""}`;
   const salvo = await db.lerEstado(guarda);
   if (salvo) return salvo;
+  // Pagamento único (o site da Europa): sem "recurring", e o link não cria assinatura.
   const preco = await chamar("/prices", { metodo: "POST", campos: {
-    currency: moeda.toLowerCase(), unit_amount: String(Math.round(valor * 100)), "recurring[interval]": "month",
-    "product_data[name]": `FluxDeck · ${lead.pais === "PT" ? nome : nomeEmIngles(nome)}`, "metadata[lead_id]": String(lead.id),
+    currency: moeda.toLowerCase(), unit_amount: String(Math.round(valor * 100)), ...(unico ? {} : { "recurring[interval]": "month" }),
+    "product_data[name]": `FluxDeck · ${lead.pais === "PT" || unico ? nome : nomeEmIngles(nome)}`, "metadata[lead_id]": String(lead.id),
   } });
   const link = await chamar("/payment_links", { metodo: "POST", campos: {
     "line_items[0][price]": preco.id, "line_items[0][quantity]": "1",
     "metadata[lead_id]": String(lead.id), "metadata[empresa]": String(lead.nome ?? "").slice(0, 200), "metadata[plano]": nome,
-    "subscription_data[metadata][lead_id]": String(lead.id), "billing_address_collection": "auto",
+    ...(unico ? { "payment_intent_data[metadata][lead_id]": String(lead.id) } : { "subscription_data[metadata][lead_id]": String(lead.id) }),
+    "billing_address_collection": "auto",
     // O contrato de serviço aparece logo acima do botão de pagar.
     "custom_text[submit][message]": lead.pais === "PT"
-      ? `Ao subscrever, aceita o contrato de serviço da FluxDeck (Service Agreement): ${CONTRATO_EN}`
-      : `By subscribing, you agree to the FluxDeck Service Agreement: ${CONTRATO_EN}`,
+      ? `${unico ? "Ao pagar" : "Ao subscrever"}, aceita o contrato de serviço da FluxDeck (Service Agreement): ${CONTRATO_EN}`
+      : `${unico ? "By paying" : "By subscribing"}, you agree to the FluxDeck Service Agreement: ${CONTRATO_EN}`,
   } });
   await db.gravarEstado(guarda, link.url);
   // Para reconhecer o pagamento: o link aponta para a empresa, o plano e o valor.
-  await db.gravarEstado(`stripe_link_lead:${link.id}`, JSON.stringify({ leadId: lead.id, nome, valor, moeda }));
+  await db.gravarEstado(`stripe_link_lead:${link.id}`, JSON.stringify({ leadId: lead.id, nome, valor, moeda, unico }));
   return link.url;
 }
 
@@ -296,20 +303,20 @@ export async function registrarPagamento(sessao) {
   if (await db.lerEstado(`stripe_pago:${sessao.id}`)) return null;
   const salvo = await db.lerEstado(`stripe_link_lead:${sessao.payment_link}`);
   if (!salvo) return registrarPagamentoDoPlano(sessao);
-  const { leadId, nome, valor, moeda } = JSON.parse(salvo);
+  const { leadId, nome, valor, moeda, unico = false } = JSON.parse(salvo);
   const lead = await db.buscarLead(leadId);
   if (!lead) return null;
   await db.gravarEstado(`stripe_pago:${sessao.id}`, new Date().toISOString());
   const preco = new Intl.NumberFormat("pt-BR", { style: "currency", currency: moeda }).format(valor);
   const quem = sessao.customer_details?.email ? ` (${sessao.customer_details.email})` : "";
-  const resumo = `Pagou pelo Stripe: ${nome}, ${preco} por mês${quem}`;
+  const resumo = `Pagou pelo Stripe: ${nome}, ${preco}${unico ? " (pagamento único)" : " por mês"}${quem}`;
   await db.atualizarLead(lead.id, { status: "fechado", observacao: resumo });
   await db.cancelarPendentes(lead.id, "a empresa pagou pelo Stripe");
   const { pausarIA } = await import("../respostas/processar.js");
   await pausarIA(lead.id, `${resumo}: a conversa agora é com você (próximos passos do projeto)`);
   const { enviarNotificacao } = await import("../envio/email.js");
-  await enviarNotificacao(`${lead.nome} pagou: ${nome} (${preco}/mês)`,
-    `${lead.nome}${lead.cidade ? `, de ${lead.cidade}` : ""}, pagou o primeiro mês do plano ${nome} (${preco} por mês) pelo Stripe${quem}.\n\nA empresa foi marcada como fechada no painel, as mensagens de venda foram canceladas e a IA parou de responder: mande os próximos passos.`).catch(() => {});
+  await enviarNotificacao(`${lead.nome} pagou: ${nome} (${preco}${unico ? "" : "/mês"})`,
+    `${lead.nome}${lead.cidade ? `, de ${lead.cidade}` : ""}, pagou ${unico ? `${nome} (${preco}, pagamento único)` : `o primeiro mês do plano ${nome} (${preco} por mês)`} pelo Stripe${quem}.\n\nA empresa foi marcada como fechada no painel, as mensagens de venda foram canceladas e a IA parou de responder: mande os próximos passos.`).catch(() => {});
   return { leadId: lead.id, empresa: lead.nome, plano: nome, valor, moeda };
 }
 

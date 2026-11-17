@@ -58,6 +58,7 @@ import { paginaDoCheckout } from "./vendas/paginaCheckout.js";
 import { pdfDoGuia, prepararCampanha, imagemDaMensagem, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
 import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia, origemDaPrevia, enderecoDaPrevia } from "./vendas/previa.js";
+import { dadosDaPrevia, gravarExtraDaPrevia, chaveDaFoto } from "./vendas/dadosDaPrevia.js";
 import { PILAR_BLACK_FRIDAY } from "./ia/conteudo.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao, lerApresentacaoDeFora, gravarApresentacaoDeFora } from "./respostas/apresentacao.js";
@@ -269,7 +270,26 @@ app.get("/previa/:token", async (req, res) => {
   const lead = await db.buscarLeadPorToken(String(req.params.token ?? ""));
   if (!podeTerPrevia(lead)) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
   const { empresa } = await carregarCampanhaCompleta();
-  res.set({ ...SEM_CACHE, "Referrer-Policy": "no-referrer" }).send(paginaDaPrevia(lead, { marca: empresa.nome, telefoneMarca: empresa.telefone }));
+  // Fotos, avaliações e horário do perfil da empresa no Google (buscados uma vez e guardados) e o que o painel acrescentou.
+  const dados = await dadosDaPrevia(lead).catch(() => ({}));
+  const fotoUrl = (n) => `/previa/${lead.token}/foto/${n}`;
+  res.set({ ...SEM_CACHE, "Referrer-Policy": "no-referrer" }).send(paginaDaPrevia(lead, { marca: empresa.nome, telefoneMarca: empresa.telefone, dados, fotoUrl }));
+});
+
+// As fotos da prévia (as do perfil da própria empresa no Google, guardadas no banco).
+app.get("/previa/:token/foto/:n", async (req, res) => {
+  const lead = await db.buscarLeadPorToken(String(req.params.token ?? ""));
+  if (!podeTerPrevia(lead) || !/^\d{1,2}$/.test(req.params.n)) return res.sendStatus(404);
+  const foto = await db.lerMidia(chaveDaFoto(lead.id, Number(req.params.n)));
+  if (!foto) return res.sendStatus(404);
+  res.set({ "Content-Type": foto.tipo, "Cache-Control": "public, max-age=86400" }).send(foto.dados);
+});
+
+// O que sabemos a mais de uma empresa para a prévia dela (serviços, frase, sobre, logo em texto). Sem enviar nada.
+app.put("/api/leads/:id/previa", async (req, res) => {
+  const lead = await db.buscarLead(req.params.id);
+  if (!lead) return res.status(404).json({ erro: "Empresa não encontrada" });
+  res.json(await gravarExtraDaPrevia(lead.id, req.body ?? {}));
 });
 
 // ---------- Slides (público pelo código aleatório; a página Slides do painel mostra esta mesma página) ----------

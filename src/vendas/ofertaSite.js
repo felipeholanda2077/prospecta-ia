@@ -12,6 +12,12 @@ export const OFERTA_SITE = {
 
 export const ofertaSiteAtiva = (agora = new Date()) => +agora <= Date.parse(OFERTA_SITE.ate);
 
+// Site para empresas da Europa (pedido de 17/11/2026): 150 €, valor fixo (sem conversão de reais), pagamento único,
+// sem mensalidade. Vale para os países do euro; o link de pagamento é do Stripe, em euro.
+export const OFERTA_SITE_EUROPA = { plano: "Criação de site", valor: 150, moeda: "EUR" };
+/** Os valores do site da Europa (150 €, € 150, 150 euros), para a trava de valores deixar passar só eles. */
+export const VALOR_DO_SITE_EUROPA = /€\s?150(?:,00)?(?![\d.,]*\d)|\b150(?:,00)?\s?(?:€|euros?\b)/gi;
+
 const reais = (v) => `R$ ${Number(v).toLocaleString("pt-BR")}`;
 export const PRECO_DE = reais(OFERTA_SITE.de);
 export const PRECO_POR = reais(OFERTA_SITE.por);

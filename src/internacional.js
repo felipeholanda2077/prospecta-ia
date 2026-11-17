@@ -234,10 +234,29 @@ IDIOMA, PAÍS E MOEDA (esta regra vale acima de qualquer outra sobre idioma nest
 - Português de Portugal de verdade: nada de "bate-papo", "Fala o", "a gente", "legal", "contato" (é "contacto") nem gerúndio ("estou vendo" → "estou a ver"); trate por "vocês" ou pelo nome, sem misturar com "vós".` : ""}
 - Na assinatura e quando citar o seu telefone, use o formato internacional (com +55).
 - Quando citar o site da empresa, use a versão em inglês, com os preços na moeda dela: https://fluxdeck.com.br/en
-- PAGAMENTO: só em ${nomeMoeda}, pelo link de pagamento seguro do Stripe (cartão). Nunca ofereça Pix, boleto, transferência, reais nem outro meio.${vendeSemReuniao(lead) ? await vendaSemReuniao(lead) : await pagamentoComReuniao()}`;
+- PAGAMENTO: só em ${nomeMoeda}, pelo link de pagamento seguro do Stripe (cartão). Nunca ofereça Pix, boleto, transferência, reais nem outro meio.${vendeSemReuniao(lead) ? await vendaSemReuniao(lead) : await pagamentoComReuniao()}${pais.moeda === "EUR" ? await siteDaEuropa(lead) : ""}`;
 }
 
-/** Portugal segue com a reunião, mas quem quer contratar também paga pelo link do Stripe, em euro. */
+/**
+ * Site para a Europa (pedido de 17/11/2026): 150 €, valor fixo, pagamento único. Quem gostou do site de exemplo (ou
+ * quer o site) recebe o valor e, no fim, o link de pagamento em euro. Nunca reunião.
+ */
+async function siteDaEuropa(lead) {
+  const stripe = Boolean((await db.lerConfig("stripe").catch(() => null))?.chave);
+  const { OFERTA_SITE_EUROPA } = await import("./vendas/ofertaSite.js");
+  return `
+
+SITE (esta regra vale acima das outras sobre valores, reunião e agendamento):
+- A criação do site da ${lead.nome} custa 150 € (valor fixo, pagamento único, sem mensalidade). Não converta nem arredonde.
+- Nunca convide para reunião, chamada, videochamada ou bate-papo e nunca mande link de agendamento: a venda é por mensagem.
+- Quando a pessoa gostar do site de exemplo, quiser o site ou perguntar o preço: diga o valor (150 €, pagamento único,
+  sem mensalidade) e o que inclui (o site no ar com a cara do exemplo, as fotos e os serviços dela, versão para telemóvel,
+  botão do WhatsApp e domínio), ${stripe ? `e escreva, sozinho na última linha, o marcador {{pagamento:${OFERTA_SITE_EUROPA.plano}|${OFERTA_SITE_EUROPA.valor}}}. Ele vira o
+  link de pagamento seguro, em euro, cobrado uma vez só. Diga que, com o pagamento confirmado, vocês começam e pedem as
+  fotos e os textos por aqui.` : "e diga que manda o link de pagamento em seguida (não invente link)."}`;
+}
+
+/** Portugal: sem reunião (desde 17/11/2026); quem quer contratar paga pelo link do Stripe, em euro. */
 async function pagamentoComReuniao() {
   const stripe = Boolean((await db.lerConfig("stripe").catch(() => null))?.chave);
   return stripe ? `
