@@ -57,7 +57,7 @@ import * as checkoutsAsaas from "./vendas/checkoutsAsaas.js";
 import { paginaDoCheckout } from "./vendas/paginaCheckout.js";
 import { pdfDoGuia, prepararCampanha, imagemDaMensagem, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
-import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia, origemDaPrevia } from "./vendas/previa.js";
+import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia, origemDaPrevia, enderecoDaPrevia } from "./vendas/previa.js";
 import { PILAR_BLACK_FRIDAY } from "./ia/conteudo.js";
 import { documentoEmHtml, documentoEmPdf, ROTULOS_CAMPOS } from "./contratos/documento.js";
 import { lerApresentacao, gravarApresentacao, lerApresentacaoDeFora, gravarApresentacaoDeFora } from "./respostas/apresentacao.js";
@@ -1776,6 +1776,13 @@ app.post("/api/robos/aplicar", async (req, res) => {
   if (!leadIds.length) return res.status(400).json({ erro: "Escolha as conversas" });
   const textos = req.body?.textos && typeof req.body.textos === "object" ? req.body.textos : {};
   res.json({ feitos: await aplicarRevisaoDeRobos(leadIds, { textos }) });
+});
+
+// O link da prévia do site desta empresa (o site de exemplo), para mandar na conversa. Sem prévia possível, 404.
+app.get("/api/leads/:id/previa", async (req, res) => {
+  const lead = await db.buscarLead(req.params.id);
+  const link = lead && (!lead.pais || ["BR", "PT"].includes(lead.pais)) ? enderecoDaPrevia(lead, origemDaPrevia(await carregarCampanhaCompleta())) : "";
+  return link ? res.json({ link }) : res.status(404).json({ erro: "Esta empresa não pode ter a prévia (tem site, é de outro país ou não foi prospectada por nós)" });
 });
 
 // Escreve a apresentação (processo, planos, prazo e convite) para esta conversa, sem enviar: você revisa e envia
