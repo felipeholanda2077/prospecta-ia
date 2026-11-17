@@ -72,7 +72,7 @@ export async function dadosDaPrevia(lead, { buscar = buscarNoGoogle, agora = Dat
   }
   const marca = await marcaDaEmpresa(lead).catch(() => ({}));
   const extra = (await db.lerConfig(`previa_extra:${lead.id}`)) ?? {};
-  return { ...dados, temLogo: Boolean(marca.logo), logoLarga: Boolean(marca.larga), fundoDaLogo: marca.fundo ?? null, corDaMarca: marca.cor ?? null, ...extra };
+  return { ...dados, temLogo: Boolean(marca.logo), logoVersao: marca.em ?? 0, logoLarga: Boolean(marca.larga), fundoDaLogo: marca.fundo ?? null, corDaMarca: marca.cor ?? null, ...extra };
 }
 
 // ---------- A logo e a cor da marca ----------

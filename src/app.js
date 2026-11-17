@@ -273,7 +273,8 @@ app.get("/previa/:token", async (req, res) => {
   // Fotos, avaliações e horário do perfil da empresa no Google (buscados uma vez e guardados) e o que o painel acrescentou.
   const dados = await dadosDaPrevia(lead).catch(() => ({}));
   const fotoUrl = (n) => `/previa/${lead.token}/foto/${n}`;
-  const logoUrl = `/previa/${lead.token}/logo`;
+  // A versão no endereço: quando a logo é buscada de novo, o navegador não fica com a antiga guardada.
+  const logoUrl = `/previa/${lead.token}/logo?v=${dados.logoVersao ?? 0}`;
   res.set({ ...SEM_CACHE, "Referrer-Policy": "no-referrer" }).send(paginaDaPrevia(lead, { marca: empresa.nome, telefoneMarca: empresa.telefone, dados, fotoUrl, logoUrl }));
 });
 
