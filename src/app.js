@@ -1594,9 +1594,20 @@ app.get("/api/conversas", async (req, res) => {
   const registros = await registrosDeFollowup();
   const extras = await db.contatosParaBusca();
   // `busca`: os outros números e nomes da conversa (ex.: a pessoa indicada), para a barra de pesquisa do painel.
-  const conversas = (await conversasAvaliadas()).map((c) => ({ ...c, followup: followupDaConversa(c, registros), busca: (extras.get(c.id) ?? "").trim() }));
+  // Em sequência (consultas em paralelo já travaram o banco de produção).
+  const pagamento = await db.aguardandoPagamento();
+  const { porLead: encaminhados } = await db.encaminhamentos();
+  const conversas = (await conversasAvaliadas()).map((c) => ({
+    ...c, followup: followupDaConversa(c, registros), busca: (extras.get(c.id) ?? "").trim(),
+    aguardandoPagamento: pagamento.get(c.id) ?? null, encaminhamento: encaminhados.get(c.id) ?? null,
+  }));
   const funil = { ...(await db.funilDeConversas()), ramos_teste: await lerRamos() };
-  res.json({ indicadores: indicadoresDasConversas(conversas, funil), conversas, numeros: await numerosDasConversas(conversas) });
+  const indicadores = {
+    ...indicadoresDasConversas(conversas, funil),
+    aguardandoPagamento: conversas.filter((c) => c.aguardandoPagamento).length,
+    encaminhamentos: { total: encaminhados.size, sucesso: [...encaminhados.values()].filter((v) => v === "sucesso").length },
+  };
+  res.json({ indicadores, conversas, numeros: await numerosDasConversas(conversas) });
 });
 
 /**

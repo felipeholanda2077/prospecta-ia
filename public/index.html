@@ -318,6 +318,10 @@
   /* ---------- Respostas: indicadores e chat ---------- */
   .ind-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
   .ind { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: grid; gap: 2px; }
+  .ind-botao { font: inherit; color: inherit; text-align: left; cursor: pointer; transition: border-color .15s, transform .15s; }
+  .ind-botao:hover { border-color: var(--accent, #6d5ef5); transform: translateY(-1px); }
+  .link-chat { color: inherit; text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+  .bolha.nos .link-chat { color: inherit; }
   .ind b { font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .ind span { color: var(--muted); font-size: 13px; }
   .ind.ok b { color: var(--ok); } .ind.atencao b { color: var(--warn); } .ind.perigo b { color: var(--danger); } .ind.acc b { color: var(--accent-text); }
@@ -3887,7 +3891,7 @@ let buscaConversa = "";
 let dadosConversas = null;
 const FILTROS_CONVERSA = [
   ["todas", "Todas"], ["interessados", `<span class="coroa-filtro">${ic("crown", "sm")}</span>Interessados`], ["precisa", "Precisam de você"], ["quente", "Chance alta"], ["morna", "Média"], ["fria", "Baixa"],
-  ["agendada", "Agendadas"], ["encerrada", "Encerradas"],
+  ["agendada", "Agendadas"], ["pagamento", "Link de pagamento enviado · aguardando pagamento"], ["encaminhadas", "Encaminhamentos"], ["encerrada", "Encerradas"],
 ];
 const COR_CHANCE = { fechada: "ok", agendada: "acc", quente: "ok", morna: "atencao", fria: "perigo", encerrada: "" };
 
@@ -3912,6 +3916,8 @@ function htmlIndicadores(ind) {
       <div class="ind"><b>${ind.frias}</b><span>Chance baixa</span></div>
       <div class="ind ${ind.precisamDeVoce ? "perigo" : ""}"><b>${ind.precisamDeVoce}</b><span>Precisam de você</span></div>
       <div class="ind ok"><b>${ind.agendadas}</b><span>Reuniões agendadas</span></div>
+      <button type="button" class="ind ind-botao ${ind.aguardandoPagamento ? "atencao" : ""}" data-filtro-conversa="pagamento" title="Ver quem já recebeu o link de pagamento e ainda não pagou"><b>${ind.aguardandoPagamento ?? 0}</b><span>Link de pagamento enviado · aguardando pagamento</span></button>
+      <button type="button" class="ind ind-botao ok" data-filtro-conversa="encaminhadas" title="A empresa passou para outra pessoa (dono, responsável) e essa pessoa respondeu"><b>${ind.encaminhamentos?.sucesso ?? 0}<small style="font-size:.55em;font-weight:600;opacity:.7"> de ${ind.encaminhamentos?.total ?? 0}</small></b><span>Encaminhamentos bem-sucedidos</span></button>
     </div>
     ${htmlCardsDoFunil(f)}
     ${htmlFunilVisual(f)}`;
@@ -4180,12 +4186,35 @@ function htmlNumerosDaConversa() {
   return partes.join("");
 }
 
+/**
+ * O texto de uma mensagem do chat com os links e os telefones clicáveis: link abre em outra aba; telefone
+ * (com 10 a 13 dígitos) abre a conversa no WhatsApp. O resto continua escapado.
+ */
+function textoComLinks(texto) {
+  return String(texto ?? "").split(/(https?:\/\/[^\s<>"']+)/g).map((parte, i) => {
+    if (i % 2) {
+      const url = parte.replace(/[),.;!?]+$/, "");
+      return `<a class="link-chat" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>${esc(parte.slice(url.length))}`;
+    }
+    return esc(parte).replace(/(\+?\(?\d[\d\s().-]{8,}\d)/g, (tel) => {
+      const d = tel.replace(/\D/g, "");
+      if (d.length < 10 || d.length > 13) return tel;
+      const numero = d.length <= 11 ? `55${d}` : d;
+      return `<a class="link-chat" href="https://wa.me/${numero}" target="_blank" rel="noopener noreferrer" title="Abrir no WhatsApp">${tel}</a>`;
+    });
+  }).join("");
+}
+
 function conversasFiltradas() {
   const lista = (dadosConversas?.conversas ?? []).filter((c) => bateComBusca(c, buscaConversa)
     && (numeroConversa === "todos" || numeroDaConversa(c) === numeroConversa));
   if (filtroConversa === "todas") return lista;
   if (filtroConversa === "precisa") return lista.filter((c) => c.andamento.precisaDeVoce);
   if (filtroConversa === "interessados") return lista.filter((c) => c.interessado);
+  if (filtroConversa === "pagamento") return lista.filter((c) => c.aguardandoPagamento)
+    .sort((a, b) => new Date(b.aguardandoPagamento) - new Date(a.aguardandoPagamento));
+  // Encaminhamentos: primeiro os que deram certo (a pessoa indicada respondeu).
+  if (filtroConversa === "encaminhadas") return lista.filter((c) => c.encaminhamento).sort((a, b) => (a.encaminhamento === "sucesso" ? -1 : 0) - (b.encaminhamento === "sucesso" ? -1 : 0));
   return lista.filter((c) => c.andamento.chance === filtroConversa);
 }
 
@@ -4374,7 +4403,7 @@ function bolhasDaConversa(d, { somenteLer = false } = {}) {
       outroContato ? `${m.autor === "nos" ? "para" : "de"} ${esc(m.contato)}` : "",
       new Date(m.quando).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) + (m.autor === "nos" ? marcaDeEntrega(m) : ""),
     ].filter(Boolean).join(" · ");
-    partes.push(`<div class="bolha ${m.autor}">${m.assunto && m.canal === "email" ? `<div class="assunto-b">${esc(m.assunto)}</div>` : ""}${esc(m.texto)}<div class="rodape-b">${detalhes}</div></div>`);
+    partes.push(`<div class="bolha ${m.autor}">${m.assunto && m.canal === "email" ? `<div class="assunto-b">${esc(m.assunto)}</div>` : ""}${textoComLinks(m.texto)}<div class="rodape-b">${detalhes}</div></div>`);
   }
   for (const a of d.agendadas) {
     const quando = a.agendada_para ? `sai ${dataHora(a.agendada_para)}` : "aguardando a etapa anterior";
@@ -9207,7 +9236,12 @@ document.addEventListener("click", async (ev) => {
     }
     else if ("responder" in btn.dataset) await responder(btn);
     else if (btn.dataset.conversaId) await abrirConversa(btn.dataset.conversaId);
-    else if (btn.dataset.filtroConversa) { filtroConversa = btn.dataset.filtroConversa; desenharListaConversas(); }
+    else if (btn.dataset.filtroConversa) {
+      filtroConversa = btn.dataset.filtroConversa;
+      desenharListaConversas();
+      // Do cartão de cima (ex.: "aguardando pagamento"): desce até a lista já filtrada.
+      if (btn.classList.contains("ind-botao")) $("#chat-filtros")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
     else if (btn.dataset.filtroNumeroEnviadas) { filtroNumeroEnviadas = btn.dataset.filtroNumeroEnviadas; await carregarLista(); }
     else if (btn.dataset.verEnviadasDoNumero) { filtroNumeroEnviadas = btn.dataset.verEnviadasDoNumero; filtroCanal = "todos"; location.hash = "#enviada"; }
     else if (btn.dataset.numeroConversa) {

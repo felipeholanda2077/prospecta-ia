@@ -400,6 +400,53 @@ export async function gravarPublicacao({ produto_id, canal, conta_id, externo_id
  * Para a busca da tela Respostas: os outros contatos de cada conversa (números para quem escrevemos ou que
  * escreveram, como a pessoa que a empresa indicou) e os nomes dos contatos ligados, num texto por empresa.
  */
+// Link de pagamento: o checkout da FluxDeck, o do Asaas ou o do Stripe.
+const LINK_DE_PAGAMENTO = "(/checkout/[a-z0-9-]+|asaas\\.com/(c|i)/|buy\\.stripe\\.com/|checkout\\.stripe\\.com/|invoice\\.stripe\\.com/)";
+
+/** Empresas que já receberam um link de pagamento e ainda não pagaram: { leadId → quando foi o último link }. */
+export async function aguardandoPagamento() {
+  const linhas = await q(
+    `SELECT m.lead_id, max(m.enviada_em) AS quando FROM mensagens m JOIN leads l ON l.id = m.lead_id
+      WHERE m.status = 'enviada' AND l.status <> 'fechado' AND m.corpo ~* $1 GROUP BY m.lead_id`,
+    [LINK_DE_PAGAMENTO]
+  );
+  return new Map(linhas.map((r) => [Number(r.lead_id), r.quando]));
+}
+
+/**
+ * Encaminhamentos: a empresa passou a conversa para outra pessoa (o dono, o responsável, outro setor) e nós
+ * escrevemos para esse outro número. Bem-sucedido quando essa pessoa respondeu depois. Os números são comparados
+ * pelos 8 últimos dígitos (com ou sem o 9 e o DDI). Retorna { porLead: Map(leadId → "sucesso" | "aguardando") }.
+ */
+export async function encaminhamentos() {
+  const fim = (t) => String(t ?? "").replace(/\D/g, "").slice(-8);
+  const enviados = await q(
+    `SELECT m.lead_id, m.destino, m.enviada_em, l.whatsapp FROM mensagens m JOIN leads l ON l.id = m.lead_id
+      WHERE m.canal = 'whatsapp' AND m.status = 'enviada' AND m.destino IS NOT NULL ORDER BY m.enviada_em`
+  );
+  const respostas = await q(
+    `SELECT lead_id, de, recebida_em FROM respostas
+      WHERE canal = 'whatsapp' AND de IS NOT NULL AND classificacao IS DISTINCT FROM 'automatica'`
+  );
+  const primeiro = new Map();
+  const outros = new Map(); // leadId → Map(fim do número → primeira vez que escrevemos para ele)
+  for (const m of enviados) {
+    const id = Number(m.lead_id);
+    const numero = fim(m.destino);
+    if (!numero) continue;
+    if (!primeiro.has(id)) primeiro.set(id, fim(m.whatsapp) || numero);
+    if (numero === primeiro.get(id) || numero === fim(m.whatsapp)) continue;
+    if (!outros.has(id)) outros.set(id, new Map());
+    if (!outros.get(id).has(numero)) outros.get(id).set(numero, new Date(m.enviada_em));
+  }
+  const porLead = new Map();
+  for (const [id, numeros] of outros) {
+    const respondeu = respostas.some((r) => Number(r.lead_id) === id && numeros.has(fim(r.de)) && new Date(r.recebida_em) > numeros.get(fim(r.de)));
+    porLead.set(id, respondeu ? "sucesso" : "aguardando");
+  }
+  return { porLead };
+}
+
 export async function contatosParaBusca() {
   const porLead = new Map();
   const juntar = (id, texto) => texto && porLead.set(Number(id), `${porLead.get(Number(id)) ?? ""} ${texto}`);
