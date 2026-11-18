@@ -633,7 +633,7 @@ ${linkPrevia ? `- previa: a conversa tocou em presença online e a ${lead.nome} 
 ${contatoIndicado ? `ATENÇÃO: este follow-up vai para ${contatoIndicado.nome || "a pessoa"} que a ${lead.nome} indicou (você escreveu para ela e ela ainda não respondeu). Fale com ela${contatoIndicado.nome ? " pelo primeiro nome" : ""}, lembre de leve que o pessoal da ${lead.nome} passou o contato e não use a opção responsavel: ela já é a pessoa certa.
 ` : ""}Regras:
 - Nada de cobrança ("não sei se viu", "só passando para lembrar", "fico no aguardo"), nada de pressão.
-- Não cumprimente com "bom dia/boa tarde" nem se apresente de novo: vocês já conversaram. Um "Oi, [nome]!" leve pode.
+- Não cumprimente com "bom dia/boa tarde" nem se apresente de novo: vocês já conversaram. ${lead.pais === "PT" ? 'Um "Olá, [nome]!" leve pode (em Portugal, nunca "Oi").' : 'Um "Oi, [nome]!" leve pode.'}
 - ${linkPagamento ? "Não precisa repetir o valor; se citar, só o que já está no histórico, como está escrito." : podeValores ? "Se citar valores, só os da apresentação, como estão escritos." : `Não cite valores, preços ou R$: ela não perguntou de preço.${ofertaLiberada(lead) ? ` ${regraDaOferta(lead)}` : ""}`}
 - Não convide para bate-papo, call ou reunião, a menos que ela já tenha pedido isso na conversa.
 - Não repita frases que já estão no histórico. Não invente fatos.
