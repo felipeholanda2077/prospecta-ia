@@ -1,4 +1,5 @@
 import { normalizarTelefoneBR } from "./telefone.js";
+import { SO_REDE_SOCIAL } from "./prioridade.js";
 
 const USER_AGENT = "ProspectaIA/0.1 (+analise de presenca digital; respeita robots.txt)";
 const TIMEOUT_MS = 12000;
@@ -175,7 +176,7 @@ export async function analisarSite(url) {
   }
 
   // Sites que são só uma rede social ou link agregador contam como "sem site próprio".
-  if (/instagram\.com|facebook\.com|linktr\.ee|wa\.me|ifood\.com/i.test(alvo)) {
+  if (SO_REDE_SOCIAL.test(alvo)) {
     return { temSite: false, apenasRedeSocial: true, urlRedeSocial: alvo };
   }
 

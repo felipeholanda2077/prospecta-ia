@@ -1,8 +1,15 @@
 // Prioridade de cada empresa: quem já está conversando e tem mais chance de fechar vem
 // primeiro; entre as que ainda não responderam, as com mais potencial de venda.
 
-// Perfil no Google só com rede social ou link agregador conta como "sem site próprio".
-const SO_REDE_SOCIAL = /instagram\.com|facebook\.com|linktr\.ee|wa\.me|ifood\.com/i;
+// Perfil no Google só com rede social, página de links (bio), página de marcação de outra plataforma ou o perfil
+// do Google conta como "sem site próprio": a empresa recebe o site de exemplo (pedido de 18/11/2026, o salão
+// TA Cabeleireiros tinha só um bio.site e não recebeu).
+export const SO_REDE_SOCIAL = new RegExp([
+  "instagram\\.com", "facebook\\.com", "fb\\.com", "tiktok\\.com", "youtube\\.com", "wa\\.me", "wa\\.link", "api\\.whatsapp\\.com",
+  "ifood\\.com", "linktr\\.ee", "bio\\.site", "linkin\\.bio", "lnk\\.bio", "bio\\.link", "linkr\\.bio", "beacons\\.ai",
+  "taplink\\.", "campsite\\.bio", "solo\\.to", "msha\\.ke", "linkbio\\.", "allmylinks\\.com",
+  "fresha\\.com", "booksy\\.com", "treatwell\\.", "business\\.site", "g\\.page",
+].join("|"), "i");
 
 export const semSiteProprio = (site) => !site || SO_REDE_SOCIAL.test(site);
 
