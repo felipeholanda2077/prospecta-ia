@@ -173,7 +173,7 @@ async function lerPreviaGuardada(leadId, historico, plano) {
  * da empresa). Fica guardada até a conversa mudar; `refazer` pede outro texto à IA.
  * Retorna { numero, de, quando, canal, destino, opcao, texto } ou { motivo } quando não há follow-up previsto.
  */
-export async function previaDoFollowup(leadId, campanha, { refazer = false, escrever = escreverFollowup, agora = new Date() } = {}) {
+export async function previaDoFollowup(leadId, campanha, { refazer = false, soGuardada = false, escrever = escreverFollowup, agora = new Date() } = {}) {
   const lead = await db.buscarLead(leadId);
   if (!lead) throw new Error("Empresa não encontrada");
   if (!campanha.automacao?.respostaAutomatica || campanha.automacao?.followupInteressados === false) return { motivo: "O follow-up da IA está desligado em Automação" };
@@ -187,6 +187,8 @@ export async function previaDoFollowup(leadId, campanha, { refazer = false, escr
   const plano = precisaDeFollowup({ historico, registro: await lerRegistro(lead.id), pausada: await iaPausada(lead.id) }, vence);
   if (!plano) return { motivo: "Não há follow-up previsto para esta conversa (já foram os 2 seguidos, a IA está parada ou a conversa esfriou)" };
   const guardada = refazer ? null : await lerPreviaGuardada(lead.id, historico, plano);
+  // `soGuardada`: a que já foi escrita (para abrir a conversa na hora, sem esperar a IA); sem ela, null.
+  if (soGuardada && !guardada) return null;
   const f = await prepararFollowup({ lead, historico, campanha, plano, escrever, pronta: guardada });
   if (!f) return { motivo: "A IA não tem o que mandar nesta conversa" };
   const quando = guardada?.quando ?? (await horarioDoFollowup(campanha, lead, vence)).toISOString();

@@ -1286,7 +1286,7 @@ export async function marcarRespostaLida(id) {
  */
 export async function conversas() {
   const linhas = await q(
-    `SELECT l.id, l.nome, l.status, l.nicho, l.cidade, l.whatsapp, l.email, l.agente_id,
+    `SELECT l.id, l.nome, l.status, l.nicho, l.cidade, l.whatsapp, l.email, l.agente_id, l.pais, l.fuso,
             (SELECT a.nome FROM agentes a WHERE a.id = l.agente_id) AS agente_nome,
             -- Por qual número de WhatsApp a conversa sai: o guardado na empresa; conversa de antes de existirem
             -- vários números (já recebeu WhatsApp sem número guardado) é do principal; sem WhatsApp, nenhum.

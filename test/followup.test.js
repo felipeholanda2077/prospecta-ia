@@ -168,7 +168,10 @@ test("prévia do follow-up no painel: mostra o texto exato e quando sai, sem env
   let vezes = 0;
   const escrever = async (ctx) => ({ opcao: "pagamento", mensagem: `Texto ${++vezes}: ficou alguma dúvida? ${ctx.linkPagamento}` });
 
+  assert.equal(await previaDoFollowup(lead.id, comHorario, { escrever, soGuardada: true }), null); // ainda não escrita: não chama a IA
+  assert.equal(vezes, 0);
   const p = await previaDoFollowup(lead.id, comHorario, { escrever });
+  assert.equal((await previaDoFollowup(lead.id, comHorario, { escrever, soGuardada: true })).texto, p.texto);
   assert.equal(p.numero, 1);
   assert.match(p.texto, /^Texto 1: .*PreviaPT$/);
   assert.ok(new Date(p.quando) >= new Date(Date.now() + 18 * 3600_000), p.quando); // 1 dia depois da nossa última mensagem

@@ -1584,11 +1584,24 @@ async function conversasAvaliadas() {
     || Number(b.interessado) - Number(a.interessado) || chance(b) - chance(a) || quando(b) - quando(a));
 }
 
-/** O próximo follow-up automático de uma conversa da lista (ver respostas/followup.js). */
-const followupDaConversa = (c, registros) => previsaoDoFollowup({
+/**
+ * O próximo follow-up automático de uma conversa da lista (ver respostas/followup.js), na hora em que sai de verdade:
+ * no horário comercial do país da empresa (Portugal: Lisboa); fora dele, no começo do próximo dia útil de lá.
+ */
+const followupDaConversa = (c, registros) => noHorarioDoFollowup(previsaoDoFollowup({
   interessado: c.mostrou_interesse || ["morna", "quente"].includes(c.avaliacao?.temperatura), status: c.status, agenteId: c.agente_id, ultima: c.ultima, ultimaDela: c.ultima_resposta,
   pausada: c.ia_pausada, temFila: Boolean(c.proxima), registro: registros.get(c.id),
-});
+}), c);
+
+function noHorarioDoFollowup(f, c) {
+  const limites = carregarCampanha().limites;
+  if (!f?.quando || !limites?.horarioComercial) return f;
+  const fuso = (c.pais && c.pais !== "BR" && c.fuso) || config.timezone;
+  const vence = new Date(f.quando);
+  const quando = pipeline.dentroDoHorario(limites, vence, fuso) && pipeline.minutosAteOFim(limites, vence, fuso) >= 15
+    ? vence : pipeline.inicioDoProximoDiaUtil(limites, vence, { folga: false, fuso });
+  return { ...f, quando: quando.toISOString(), atrasado: quando < new Date() };
+}
 
 app.get("/api/conversas", async (req, res) => {
   const registros = await registrosDeFollowup();
@@ -1816,6 +1829,8 @@ app.get("/api/conversas/:leadId", async (req, res) => {
     andamento: conversa?.andamento ?? null,
     interessado: conversa?.interessado ?? false,
     followup: conversa ? followupDaConversa(conversa, await registrosDeFollowup()) : null,
+    // A prévia do follow-up já escrita (o texto exato que vai sair); sem ela, o painel pede à IA ao abrir a conversa.
+    followupPrevia: await previaDoFollowup(lead.id, await carregarCampanhaCompleta(), { soGuardada: true }).catch(() => null),
     iaPausada: (await iaPausada(lead.id)) || null,
     numeroWhatsapp: !lead.numero_wa ? null : whatsappOficial.ehNumeroOficial(lead.numero_wa)
       ? (n => n ? `${n.nome} (API oficial)` : null)((await whatsappOficial.numerosOficiais()).find((n) => n.id === lead.numero_wa))
