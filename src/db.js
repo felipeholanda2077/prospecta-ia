@@ -1337,6 +1337,9 @@ export async function conversas() {
 const SQL_ETAPAS = `
        SELECT l.id, CASE
            WHEN l.status = 'fechado' THEN 'fecharam'
+           -- Recebeu o link de pagamento (checkout da FluxDeck, Asaas ou Stripe) e ainda não pagou.
+           WHEN l.status NOT IN ('sem_interesse', 'descadastrado', 'descartado') AND EXISTS (
+             SELECT 1 FROM mensagens lp WHERE lp.lead_id = l.id AND lp.status = 'enviada' AND lp.corpo ~* '${LINK_DE_PAGAMENTO}') THEN 'link_pagamento'
            WHEN l.status = 'agendado' THEN 'agendaram'
            WHEN l.status IN ('sem_interesse', 'descadastrado') THEN 'recusaram'
            WHEN l.status = 'descartado' THEN 'descartadas'
@@ -1398,7 +1401,7 @@ export async function funilDeConversas() {
        (SELECT json_agg(x) FROM (
           SELECT ramo, count(*)::int AS contatadas,
                  count(*) FILTER (WHERE etapa NOT IN ('recebendo_etapas', 'sem_resposta', 'descartadas'))::int AS responderam,
-                 count(*) FILTER (WHERE etapa IN ('interessadas', 'agendaram', 'fecharam'))::int AS interessadas
+                 count(*) FILTER (WHERE etapa IN ('interessadas', 'agendaram', 'link_pagamento', 'fecharam'))::int AS interessadas
             FROM etapas GROUP BY ramo ORDER BY count(*) DESC, ramo LIMIT 12) x) AS por_ramo`
   );
   const agora = typeof f.agora === "string" ? JSON.parse(f.agora) : f.agora ?? {};
@@ -1413,7 +1416,7 @@ export async function resultadoPorRamo() {
      resultado AS (
        SELECT ramo, count(*)::int AS contatadas,
               count(*) FILTER (WHERE etapa NOT IN ('recebendo_etapas', 'sem_resposta', 'descartadas'))::int AS responderam,
-              count(*) FILTER (WHERE etapa IN ('interessadas', 'agendaram', 'fecharam'))::int AS interessadas
+              count(*) FILTER (WHERE etapa IN ('interessadas', 'agendaram', 'link_pagamento', 'fecharam'))::int AS interessadas
          FROM etapas GROUP BY ramo),
      capturadas AS (
        SELECT lower(btrim(nicho)) AS ramo, count(*)::int AS capturadas FROM leads
@@ -1430,7 +1433,7 @@ export async function resultadoPorAbordagem() {
     `WITH etapas AS (${SQL_ETAPAS})
      SELECT l.abordagem, count(*)::int AS contatadas,
             count(*) FILTER (WHERE e.etapa NOT IN ('recebendo_etapas', 'sem_resposta', 'descartadas'))::int AS responderam,
-            count(*) FILTER (WHERE e.etapa IN ('interessadas', 'agendaram', 'fecharam'))::int AS interessadas
+            count(*) FILTER (WHERE e.etapa IN ('interessadas', 'agendaram', 'link_pagamento', 'fecharam'))::int AS interessadas
        FROM etapas e JOIN leads l ON l.id = e.id
       WHERE l.abordagem IS NOT NULL
         -- A primeira mensagem que saiu pelo número oficial da Meta é o modelo aprovado, não a da IA: fica fora do teste.
@@ -1458,7 +1461,7 @@ export async function empresasDasEtapas(etapas, limite = 300) {
 }
 
 /** As etapas do "funil agora", na ordem em que aparecem no painel. */
-export const ETAPAS_DO_FUNIL = ["recebendo_etapas", "sem_resposta", "em_conversa", "interessadas", "agendaram", "fecharam", "recusaram", "descartadas"];
+export const ETAPAS_DO_FUNIL = ["recebendo_etapas", "sem_resposta", "em_conversa", "interessadas", "agendaram", "link_pagamento", "fecharam", "recusaram", "descartadas"];
 
 /** Mensagens que ainda vão sair nesta conversa (respostas da IA e etapas agendadas). */
 export async function agendadasDaConversa(leadId) {

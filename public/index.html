@@ -3933,8 +3933,9 @@ function htmlIndicadores(ind) {
 const FAIXAS_FUNIL = [
   { nome: "Contatadas", cor: "#6d5ef5", pararam: [["recebendo_etapas", "Recebendo as etapas"], ["sem_resposta", "Sem resposta"], ["descartadas", "Descartadas ou encerradas"]] },
   { nome: "Responderam", cor: "#4f6ef7", pararam: [["em_conversa", "Em conversa"], ["recusaram", "Recusaram"]] },
-  { nome: "Interessadas", cor: "#1677ff", pararam: [["interessadas", "Falta agendar"]] },
-  { nome: "Agendaram", cor: "#06b6d4", pararam: [["agendaram", "Reunião marcada"]] },
+  // Desde 17/11 a venda vai do site de exemplo ao link de pagamento; a reunião é opcional e fica nas interessadas.
+  { nome: "Interessadas", cor: "#1677ff", pararam: [["interessadas", "Falta mandar o link"], ["agendaram", "Reunião marcada"]] },
+  { nome: "Receberam o link de pagamento", cor: "#06b6d4", pararam: [["link_pagamento", "Aguardando pagamento"]] },
   { nome: "Fecharam", cor: "#22c55e", pararam: [["fecharam", "Viraram clientes"]] },
 ];
 
@@ -3949,7 +3950,8 @@ const pctDe = (n, de) => (de ? Math.round((n / de) * 100) : 0);
 /** Os cartões em cima do funil, com os mesmos números das faixas. */
 function htmlCardsDoFunil(f) {
   const a = f.agora ?? {};
-  const [contatadas, responderam, interessadas, agendaram] = faixasDoFunil(a).map((x) => x.total);
+  const [contatadas, responderam, interessadas, receberamLink] = faixasDoFunil(a).map((x) => x.total);
+  const agendaram = a.agendaram ?? 0;
   const naoResponderam = (a.recebendo_etapas ?? 0) + (a.sem_resposta ?? 0);
   const recusaram = a.recusaram ?? 0;
   const barra = (n, classe = "") => `<span class="funil-barra ${classe}"><i style="width:${contatadas ? Math.max(2, Math.round((n / contatadas) * 100)) : 0}%"></i></span>`;
@@ -3960,8 +3962,10 @@ function htmlCardsDoFunil(f) {
         <small>${a.recebendo_etapas ?? 0} ainda recebendo as etapas · ${a.sem_resposta ?? 0} já receberam todas</small></div>
       <div class="funil-etapa"><span>Interessadas · ${pctDe(interessadas, responderam)}%</span><b>${interessadas}</b>${barra(interessadas)}
         <small>das que responderam</small></div>
-      <div class="funil-etapa"><span>Agendaram · ${pctDe(agendaram, interessadas)}%</span><b>${agendaram}</b>${barra(agendaram)}
+      <div class="funil-etapa"><span>Receberam o link de pagamento · ${pctDe(receberamLink, interessadas)}%</span><b>${receberamLink}</b>${barra(receberamLink)}
         <small>das interessadas</small></div>
+      <div class="funil-etapa"><span>Reunião marcada</span><b>${agendaram}</b>${barra(agendaram)}
+        <small>sem link ainda</small></div>
       <div class="funil-etapa recusa"><span>Recusaram · ${pctDe(recusaram, responderam)}%</span><b>${recusaram}</b>${barra(recusaram)}
         <small>das que responderam</small></div>
     </div>`;

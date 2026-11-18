@@ -46,3 +46,15 @@ test("encaminhamentos: a empresa passou para outra pessoa; bem-sucedido quando e
   assert.equal(porLead.get(d.id), "sucesso");
   assert.equal(porLead.get(e.id), "aguardando");
 });
+
+test("funil: quem recebeu o link de pagamento fica na etapa própria; quem pagou, em fecharam", async () => {
+  const f = await lead("Salão F", "5511933332222");
+  await db.criarMensagem({ lead_id: f.id, canal: "whatsapp", destino: f.whatsapp, corpo: "Oi", status: "enviada", tipo: "inicial", etapa: 1 });
+  await db.criarResposta({ lead_id: f.id, canal: "whatsapp", origem_id: "f-1", de: f.whatsapp, texto: "Quero", classificacao: "interessado", resumo: "x" });
+  await enviada(f.id, f.whatsapp, "Garanta aqui: https://fluxdeck.com.br/checkout/site-black-friday", "2020-01-17T15:00:00Z");
+  const funil = await db.funilDeConversas();
+  assert.ok(funil.agora.link_pagamento >= 1);
+  await db.atualizarLead(f.id, { status: "fechado" });
+  const depois = await db.funilDeConversas();
+  assert.equal(depois.agora.link_pagamento, funil.agora.link_pagamento - 1);
+});
