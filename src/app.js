@@ -297,10 +297,15 @@ app.get("/diagnostico/:token/relatorio.pdf", async (req, res) => {
 
 // ---------- Prévia do site (público: o link é de cada empresa sem site próprio) ----------
 
+// Prévia liberada à mão (você pediu um exemplo para uma empresa que já tem site, ou que veio de outro jeito).
+const chaveDaPreviaLiberada = (leadId) => `previa_liberada:${leadId}`;
+const previaPermitida = async (lead) => podeTerPrevia(lead)
+  || Boolean(lead?.token && String(lead.nome ?? "").trim() && !lead.agente_id && (await db.lerEstado(chaveDaPreviaLiberada(lead.id))));
+
 // Rascunho de como ficaria o site da empresa, montado na hora com os dados públicos dela (nenhum outro lead aparece).
 app.get("/previa/:token", async (req, res) => {
   const lead = await db.buscarLeadPorToken(String(req.params.token ?? ""));
-  if (!podeTerPrevia(lead)) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
+  if (!(await previaPermitida(lead))) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
   const { empresa } = await carregarCampanhaCompleta();
   // Fotos, avaliações e horário do perfil da empresa no Google (buscados uma vez e guardados) e o que o painel acrescentou.
   const dados = await dadosDaPrevia(lead).catch(() => ({}));
@@ -313,7 +318,7 @@ app.get("/previa/:token", async (req, res) => {
 // A logo da empresa na prévia (a foto de perfil do WhatsApp em tamanho cheio, ou a do Instagram, guardada no banco).
 app.get("/previa/:token/logo", async (req, res) => {
   const lead = await db.buscarLeadPorToken(String(req.params.token ?? ""));
-  if (!podeTerPrevia(lead)) return res.sendStatus(404);
+  if (!(await previaPermitida(lead))) return res.sendStatus(404);
   const logo = await db.lerMidia(chaveDaLogo(lead.id));
   if (!logo?.tipo?.startsWith("image/")) return res.sendStatus(404);
   res.set({ "Content-Type": logo.tipo, "Cache-Control": "public, max-age=86400" }).send(logo.dados);
@@ -322,7 +327,7 @@ app.get("/previa/:token/logo", async (req, res) => {
 // As fotos da prévia (as do perfil da própria empresa no Google, guardadas no banco).
 app.get("/previa/:token/foto/:n", async (req, res) => {
   const lead = await db.buscarLeadPorToken(String(req.params.token ?? ""));
-  if (!podeTerPrevia(lead) || !/^\d{1,2}$/.test(req.params.n)) return res.sendStatus(404);
+  if (!(await previaPermitida(lead)) || !/^\d{1,2}$/.test(req.params.n)) return res.sendStatus(404);
   const foto = await db.lerMidia(chaveDaFoto(lead.id, Number(req.params.n)));
   if (!foto) return res.sendStatus(404);
   res.set({ "Content-Type": foto.tipo, "Cache-Control": "public, max-age=86400" }).send(foto.dados);
@@ -1959,8 +1964,19 @@ app.post("/api/leads/:id/link-do-site", async (req, res) => {
 // O link da prévia do site desta empresa (o site de exemplo), para mandar na conversa. Sem prévia possível, 404.
 app.get("/api/leads/:id/previa", async (req, res) => {
   const lead = await db.buscarLead(req.params.id);
-  const link = lead && (!lead.pais || ["BR", "PT"].includes(lead.pais)) ? enderecoDaPrevia(lead, origemDaPrevia(await carregarCampanhaCompleta())) : "";
+  const origem = origemDaPrevia(await carregarCampanhaCompleta());
+  const liberada = lead && (await db.lerEstado(chaveDaPreviaLiberada(lead.id)));
+  const link = !lead ? "" : liberada ? `${origem}/previa/${lead.token}`
+    : (!lead.pais || ["BR", "PT"].includes(lead.pais)) ? enderecoDaPrevia(lead, origem) : "";
   return link ? res.json({ link }) : res.status(404).json({ erro: "Esta empresa não pode ter a prévia (tem site, é de outro país ou não foi prospectada por nós)" });
+});
+
+// Libera a prévia de uma empresa que normalmente não teria (ex.: já tem site e pediu um exemplo novo). Sem enviar nada.
+app.post("/api/leads/:id/previa/liberar", async (req, res) => {
+  const lead = await db.buscarLead(req.params.id);
+  if (!lead?.token) return res.status(404).json({ erro: "Empresa não encontrada" });
+  await db.gravarEstado(chaveDaPreviaLiberada(lead.id), new Date().toISOString());
+  res.json({ link: `${origemDaPrevia(await carregarCampanhaCompleta())}/previa/${lead.token}` });
 });
 
 // Escreve a apresentação (processo, planos, prazo e convite) para esta conversa, sem enviar: você revisa e envia
