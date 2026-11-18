@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { partesDaMensagem } from "./partes.js";
 import * as db from "../db.js";
 import { mensagemParaIndicado } from "../ia/resposta.js";
 import { enviarNotificacao } from "../envio/email.js";
@@ -97,12 +98,17 @@ export async function contatarIndicados({
       lead, contato, canal, nomeDeQuemIndicou, textoDaIndicacao, campanha, historico: await db.historicoConversa(lead.id),
     });
     const { assunto = null, mensagem: corpo } = typeof escrita === "string" ? { mensagem: escrita } : escrita;
-    const id = await db.criarMensagem({
-      lead_id: lead.id, canal, destino, assunto: canal === "email" ? assunto || `Indicação da ${lead.nome}` : null,
-      corpo, status: "aprovada", tipo: "resposta", etapa: 0,
-    });
     const espera = manual ? 60_000 : ESPERA_MIN_MS + Math.random() * (ESPERA_MAX_MS - ESPERA_MIN_MS);
-    await db.atualizarMensagem(id, { agendada_para: new Date(Date.now() + espera).toISOString() });
+    // Texto grande sai separado, em mensagens curtas na ordem (ver partes.js).
+    let id = null;
+    for (const [i, parte] of partesDaMensagem(corpo, canal).entries()) {
+      const criada = await db.criarMensagem({
+        lead_id: lead.id, canal, destino, assunto: canal === "email" ? assunto || `Indicação da ${lead.nome}` : null,
+        corpo: parte, status: "aprovada", tipo: "resposta", etapa: 0,
+      });
+      await db.atualizarMensagem(criada, { agendada_para: new Date(Date.now() + espera + i * 5000).toISOString() });
+      id ??= criada;
+    }
     await db.atualizarLead(lead.id, { observacao: `Indicou ${contato.nome || "um contato"} (${destino}); a IA vai falar com essa pessoa` });
     log(`🤝 ${lead.nome} indicou ${contato.nome || destino} (${canal}); a IA escreve em ~${Math.round(espera / 60000)} min`);
     feitos.push({ ...contato, mensagemId: id, corpo, agendadaPara: new Date(Date.now() + espera).toISOString() });

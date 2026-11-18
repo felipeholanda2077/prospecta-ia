@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { partesDaMensagem } from "./partes.js";
 import * as db from "../db.js";
 import { classificarResposta, limparTextoResposta, escreverApresentacao, escreverEnvioDaApresentacao, recusouClaramente, semCumprimentoRepetido, pediuValor, semValores, semConviteCedo, valoresPermitidos, semAgendamento, pediuConversa } from "../ia/resposta.js";
 import { pediuApresentacaoComercial, linkDaApresentacao, apresentacaoJaEnviada, mensagemDaApresentacao } from "../vendas/apresentacaoComercial.js";
@@ -107,7 +108,8 @@ async function agendarResposta({ respostaId, lead, canal, de, assunto, origem_id
   const destino = de || (canal === "email" ? lead.email : lead.whatsapp);
   const espera = esperaMinMs + Math.random() * (esperaMaxMs - esperaMinMs);
   const ids = [];
-  for (const [i, texto] of partes.entries()) {
+  // Texto grande sai separado, em mensagens curtas na ordem (ver partes.js); no e-mail, inteiro.
+  for (const [i, texto] of partes.flatMap((p) => partesDaMensagem(p, canal)).entries()) {
     const id = await db.criarMensagem({
       lead_id: lead.id,
       canal,

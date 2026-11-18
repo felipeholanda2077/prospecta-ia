@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { partesDaMensagem } from "./partes.js";
 import * as db from "../db.js";
 import { escreverFollowup, pediuValor, semValores, valoresPermitidos } from "../ia/resposta.js";
 import { enderecoDoGuia } from "../vendas/campanha.js";
@@ -67,7 +68,8 @@ export function partesDoFollowup(corpo, canal = "whatsapp") {
   if (!texto) return [];
   if (canal === "email") return [texto];
   const blocos = texto.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
-  if (blocos.length >= 2) return [blocos[0], blocos.slice(1).join("\n\n")];
+  // Uma parte que ainda ficou grande também sai separada (ver partes.js).
+  if (blocos.length >= 2) return [blocos[0], blocos.slice(1).join("\n\n")].flatMap((p) => partesDaMensagem(p, canal));
   if (texto.length <= PARTE_LONGA) return [texto];
   // Pontos de corte: fim de frase (. ! ?) seguido de espaço, fora de um link.
   const cortes = [...texto.matchAll(/[.!?](?=\s)/g)].map((m) => m.index + 1)
