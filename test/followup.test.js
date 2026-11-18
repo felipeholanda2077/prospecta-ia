@@ -120,3 +120,71 @@ test("follow-up: conversa morna sem interesse declarado (ex.: ficou de repassar)
   assert.match((await pendentes(repassou.id))[0]?.corpo ?? "", /responsável/);
   assert.equal((await pendentes(fria.id)).length, 0);
 });
+
+test("follow-up de Portugal: quem recebeu o link de pagamento e não pagou recebe o link de novo, no horário de Lisboa", async () => {
+  const { linkDePagamento, horarioDoFollowup } = await import("../src/respostas/followup.js");
+  const link = "https://fluxdeck.com.br/checkout/x/WcNCK8ypKLNlLLJq";
+  assert.equal(linkDePagamento([{ autor: "nos", texto: `O valor é 150 €. Para avançar, é por aqui:\n${link}` }, { autor: "lead", texto: "ok" }]), link);
+  assert.equal(linkDePagamento([{ autor: "nos", texto: `Veja (${link}).` }]), link);
+  assert.equal(linkDePagamento([{ autor: "lead", texto: link }, { autor: "nos", texto: "Oi" }]), "");
+
+  // Horário comercial (9h às 18h, dias úteis): 22h08 em Lisboa sai no dia seguinte entre 9h e 9h30 de lá; 10h, em minutos.
+  const comHorario = { ...campanha, limites: { horarioComercial: { inicio: 9, fim: 18 }, somenteDiasUteis: true } };
+  const pt = { pais: "PT", fuso: "Europe/Lisbon" };
+  const noite = await horarioDoFollowup(comHorario, pt, new Date("2026-11-18T22:08:00Z"));
+  assert.ok(noite >= new Date("2026-11-19T09:00:00Z") && noite <= new Date("2026-11-19T09:30:00Z"), noite.toISOString());
+  const sexta = await horarioDoFollowup(comHorario, pt, new Date("2026-11-20T21:00:00Z"));
+  assert.ok(sexta >= new Date("2026-11-23T09:00:00Z") && sexta <= new Date("2026-11-23T09:30:00Z"), sexta.toISOString()); // segunda-feira
+  const manha = await horarioDoFollowup(comHorario, pt, new Date("2026-11-18T10:00:00Z"));
+  assert.ok(manha - new Date("2026-11-18T10:00:00Z") <= 8 * 60_000);
+
+  // O link vai para a IA, e quem pagou (fechado) não recebe follow-up.
+  const lead = await conversa("Pilates Portugal");
+  await db.atualizarLead(lead.id, { pais: "PT", fuso: "Europe/Lisbon" });
+  const m = await db.criarMensagem({ lead_id: lead.id, canal: "whatsapp", destino: "5511900000000", corpo: `O valor é 150 €, pagamento único. Para avançar, é por aqui:\n${link}`, tipo: "resposta", etapa: 0 });
+  await db.atualizarMensagem(m, { status: "enviada", enviada_em: horasAtras(26) });
+  const pago = await conversa("Pilates Pago");
+  await db.atualizarLead(pago.id, { status: "fechado" });
+  const pedidos = [];
+  const escrever = async (ctx) => {
+    pedidos.push(ctx);
+    return { opcao: "pagamento", mensagem: `Ficou alguma dúvida sobre o site? Pode pagar com cartão, Apple Pay ou Google Pay, por aqui:\n${ctx.linkPagamento}` };
+  };
+  await followupsDeInteressados(comHorario, { escrever, limite: 10 });
+  assert.deepEqual(pedidos.map((p) => p.lead.nome), ["Pilates Portugal"]);
+  assert.equal(pedidos[0].linkPagamento, link);
+  assert.match((await pendentes(lead.id))[0].corpo, /checkout\/x\/WcNCK8ypKLNlLLJq/);
+  assert.equal((await pendentes(pago.id)).length, 0);
+});
+
+test("prévia do follow-up no painel: mostra o texto exato e quando sai, sem enviar; o envio usa o mesmo texto", async () => {
+  const { previaDoFollowup } = await import("../src/respostas/followup.js");
+  const comHorario = { ...campanha, limites: { horarioComercial: { inicio: 9, fim: 18 }, somenteDiasUteis: false } };
+  const link = "https://fluxdeck.com.br/checkout/x/PreviaPT";
+  const lead = await conversa("Estudio Previa PT", { h: 30 });
+  await db.atualizarLead(lead.id, { pais: "PT", fuso: "Europe/Lisbon" });
+  const m = await db.criarMensagem({ lead_id: lead.id, canal: "whatsapp", destino: "5511900000000", corpo: `Para avançar, é por aqui:\n${link}`, tipo: "resposta", etapa: 0 });
+  await db.atualizarMensagem(m, { status: "enviada", enviada_em: horasAtras(5) }); // ainda falta ~19 h para vencer
+  let vezes = 0;
+  const escrever = async (ctx) => ({ opcao: "pagamento", mensagem: `Texto ${++vezes}: ficou alguma dúvida? ${ctx.linkPagamento}` });
+
+  const p = await previaDoFollowup(lead.id, comHorario, { escrever });
+  assert.equal(p.numero, 1);
+  assert.match(p.texto, /^Texto 1: .*PreviaPT$/);
+  assert.ok(new Date(p.quando) >= new Date(Date.now() + 18 * 3600_000), p.quando); // 1 dia depois da nossa última mensagem
+  assert.equal((await pendentes(lead.id)).length, 0); // nada enviado nem na fila
+  assert.equal((await previaDoFollowup(lead.id, comHorario, { escrever })).texto, p.texto); // guardada: não escreve de novo
+  assert.equal(vezes, 1);
+  const outra = await previaDoFollowup(lead.id, comHorario, { escrever, refazer: true });
+  assert.match(outra.texto, /^Texto 2/);
+
+  // Na hora do follow-up, sai o texto da prévia (a IA não escreve outro), no horário marcado.
+  await followupsDeInteressados(comHorario, { escrever, limite: 10, agora: new Date(Date.now() + 20 * 3600_000) });
+  const [saiu] = await pendentes(lead.id);
+  assert.equal(saiu.corpo, outra.texto);
+  assert.equal(vezes, 2);
+
+  // Quem já pagou não tem follow-up.
+  await db.atualizarLead(lead.id, { status: "fechado" });
+  assert.match((await previaDoFollowup(lead.id, comHorario, { escrever })).motivo, /pagou/);
+});

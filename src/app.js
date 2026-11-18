@@ -69,7 +69,7 @@ import { dashboardDoPainel } from "./dashboard.js";
 import { metaDoMes, salvarMetaDoMes } from "./vendas/metaDoMes.js";
 import * as agentes from "./respostas/agentes.js";
 import * as crm from "./respostas/crmAgente.js";
-import { previsaoDoFollowup, registrosDeFollowup } from "./respostas/followup.js";
+import { previaDoFollowup, previsaoDoFollowup, registrosDeFollowup } from "./respostas/followup.js";
 import { fotoDoLead } from "./respostas/fotos.js";
 import { enviarParaNumero, rascunhoParaNumero } from "./respostas/conversarComNumero.js";
 import { lerRamos } from "./descoberta/ramos.js";
@@ -1838,6 +1838,15 @@ app.get("/api/conversas/:leadId", async (req, res) => {
       resumo: resposta.resumo,
     },
   });
+});
+
+// A prévia do próximo follow-up da IA nesta conversa: o texto exato e quando sai, sem enviar nada (o envio usa este texto).
+app.post("/api/conversas/:leadId/followup-previa", async (req, res) => {
+  try {
+    res.json(await previaDoFollowup(Number(req.params.leadId), await carregarCampanhaCompleta(), { refazer: Boolean(req.body?.refazer) }));
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
 });
 
 app.post("/api/conversas/:leadId/lida", async (req, res) => {

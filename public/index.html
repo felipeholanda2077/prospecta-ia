@@ -493,6 +493,14 @@
                     font-size: 13px; color: var(--muted); background: var(--surface-2); }
   .chat-andamento b { color: var(--text); }
   .chat-andamento .resumo-ultima { flex-basis: 100%; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-andamento .ver-followup { font: inherit; font-size: 12px; font-weight: 600; color: var(--accent-text); background: var(--accent-soft); border: 0;
+                                  border-radius: 999px; padding: 3px 10px; margin-left: 6px; cursor: pointer; }
+  .chat-andamento .ver-followup:disabled { opacity: .6; cursor: progress; }
+  .followup-previa { flex-basis: 100%; min-width: 0; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px;
+                     background: var(--surface); padding: 10px 12px; display: grid; gap: 8px; }
+  .followup-previa .fp-topo { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+  .followup-previa .fp-topo b { margin-right: auto; }
+  .followup-previa .fp-texto { color: var(--text); font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
   .chat-msgs { flex: 1; overflow-y: auto; background: var(--wa-chat); padding: 16px clamp(10px, 3vw, 28px); display: flex; flex-direction: column; gap: 6px; }
   .bolha { max-width: min(80%, 560px); padding: 7px 10px 5px; border-radius: 10px; font-size: 14px; line-height: 1.42; white-space: pre-wrap;
            overflow-wrap: anywhere; box-shadow: var(--shadow-sm); color: var(--text); }
@@ -4509,13 +4517,52 @@ function textoDoFollowup(f) {
   return `Follow-up ${f.numero} de ${f.de} da IA: sai ${emQuantoTempo(f.quando)} (a partir de ${dataHora(f.quando)}, em horário comercial)`;
 }
 
+// As prévias do follow-up já abertas no painel, por empresa (continuam abertas quando a conversa atualiza).
+const previasDeFollowup = new Map();
+const detalhesDoAndamento = new Map();
+
+/** A prévia do follow-up: o texto exato que vai sair e quando (no horário da empresa, se ela for de fora). */
+function htmlPreviaDoFollowup(id, d) {
+  const p = previasDeFollowup.get(id);
+  if (!p) return "";
+  if (p.motivo) return `<div class="followup-previa"><div class="fp-topo"><b>${esc(p.motivo)}</b><button type="button" class="ver-followup" data-fechar-followup="${id}">Fechar</button></div></div>`;
+  const fuso = d.lead?.pais && d.lead.pais !== "BR" && d.lead.fuso;
+  const la = fuso ? ` (${new Date(p.quando).toLocaleString("pt-BR", { timeZone: fuso, dateStyle: "short", timeStyle: "short" })} ${d.lead.pais === "PT" ? "em Portugal" : "no horário da empresa"})` : "";
+  return `<div class="followup-previa">
+    <div class="fp-topo"><b>Follow-up ${p.numero} de ${p.de}: sai a partir de ${dataHora(p.quando)}${la}</b>
+      <button type="button" class="ver-followup" data-refazer-followup="${id}" title="A IA escreve outro texto; é o novo que vai sair">Outro texto</button>
+      <button type="button" class="ver-followup" data-fechar-followup="${id}">Fechar</button></div>
+    <div class="fp-texto">${esc(p.texto)}</div>
+    <small class="muted">É este texto que vai sair${p.destino ? ` para ${esc(p.destino)}` : ""}${p.canal === "email" ? " por e-mail" : " pelo WhatsApp"}. Nada foi enviado; se a empresa responder antes, o follow-up não sai.</small>
+  </div>`;
+}
+
+async function verFollowup(btn, refazer = false) {
+  const id = Number(btn.dataset.verFollowup || btn.dataset.refazerFollowup);
+  const caixa = btn.closest(".chat-andamento");
+  btn.disabled = true;
+  btn.textContent = "A IA está escrevendo…";
+  try {
+    previasDeFollowup.set(id, await post(`/api/conversas/${id}/followup-previa`, { refazer }));
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  }
+  const d = detalhesDoAndamento.get(id);
+  if (caixa && d) caixa.innerHTML = htmlAndamento(d);
+}
+
 function htmlAndamento(d) {
   const a = d.andamento;
+  const id = d.lead?.id;
+  if (id) detalhesDoAndamento.set(id, d);
+  const verMensagem = id && d.followup?.quando && !previasDeFollowup.has(id)
+    ? `<button type="button" class="ver-followup" data-ver-followup="${id}" title="Ver o texto exato do follow-up, sem enviar nada">Ver a mensagem</button>` : "";
   return [
     `<span>Chance de fechar: <b>${a.rotulo}</b>${a.esfriou ? ` (esfriou: ${a.diasSemResposta} dias sem resposta)` : ""}</span>`,
     `<span>Próximo passo: <b>${esc(a.proximoPasso)}</b></span>`,
     `<span>${a.aguardando === "empresa" ? "Aguardando a empresa" : "A empresa está esperando você"}</span>`,
-    textoDoFollowup(d.followup) ? `<span>${ic("bell", "sm")} ${textoDoFollowup(d.followup)}</span>` : "",
+    textoDoFollowup(d.followup) ? `<span>${ic("bell", "sm")} ${textoDoFollowup(d.followup)}${verMensagem}</span>` : "",
+    id && d.followup?.quando ? htmlPreviaDoFollowup(id, d) : "",
     d.resposta?.resumo ? `<span class="resumo-ultima" title="${esc(d.resposta.resumo)}">Última resposta: ${esc(d.resposta.resumo)}</span>` : "",
   ].filter(Boolean).join("");
 }
@@ -9256,6 +9303,14 @@ document.addEventListener("click", async (ev) => {
     else if ("enviarConversa" in btn.dataset) await enviarNaConversa(btn);
     else if ("iaContinua" in btn.dataset) await iaContinua(btn);
     else if ("pararIa" in btn.dataset) await pararIA(btn);
+    else if (btn.dataset.verFollowup) await verFollowup(btn);
+    else if (btn.dataset.refazerFollowup) await verFollowup(btn, true);
+    else if (btn.dataset.fecharFollowup) {
+      const id = Number(btn.dataset.fecharFollowup);
+      previasDeFollowup.delete(id);
+      const caixa = btn.closest(".chat-andamento");
+      if (caixa && detalhesDoAndamento.get(id)) caixa.innerHTML = htmlAndamento(detalhesDoAndamento.get(id));
+    }
     else if (btn.dataset.cancelarFila) {
       if (!confirm("Não enviar nenhuma das mensagens da fila para esta empresa?")) return;
       await post(`/api/leads/${btn.dataset.cancelarFila}/cancelar-fila`);

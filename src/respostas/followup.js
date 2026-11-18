@@ -10,7 +10,9 @@ import { variantesWhatsappBR } from "../analise/telefone.js";
 
 // Follow-up da IA para quem mostrou interesse, ou está numa conversa morna ou quente (ex.: ficou de ver, ou de
 // repassar para o responsável), e parou de responder: 1 dia depois da nossa última mensagem, a IA retoma de onde
-// pararam, oferece um material de graça (o guia em PDF da empresa) ou pergunta se conseguiu falar com o responsável. No máximo
+// pararam, oferece um material de graça (o guia em PDF da empresa) ou pergunta se conseguiu falar com o responsável.
+// Quem recebeu o link de pagamento e não pagou recebe o link de novo, com as formas de pagar (pedido de 18/11/2026).
+// Sai no horário comercial do país da empresa (Portugal: o de Lisboa). No máximo
 // MAX_SEGUIDOS seguidos sem resposta; quando a pessoa responde, a conversa volta ao normal e a conta zera.
 
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
@@ -53,6 +55,30 @@ export function precisaDeFollowup({ historico, registro, pausada = "" }, agora =
   return { canal: ultima.canal, de: ultimaDela.contato || ultima.contato, numero: n + 1, evitar: usadas.at(-1) ?? null };
 }
 
+/** O último link de pagamento (checkout da FluxDeck) que mandamos nesta conversa, ou "". */
+export function linkDePagamento(historico = []) {
+  for (const h of [...historico].reverse()) {
+    if (h.autor !== "nos") continue;
+    const achado = String(h.texto ?? "").match(/https?:\/\/[^\s]+\/checkout\/[^\s]+/);
+    if (achado) return achado[0].replace(/[).,!?;:]+$/, "");
+  }
+  return "";
+}
+
+/**
+ * Quando o follow-up sai: em alguns minutos, se for horário comercial no país da empresa (Portugal: o de Lisboa);
+ * fora dele, no começo do próximo dia útil de lá (com alguns minutos de folga, como uma pessoa).
+ */
+export async function horarioDoFollowup(campanha, lead, agora = new Date()) {
+  const logo = new Date(+agora + (2 + Math.random() * 6) * 60_000);
+  const limites = campanha.limites;
+  if (!limites?.horarioComercial) return logo;
+  const { dentroDoHorario, inicioDoProximoDiaUtil, minutosAteOFim } = await import("../pipeline.js");
+  const fuso = (lead.pais && lead.pais !== "BR" && lead.fuso) || config.timezone;
+  if (dentroDoHorario(limites, logo, fuso) && minutosAteOFim(limites, logo, fuso) >= 15) return logo;
+  return inicioDoProximoDiaUtil(limites, agora, { fuso });
+}
+
 /**
  * Rodada dos follow-ups (em horário comercial, dentro da rodada do funil): escolhe as conversas com
  * interesse e 1 dia sem resposta, a IA escreve e a mensagem entra na fila de respostas.
@@ -67,42 +93,105 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
     const plano = precisaDeFollowup({ historico, registro, pausada: await iaPausada(lead.id) }, agora);
     if (!plano) continue;
     try {
-      // Responde no mesmo canal e para o mesmo contato da última mensagem dela (no e-mail, na mesma conversa).
-      const dela = await db.ultimaRespostaDaConversa(lead.id);
-      if (!dela || !CANAIS.includes(dela.canal)) continue;
-      // Prévia do site: só para empresa sem site, quando a conversa tocou em presença online e o link ainda não foi.
-      const linkPrevia = momentoDaPrevia({ lead, historico, origem: origemDaPrevia(campanha) });
-      // Para quem vai: a pessoa indicada que ainda não respondeu recebe um follow-up escrito para ela.
-      const ultimoWa = dela.canal === "whatsapp" ? historico.filter((h) => h.canal === "whatsapp" && h.contato).at(-1) : null;
-      const indicado = ultimoWa?.autor === "nos" ? (await contatosLigados(lead.id)).find((c) => variantesWhatsappBR(c.numero).includes(String(ultimoWa.contato).replace(/\D/g, ""))) : null;
-      const r = await escrever({
-        lead, historico, campanha, canal: dela.canal, numero: plano.numero, evitar: plano.evitar, contatoIndicado: indicado ?? null,
-        apresentacao: await lerApresentacao(lead), linkMaterial: enderecoDoGuia(lead), linkPrevia,
-      });
-      let corpo = pediuValor(dela.texto, historico) ? r.mensagem : semValores(r.mensagem, { manter: valoresPermitidos(lead) });
-      if (!linkPrevia || !corpo?.includes(linkPrevia)) corpo = semLinkDaPrevia(corpo);
-      if (!corpo?.trim()) continue;
-      // No WhatsApp, para quem falou por último: depois de escrevermos para a pessoa que a empresa indicou, o
-      // follow-up é com ela, não com quem passou o contato.
-      const ultimoContato = dela.canal === "whatsapp" ? historico.filter((h) => h.canal === "whatsapp" && h.contato).at(-1)?.contato : null;
+      // A prévia que você viu no painel é a que sai (mesma conversa, mesmo número de follow-up); sem prévia, a IA escreve agora.
+      const vista = await lerPreviaGuardada(lead.id, historico, plano);
+      const f = await prepararFollowup({ lead, historico, campanha, plano, escrever, pronta: vista });
+      if (!f) continue;
       const id = await db.criarMensagem({
-        lead_id: lead.id, canal: dela.canal, destino: ultimoContato || dela.de || (dela.canal === "email" ? lead.email : lead.whatsapp),
-        assunto: dela.canal === "email" ? (/^re:/i.test(dela.assunto ?? "") ? dela.assunto : `Re: ${dela.assunto ?? lead.nome}`) : null,
-        corpo: corpo.trim(), status: "aprovada", tipo: "resposta", etapa: 0,
-        em_resposta_a: dela.canal === "email" ? dela.origem_id : null, followup: plano.numero,
+        lead_id: lead.id, canal: f.canal, destino: f.destino, assunto: f.assunto,
+        corpo: f.corpo, status: "aprovada", tipo: "resposta", etapa: 0, em_resposta_a: f.em_resposta_a, followup: plano.numero,
       });
-      // Alguns minutos, como uma pessoa; a fila envia em horário comercial.
-      await db.atualizarMensagem(id, { agendada_para: new Date(Date.now() + (2 + Math.random() * 6) * 60_000).toISOString() });
+      // Alguns minutos, como uma pessoa, no horário comercial do país da empresa (fora dele, no começo do próximo dia útil de lá).
+      const horario = await horarioDoFollowup(campanha, lead, agora);
+      const marcado = vista?.quando && new Date(vista.quando) > horario ? new Date(vista.quando) : horario;
+      await db.atualizarMensagem(id, { agendada_para: marcado.toISOString() });
       await db.gravarEstado(chave(lead.id), JSON.stringify({
-        n: plano.numero, desde: new Date().toISOString(), opcoes: [...((registro && plano.numero > 1 ? registro.opcoes : []) ?? []), r.opcao],
+        n: plano.numero, desde: new Date().toISOString(), opcoes: [...((registro && plano.numero > 1 ? registro.opcoes : []) ?? []), f.opcao],
       }));
+      if (vista) await db.gravarEstado(chavePrevia(lead.id), "");
       criados++;
-      log(`🔔 Follow-up ${plano.numero} de ${MAX_SEGUIDOS} para ${lead.nome} (${{ material: "com o guia gratuito", responsavel: "perguntando pelo responsável", previa: "com a prévia do site" }[r.opcao] ?? "retomando a conversa"})`);
+      log(`🔔 Follow-up ${plano.numero} de ${MAX_SEGUIDOS} para ${lead.nome} (${{ material: "com o guia gratuito", responsavel: "perguntando pelo responsável", previa: "com a prévia do site", pagamento: "retomando o link de pagamento" }[f.opcao] ?? "retomando a conversa"})`);
     } catch (e) {
       log(`⚠️  Follow-up de ${lead.nome} não saiu: ${e.message}`);
     }
   }
   return { criados };
+}
+
+/**
+ * O follow-up desta conversa (texto, canal e para quem vai), sem gravar nada: a mesma lógica serve para o envio e
+ * para a prévia do painel. `pronta` = o texto já escrito na prévia ({ opcao, corpo }), para não escrever de novo.
+ * Retorna null quando não há o que mandar.
+ */
+async function prepararFollowup({ lead, historico, campanha, plano, escrever = escreverFollowup, pronta = null }) {
+  // Responde no mesmo canal e para o mesmo contato da última mensagem dela (no e-mail, na mesma conversa).
+  const dela = await db.ultimaRespostaDaConversa(lead.id);
+  if (!dela || !CANAIS.includes(dela.canal)) return null;
+  // No WhatsApp, para quem falou por último: depois de escrevermos para a pessoa que a empresa indicou, o
+  // follow-up é com ela, não com quem passou o contato.
+  const ultimoWa = dela.canal === "whatsapp" ? historico.filter((h) => h.canal === "whatsapp" && h.contato).at(-1) : null;
+  const envio = {
+    canal: dela.canal, destino: ultimoWa?.contato || dela.de || (dela.canal === "email" ? lead.email : lead.whatsapp),
+    assunto: dela.canal === "email" ? (/^re:/i.test(dela.assunto ?? "") ? dela.assunto : `Re: ${dela.assunto ?? lead.nome}`) : null,
+    em_resposta_a: dela.canal === "email" ? dela.origem_id : null,
+  };
+  if (pronta?.corpo) return { ...envio, opcao: pronta.opcao, corpo: pronta.corpo };
+  // Prévia do site: só para empresa sem site, quando a conversa tocou em presença online e o link ainda não foi.
+  const linkPrevia = momentoDaPrevia({ lead, historico, origem: origemDaPrevia(campanha) });
+  // Recebeu o link de pagamento e não pagou (quem paga vira "fechado" e sai desta lista): o follow-up retoma o link.
+  const linkPagamento = linkDePagamento(historico);
+  // Para quem vai: a pessoa indicada que ainda não respondeu recebe um follow-up escrito para ela.
+  const indicado = ultimoWa?.autor === "nos" ? (await contatosLigados(lead.id)).find((c) => variantesWhatsappBR(c.numero).includes(String(ultimoWa.contato).replace(/\D/g, ""))) : null;
+  const r = await escrever({
+    lead, historico, campanha, canal: dela.canal, numero: plano.numero, evitar: plano.evitar, contatoIndicado: indicado ?? null,
+    apresentacao: await lerApresentacao(lead), linkMaterial: enderecoDoGuia(lead), linkPrevia, linkPagamento,
+  });
+  let corpo = pediuValor(dela.texto, historico) ? r.mensagem : semValores(r.mensagem, { manter: valoresPermitidos(lead) });
+  if (!linkPrevia || !corpo?.includes(linkPrevia)) corpo = semLinkDaPrevia(corpo);
+  if (!corpo?.trim()) return null;
+  return { ...envio, opcao: r.opcao, corpo: corpo.trim() };
+}
+
+// ---------- A prévia do follow-up no painel (pedido de 18/11/2026) ----------
+
+const chavePrevia = (leadId) => `followup_previa:${leadId}`;
+/** A marca da conversa para a prévia: a nossa última mensagem e o número do follow-up (mudou = a prévia não vale mais). */
+const marcaDaConversa = (historico, plano) => `${historico.at(-1)?.quando ?? ""}#${plano.numero}`;
+
+async function lerPreviaGuardada(leadId, historico, plano) {
+  try {
+    const p = JSON.parse((await db.lerEstado(chavePrevia(leadId))) || "null");
+    return p && p.marca === marcaDaConversa(historico, plano) ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A prévia do próximo follow-up desta conversa, sem enviar nada: o texto exato (a mesma lógica do envio, e o envio
+ * usa este mesmo texto) e a partir de quando sai (1 dia depois da nossa última mensagem, no horário comercial do país
+ * da empresa). Fica guardada até a conversa mudar; `refazer` pede outro texto à IA.
+ * Retorna { numero, de, quando, canal, destino, opcao, texto } ou { motivo } quando não há follow-up previsto.
+ */
+export async function previaDoFollowup(leadId, campanha, { refazer = false, escrever = escreverFollowup, agora = new Date() } = {}) {
+  const lead = await db.buscarLead(leadId);
+  if (!lead) throw new Error("Empresa não encontrada");
+  if (!campanha.automacao?.respostaAutomatica || campanha.automacao?.followupInteressados === false) return { motivo: "O follow-up da IA está desligado em Automação" };
+  if (lead.agente_id) return { motivo: "Esta conversa está com um agente: o follow-up da IA não sai" };
+  if (lead.status !== "respondeu") return { motivo: lead.status === "fechado" ? "Já pagou ou fechou: não há follow-up" : "Não há follow-up previsto para esta conversa" };
+  const historico = await db.historicoConversa(lead.id);
+  const ultima = historico.at(-1);
+  if (!ultima || ultima.autor !== "nos") return { motivo: "A empresa está esperando a sua resposta: não há follow-up" };
+  // Avalia no momento em que o follow-up vence (1 dia depois da nossa última mensagem).
+  const vence = new Date(Math.max(+agora, +new Date(ultima.quando) + DIA_MS));
+  const plano = precisaDeFollowup({ historico, registro: await lerRegistro(lead.id), pausada: await iaPausada(lead.id) }, vence);
+  if (!plano) return { motivo: "Não há follow-up previsto para esta conversa (já foram os 2 seguidos, a IA está parada ou a conversa esfriou)" };
+  const guardada = refazer ? null : await lerPreviaGuardada(lead.id, historico, plano);
+  const f = await prepararFollowup({ lead, historico, campanha, plano, escrever, pronta: guardada });
+  if (!f) return { motivo: "A IA não tem o que mandar nesta conversa" };
+  const quando = guardada?.quando ?? (await horarioDoFollowup(campanha, lead, vence)).toISOString();
+  if (!guardada) await db.gravarEstado(chavePrevia(lead.id), JSON.stringify({ marca: marcaDaConversa(historico, plano), opcao: f.opcao, corpo: f.corpo, quando }));
+  return { numero: plano.numero, de: MAX_SEGUIDOS, quando, canal: f.canal, destino: f.destino, opcao: f.opcao, texto: f.corpo };
 }
 
 // ---------- O site de exemplo para quem já tinha mostrado interesse (pedido de 17/11/2026) ----------

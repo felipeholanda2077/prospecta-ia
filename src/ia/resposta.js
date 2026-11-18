@@ -588,12 +588,12 @@ ${texto}`,
   return r.mensagem.trim();
 }
 
-export const OPCOES_DE_FOLLOWUP = ["retomar", "material", "responsavel", "previa"];
+export const OPCOES_DE_FOLLOWUP = ["retomar", "material", "responsavel", "previa", "pagamento"];
 const FollowupSchema = z.object({ opcao: z.enum(OPCOES_DE_FOLLOWUP), mensagem: z.string() });
 const FOLLOWUP_JSON_SCHEMA = {
   type: "object",
   properties: {
-    opcao: { type: "string", enum: OPCOES_DE_FOLLOWUP, description: "retomar = retoma de onde pararam; material = oferece o guia gratuito; responsavel = pergunta se conseguiu falar com o responsável; previa = manda o rascunho do site (só quando há link da prévia)" },
+    opcao: { type: "string", enum: OPCOES_DE_FOLLOWUP, description: "retomar = retoma de onde pararam; material = oferece o guia gratuito; responsavel = pergunta se conseguiu falar com o responsável; previa = manda o rascunho do site (só quando há link da prévia); pagamento = retoma o link de pagamento que ela recebeu e não pagou (só quando há esse link)" },
     mensagem: { type: "string", description: "a mensagem de follow-up, pronta para enviar" },
   },
   required: ["opcao", "mensagem"],
@@ -605,7 +605,7 @@ const FOLLOWUP_JSON_SCHEMA = {
  * assunto da conversa) ou oferece um material de graça (o guia em PDF da empresa). `evitar` = a opção do
  * follow-up anterior, para não repetir. Retorna { opcao, mensagem }.
  */
-export async function escreverFollowup({ lead, historico, campanha, canal = "whatsapp", numero = 1, evitar = null, apresentacao = "", linkMaterial = "", linkPrevia = "", contatoIndicado = null }) {
+export async function escreverFollowup({ lead, historico, campanha, canal = "whatsapp", numero = 1, evitar = null, apresentacao = "", linkMaterial = "", linkPrevia = "", linkPagamento = "", contatoIndicado = null }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const ultimaDela = [...(historico ?? [])].reverse().find((h) => h.autor === "lead");
   const podeValores = pediuValor(ultimaDela?.texto, historico);
@@ -625,12 +625,16 @@ ${linkPrevia ? `- previa: a conversa tocou em presença online e a ${lead.nome} 
   de como ficaria o site dela e mande exatamente este link: ${linkPrevia}
   Uma frase ligando ao que ela contou, e termine perguntando o que ela achou. É mais concreto que o guia: prefira
   esta opção à de material.
-` : "- (NÃO use a opção previa nesta conversa.)\n"}${evitar ? `O follow-up anterior foi "${evitar}": agora use outra opção.` : "Escolha a que fizer mais sentido para esta conversa (se ela ficou de repassar, comece por responsavel)."}
+` : "- (NÃO use a opção previa nesta conversa.)\n"}${linkPagamento ? `- pagamento: a ${lead.nome} já recebeu o link de pagamento e ainda não pagou. Retome com leveza, sem cobrar: pergunte se
+  ficou alguma dúvida (o prazo de uma semana, as alterações, a forma de pagar) e lembre que dá para pagar ${lead.pais && lead.pais !== "BR" ? "com cartão, Apple Pay ou Google Pay" : "por Pix, boleto ou cartão"}
+  e que, se preferirem, fazemos antes um contrato de prestação de serviço. Mande de novo exatamente este link: ${linkPagamento}
+  É a opção certa para quem recebeu o link: prefira-a às outras (só não repita se o follow-up anterior já foi pagamento).
+` : "- (NÃO use a opção pagamento nesta conversa.)\n"}${evitar ? `O follow-up anterior foi "${evitar}": agora use outra opção.` : "Escolha a que fizer mais sentido para esta conversa (se ela ficou de repassar, comece por responsavel)."}
 ${contatoIndicado ? `ATENÇÃO: este follow-up vai para ${contatoIndicado.nome || "a pessoa"} que a ${lead.nome} indicou (você escreveu para ela e ela ainda não respondeu). Fale com ela${contatoIndicado.nome ? " pelo primeiro nome" : ""}, lembre de leve que o pessoal da ${lead.nome} passou o contato e não use a opção responsavel: ela já é a pessoa certa.
 ` : ""}Regras:
 - Nada de cobrança ("não sei se viu", "só passando para lembrar", "fico no aguardo"), nada de pressão.
 - Não cumprimente com "bom dia/boa tarde" nem se apresente de novo: vocês já conversaram. Um "Oi, [nome]!" leve pode.
-- ${podeValores ? "Se citar valores, só os da apresentação, como estão escritos." : `Não cite valores, preços ou R$: ela não perguntou de preço.${ofertaLiberada(lead) ? ` ${regraDaOferta(lead)}` : ""}`}
+- ${linkPagamento ? "Não precisa repetir o valor; se citar, só o que já está no histórico, como está escrito." : podeValores ? "Se citar valores, só os da apresentação, como estão escritos." : `Não cite valores, preços ou R$: ela não perguntou de preço.${ofertaLiberada(lead) ? ` ${regraDaOferta(lead)}` : ""}`}
 - Não convide para bate-papo, call ou reunião, a menos que ela já tenha pedido isso na conversa.
 - Não repita frases que já estão no histórico. Não invente fatos.
 - No máximo 3 frases curtas (até ~400 caracteres), Português do Brasil, no máximo 1 emoji.${FORMATO_DO_CANAL[canal] ?? FORMATO_DO_CANAL.whatsapp}
