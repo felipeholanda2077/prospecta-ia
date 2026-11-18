@@ -1,6 +1,6 @@
 import { config } from "../config.js";
 import { semSiteProprio } from "../analise/prioridade.js";
-import { ofertaSiteAtiva, PRECO_DE, PRECO_POR, OFERTA_SITE } from "./ofertaSite.js";
+
 import { paletaDaMarca } from "./marcaDaPrevia.js";
 
 // Prévia personalizada: para a empresa SEM site próprio, um rascunho de como ficaria o site dela (nome, ramo,
@@ -306,10 +306,7 @@ export function paginaDaPrevia(lead, { marca = "FluxDeck", telefoneMarca = "", a
   const gostou = zapMarca.length >= 10
     ? `<a href="https://wa.me/${zapMarca.startsWith("55") ? zapMarca : `55${zapMarca}`}?text=${encodeURIComponent(`Oi! Vi o rascunho do site da ${nome}.`)}" target="_blank" rel="noopener noreferrer">Gostou? Fale comigo</a>`
     : "<span>Gostou? É só responder a nossa conversa.</span>";
-  // A oferta do site da Black Friday (enquanto vale): este site no ar por R$ 500, valor único.
-  const oferta = !deFora && ofertaSiteAtiva(agora)
-    ? `<span class="oferta">Black Friday: este site no ar de <s>${escapar(PRECO_DE)}</s> por <b>${escapar(PRECO_POR)}</b>, valor único, até ${escapar(OFERTA_SITE.ateTexto)}.</span>`
-    : "";
+  // Sem faixa com o valor no topo (pedido do usuário em 18/11/2026): o "gostou? fale comigo" fica discreto no rodapé.
 
   const iniciais = nome.split(/\s+/).filter((p) => /^[\p{L}\p{N}]/u.test(p)).slice(0, 2).map((p) => p[0].toUpperCase()).join("") || "★";
   const subtitulo = [lead.nicho ? String(lead.nicho).trim() : "", cidade].filter(Boolean).join(" em ");
@@ -361,7 +358,7 @@ a{color:inherit}
 .progresso{position:fixed;top:0;left:0;right:0;height:3px;background:var(--cor);transform:scaleX(0);transform-origin:0 50%;z-index:20}
 .faixa{background:#14151f;color:#e9eaf3;font-size:13px;padding:9px 16px;display:flex;gap:6px 14px;justify-content:center;align-items:center;flex-wrap:wrap;text-align:center}
 .faixa b{color:#fff}.faixa .oferta{background:#ffd166;color:#14151f;border-radius:999px;padding:2px 10px;font-weight:600}.faixa .oferta b{color:#14151f}.faixa .oferta s{opacity:.7}.faixa a{color:#fff;font-weight:600;text-decoration:underline;text-underline-offset:3px}
-.topo{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--borda)}
+.topo{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.97);border-bottom:1px solid var(--borda)}
 .topo .in{max-width:1120px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .logo{display:flex;align-items:center;gap:10px;font-weight:700;min-width:0}.logo span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sigla{flex:none;width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--hero1),var(--hero2));color:#fff;display:grid;place-items:center;font-size:15px;letter-spacing:.02em}
@@ -369,9 +366,9 @@ nav{display:flex;gap:22px;font-size:15px;color:var(--suave)}nav a{text-decoratio
 .botao{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;text-decoration:none;border-radius:12px;padding:13px 20px;background:var(--cor);color:var(--tinta);border:0;white-space:nowrap;transition:transform .2s,box-shadow .2s}
 .botao:hover{transform:translateY(-2px);box-shadow:0 10px 24px -10px var(--cor)}.botao.claro{background:#fff;color:var(--texto);border:1px solid var(--borda)}.topo .botao{padding:9px 14px;font-size:14px}
 /* Topo: fundo em movimento, bolhas e ícones flutuando, e o celular com a conversa */
-.hero{position:relative;overflow:hidden;color:#fff;background:linear-gradient(120deg,var(--hero1),var(--hero2),color-mix(in srgb,var(--hero1) 75%,var(--cor)));background-size:220% 220%;animation:fundo 14s ease-in-out infinite alternate}
+.hero{position:relative;overflow:hidden;contain:paint;color:#fff;background:linear-gradient(120deg,var(--hero1),var(--hero2),color-mix(in srgb,var(--hero1) 75%,var(--cor)))}
 @keyframes fundo{to{background-position:100% 100%}}
-.bolha{position:absolute;border-radius:50%;filter:blur(40px);opacity:.35;background:#fff;animation:boia 12s ease-in-out infinite alternate}
+.bolha{position:absolute;border-radius:50%;opacity:.35;background:radial-gradient(closest-side,#fff,transparent);will-change:transform;animation:boia 12s ease-in-out infinite alternate}
 .bolha.b1{width:260px;height:260px;top:-80px;right:-60px}.bolha.b2{width:200px;height:200px;bottom:-90px;left:-50px;animation-duration:15s;opacity:.22}
 .enfeite{position:absolute;font-size:28px;opacity:.28;animation:boia 9s ease-in-out infinite alternate;pointer-events:none}
 @keyframes boia{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(14px,-22px) rotate(12deg)}}
@@ -472,11 +469,11 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 @keyframes pulsoVerde{0%{box-shadow:0 0 0 0 rgba(74,222,128,.7)}70%{box-shadow:0 0 0 8px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
 .piso3d{position:absolute;left:-50%;right:-50%;bottom:-30%;height:70%;pointer-events:none;opacity:.32;
   background-image:linear-gradient(color-mix(in srgb,var(--cor) 55%,#fff) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--cor) 55%,#fff) 1px,transparent 1px);
-  background-size:56px 56px;transform:perspective(520px) rotateX(68deg);transform-origin:50% 0;animation:pisoAnda 5s linear infinite;
+  background-size:56px 56px;transform:perspective(520px) rotateX(68deg);transform-origin:50% 0;
   -webkit-mask-image:linear-gradient(to top,transparent 0,#000 55%,transparent 100%);mask-image:linear-gradient(to top,transparent 0,#000 55%,transparent 100%)}
 @keyframes pisoAnda{to{background-position:0 56px,0 0}}
 .cena3d{position:relative;justify-self:center;width:min(460px,100%);height:540px;perspective:1100px;perspective-origin:50% 40%}
-.palco{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateX(6deg) rotateY(-14deg);transition:transform .6s cubic-bezier(.2,.7,.2,1);animation:balanco 9s ease-in-out infinite alternate}
+.palco{position:absolute;inset:0;transform-style:preserve-3d;transform:rotateX(6deg) rotateY(-14deg);transition:transform .6s cubic-bezier(.2,.7,.2,1);will-change:transform;animation:balanco 9s ease-in-out infinite alternate}
 .palco.mexendo{animation:none}
 @keyframes balanco{from{transform:rotateX(7deg) rotateY(-20deg)}to{transform:rotateX(2deg) rotateY(-6deg)}}
 @keyframes balancoCurto{from{transform:rotateX(6deg) rotateY(-12deg)}to{transform:rotateX(2deg) rotateY(-3deg)}}
@@ -485,12 +482,13 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .cena3d .celular{width:250px;box-shadow:0 40px 70px -24px rgba(0,0,0,.7),0 0 0 1px rgba(255,255,255,.08)}
 .camada.objeto{left:64%;top:-1%;transform:translateZ(70px)}
 .objeto .brilho{position:absolute;left:50%;top:50%;width:230px;height:230px;margin:-115px 0 0 -115px;border-radius:50%;transform:translateZ(-40px);
-  background:radial-gradient(closest-side,color-mix(in srgb,var(--cor) 75%,#fff),color-mix(in srgb,var(--cor) 40%,transparent) 55%,transparent);opacity:.55;filter:blur(6px);animation:pulsaBrilho 4s ease-in-out infinite alternate}
-@keyframes pulsaBrilho{to{opacity:.85;transform:translateZ(-40px) scale(1.08)}}
-.obj3d{position:relative;width:150px;height:150px;transform-style:preserve-3d;animation:giraObjeto 5s ease-in-out infinite alternate}
-.obj3d span{position:absolute;inset:0;display:grid;place-items:center;font-size:118px;line-height:1;backface-visibility:visible;filter:drop-shadow(0 18px 24px rgba(0,0,0,.45))}
+  background:radial-gradient(closest-side,color-mix(in srgb,var(--cor) 75%,#fff),color-mix(in srgb,var(--cor) 40%,transparent) 55%,transparent);opacity:.6;animation:pulsaBrilho 4s ease-in-out infinite alternate}
+@keyframes pulsaBrilho{to{opacity:.85}}
+.obj3d{position:relative;width:150px;height:150px;transform-style:preserve-3d;will-change:transform;animation:giraObjeto 5s ease-in-out infinite alternate}
+.obj3d span{position:absolute;inset:0;display:grid;place-items:center;font-size:118px;line-height:1;backface-visibility:visible}
+.obj3d span:first-child{filter:drop-shadow(0 18px 24px rgba(0,0,0,.45))}
 @keyframes giraObjeto{from{transform:rotateY(-38deg) rotateX(10deg) translateY(0)}to{transform:rotateY(38deg) rotateX(-4deg) translateY(-12px)}}
-.giro{position:absolute;left:0;top:0;transform-style:preserve-3d;animation:gira 16s linear infinite}
+.giro{position:absolute;left:0;top:0;transform-style:preserve-3d;will-change:transform;animation:gira 16s linear infinite}
 .sat{position:absolute;left:0;top:0;transform-style:preserve-3d;transform:rotate(var(--ang)) translateX(200px) rotate(calc(var(--ang) * -1))}
 .sat i{display:grid;place-items:center;width:58px;height:58px;margin:-29px 0 0 -29px;border-radius:50%;font-style:normal;font-size:30px;
   background:color-mix(in srgb,var(--hero2) 55%,transparent);border:1px solid rgba(255,255,255,.3);box-shadow:0 14px 30px -12px rgba(0,0,0,.6);
@@ -503,8 +501,8 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .aneis>i:nth-child(3){width:220px;height:220px;margin:-110px 0 0 -110px;opacity:.75;border-width:3px;border-color:transparent;border-top-color:color-mix(in srgb,var(--cor) 40%,#fff);border-right-color:color-mix(in srgb,var(--cor) 40%,#fff);animation-duration:6s}
 @keyframes gira{to{transform:rotate(360deg)}}
 .camada.chao{left:50%;top:90%;transform:translate3d(-50%,-50%,-10px) rotateX(82deg)}.chao i{display:block;width:320px;height:320px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.5),transparent)}
-.chip{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:16px;background:color-mix(in srgb,var(--hero2) 62%,transparent);border:1px solid rgba(255,255,255,.28);
-  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);color:#fff;font-size:12.5px;line-height:1.25;white-space:nowrap;max-width:230px;
+.chip{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:16px;background:color-mix(in srgb,var(--hero2) 90%,transparent);border:1px solid rgba(255,255,255,.28);
+  will-change:transform;color:#fff;font-size:12.5px;line-height:1.25;white-space:nowrap;max-width:230px;
   box-shadow:0 22px 44px -18px rgba(0,0,0,.65);animation:flutua 5s ease-in-out infinite alternate}
 .chip b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis}.chip small{display:block;opacity:.82}.chip>span:last-child{min-width:0}
 .chip .ic3{flex:none;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:18px;background:var(--cor);color:var(--tinta);box-shadow:0 8px 18px -8px var(--cor)}
@@ -530,7 +528,9 @@ ${elegante ? "h1,h2,.logo-texto{font-family:'Cormorant Garamond',Georgia,serif;l
 .mapa-real{border-radius:18px;overflow:hidden;border:1px solid var(--borda);min-height:380px;background:#e8eef3;box-shadow:0 24px 50px -30px rgba(0,0,0,.45)}.mapa-real iframe{display:block;width:100%;height:100%;min-height:380px;border:0}
 .avaliacao + .depoimentos{margin-top:16px}
 /* Movimento: foto do topo em zoom lento, brilho nos botões, sublinhado dos títulos e ícones que "saltam" */
-.fundo-foto{animation:zoomLento 26s ease-in-out infinite alternate}@keyframes zoomLento{from{transform:scale(1)}to{transform:scale(1.14) translate(-2%,-1%)}}
+.fundo-foto{will-change:transform;animation:zoomLento 26s ease-in-out infinite alternate}
+/* Topo fora da tela: as animações dele param (voltam quando ele aparece de novo). */
+.hero.fora *,.hero.fora{animation-play-state:paused!important}@keyframes zoomLento{from{transform:scale(1)}to{transform:scale(1.14) translate(-2%,-1%)}}
 .botao{position:relative;overflow:hidden;isolation:isolate}.botao::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.4) 50%,transparent 65%);transform:translateX(-130%);animation:brilhoBotao 4.2s ease-in-out infinite}
 @keyframes brilhoBotao{0%,55%{transform:translateX(-130%)}85%,100%{transform:translateX(130%)}}
 section h2.rv::after{content:"";display:block;width:58px;height:3px;border-radius:3px;background:linear-gradient(90deg,var(--cor),color-mix(in srgb,var(--cor) 40%,#f5a524));margin-top:10px;transform:scaleX(0);transform-origin:0 50%;transition:transform .9s .25s cubic-bezier(.2,.7,.2,1)}
@@ -544,6 +544,7 @@ section h2.rv.in::after,html:not(.js) section h2.rv::after{transform:scaleX(1)}
 @media (prefers-reduced-motion:reduce){.js .cartao.rv .ic{opacity:1!important;transform:none!important}.js .foto.real.rv img{clip-path:none!important}}
 @media (max-width:520px){.grade>.cartao{flex:0 1 calc((100% - 10px) / 2);min-width:0}.galeria.reais{grid-auto-rows:150px}.galeria.reais .foto:nth-child(1){grid-column:span 2;grid-row:span 2;aspect-ratio:auto}.numeros + .corre{margin-top:26px}}
 footer{border-top:1px solid var(--borda);color:var(--suave);font-size:13px;text-align:center;padding:26px 16px 96px}
+footer .gostou{display:inline-block;margin-top:8px}footer .gostou a{color:var(--forte);font-weight:600}
 .flutua{position:fixed;right:16px;bottom:16px;z-index:12;width:58px;height:58px;border-radius:50%;background:#25d366;display:grid;place-items:center;box-shadow:0 10px 26px -8px rgba(0,0,0,.45);text-decoration:none}
 .flutua::before{content:"";position:absolute;inset:0;border-radius:50%;background:#25d366;animation:pulso 2.2s ease-out infinite;z-index:-1}
 @keyframes pulso{from{transform:scale(1);opacity:.6}to{transform:scale(1.7);opacity:0}}
@@ -560,7 +561,6 @@ footer{border-top:1px solid var(--borda);color:var(--suave);font-size:13px;text-
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.msg,.digitando{opacity:1!important}.digitando{display:none!important}.js .rv{opacity:1;transform:none}.js .estrelas span{width:var(--cheio)!important}}
 </style></head><body>
 <div class="progresso" id="progresso"></div>
-<div class="faixa"><span><b>Rascunho</b> feito pela ${escapar(marca)} para a ${escapar(nome)}, com informações públicas${doGoogle ? " do Google" : ""}.</span>${oferta}${gostou}</div>
 <header class="topo"><div class="in"><div class="logo">${logo}</div>
 <nav><a href="#servicos">Serviços</a><a href="#galeria">Galeria</a><a href="#como">Como funciona</a><a href="#contato">Contato</a></nav>${link("botao")}</div></header>
 <div class="hero">${fotos[0] ? `<span class="fundo-foto" style="background-image:url('${escapar(fotos[0])}')"></span>` : ""}<span class="piso3d"></span><span class="bolha b1"></span><span class="bolha b2"></span>
@@ -573,7 +573,7 @@ ${logoImg ? `<img class="hero-logo sobe${dados.logoLarga ? " larga" : ""}" src="
 ${temNota ? `<div class="nota sobe d4"><span class="est">${estrelas(nota)}</span><span><b>${notaTexto}</b> · ${avaliacoesTexto} avaliações no Google</span></div>` : ""}
 </div>
 <div class="cena3d" aria-hidden="true"><div class="palco">
-<div class="camada objeto"><span class="brilho"></span><div class="obj3d">${Array.from({ length: 12 }, (_, i) => `<span style="transform:translateZ(${(i * -1.6).toFixed(1)}px)${i ? `;filter:brightness(${(0.78 - i * 0.03).toFixed(2)})` : ""}">${objetos[0]}</span>`).join("")}</div></div>
+<div class="camada objeto"><span class="brilho"></span><div class="obj3d">${Array.from({ length: 5 }, (_, i) => `<span style="transform:translateZ(${(i * -4).toFixed(1)}px)${i ? `;filter:brightness(${(0.78 - i * 0.08).toFixed(2)})` : ""}">${objetos[0]}</span>`).join("")}</div></div>
 <div class="camada aneis"><i></i><i></i><i></i><div class="giro">${objetos.slice(1).map((o, i, l) => `<span class="sat" style="--ang:${Math.round((360 / l.length) * i + 30)}deg"><i>${o}</i></span>`).join("")}</div></div><div class="camada chao"><i></i></div>
 <div class="camada fone"><div class="celular"><div class="tela"><header>${logoImg ? `<img class="sigla logo-redonda${dados.logoLarga ? " larga" : ""}" src="${escapar(logoImg)}" alt=""${dados.logoLarga ? fundoLogo : ""}>` : `<span class="sigla">${escapar(iniciais)}</span>`}<div><b>${escapar(nome)}</b><small>online</small></div></header>
 <div class="conversa"><div class="msg ela m1">Oi! Queria saber sobre ${escapar(primeiro.toLowerCase())} 😊</div><div class="digitando"><i></i><i></i><i></i></div>
@@ -606,7 +606,7 @@ ${mapaEmbed ? `<div class="mapa-real rv" style="--atraso:.1s"><iframe src="${esc
 <section><h2 class="rv">Perguntas frequentes</h2><p class="sub rv">As dúvidas mais comuns, respondidas.</p>
 ${perguntas.map(([p, r], i) => `<details class="rv" style="--atraso:${i * 0.08}s"${i === 0 ? " open" : ""}><summary>${escapar(p)}</summary><p>${escapar(r)}</p></details>`).join("")}</section>
 <div class="final rv"><h2>Vamos conversar?</h2><p>A ${escapar(nome)} responde rapidinho pelo WhatsApp.</p>${link("botao")}</div>
-<footer>© ${escapar(ano)} ${escapar(nome)}${cidade ? ` · ${escapar(cidade)}` : ""}<br>Este é um rascunho ilustrativo feito pela ${escapar(marca)}: ainda não está no ar, e textos, serviços e imagens são exemplos do ramo.</footer>
+<footer>© ${escapar(ano)} ${escapar(nome)}${cidade ? ` · ${escapar(cidade)}` : ""}<br>Este é um rascunho ilustrativo feito pela ${escapar(marca)}: ainda não está no ar, e textos, serviços e imagens são exemplos do ramo.<br><span class="gostou">${gostou}</span></footer>
 <a class="flutua" href="${escapar(contato.href)}"${contato.href.startsWith("#") ? "" : ' target="_blank" rel="noopener noreferrer"'} aria-label="${escapar(contato.rotulo)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2c0 1.3.9 2.5 1 2.7.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z"/></svg></a>
 <script>
 (function(){
@@ -628,7 +628,13 @@ ${perguntas.map(([p, r], i) => `<details class="rv" style="--atraso:${i * 0.08}s
   // Cena 3D do topo: inclina com o mouse ou girando o celular; parada, balança sozinha.
   var hero = document.querySelector(".hero"), palco = document.querySelector(".palco");
   if (hero && palco && !parado) {
-    var inclinar = function(x, y){ palco.classList.add("mexendo"); palco.style.transform = "rotateX(" + (6 - y * 16).toFixed(2) + "deg) rotateY(" + (-12 + x * 30).toFixed(2) + "deg)"; };
+    var pedido = null, alvo = null;
+    var inclinar = function(x, y){
+      alvo = [x, y];
+      if (pedido) return;
+      pedido = requestAnimationFrame(function(){ pedido = null; palco.classList.add("mexendo"); palco.style.transform = "rotateX(" + (6 - alvo[1] * 16).toFixed(2) + "deg) rotateY(" + (-12 + alvo[0] * 30).toFixed(2) + "deg)"; });
+    };
+    if ("IntersectionObserver" in window) new IntersectionObserver(function(es){ hero.classList.toggle("fora", !es[0].isIntersecting); }).observe(hero);
     hero.addEventListener("pointermove", function(e){ if (e.pointerType !== "mouse") return; var r = hero.getBoundingClientRect(); inclinar((e.clientX - r.left) / r.width - .5, (e.clientY - r.top) / r.height - .5); });
     hero.addEventListener("pointerleave", function(){ palco.classList.remove("mexendo"); palco.style.transform = ""; });
     addEventListener("deviceorientation", function(e){ if (e.gamma == null || e.beta == null) return; inclinar(Math.max(-1, Math.min(1, e.gamma / 35)) * .5, Math.max(-1, Math.min(1, (e.beta - 50) / 35)) * .5); });

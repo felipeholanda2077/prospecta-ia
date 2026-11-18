@@ -180,10 +180,12 @@ test("plano de pagamento único: lido da apresentação, cobrado uma vez e sem m
   assert.ok(!(await lerApresentacao({ pais: "US" })).includes(OFERTA_SITE.plano)); // fora do Brasil, nunca
 });
 
-test("página da prévia: mostra a oferta da Black Friday enquanto vale", () => {
-  const html = paginaDaPrevia(semSite, { marca: "FluxDeck", agora: DURANTE });
-  assert.match(html, /Black Friday: este site no ar de <s>R\$ 950<\/s> por <b>R\$ 500<\/b>, valor único/);
-  assert.doesNotMatch(paginaDaPrevia(semSite, { marca: "FluxDeck", agora: DEPOIS }), /Black Friday/);
+test("página da prévia: sem faixa com o valor (pedido do usuário em 18/11): o preço vai na conversa, não no site", () => {
+  for (const agora of [DURANTE, DEPOIS]) {
+    const html = paginaDaPrevia(semSite, { marca: "FluxDeck", agora });
+    assert.doesNotMatch(html, /Black Friday|R\$ 950|R\$ 500/);
+    assert.doesNotMatch(html, /class="faixa"/);
+  }
 });
 
 test("fila parada (ex.: número reconectado): a primeira mensagem antiga sai já reescrita na abordagem principal", async () => {
