@@ -3934,8 +3934,8 @@ const FAIXAS_FUNIL = [
   { nome: "Contatadas", cor: "#6d5ef5", pararam: [["recebendo_etapas", "Recebendo as etapas"], ["sem_resposta", "Sem resposta"], ["descartadas", "Descartadas ou encerradas"]] },
   { nome: "Responderam", cor: "#4f6ef7", pararam: [["em_conversa", "Em conversa"], ["recusaram", "Recusaram"]] },
   // Desde 17/11 a venda vai do site de exemplo ao link de pagamento; a reunião é opcional e fica nas interessadas.
-  { nome: "Interessadas", cor: "#1677ff", pararam: [["interessadas", "Falta mandar o link"], ["agendaram", "Reunião marcada"]] },
-  { nome: "Receberam o link de pagamento", cor: "#06b6d4", pararam: [["link_pagamento", "Aguardando pagamento"]] },
+  { nome: "Interessadas", cor: "#1677ff", pararam: [["interessadas", "Sem link"], ["agendaram", "Reunião"]] },
+  { nome: "Link de pagamento", cor: "#06b6d4", pararam: [["link_pagamento", "Aguardando"]] },
   { nome: "Fecharam", cor: "#22c55e", pararam: [["fecharam", "Viraram clientes"]] },
 ];
 
@@ -3962,7 +3962,7 @@ function htmlCardsDoFunil(f) {
         <small>${a.recebendo_etapas ?? 0} ainda recebendo as etapas · ${a.sem_resposta ?? 0} já receberam todas</small></div>
       <div class="funil-etapa"><span>Interessadas · ${pctDe(interessadas, responderam)}%</span><b>${interessadas}</b>${barra(interessadas)}
         <small>das que responderam</small></div>
-      <div class="funil-etapa"><span>Receberam o link de pagamento · ${pctDe(receberamLink, interessadas)}%</span><b>${receberamLink}</b>${barra(receberamLink)}
+      <div class="funil-etapa"><span>Link de pagamento enviado · ${pctDe(receberamLink, interessadas)}%</span><b>${receberamLink}</b>${barra(receberamLink)}
         <small>das interessadas</small></div>
       <div class="funil-etapa"><span>Reunião marcada</span><b>${agendaram}</b>${barra(agendaram)}
         <small>sem link ainda</small></div>
