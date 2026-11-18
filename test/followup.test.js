@@ -200,3 +200,24 @@ test("follow-up: gatilho de escassez verdadeiro (Black Friday no Brasil até 30/
   assert.match(gatilhoDeEscassez({ pais: "US" }, novembro), /poucos projetos por mês/);
   assert.match(gatilhoDeEscassez({ pais: "BR", abordagem: "previa_do_site" }, new Date("2026-12-02T12:00:00-03:00")), /poucos projetos por mês/);
 });
+
+test("follow-up em duas mensagens curtas no WhatsApp (no e-mail, uma só), sem cortar o link", async () => {
+  const { partesDoFollowup } = await import("../src/respostas/followup.js");
+  const link = "https://fluxdeck.com.br/checkout/x/WcNCK8ypKLNlLLJq";
+  assert.deepEqual(partesDoFollowup("Olá! Ficou alguma dúvida sobre o site?\n\nAinda temos vaga este mês. O link: " + link), ["Olá! Ficou alguma dúvida sobre o site?", "Ainda temos vaga este mês. O link: " + link]);
+  assert.deepEqual(partesDoFollowup("A\n\nB\n\nC"), ["A", "B\n\nC"]);
+  assert.deepEqual(partesDoFollowup("Curta e boa?"), ["Curta e boa?"]);
+  const longa = "Olá, tudo bem? Ficou alguma dúvida sobre o site, o prazo de uma semana ou as alterações? Pegamos poucos projetos por mês e ainda temos vaga este mês. Fica aqui o link: " + link + ". Alguma questão?";
+  const [a, b] = partesDoFollowup(longa);
+  assert.ok(a && b);
+  assert.equal(`${a} ${b}`, longa);
+  assert.ok(`${a}${b}`.includes(link));
+  assert.deepEqual(partesDoFollowup("Texto\n\noutro", "email"), ["Texto\n\noutro"]);
+
+  const lead = await conversa("Clinica Duas Partes");
+  await followupsDeInteressados(campanha, { escrever: async () => ({ opcao: "retomar", mensagem: "Oi! Pensou no atendimento?\n\nAinda temos vaga este mês. Faz sentido conversarmos?" }), limite: 10 });
+  const fila = await pendentes(lead.id);
+  assert.deepEqual(fila.map((m) => m.corpo), ["Oi! Pensou no atendimento?", "Ainda temos vaga este mês. Faz sentido conversarmos?"]);
+  assert.ok(new Date(fila[1].agendada_para) > new Date(fila[0].agendada_para)); // na ordem
+  assert.deepEqual(fila.map((m) => m.followup), [1, 1]);
+});

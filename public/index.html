@@ -4546,9 +4546,12 @@ function bolhaDaPreviaDoFollowup(d) {
       <div class="rodape-b">${ic("bell", "sm")}sai a partir de ${quandoNoHorarioDaEmpresa(d.followup.quando, d.lead)}</div></div>`;
   }
   if (!p.texto) return p.motivo ? `<div class="troca-canal">${ic("bell", "sm")}${esc(p.motivo)}</div>` : "";
-  return `<div class="bolha agendada previa-followup" title="Prévia: é este texto que vai sair. Nada foi enviado; se a empresa responder antes, o follow-up não sai.">${textoComLinks(p.texto)}
-    <div class="rodape-b">${ic("bell", "sm")}prévia do follow-up ${p.numero} de ${p.de} da IA · sai ${quandoNoHorarioDaEmpresa(p.quando, d.lead)}
-      · <button class="link" data-refazer-followup="${id}" title="A IA escreve outro texto; é o novo que vai sair">outro texto</button></div></div>`;
+  // Uma bolha por mensagem (no WhatsApp, o follow-up vai em duas, uma logo depois da outra); o rodapé fica na última.
+  const partes = p.partes?.length ? p.partes : [p.texto];
+  const titulo = "Prévia: é este texto que vai sair. Nada foi enviado; se a empresa responder antes, o follow-up não sai.";
+  return partes.map((parte, i) => `<div class="bolha agendada previa-followup" title="${titulo}">${textoComLinks(parte)}${i < partes.length - 1 ? "" : `
+    <div class="rodape-b">${ic("bell", "sm")}prévia do follow-up ${p.numero} de ${p.de} da IA${partes.length > 1 ? ` (${partes.length} mensagens)` : ""} · sai ${quandoNoHorarioDaEmpresa(p.quando, d.lead)}
+      · <button class="link" data-refazer-followup="${id}" title="A IA escreve outro texto; é o novo que vai sair">outro texto</button></div>`}</div>`).join("");
 }
 
 const baseDaConversa = (d) => d.mensagens?.at(-1)?.quando ?? "";

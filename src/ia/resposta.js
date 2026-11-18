@@ -594,7 +594,7 @@ const FOLLOWUP_JSON_SCHEMA = {
   type: "object",
   properties: {
     opcao: { type: "string", enum: OPCOES_DE_FOLLOWUP, description: "retomar = retoma de onde pararam; material = oferece o guia gratuito; responsavel = pergunta se conseguiu falar com o responsável; previa = manda o rascunho do site (só quando há link da prévia); pagamento = retoma o link de pagamento que ela recebeu e não pagou (só quando há esse link)" },
-    mensagem: { type: "string", description: "a mensagem de follow-up, pronta para enviar" },
+    mensagem: { type: "string", description: "a mensagem de follow-up, pronta para enviar (no WhatsApp, duas partes separadas por uma linha em branco)" },
   },
   required: ["opcao", "mensagem"],
   additionalProperties: false,
@@ -651,7 +651,9 @@ ${contatoIndicado ? `ATENÇÃO: este follow-up vai para ${contatoIndicado.nome |
 - ${linkPagamento ? "Não precisa repetir o valor; se citar, só o que já está no histórico, como está escrito." : podeValores ? "Se citar valores, só os da apresentação, como estão escritos." : `Não cite valores, preços ou R$: ela não perguntou de preço.${ofertaLiberada(lead) ? ` ${regraDaOferta(lead)}` : ""}`}
 - Não convide para bate-papo, call ou reunião, a menos que ela já tenha pedido isso na conversa.
 - Não repita frases que já estão no histórico. Não invente fatos.
-- No máximo 3 frases curtas (até ~400 caracteres), Português do Brasil, no máximo 1 emoji.${FORMATO_DO_CANAL[canal] ?? FORMATO_DO_CANAL.whatsapp}
+- ${canal === "email" ? "No máximo 3 frases curtas (até ~400 caracteres)" : `Mensagem curta, em DUAS partes separadas por uma linha em branco (vão como duas mensagens, uma logo depois da outra):
+  a 1ª retoma a conversa em 1 frase (até ~150 caracteres); a 2ª traz o resto (o link, se houver, a escassez e a pergunta final),
+  em até 2 frases (até ~220 caracteres). Nada de terceira parte`}, Português do Brasil, no máximo 1 emoji.${FORMATO_DO_CANAL[canal] ?? FORMATO_DO_CANAL.whatsapp}
 - Nunca mencione assistente, robô, IA, sistema ou "equipe" respondendo por ${quem}.
 ${apresentacao ? `
 O que a ${campanha.empresa.nome} faz (para entender; não despeje):

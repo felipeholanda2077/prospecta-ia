@@ -55,6 +55,29 @@ export function precisaDeFollowup({ historico, registro, pausada = "" }, agora =
   return { canal: ultima.canal, de: ultimaDela.contato || ultima.contato, numero: n + 1, evitar: usadas.at(-1) ?? null };
 }
 
+const PARTE_LONGA = 200;
+
+/**
+ * O follow-up em duas mensagens curtas no WhatsApp (pedido de 18/11/2026): as partes que a IA separou com uma linha em
+ * branco (a partir da 3ª, juntas na 2ª); texto num bloco só e comprido é partido na frase mais perto do meio, sem
+ * cortar link. No e-mail, uma mensagem só.
+ */
+export function partesDoFollowup(corpo, canal = "whatsapp") {
+  const texto = String(corpo ?? "").trim();
+  if (!texto) return [];
+  if (canal === "email") return [texto];
+  const blocos = texto.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  if (blocos.length >= 2) return [blocos[0], blocos.slice(1).join("\n\n")];
+  if (texto.length <= PARTE_LONGA) return [texto];
+  // Pontos de corte: fim de frase (. ! ?) seguido de espaço, fora de um link.
+  const cortes = [...texto.matchAll(/[.!?](?=\s)/g)].map((m) => m.index + 1)
+    .filter((i) => !/https?:\/\/\S*$/.test(texto.slice(0, i)) && i < texto.length - 1);
+  if (!cortes.length) return [texto];
+  const meio = texto.length / 2;
+  const corte = cortes.reduce((a, b) => (Math.abs(b - meio) < Math.abs(a - meio) ? b : a));
+  return [texto.slice(0, corte).trim(), texto.slice(corte).trim()].filter(Boolean);
+}
+
 /** O último link de pagamento (checkout da FluxDeck) que mandamos nesta conversa, ou "". */
 export function linkDePagamento(historico = []) {
   for (const h of [...historico].reverse()) {
@@ -97,14 +120,17 @@ export async function followupsDeInteressados(campanha, { limite = POR_RODADA, e
       const vista = await lerPreviaGuardada(lead.id, historico, plano);
       const f = await prepararFollowup({ lead, historico, campanha, plano, escrever, pronta: vista });
       if (!f) continue;
-      const id = await db.criarMensagem({
-        lead_id: lead.id, canal: f.canal, destino: f.destino, assunto: f.assunto,
-        corpo: f.corpo, status: "aprovada", tipo: "resposta", etapa: 0, em_resposta_a: f.em_resposta_a, followup: plano.numero,
-      });
       // Alguns minutos, como uma pessoa, no horário comercial do país da empresa (fora dele, no começo do próximo dia útil de lá).
       const horario = await horarioDoFollowup(campanha, lead, agora);
       const marcado = vista?.quando && new Date(vista.quando) > horario ? new Date(vista.quando) : horario;
-      await db.atualizarMensagem(id, { agendada_para: marcado.toISOString() });
+      // No WhatsApp, em duas mensagens curtas, uma logo depois da outra (na ordem).
+      for (const [i, parte] of partesDoFollowup(f.corpo, f.canal).entries()) {
+        const id = await db.criarMensagem({
+          lead_id: lead.id, canal: f.canal, destino: f.destino, assunto: f.assunto,
+          corpo: parte, status: "aprovada", tipo: "resposta", etapa: 0, em_resposta_a: f.em_resposta_a, followup: plano.numero,
+        });
+        await db.atualizarMensagem(id, { agendada_para: new Date(+marcado + i * 20_000).toISOString() });
+      }
       await db.gravarEstado(chave(lead.id), JSON.stringify({
         n: plano.numero, desde: new Date().toISOString(), opcoes: [...((registro && plano.numero > 1 ? registro.opcoes : []) ?? []), f.opcao],
       }));
@@ -193,7 +219,7 @@ export async function previaDoFollowup(leadId, campanha, { refazer = false, soGu
   if (!f) return { motivo: "A IA não tem o que mandar nesta conversa" };
   const quando = guardada?.quando ?? (await horarioDoFollowup(campanha, lead, vence)).toISOString();
   if (!guardada) await db.gravarEstado(chavePrevia(lead.id), JSON.stringify({ marca: marcaDaConversa(historico, plano), opcao: f.opcao, corpo: f.corpo, quando }));
-  return { numero: plano.numero, de: MAX_SEGUIDOS, quando, canal: f.canal, destino: f.destino, opcao: f.opcao, texto: f.corpo };
+  return { numero: plano.numero, de: MAX_SEGUIDOS, quando, canal: f.canal, destino: f.destino, opcao: f.opcao, texto: f.corpo, partes: partesDoFollowup(f.corpo, f.canal) };
 }
 
 // ---------- O site de exemplo para quem já tinha mostrado interesse (pedido de 17/11/2026) ----------
