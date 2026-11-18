@@ -605,6 +605,18 @@ const FOLLOWUP_JSON_SCHEMA = {
  * assunto da conversa) ou oferece um material de graça (o guia em PDF da empresa). `evitar` = a opção do
  * follow-up anterior, para não repetir. Retorna { opcao, mensagem }.
  */
+/**
+ * O gatilho de escassez do follow-up (pedido de 18/11/2026), sempre verdadeiro: no Brasil, enquanto vale a Black
+ * Friday do site para esta empresa, o prazo real dela (até 30/11); fora disso, e em todos os outros países, as vagas
+ * limitadas no mês (a FluxDeck pega poucos projetos por mês para entregar no prazo). Sem número de vagas inventado.
+ */
+export function gatilhoDeEscassez(lead, agora = new Date()) {
+  if (ofertaLiberada(lead, agora)) {
+    return `a condição de Black Friday do site vale só até ${OFERTA_SITE.ateTexto}; depois disso ela acaba (cite o prazo, sem valor se a regra de valores não deixar)`;
+  }
+  return "pegamos poucos projetos por mês para conseguir entregar cada um no prazo, e ainda temos vaga este mês (sem dizer quantas vagas restam)";
+}
+
 export async function escreverFollowup({ lead, historico, campanha, canal = "whatsapp", numero = 1, evitar = null, apresentacao = "", linkMaterial = "", linkPrevia = "", linkPagamento = "", contatoIndicado = null }) {
   const quem = campanha.empresa.responsavel || `alguém da ${campanha.empresa.nome}`;
   const ultimaDela = [...(historico ?? [])].reverse().find((h) => h.autor === "lead");
@@ -632,7 +644,9 @@ ${linkPrevia ? `- previa: a conversa tocou em presença online e a ${lead.nome} 
 ` : "- (NÃO use a opção pagamento nesta conversa.)\n"}${evitar ? `O follow-up anterior foi "${evitar}": agora use outra opção.` : "Escolha a que fizer mais sentido para esta conversa (se ela ficou de repassar, comece por responsavel)."}
 ${contatoIndicado ? `ATENÇÃO: este follow-up vai para ${contatoIndicado.nome || "a pessoa"} que a ${lead.nome} indicou (você escreveu para ela e ela ainda não respondeu). Fale com ela${contatoIndicado.nome ? " pelo primeiro nome" : ""}, lembre de leve que o pessoal da ${lead.nome} passou o contato e não use a opção responsavel: ela já é a pessoa certa.
 ` : ""}Regras:
-- Nada de cobrança ("não sei se viu", "só passando para lembrar", "fico no aguardo"), nada de pressão.
+- Nada de cobrança ("não sei se viu", "só passando para lembrar", "fico no aguardo") nem de alarme ("últimas horas", "corre", "imperdível").
+- Gatilho de escassez, sempre: inclua UMA frase curta e natural, antes da pergunta final, com este fato verdadeiro: ${gatilhoDeEscassez(lead)}.
+  Use só esse fato, com suas palavras e no idioma da conversa; não invente outro prazo, desconto ou número de vagas.
 - Não cumprimente com "bom dia/boa tarde" nem se apresente de novo: vocês já conversaram. ${lead.pais === "PT" ? 'Um "Olá, [nome]!" leve pode (em Portugal, nunca "Oi").' : 'Um "Oi, [nome]!" leve pode.'}
 - ${linkPagamento ? "Não precisa repetir o valor; se citar, só o que já está no histórico, como está escrito." : podeValores ? "Se citar valores, só os da apresentação, como estão escritos." : `Não cite valores, preços ou R$: ela não perguntou de preço.${ofertaLiberada(lead) ? ` ${regraDaOferta(lead)}` : ""}`}
 - Não convide para bate-papo, call ou reunião, a menos que ela já tenha pedido isso na conversa.

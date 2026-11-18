@@ -191,3 +191,12 @@ test("prévia do follow-up no painel: mostra o texto exato e quando sai, sem env
   await db.atualizarLead(lead.id, { status: "fechado" });
   assert.match((await previaDoFollowup(lead.id, comHorario, { escrever })).motivo, /pagou/);
 });
+
+test("follow-up: gatilho de escassez verdadeiro (Black Friday no Brasil até 30/11; fora dela e nos outros países, vagas do mês)", async () => {
+  const { gatilhoDeEscassez } = await import("../src/ia/resposta.js");
+  const novembro = new Date("2026-11-18T12:00:00-03:00");
+  assert.match(gatilhoDeEscassez({ pais: "BR", abordagem: "previa_do_site" }, novembro), /Black Friday.*30\/11/);
+  assert.match(gatilhoDeEscassez({ pais: "PT", fuso: "Europe/Lisbon" }, novembro), /poucos projetos por mês/);
+  assert.match(gatilhoDeEscassez({ pais: "US" }, novembro), /poucos projetos por mês/);
+  assert.match(gatilhoDeEscassez({ pais: "BR", abordagem: "previa_do_site" }, new Date("2026-12-02T12:00:00-03:00")), /poucos projetos por mês/);
+});
