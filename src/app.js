@@ -1,4 +1,7 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import { config, carregarCampanha } from "./config.js";
 import * as db from "./db.js";
@@ -301,6 +304,17 @@ app.get("/diagnostico/:token/relatorio.pdf", async (req, res) => {
 const chaveDaPreviaLiberada = (leadId) => `previa_liberada:${leadId}`;
 const previaPermitida = async (lead) => podeTerPrevia(lead)
   || Boolean(lead?.token && String(lead.nome ?? "").trim() && !lead.agente_id && (await db.lerEstado(chaveDaPreviaLiberada(lead.id))));
+
+// Prévias feitas à mão: um site montado sob medida para uma empresa, salvo em config/previas/<nome>.html.
+// Atende /previa/<nome> antes da prévia automática; sem o arquivo, segue para a prévia do lead.
+const PASTA_PREVIAS = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "config", "previas");
+app.get("/previa/:token", (req, res, next) => {
+  const nome = String(req.params.token ?? "");
+  if (!/^[a-z0-9][a-z0-9-]{2,60}$/.test(nome)) return next();
+  const arquivo = path.join(PASTA_PREVIAS, `${nome}.html`);
+  if (!fs.existsSync(arquivo)) return next();
+  res.set({ ...SEM_CACHE, "Referrer-Policy": "no-referrer" }).type("html").send(fs.readFileSync(arquivo, "utf8"));
+});
 
 // Rascunho de como ficaria o site da empresa, montado na hora com os dados públicos dela (nenhum outro lead aparece).
 app.get("/previa/:token", async (req, res) => {
