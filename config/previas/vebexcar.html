@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="js">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vebex Car Spa | Estética automotiva em Barueri</title>
+<meta name="description" content="Lavagem técnica, vitrificação 9H, PPF, higienização e polimento de vidros em Bethaville, Barueri. Estacionamento grátis para clientes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --laca:#0F2F5C;
+  --laca-clara:#1E5596;
+  --laca-funda:#06142B;
+  --estudio:#ECEEEC;
+  --grafite:#16181A;
+  --cinza:#5C6369;
+  --linha:#C9CECB;
+  --pano:#F2C230;
+  --branco:#FFFFFF;
+  --display:"Archivo","Arial Black","Helvetica Neue",Arial,sans-serif;
+  --texto:"Archivo","Helvetica Neue",Arial,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--estudio);color:var(--grafite);font-family:var(--texto);font-size:17px;line-height:1.55;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--pano);outline-offset:3px}
+.conteudo{width:min(1240px,calc(100% - 48px));margin-inline:auto}
+.titulo{font-family:var(--display);font-stretch:125%;font-weight:800;letter-spacing:-.025em;line-height:.95}
+
+.botao{display:inline-flex;align-items:center;gap:10px;padding:16px 26px;border-radius:6px;font-weight:700;font-size:16px;text-decoration:none;transition:transform .15s,background .15s}
+.botao:active{transform:translateY(1px)}
+.botao-pano{background:var(--pano);color:var(--grafite)}
+.botao-pano:hover{background:#FFD64A}
+.botao-linha{border:1.5px solid currentColor}
+.botao-linha:hover{background:var(--branco);color:var(--laca)}
+.botao svg{width:20px;height:20px;fill:currentColor;flex:none}
+
+.topo{position:absolute;inset:0 0 auto 0;z-index:5;color:var(--branco)}
+.topo .conteudo{display:flex;align-items:center;justify-content:space-between;height:84px}
+.marca{font-family:var(--display);font-stretch:125%;font-weight:900;font-size:22px;letter-spacing:-.01em;text-decoration:none;line-height:1}
+.marca span{display:block;font-stretch:100%;font-weight:500;font-size:12px;letter-spacing:.02em;opacity:.75;margin-top:4px}
+.topo nav{display:flex;gap:34px;font-size:15px;font-weight:500}
+.topo nav a{text-decoration:none;opacity:.85}
+.topo nav a:hover{opacity:1;text-decoration:underline;text-underline-offset:6px}
+.topo .botao{padding:11px 18px;font-size:14px}
+
+.capo{position:relative;min-height:max(680px,100svh);color:var(--branco);overflow:hidden;display:flex;align-items:flex-end;
+  background:linear-gradient(170deg,var(--laca-clara) 0%,var(--laca) 34%,#0A2147 62%,var(--laca-funda) 100%)}
+.capo::before,.capo::after{content:"";position:absolute;pointer-events:none;border-radius:40px;filter:blur(22px);
+  background:linear-gradient(180deg,rgba(255,255,255,.85),rgba(255,255,255,.18))}
+.capo::before{left:-6%;top:-14%;width:58%;height:34%;transform:rotate(-9deg) skewX(-28deg)}
+.capo::after{right:-10%;top:4%;width:44%;height:15%;transform:rotate(-9deg) skewX(-28deg);opacity:.5}
+.flocos{position:absolute;inset:0;opacity:.22;mix-blend-mode:screen;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 2.2 -1.25'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)'/%3E%3C/svg%3E")}
+#gotas{position:absolute;inset:0;width:100%;height:100%}
+.capo-texto{position:relative;z-index:2;padding-block:140px 72px;pointer-events:none}
+.capo-texto a{pointer-events:auto}
+.capo h1{font-size:clamp(46px,9.2vw,148px);text-wrap:balance;text-shadow:0 2px 30px rgba(3,10,24,.35)}
+.capo-base{display:flex;align-items:flex-end;justify-content:space-between;gap:40px;margin-top:40px;flex-wrap:wrap}
+.capo-base p{max-width:30em;font-size:19px;color:rgba(255,255,255,.88)}
+.capo-acoes{display:flex;gap:12px;flex-wrap:wrap}
+
+.bloco{padding-block:clamp(72px,10vw,136px)}
+.bloco h2{font-size:clamp(32px,4.6vw,64px);max-width:14em}
+.bloco .apoio{margin-top:20px;max-width:34em;color:var(--cinza);font-size:19px}
+
+.lista{margin-top:56px;border-top:2px solid var(--grafite);list-style:none}
+.lista li{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.3fr) auto;gap:32px;align-items:baseline;padding:28px 0;border-bottom:1px solid var(--linha)}
+.lista h3{font-family:var(--display);font-stretch:118%;font-weight:700;font-size:clamp(22px,2.4vw,32px);letter-spacing:-.02em;line-height:1.1}
+.lista h3 em{font-style:normal;font-stretch:100%;font-weight:600;font-size:13px;letter-spacing:0;background:var(--pano);padding:3px 8px;border-radius:4px;margin-left:10px;vertical-align:middle;white-space:nowrap}
+.lista p{color:var(--cinza)}
+.lista a{font-weight:700;text-underline-offset:5px;text-decoration-thickness:2px;white-space:nowrap}
+.lista a:hover{color:var(--laca-clara)}
+
+.prova{background:var(--grafite);color:var(--branco)}
+.prova .apoio{color:#A9B0B5}
+.prova-grade{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(32px,6vw,88px);align-items:center}
+.painel{position:relative;aspect-ratio:5/4;overflow:hidden;border-radius:10px;cursor:ew-resize;touch-action:pan-y;user-select:none;
+  background:linear-gradient(168deg,var(--laca-clara),var(--laca) 40%,var(--laca-funda))}
+.painel .softbox{position:absolute;left:-10%;top:8%;width:120%;height:22%;border-radius:30px;filter:blur(10px);transform:rotate(-8deg) skewX(-26deg);
+  background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.25))}
+.painel .softbox+.softbox{top:40%;height:7%;opacity:.45}
+.fosco{position:absolute;inset:0;clip-path:inset(0 50% 0 0);background:linear-gradient(168deg,#6F8299,#44566D 45%,#2A3646)}
+.fosco svg{position:absolute;inset:0;width:100%;height:100%}
+.fosco::after{content:"";position:absolute;left:-10%;top:6%;width:120%;height:30%;border-radius:50%;filter:blur(38px);background:rgba(255,255,255,.28);transform:rotate(-8deg)}
+.etiqueta{position:absolute;bottom:16px;font-size:14px;font-weight:600;padding:6px 12px;border-radius:4px;background:rgba(10,14,18,.7);z-index:2}
+.etiqueta.antes{left:16px}.etiqueta.depois{right:16px}
+.divisor{position:absolute;top:0;bottom:0;left:50%;width:3px;margin-left:-1.5px;background:var(--branco);z-index:3}
+.divisor button{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:50%;border:0;background:var(--pano);color:var(--grafite);cursor:ew-resize;display:grid;place-items:center}
+.divisor svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.compromissos{margin-top:32px;list-style:none;border-top:1px solid #3A4046}
+.compromissos li{padding:16px 0;border-bottom:1px solid #3A4046;color:#D7DCDF}
+
+.passos{margin-top:56px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px;list-style:none;counter-reset:p}
+.passos li{counter-increment:p;border-top:2px solid var(--grafite);padding-top:18px}
+.passos li::before{content:counter(p);font-family:var(--display);font-stretch:125%;font-weight:900;font-size:56px;line-height:1;color:var(--laca);display:block;margin-bottom:18px}
+.passos h3{font-size:19px;font-weight:700;margin-bottom:6px}
+.passos p{color:var(--cinza);font-size:16px}
+
+.faixa{background:var(--pano)}
+.faixa .conteudo{display:flex;align-items:center;justify-content:space-between;gap:32px;padding-block:44px;flex-wrap:wrap}
+.faixa p{font-family:var(--display);font-stretch:118%;font-weight:800;font-size:clamp(22px,3vw,38px);letter-spacing:-.02em;line-height:1.1;max-width:20em}
+.faixa small{display:block;font-family:var(--texto);font-stretch:100%;font-weight:500;font-size:15px;letter-spacing:0;margin-top:10px}
+.faixa .botao{background:var(--grafite);color:var(--branco)}
+.faixa .botao:hover{background:var(--laca)}
+
+.onde-grade{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(32px,5vw,72px);margin-top:48px}
+.endereco{font-family:var(--display);font-stretch:112%;font-weight:700;font-size:clamp(24px,2.6vw,36px);letter-spacing:-.02em;line-height:1.15;font-style:normal}
+.dados{margin-top:32px;border-top:2px solid var(--grafite)}
+.dados div{display:grid;grid-template-columns:150px 1fr;gap:16px;padding:16px 0;border-bottom:1px solid var(--linha)}
+.dados dt{color:var(--cinza)}
+.dados dd{font-weight:600}
+.onde .botao{margin-top:32px}
+.mapa{min-height:420px;border-radius:10px;overflow:hidden;background:var(--linha)}
+.mapa iframe{width:100%;height:100%;min-height:420px;border:0;display:block}
+
+.rodape{background:var(--laca-funda);color:var(--branco);padding-block:72px 40px}
+.rodape .titulo{font-size:clamp(40px,8vw,120px)}
+.rodape-base{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-top:56px;padding-top:24px;border-top:1px solid rgba(255,255,255,.2);font-size:14px;color:rgba(255,255,255,.7)}
+.rodape .botao{margin-top:32px}
+
+.zap{position:fixed;right:20px;bottom:20px;z-index:20;width:58px;height:58px;border-radius:50%;background:#1FAF57;display:grid;place-items:center;box-shadow:0 6px 18px rgba(6,20,43,.35)}
+.zap svg{width:30px;height:30px;fill:#fff}
+
+@media (max-width:900px){
+  .topo nav{display:none}
+  .lista li{grid-template-columns:1fr;gap:10px;padding:24px 0}
+  .prova-grade,.onde-grade{grid-template-columns:1fr}
+  .passos{grid-template-columns:1fr 1fr}
+  .capo-texto{padding-block:120px 56px}
+}
+@media (max-width:520px){
+  body{font-size:16px}
+  .conteudo{width:calc(100% - 36px)}
+  .topo .botao{display:none}
+  .passos{grid-template-columns:1fr}
+  .dados div{grid-template-columns:1fr;gap:2px}
+  .capo-base p{font-size:17px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+/* topo fixo */
+.topo{position:fixed;transition:background .3s,color .3s,box-shadow .3s}
+.topo .conteudo{transition:height .3s}
+.topo.rolou{background:rgba(236,238,236,.94);backdrop-filter:blur(10px);color:var(--grafite);box-shadow:0 1px 0 var(--linha)}
+.topo.rolou .conteudo{height:64px}
+.topo.rolou .botao-linha{background:var(--grafite);color:var(--branco);border-color:var(--grafite)}
+
+/* entrada do título */
+.capo h1 .linha{display:block;overflow:hidden;padding-bottom:.08em}
+.capo h1 .linha i{display:block;font-style:normal;transform:translateY(105%);animation:sobe 1s cubic-bezier(.16,1,.3,1) .15s forwards}
+.capo h1 .linha+.linha i{animation-delay:.32s}
+@keyframes sobe{to{transform:none}}
+.capo-base{opacity:0;animation:aparece .9s ease .9s forwards}
+@keyframes aparece{to{opacity:1}}
+.capo::before{animation:luz 14s ease-in-out infinite alternate}
+.capo::after{animation:luz 18s ease-in-out infinite alternate-reverse}
+@keyframes luz{from{translate:-4% 0}to{translate:10% 3%}}
+  .dica{position:absolute;right:96px;bottom:22px;z-index:2;font-size:14px;color:rgba(255,255,255,.7);display:flex;align-items:center;gap:8px;pointer-events:none}
+.dica::before{content:"";width:18px;height:18px;border-radius:50%;border:1.5px solid currentColor;animation:pulsa 1.8s ease-out infinite}
+@keyframes pulsa{from{transform:scale(.5);opacity:1}to{transform:scale(1.5);opacity:0}}
+
+/* esteira de serviços */
+.esteira{background:var(--grafite);color:var(--branco);overflow:hidden;padding:18px 0}
+.esteira div{display:flex;width:max-content;animation:corre 36s linear infinite}
+.esteira:hover div{animation-play-state:paused}
+.esteira span{font-family:var(--display);font-stretch:125%;font-weight:800;font-size:clamp(18px,2.2vw,28px);letter-spacing:-.01em;white-space:nowrap;display:flex;align-items:center}
+.esteira span::after{content:"";width:.5em;height:.68em;margin:0 1.1em;background:var(--pano);border-radius:50% 50% 50% 50%/62% 62% 38% 38%;transform:rotate(180deg)}
+@keyframes corre{to{transform:translateX(-50%)}}
+
+/* surgir ao rolar */
+.js [data-surge]{opacity:0;transform:translateY(28px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1);transition-delay:var(--d,0s)}
+.js [data-surge].visto{opacity:1;transform:none}
+
+/* lista viva */
+.lista li{position:relative;transition:padding .35s cubic-bezier(.16,1,.3,1)}
+.lista li::before{content:"";position:absolute;inset:0 -20px;background:var(--branco);transform:scaleY(0);transform-origin:bottom;transition:transform .35s cubic-bezier(.16,1,.3,1);z-index:0}
+.lista li:hover::before,.lista li:focus-within::before{transform:scaleY(1)}
+.lista li>*{position:relative;z-index:1}
+.lista details{grid-column:1/-1;margin-top:-8px}
+.lista summary{cursor:pointer;font-weight:600;font-size:15px;color:var(--laca-clara);list-style:none;display:inline-flex;align-items:center;gap:8px}
+.lista summary::-webkit-details-marker{display:none}
+.lista summary::before{content:"+";font-size:20px;line-height:1;width:22px;height:22px;display:grid;place-items:center;border:1.5px solid currentColor;border-radius:50%;transition:transform .3s}
+.lista details[open] summary::before{transform:rotate(45deg)}
+.inclui{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 40px;margin-top:18px;padding:22px 24px;background:var(--estudio);border-left:4px solid var(--pano);list-style:none;animation:abre .4s ease}
+.inclui li{display:block;padding:0;border:0;color:var(--grafite);font-size:16px}
+.inclui li::before{display:none}
+.inclui strong{display:block;font-size:13px;color:var(--cinza);font-weight:600;margin-bottom:2px}
+@keyframes abre{from{opacity:0;transform:translateY(-8px)}}
+
+/* reflexo em movimento no comparador */
+.painel .softbox{animation:reflexo 7s ease-in-out infinite alternate}
+@keyframes reflexo{from{translate:-6% -4%}to{translate:6% 10%}}
+
+/* cena do tratamento */
+.cena{background:var(--laca-funda);color:var(--branco)}
+.cena .apoio{color:rgba(255,255,255,.72)}
+.cena-grade{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(32px,6vw,96px);margin-top:24px}
+.cena-passos{list-style:none;counter-reset:e}
+.cena-passos li{counter-increment:e;min-height:72vh;display:flex;flex-direction:column;justify-content:center;opacity:.28;transition:opacity .5s}
+.cena-passos li.ativo{opacity:1}
+.cena-passos li::before{content:counter(e);font-family:var(--display);font-stretch:125%;font-weight:900;font-size:clamp(64px,8vw,120px);line-height:.9;color:var(--pano);margin-bottom:18px}
+.cena-passos h3{font-family:var(--display);font-stretch:118%;font-weight:800;font-size:clamp(26px,3vw,40px);letter-spacing:-.02em;line-height:1.05;margin-bottom:14px}
+.cena-passos p{color:rgba(255,255,255,.8);max-width:28em;font-size:18px}
+.palco{position:sticky;top:12vh;height:76vh;border-radius:12px;overflow:hidden;background:#2A3646}
+.camada{position:absolute;inset:0;opacity:0;transition:opacity .8s}
+.camada.on{opacity:1}
+.suja{background:linear-gradient(168deg,#6F8299,#44566D 45%,#2A3646)}
+.suja svg,.suja2 svg{position:absolute;inset:0;width:100%;height:100%}
+.lanterna{position:absolute;width:46%;aspect-ratio:1;border-radius:50%;background:radial-gradient(closest-side,rgba(255,255,255,.75),rgba(255,255,255,.18) 45%,transparent 70%);mix-blend-mode:screen;animation:inspeciona 9s ease-in-out infinite}
+@keyframes inspeciona{0%{left:-8%;top:4%}25%{left:54%;top:14%}50%{left:36%;top:50%}75%{left:0;top:44%}100%{left:-8%;top:4%}}
+.espuma{background:linear-gradient(168deg,#6F8299,#44566D 45%,#2A3646);overflow:hidden}
+.espuma .bolhas{position:absolute;left:0;right:0;top:-100%;height:200%;animation:escorre 16s linear infinite}
+@keyframes escorre{to{transform:translateY(50%)}}
+.espuma b{position:absolute;border-radius:50%;background:radial-gradient(circle at 34% 30%,#fff 0 28%,#E4EDF4 55%,#B9C9D6 100%);box-shadow:0 2px 6px rgba(10,20,35,.25)}
+.polir{background:linear-gradient(168deg,var(--laca-clara),var(--laca) 40%,var(--laca-funda))}
+.polir .softbox,.proteger .softbox{position:absolute;left:-10%;top:8%;width:120%;height:20%;border-radius:30px;filter:blur(12px);transform:rotate(-8deg) skewX(-26deg);background:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,.25))}
+.suja2{position:absolute;inset:0;background:linear-gradient(168deg,#6F8299,#44566D 45%,#2A3646);animation:limpa 7s ease-in-out infinite}
+@keyframes limpa{0%,6%{clip-path:inset(0 0 0 0)}80%,100%{clip-path:inset(0 0 0 100%)}}
+.boina{position:absolute;top:50%;width:30%;aspect-ratio:1;margin:-15% 0 0 -15%;border-radius:50%;background:repeating-conic-gradient(#F2C230 0 12deg,#D9A91C 12deg 24deg);box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 0 10px #16181A;animation:passa 7s ease-in-out infinite,gira .5s linear infinite}
+@keyframes passa{0%,6%{left:0;top:38%}25%{top:62%}45%{top:36%}65%{top:60%}80%,100%{left:100%;top:46%}}
+@keyframes gira{to{rotate:360deg}}
+.proteger{background:linear-gradient(168deg,var(--laca-clara),var(--laca) 40%,var(--laca-funda))}
+.proteger b{position:absolute;border-radius:50%;background:radial-gradient(circle at 66% 70%,rgba(150,200,255,.5),rgba(40,90,160,.2) 55%,rgba(2,10,28,.7) 100%);box-shadow:3px 6px 10px rgba(2,8,22,.45),inset 0 0 0 1px rgba(255,255,255,.2);animation:gota 5s ease-in-out infinite}
+.proteger b::after{content:"";position:absolute;left:16%;top:14%;width:34%;height:18%;border-radius:50%;background:#fff;transform:rotate(-30deg)}
+@keyframes gota{50%{transform:translateY(6px) scale(1.03)}}
+.palco-legenda{position:absolute;left:18px;bottom:18px;z-index:3;font-size:14px;font-weight:600;padding:7px 12px;border-radius:4px;background:rgba(10,14,18,.7)}
+
+/* comparativo */
+.quadro{margin-top:48px;width:100%;border-collapse:collapse;font-size:17px}
+.quadro th,.quadro td{text-align:left;padding:20px 16px 20px 0;border-bottom:1px solid var(--linha);vertical-align:top}
+.quadro thead th{border-bottom:2px solid var(--grafite);font-family:var(--display);font-stretch:118%;font-weight:800;font-size:clamp(20px,2.2vw,28px);letter-spacing:-.02em}
+.quadro tbody th{font-weight:500;color:var(--cinza);width:30%}
+.quadro td{font-weight:600}
+.quadro td span{display:block;font-weight:400;color:var(--cinza);font-size:15px}
+.sim::before{content:"";display:inline-block;width:.62em;height:.34em;border-left:3px solid var(--laca-clara);border-bottom:3px solid var(--laca-clara);transform:rotate(-45deg) translateY(-.2em);margin-right:.5em}
+.rolagem{overflow-x:auto}
+
+/* perguntas */
+.perguntas{margin-top:48px;border-top:2px solid var(--grafite);max-width:900px}
+.perguntas details{border-bottom:1px solid var(--linha)}
+.perguntas summary{cursor:pointer;list-style:none;display:flex;justify-content:space-between;gap:24px;align-items:center;padding:24px 0;font-family:var(--display);font-stretch:112%;font-weight:700;font-size:clamp(19px,2vw,24px);letter-spacing:-.015em}
+.perguntas summary::-webkit-details-marker{display:none}
+.perguntas summary::after{content:"";flex:none;width:14px;height:14px;border-right:3px solid var(--laca);border-bottom:3px solid var(--laca);transform:rotate(45deg) translate(-3px,-3px);transition:transform .3s}
+.perguntas details[open] summary::after{transform:rotate(-135deg) translate(-3px,-3px)}
+.perguntas summary:hover{color:var(--laca-clara)}
+.perguntas p{padding:0 0 26px;max-width:40em;color:var(--cinza);animation:abre .4s ease}
+
+/* faixa com listras em movimento */
+.faixa{position:relative;overflow:hidden}
+.faixa::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(-55deg,transparent 0 46px,rgba(255,255,255,.22) 46px 92px);animation:listras 5s linear infinite}
+@keyframes listras{to{background-position:112px 0}}
+.faixa .conteudo{position:relative}
+
+/* instagram */
+.insta{display:flex;justify-content:space-between;align-items:center;gap:32px;flex-wrap:wrap;margin-top:72px;padding:36px 0;border-block:2px solid var(--grafite)}
+.insta p{font-family:var(--display);font-stretch:118%;font-weight:800;font-size:clamp(22px,2.8vw,36px);letter-spacing:-.02em;line-height:1.1}
+.insta .botao{background:var(--grafite);color:var(--branco)}
+.insta .botao:hover{background:var(--laca)}
+
+/* rodapé com reflexo */
+.rodape .titulo{background:linear-gradient(100deg,#fff 40%,#8FC2FF 50%,#fff 60%) 0 0/300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:brilho 6s linear infinite}
+@keyframes brilho{from{background-position:100% 0}to{background-position:-50% 0}}
+
+.zap{transition:transform .2s}.zap:hover{transform:scale(1.08)}
+.zap::before{content:"";position:absolute;inset:0;border-radius:50%;border:2px solid #1FAF57;animation:pulsa 2.2s ease-out infinite}
+
+@media (max-width:900px){
+  .cena-grade{grid-template-columns:1fr;gap:0}
+  .palco{order:-1;top:64px;height:42vh;z-index:2;border-radius:0;margin-inline:-18px}
+  .cena-passos li{min-height:58vh;justify-content:flex-start;padding-top:40px}
+  .inclui{grid-template-columns:1fr}
+  .lista li::before{display:none}
+  .quadro{min-width:560px}
+  .dica{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  .capo h1 .linha i{transform:none}.capo-base{opacity:1}
+  .js [data-surge]{opacity:1;transform:none}
+  .suja2{clip-path:inset(0 0 0 50%)}.boina{left:50%}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="ico-zap" viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0-8.6 15.100L2 22l5-1.300A10 10 0 1 0 12 2Zm0 18.200a8.200 8.200 0 0 1-4.200-1.200l-.3-.2-3 .8.8-2.900-.2-.3A8.200 8.200 0 1 1 12 20.200Zm4.500-6.100c-.2-.1-1.500-.7-1.700-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1-.2-.1-1-.4-2-1.200-.7-.7-1.200-1.500-1.400-1.700-.1-.2 0-.4.1-.5l.4-.4.2-.4c.1-.2 0-.3 0-.4l-.8-1.900c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.7.3-.2.3-.9.9-.9 2.100s.9 2.500 1 2.600c.1.2 1.800 2.700 4.400 3.800 2.100.9 2.600.7 3 .6.500-.1 1.500-.6 1.700-1.200.2-.6.2-1.100.1-1.200 0-.1-.2-.2-.5-.3Z"/></symbol></svg>
+
+<header class="topo">
+  <div class="conteudo">
+    <a class="marca" href="#inicio">Vebex<span>Car Spa</span></a>
+    <nav aria-label="Seções">
+      <a href="#servicos">Serviços</a>
+      <a href="#resultado">Resultado</a>
+      <a href="#como">O tratamento</a>
+      <a href="#duvidas">Dúvidas</a>
+      <a href="#onde">Onde fica</a>
+    </nav>
+    <a class="botao botao-linha zap-link" data-msg="Olá! Vim pelo site e quero agendar um horário na Vebex Car Spa." href="#">Agendar horário</a>
+  </div>
+</header>
+
+<main>
+<section class="capo" id="inicio">
+  <div class="flocos"></div>
+  <canvas id="gotas" aria-hidden="true"></canvas>
+  <div class="conteudo capo-texto">
+    <h1 class="titulo"><span class="linha"><i>A água não fica.</i></span><span class="linha"><i>O brilho, sim.</i></span></h1>
+    <div class="capo-base">
+      <p>Estética automotiva em Bethaville, Barueri. Lavagem técnica, vitrificação 9H, PPF e higienização, com estacionamento grátis para clientes.</p>
+      <div class="capo-acoes">
+        <a class="botao botao-pano zap-link" data-msg="Olá! Quero agendar uma avaliação do meu carro na Vebex Car Spa." href="#"><svg aria-hidden="true"><use href="#ico-zap"/></svg>Agendar pelo WhatsApp</a>
+        <a class="botao botao-linha" href="#servicos">Ver serviços</a>
+      </div>
+    </div>
+  </div>
+  <span class="dica">Passe o mouse sobre as gotas</span>
+</section>
+
+<div class="esteira" aria-hidden="true"><div><span>Lavagem técnica</span><span>Vitrificação 9H</span><span>PPF</span><span>Higienização interna</span><span>Polimento de vidros</span><span>Motos</span><span>Lavagem técnica</span><span>Vitrificação 9H</span><span>PPF</span><span>Higienização interna</span><span>Polimento de vidros</span><span>Motos</span><span>Lavagem técnica</span><span>Vitrificação 9H</span><span>PPF</span><span>Higienização interna</span><span>Polimento de vidros</span><span>Motos</span><span>Lavagem técnica</span><span>Vitrificação 9H</span><span>PPF</span><span>Higienização interna</span><span>Polimento de vidros</span><span>Motos</span></div></div>
+
+<section class="bloco" id="servicos">
+  <div class="conteudo">
+    <h2 class="titulo" data-surge>O que fazemos pelo seu carro</h2>
+    <p class="apoio">Todo serviço começa com uma avaliação do veículo. Você recebe o orçamento pelo WhatsApp antes de deixar o carro.</p>
+    <ul class="lista">
+      <li>
+        <h3>Lavagem técnica</h3>
+        <p>Limpeza detalhada com produtos de pH controlado, descontaminação da pintura e secagem sem riscos.</p>
+        <a class="zap-link" data-msg="Olá! Quero um orçamento de lavagem técnica." href="#">Pedir orçamento</a>
+        <details><summary>Ver detalhes</summary><ul class="inclui"><li><strong>O que inclui</strong>Pré-lavagem, lavagem manual, rodas, caixas de roda e secagem com microfibra</li><li><strong>Indicado para</strong>Manutenção frequente e preparo antes de polir ou proteger</li><li><strong>Diferença para a lavagem comum</strong>Produtos de pH controlado e técnica que evita novos riscos</li><li><strong>Condição atual</strong>Na lavagem técnica, a lavagem externa sai de brinde</li></ul></details>
+      </li>
+      <li>
+        <h3>Vitrificação 9H <em>Mais pedido</em></h3>
+        <p>Camada cerâmica de alta dureza. Protege a pintura, repele água e sujeira e mantém o brilho por muito mais tempo.</p>
+        <a class="zap-link" data-msg="Olá! Quero um orçamento de vitrificação 9H." href="#">Pedir orçamento</a>
+        <details><summary>Ver detalhes</summary><ul class="inclui"><li><strong>O que inclui</strong>Lavagem, descontaminação, polimento de preparo e aplicação do vitrificador</li><li><strong>Indicado para</strong>Carro novo ou recém polido que você quer manter com brilho</li><li><strong>O que você nota</strong>Água em gotas que escorrem, sujeira que gruda menos, cor mais profunda</li><li><strong>Manutenção</strong>Lavagens com produto neutro. Orientamos na entrega</li></ul></details>
+      </li>
+      <li>
+        <h3>PPF</h3>
+        <p>Película transparente de proteção de pintura contra riscos, pedriscos e o desgaste do dia a dia.</p>
+        <a class="zap-link" data-msg="Olá! Quero um orçamento de PPF." href="#">Pedir orçamento</a>
+        <details><summary>Ver detalhes</summary><ul class="inclui"><li><strong>O que inclui</strong>Preparo da superfície e aplicação da película transparente</li><li><strong>Indicado para</strong>Quem pega estrada ou quer proteção física contra pedriscos</li><li><strong>Onde aplicar</strong>Carro inteiro ou só as áreas de impacto: capô, para-choque, retrovisores</li><li><strong>Visual</strong>Transparente, mantém a cor e o brilho originais</li></ul></details>
+      </li>
+      <li>
+        <h3>Higienização interna</h3>
+        <p>Bancos, carpetes, teto e painel limpos a fundo, sem odores e sem manchas.</p>
+        <a class="zap-link" data-msg="Olá! Quero um orçamento de higienização interna." href="#">Pedir orçamento</a>
+        <details><summary>Ver detalhes</summary><ul class="inclui"><li><strong>O que inclui</strong>Bancos, carpetes, teto, painel, portas e porta-malas</li><li><strong>Indicado para</strong>Manchas, odores, pelos de pet e carro recém comprado usado</li><li><strong>Tecido ou couro</strong>Tratamos os dois, com produto adequado para cada material</li><li><strong>Antes de trazer</strong>Retire objetos pessoais do interior e do porta-malas</li></ul></details>
+      </li>
+      <li>
+        <h3>Polimento de vidros</h3>
+        <p>Trata manchas e marcas superficiais e devolve a transparência aos vidros originais, sem precisar trocar.</p>
+        <a class="zap-link" data-msg="Olá! Quero um orçamento de polimento de vidros." href="#">Pedir orçamento</a>
+        <details><summary>Ver detalhes</summary><ul class="inclui"><li><strong>O que resolve</strong>Manchas de chuva ácida, marcas superficiais e opacidade</li><li><strong>Indicado para</strong>Vidro que não fica limpo nem depois de lavar</li><li><strong>Originalidade</strong>O vidro de fábrica é preservado sempre que as condições permitem</li><li><strong>Antes do serviço</strong>Avaliamos se as marcas saem com polimento</li></ul></details>
+      </li>
+      <li>
+        <h3>Motos</h3>
+        <p>Lavagem técnica e proteção para motos, com o mesmo cuidado dos carros.</p>
+        <a class="zap-link" data-msg="Olá! Quero um orçamento para a minha moto." href="#">Pedir orçamento</a>
+        <details><summary>Ver detalhes</summary><ul class="inclui"><li><strong>O que inclui</strong>Lavagem técnica de carenagem, motor, rodas e corrente com cuidado</li><li><strong>Proteção</strong>Vitrificação e PPF também podem ser aplicados em motos</li><li><strong>Indicado para</strong>Motos de uso diário e de fim de semana</li><li><strong>Agendamento</strong>Pelo WhatsApp, com o modelo da moto</li></ul></details>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section class="bloco prova" id="resultado">
+  <div class="conteudo prova-grade">
+    <div>
+      <h2 class="titulo" data-surge>Arraste para ver a pintura depois do tratamento</h2>
+      <p class="apoio">Marcas circulares, opacidade e contaminação somem. Fica a cor profunda e o reflexo nítido.</p>
+      <ul class="compromissos">
+        <li>Avaliamos o veículo antes de qualquer serviço.</li>
+        <li>Preservamos pintura e vidros de fábrica sempre que as condições permitem.</li>
+        <li>Você fala direto com quem cuida do seu carro.</li>
+      </ul>
+    </div>
+    <div class="painel" id="painel" data-surge>
+      <div class="softbox"></div><div class="softbox"></div>
+      <div class="fosco" id="fosco"><svg id="riscos" viewBox="0 0 500 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true"></svg></div>
+      <span class="etiqueta antes">Antes</span><span class="etiqueta depois">Depois</span>
+      <div class="divisor" id="divisor">
+        <button type="button" aria-label="Arrastar comparação. Use as setas do teclado.">
+          <svg viewBox="0 0 24 24"><path d="m9 6-6 6 6 6M15 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="bloco cena" id="como">
+  <div class="conteudo">
+    <h2 class="titulo" data-surge>O tratamento, etapa por etapa</h2>
+    <p class="apoio" data-surge>Role a página e acompanhe o que acontece com a pintura enquanto o carro está com a gente.</p>
+    <div class="cena-grade">
+      <ol class="cena-passos">
+        <li data-etapa="0"><h3>Avaliação com luz de inspeção</h3><p>Antes de tudo, examinamos a pintura sob luz forte para achar riscos, manchas e contaminação. É aqui que definimos o serviço certo e passamos o orçamento.</p></li>
+        <li data-etapa="1"><h3>Lavagem técnica e descontaminação</h3><p>Espuma de pH controlado solta a sujeira sem esfregar. Depois removemos o que a lavagem comum não tira, como piche e partículas presas no verniz.</p></li>
+        <li data-etapa="2"><h3>Correção e polimento</h3><p>A politriz remove as marcas circulares e devolve a nitidez do reflexo. A pintura fica lisa e pronta para receber proteção.</p></li>
+        <li data-etapa="3"><h3>Proteção</h3><p>Aplicamos a vitrificação 9H ou o PPF. A água passa a formar gotas e escorrer, e o brilho fica protegido no dia a dia.</p></li>
+      </ol>
+      <div class="palco" aria-hidden="true">
+        <div class="camada suja on"><svg class="swirl" viewBox="0 0 500 400" preserveAspectRatio="xMidYMid slice"></svg><div class="lanterna"></div></div>
+        <div class="camada espuma"><div class="bolhas" id="bolhas"></div></div>
+        <div class="camada polir"><div class="softbox"></div><div class="suja2"><svg class="swirl" viewBox="0 0 500 400" preserveAspectRatio="xMidYMid slice"></svg></div><div class="boina"></div></div>
+        <div class="camada proteger" id="proteger"><div class="softbox"></div></div>
+        <span class="palco-legenda" id="legenda">Avaliação</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="bloco" id="protecao">
+  <div class="conteudo">
+    <h2 class="titulo" data-surge>Vitrificação ou PPF: qual escolher</h2>
+    <p class="apoio" data-surge>As duas protegem, mas de formas diferentes. Muita gente combina: PPF nas áreas de impacto e vitrificação no resto.</p>
+    <div class="rolagem" data-surge>
+    <table class="quadro">
+      <thead><tr><th scope="col"></th><th scope="col">Vitrificação 9H</th><th scope="col">PPF</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">O que é</th><td>Camada cerâmica líquida<span>Cura e forma uma película dura sobre o verniz</span></td><td>Película transparente<span>Filme aplicado sobre a pintura</span></td></tr>
+        <tr><th scope="row">Repele água e sujeira</th><td class="sim">Sim<span>É o ponto forte</span></td><td class="sim">Sim</td></tr>
+        <tr><th scope="row">Pedriscos e riscos</th><td>Riscos leves de lavagem</td><td class="sim">Sim<span>Absorve o impacto no lugar da pintura</span></td></tr>
+        <tr><th scope="row">Brilho e cor</th><td class="sim">Realça<span>Cor mais profunda e reflexo nítido</span></td><td>Mantém o original</td></tr>
+        <tr><th scope="row">Mais indicado para</th><td>Quem quer brilho e lavagem fácil</td><td>Quem roda em estrada ou tem carro novo</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<section class="faixa">
+  <div class="conteudo">
+    <p>Fez a lavagem técnica, ganha a lavagem externa.<small>Consulte as condições pelo WhatsApp.</small></p>
+    <a class="botao zap-link" data-msg="Olá! Quero a lavagem técnica com a lavagem externa de brinde." href="#">Quero a lavagem técnica</a>
+  </div>
+</section>
+
+<section class="bloco" id="duvidas">
+  <div class="conteudo">
+    <h2 class="titulo" data-surge>Dúvidas comuns</h2>
+    <div class="perguntas" data-surge>
+      <details><summary>Preciso agendar?</summary><p>Sim. Chame no WhatsApp com o modelo do veículo e o serviço que procura. Combinamos o melhor dia e você já sabe o que esperar.</p></details>
+      <details><summary>Quanto custa?</summary><p>Depende do tamanho do veículo e do estado da pintura ou do interior. Por isso fazemos uma avaliação antes e passamos o valor fechado, sem surpresa na retirada.</p></details>
+      <details><summary>Quanto tempo o carro fica com vocês?</summary><p>Lavagem e higienização costumam ser resolvidas no mesmo dia. Polimento, vitrificação e PPF pedem mais tempo por causa das etapas de preparo e cura. Informamos o prazo no orçamento.</p></details>
+      <details><summary>Como cuidar do carro depois da vitrificação?</summary><p>Lave com shampoo neutro, evite lava-rápido com escova e seque com microfibra limpa. Na entrega explicamos os cuidados dos primeiros dias.</p></details>
+      <details><summary>Tem onde estacionar?</summary><p>Tem. Ficamos em um prédio comercial em Bethaville e o estacionamento é grátis para clientes Vebex.</p></details>
+      <details><summary>Vocês atendem motos?</summary><p>Sim. Fazemos lavagem técnica e proteção em motos com o mesmo cuidado dos carros.</p></details>
+    </div>
+    <div class="insta" data-surge>
+      <p>Veja os trabalhos recentes no Instagram</p>
+      <a class="botao" href="https://www.instagram.com/vebexcar/" target="_blank" rel="noopener">Abrir @vebexcar</a>
+    </div>
+  </div>
+</section>
+
+<section class="bloco onde" id="onde">
+  <div class="conteudo">
+    <h2 class="titulo" data-surge>Onde fica</h2>
+    <div class="onde-grade" data-surge>
+      <div>
+        <address class="endereco">Rua Adelino Cardana, 293<br>Prédio comercial, Bethaville<br>Barueri, SP</address>
+        <dl class="dados">
+          <div><dt>Estacionamento</dt><dd>Grátis para clientes</dd></div>
+          <div><dt>WhatsApp</dt><dd>(11) 96365-9794</dd></div>
+          <div><dt>Instagram</dt><dd>@vebexcar</dd></div>
+          <div><dt>CEP</dt><dd>06401-147</dd></div>
+        </dl>
+        <a class="botao botao-pano zap-link" data-msg="Olá! Quero agendar um horário na Vebex Car Spa." href="#">Agendar horário</a>
+      </div>
+      <div class="mapa">
+        <iframe loading="lazy" title="Mapa da Vebex Car Spa" src="https://www.google.com/maps?q=Rua+Adelino+Cardana+293+Bethaville+Barueri+SP&output=embed"></iframe>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="rodape">
+  <div class="conteudo">
+    <p class="titulo">Vebex Car Spa</p>
+    <a class="botao botao-pano zap-link" data-msg="Olá! Vim pelo site e quero agendar na Vebex Car Spa." href="#"><svg aria-hidden="true"><use href="#ico-zap"/></svg>Agendar pelo WhatsApp</a>
+    <div class="rodape-base">
+      <span>Estética automotiva em Bethaville, Barueri</span>
+      <span>Prévia criada pela Ascend Digital</span>
+    </div>
+  </div>
+</footer>
+
+<a class="zap zap-link" data-msg="Olá! Vim pelo site da Vebex Car Spa." href="#" aria-label="Falar no WhatsApp"><svg aria-hidden="true"><use href="#ico-zap"/></svg></a>
+
+<script>
+const ZAP="5511963659794";
+document.querySelectorAll(".zap-link").forEach(a=>{
+  a.href="https://wa.me/"+ZAP+"?text="+encodeURIComponent(a.dataset.msg);
+  a.target="_blank";a.rel="noopener";
+});
+const parado=matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* gotas de água sobre a pintura */
+(()=>{
+  const cv=document.getElementById("gotas"),c=cv.getContext("2d"),sec=cv.parentElement;
+  let W=0,H=0,dpr=1,gotas=[],mx=-999,my=-999;
+  const nova=(topo)=>{const r=Math.pow(Math.random(),2.2)*26+5;
+    return{x:Math.random()*W,y:topo?-r*2:Math.random()*H,r,vx:0,vy:0,a:.82+Math.random()*.3,g:(r/31)*(r/31)*.05+.002}};
+  const medir=()=>{dpr=Math.min(devicePixelRatio||1,2);W=sec.clientWidth;H=sec.clientHeight;cv.width=W*dpr;cv.height=H*dpr;
+    const n=Math.round(Math.min(150,W*H/14000));gotas=Array.from({length:n},()=>nova(false))};
+  const pintar=g=>{
+    const r=g.r;
+    c.save();c.translate(g.x,g.y);c.scale(1,g.a);
+    let s=c.createRadialGradient(r*.14,r*.24,r*.5,r*.14,r*.24,r*1.3);
+    s.addColorStop(0,"rgba(2,8,22,.5)");s.addColorStop(1,"rgba(2,8,22,0)");
+    c.beginPath();c.arc(r*.14,r*.24,r*1.3,0,7);c.fillStyle=s;c.fill();
+    let gr=c.createRadialGradient(r*.3,r*.35,r*.1,0,0,r);
+    gr.addColorStop(0,"rgba(150,200,255,.50)");gr.addColorStop(.55,"rgba(40,90,160,.22)");gr.addColorStop(.9,"rgba(4,16,40,.55)");gr.addColorStop(1,"rgba(2,10,28,.75)");
+    c.beginPath();c.arc(0,0,r,0,7);c.fillStyle=gr;c.fill();
+    c.lineWidth=Math.max(.6,r*.05);c.strokeStyle="rgba(255,255,255,.22)";c.stroke();
+    c.beginPath();c.ellipse(-r*.36,-r*.42,r*.3,r*.15,-.6,0,7);c.fillStyle="rgba(255,255,255,.95)";c.fill();
+    if(r>12){c.beginPath();c.arc(-r*.02,-r*.62,r*.06,0,7);c.fill()}
+    c.restore();
+  };
+  const quadro=()=>{
+    c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,W,H);
+    for(let i=0;i<gotas.length;i++){const g=gotas[i];
+      const dx=g.x-mx,dy=g.y-my,d=Math.hypot(dx,dy),alc=110+g.r;
+      if(d<alc&&d>0){const f=(1-d/alc)*.9;g.vx+=dx/d*f;g.vy+=dy/d*f}
+      g.vy+=g.g;g.vx*=.93;g.vy*=.955;g.x+=g.vx;g.y+=g.vy;
+      if(g.y-g.r>H||g.x<-60||g.x>W+60)gotas[i]=nova(true);
+      pintar(g);
+    }
+    if(!parado)requestAnimationFrame(quadro);
+  };
+  sec.addEventListener("pointermove",e=>{const b=sec.getBoundingClientRect();mx=e.clientX-b.left;my=e.clientY-b.top});
+  sec.addEventListener("pointerleave",()=>{mx=my=-999});
+  let t;addEventListener("resize",()=>{clearTimeout(t);t=setTimeout(()=>{medir();if(parado)quadro()},150)});
+  medir();quadro();
+})();
+
+/* marcas circulares do lado "antes" */
+(()=>{
+  const s=document.getElementById("riscos");let h="";
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+  for(let k=0;k<7;k++){const cx=rnd(20,480),cy=rnd(20,380);
+    for(let i=0;i<26;i++){const r=rnd(8,150),a0=rnd(0,6.28),a1=a0+rnd(.5,2.4);
+      const x0=cx+r*Math.cos(a0),y0=cy+r*Math.sin(a0),x1=cx+r*Math.cos(a1),y1=cy+r*Math.sin(a1);
+      h+=`<path d="M${x0.toFixed(1)} ${y0.toFixed(1)}A${r.toFixed(1)} ${r.toFixed(1)} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}" stroke="rgba(255,255,255,${rnd(.08,.3).toFixed(2)})" stroke-width="${rnd(.3,.9).toFixed(1)}" fill="none"/>`}}
+  s.innerHTML=h;
+})();
+
+/* comparação antes e depois */
+(()=>{
+  const p=document.getElementById("painel"),f=document.getElementById("fosco"),d=document.getElementById("divisor"),b=d.querySelector("button");
+  let pos=.5,arrasta=false;
+  const por=v=>{pos=Math.max(.02,Math.min(.98,v));f.style.clipPath=`inset(0 ${(1-pos)*100}% 0 0)`;d.style.left=pos*100+"%"};
+  const deX=x=>{const r=p.getBoundingClientRect();por((x-r.left)/r.width)};
+  p.addEventListener("pointerdown",e=>{arrasta=true;p.setPointerCapture(e.pointerId);deX(e.clientX)});
+  p.addEventListener("pointermove",e=>{if(arrasta)deX(e.clientX)});
+  p.addEventListener("pointerup",()=>arrasta=false);
+  p.addEventListener("pointercancel",()=>arrasta=false);
+  b.addEventListener("keydown",e=>{if(e.key==="ArrowLeft")por(pos-.05);if(e.key==="ArrowRight")por(pos+.05)});
+})();
+/* marcas circulares nas camadas da cena */
+(()=>{const rnd=(a,b)=>a+Math.random()*(b-a);
+  document.querySelectorAll("svg.swirl").forEach(s=>{let h="";
+    for(let k=0;k<8;k++){const cx=rnd(20,480),cy=rnd(20,380);
+      for(let i=0;i<26;i++){const r=rnd(8,150),a0=rnd(0,6.28),a1=a0+rnd(.5,2.4);
+        h+=`<path d="M${(cx+r*Math.cos(a0)).toFixed(1)} ${(cy+r*Math.sin(a0)).toFixed(1)}A${r.toFixed(1)} ${r.toFixed(1)} 0 0 1 ${(cx+r*Math.cos(a1)).toFixed(1)} ${(cy+r*Math.sin(a1)).toFixed(1)}" stroke="rgba(255,255,255,${rnd(.08,.3).toFixed(2)})" stroke-width="${rnd(.3,.9).toFixed(1)}" fill="none"/>`}}
+    s.innerHTML=h});
+  const bo=document.getElementById("bolhas");let h="";
+  for(let i=0;i<520;i++){const d=rnd(1.5,7.5);h+=`<b style="left:${rnd(-4,98).toFixed(1)}%;top:${rnd(0,100).toFixed(1)}%;width:${d.toFixed(1)}%;aspect-ratio:1"></b>`}
+  bo.innerHTML=h;
+  const pr=document.getElementById("proteger");h="";
+  for(let i=0;i<34;i++){const d=Math.pow(Math.random(),2)*9+2;h+=`<b style="left:${rnd(2,92).toFixed(1)}%;top:${rnd(4,90).toFixed(1)}%;width:${d.toFixed(1)}%;aspect-ratio:1;animation-delay:${rnd(-5,0).toFixed(1)}s"></b>`}
+  pr.insertAdjacentHTML("beforeend",h);
+})();
+
+/* etapas da cena */
+(()=>{const cam=[...document.querySelectorAll(".palco .camada")],pas=[...document.querySelectorAll(".cena-passos li")],leg=document.getElementById("legenda"),
+  nomes=["Avaliação","Lavagem","Polimento","Proteção"];
+  const ativa=n=>{cam.forEach((c,i)=>c.classList.toggle("on",i===n));pas.forEach((p,i)=>p.classList.toggle("ativo",i===n));leg.textContent=nomes[n]};
+  ativa(0);
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)ativa(+e.target.dataset.etapa)}),{rootMargin:"-45% 0px -45% 0px"});
+  pas.forEach(p=>io.observe(p));
+})();
+
+/* surgir ao rolar e topo */
+(()=>{
+  document.querySelectorAll(".lista>li").forEach((li,i)=>{li.setAttribute("data-surge","");li.style.setProperty("--d",(i*.06)+"s")});
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("visto");io.unobserve(e.target)}}),{threshold:.12,rootMargin:"0px 0px -6% 0px"});
+  document.querySelectorAll("[data-surge]").forEach(el=>io.observe(el));
+  const topo=document.querySelector(".topo"),capo=document.getElementById("inicio");
+  const ver=()=>topo.classList.toggle("rolou",scrollY>capo.offsetHeight-90);
+  addEventListener("scroll",ver,{passive:true});ver();
+})();
+</script>
+</body>
+</html>
