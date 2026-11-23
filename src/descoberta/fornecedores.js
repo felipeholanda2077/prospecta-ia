@@ -14,6 +14,8 @@ import { buscarEmpresasNoInstagram } from "./instagram.js";
 const LISTA = JSON.parse(fs.readFileSync(new URL("../../config/fornecedores-dropshipping.json", import.meta.url), "utf8"));
 // API, preço e marketplaces de cada um, conferidos à mão nos sites (com a fonte e a data), pela chave do fornecedor.
 const INTEGRACOES = JSON.parse(fs.readFileSync(new URL("../../config/fornecedores-integracoes.json", import.meta.url), "utf8"));
+// Quantos produtos cada um tem e quanto custa usar, também conferidos à mão nos sites, pela chave do fornecedor.
+const CATALOGO = JSON.parse(fs.readFileSync(new URL("../../config/fornecedores-catalogo.json", import.meta.url), "utf8"));
 const log = (...args) => console.log(new Date().toLocaleTimeString("pt-BR", { timeZone: config.timezone }), ...args);
 
 export const MAX_RESULTADOS = 40;
@@ -344,10 +346,21 @@ export async function buscarFornecedores({ nicho = "", cidade = "", quantidade =
 
 const NAO_CONFERIDO = { status: "nao_confirmado", detalhe: null, fontes: [], checado_em: null };
 
-/** O fornecedor com o que foi conferido sobre ele. Quem ainda não foi conferido aparece como "não confirmado". */
+/**
+ * O fornecedor com o que foi conferido sobre ele. Quem ainda não foi conferido aparece como "não confirmado".
+ * `catalogo` traz quantos produtos tem e quanto custa: o anotado no painel vale mais que o conferido no site.
+ */
 export function comIntegracoes(f) {
   const conferido = INTEGRACOES[f.chave] ?? {};
-  return { ...f, integracoes: Object.fromEntries(["api", "preco", "mercado_livre", "shopee"].map((c) => [c, conferido[c] ?? NAO_CONFERIDO])) };
+  const doSite = CATALOGO[f.chave] ?? {};
+  const produtos = f.produtos != null ? { quantidade: Number(f.produtos), anotado: true }
+    : doSite.produtos?.quantidade != null ? doSite.produtos : null;
+  const valor = f.valor ? { resumo: f.valor, anotado: true } : doSite.valor?.resumo ? doSite.valor : null;
+  return {
+    ...f,
+    integracoes: Object.fromEntries(["api", "preco", "mercado_livre", "shopee"].map((c) => [c, conferido[c] ?? NAO_CONFERIDO])),
+    catalogo: { produtos, valor },
+  };
 }
 
 const textoCurto = (v, max) => {

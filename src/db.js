@@ -283,8 +283,11 @@ export async function fornecedoresPorChave(chaves) {
   return Object.fromEntries(linhas.map((l) => [l.chave, l.id]));
 }
 
-export async function atualizarFornecedor(id, { status, observacao }) {
-  await q("UPDATE fornecedores SET status = COALESCE($2, status), observacao = COALESCE($3, observacao) WHERE id = $1", [id, status ?? null, observacao ?? null]);
+/** Muda só os campos que vieram (null apaga os produtos e o valor anotados). */
+export async function atualizarFornecedor(id, mudanca) {
+  const campos = ["status", "observacao", "produtos", "valor"].filter((c) => mudanca[c] !== undefined);
+  if (!campos.length) return;
+  await q(`UPDATE fornecedores SET ${campos.map((c, i) => `${c} = $${i + 2}`).join(", ")} WHERE id = $1`, [id, ...campos.map((c) => mudanca[c])]);
 }
 
 // ---------- Perguntas do Mercado Livre ----------

@@ -7,7 +7,7 @@
  },
  "dropnacional.com.br": {
   "api": { "status": "nao_confirmado", "detalhe": "O site não cita API e não achei documentação pública.", "fontes": ["https://dropnacional.com.br/"], "checado_em": "2026-11-01" },
-  "preco": { "status": "pago", "detalhe": "A partir de R$ 89/mês no site, com 3 dias grátis. Na Nuvemshop aparece de R$ 59 a R$ 249/mês, e o nível gratuito não inclui os fornecedores nacionais.", "fontes": ["https://dropnacional.com.br/", "https://www.nuvemshop.com.br/loja-aplicativos-nuvem/drop-nacional"], "checado_em": "2026-11-01" },
+  "preco": { "status": "pago", "detalhe": "R$ 59 a R$ 249/mês pelo app Dropi: os fornecedores nacionais entram a partir do Nível 1 (R$ 59/mês); o Nível 2 (R$ 97/mês) tem 3 dias grátis. O site próprio não mostra preço.", "fontes": ["https://www.nuvemshop.com.br/loja-aplicativos-nuvem/drop-nacional", "https://dropnacional.com.br/"], "checado_em": "2026-11-23" },
   "mercado_livre": { "status": "nao_confirmado", "detalhe": "O site não cita. Ele funciona dentro do Dropi, mas não achei confirmação para estes fornecedores.", "fontes": ["https://dropnacional.com.br/"], "checado_em": "2026-11-01" },
   "shopee": { "status": "nao_confirmado", "detalhe": "O site não cita. Ele funciona dentro do Dropi, mas não achei confirmação para estes fornecedores.", "fontes": ["https://dropnacional.com.br/"], "checado_em": "2026-11-01" }
  },

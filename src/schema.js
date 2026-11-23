@@ -431,4 +431,8 @@ CREATE TABLE IF NOT EXISTS compras_fornecedor (
   comprado_em  timestamptz
 );
 ALTER TABLE compras_fornecedor ENABLE ROW LEVEL SECURITY;
+
+-- Fornecedor salvo: quantos produtos tem e quanto custa usar, anotados à mão no painel (valem mais que o conferido).
+ALTER TABLE fornecedores ADD COLUMN IF NOT EXISTS produtos integer;
+ALTER TABLE fornecedores ADD COLUMN IF NOT EXISTS valor text;
 `;

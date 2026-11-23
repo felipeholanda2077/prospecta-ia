@@ -1,0 +1,424 @@
+{
+ "alphastarimports.com.br": {
+  "produtos": {
+   "quantidade": null,
+   "detalhe": "O site não diz quantos produtos tem: o catálogo de dropshipping e a lista de todos os produtos mostram 12 por vez com o botão 'Mostrar mais produtos', sem total.",
+   "fontes": [
+    "https://www.alphastarimports.com.br/dropshipping/",
+    "https://www.alphastarimports.com.br/produtos/"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Sem mensalidade",
+   "detalhe": "O FAQ de dropshipping diz que não cobram mensalidade, não há pedido mínimo, aceita CPF ou CNPJ e o revendedor paga só o produto (preço final) mais o frete, via Pix; não há integração com Shopify ou outras plataformas.",
+   "fontes": [
+    "https://www.alphastarimports.com.br/perguntas-frequentes-dropshipping/"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "c7drop.com.br": {
+  "produtos": {
+   "quantidade": 1388,
+   "detalhe": "A página Todos os Produtos da loja mostra 1.388 produtos (a contagem inclui uma categoria 'Fora de Estoque').",
+   "fontes": [
+    "https://www.c7drop.com.br/produtos"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Grátis, sem mensalidade",
+   "detalhe": "A Central de Ajuda diz que o cadastro é gratuito, sem pedido mínimo e sem mensalidade, pagando só os produtos mais R$ 1,50 de embalagem por pedido e 4% a mais se quiser nota fiscal; a automação pela C7 Integra é opcional e paga, sem preço nessa página.",
+   "fontes": [
+    "https://www.c7drop.com.br/ajuda"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "dropdecasa.com.br": {
+  "produtos": {
+   "quantidade": 600,
+   "mais_de": true,
+   "detalhe": "A página Sobre Nós diz que tem mais de 600 itens a pronta entrega.",
+   "fontes": [
+    "https://dropdecasa.com.br/sobre-nos-dropshipping-nacional"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": null,
+   "detalhe": "O site não publica preço nem mensalidade: exige CNPJ ativo do ramo, pede contato pelo formulário ou WhatsApp e diz que o catálogo é integrado pela DSlite.",
+   "fontes": [
+    "https://dropdecasa.com.br/",
+    "https://dropdecasa.com.br/catalogo-dropshipping-nacional"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "dropify.com.br": {
+  "produtos": {
+   "quantidade": null,
+   "detalhe": "A página inicial fala só em \"milhares de produtos\" e o catálogo só aparece após cadastro, então não há número.",
+   "fontes": [
+    "https://dropify.com.br/"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "R$ 149 a R$ 699/mês",
+   "detalhe": "No mensal, com fidelidade de 12 meses, Experience R$ 149, Start R$ 249, Pro R$ 449 e Scale R$ 699; no anual à vista sai de R$ 1.308 (R$ 109/mês) a R$ 6.348 (R$ 529/mês), e há opção semestral com 15% de desconto.",
+   "fontes": [
+    "https://dropify.com.br/planos"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "hayamax.com.br": {
+  "produtos": {
+   "quantidade": 5000,
+   "mais_de": true,
+   "detalhe": "A página Quem Somos diz que a distribuidora conta com mais de 5 mil itens.",
+   "fontes": [
+    "https://hayamax.com.br/quem-somos"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "R$ 129,90/mês",
+   "detalhe": "A página de Cross-Docking diz que a implantação é gratuita, há 7 dias de teste e depois o plano custa R$ 129,90/mês pré-pago, contratado com a parceira B2Lite (DSlite); exige CNPJ ou MEI com CNAE do ramo e inscrição estadual.",
+   "fontes": [
+    "https://www.hayamax.com.br/crossdocking"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "imagemfolheados.com.br": {
+  "produtos": {
+   "quantidade": null,
+   "detalhe": "A loja não mostra o total do catálogo, só a contagem por categoria (por exemplo, Brincos mostra 456 produtos e Novidades 214).",
+   "fontes": [
+    "https://www.imagemfolheados.com.br/produtos/Brincos/0-1-0",
+    "https://www.imagemfolheados.com.br/produtos/Novidades/8-0-0"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Dropshipping pausado",
+   "detalhe": "A página de dropshipping avisa que a modalidade está pausada até ajustes no sistema; para revenda no atacado o cadastro não pede CNPJ e o pedido mínimo é de R$ 195, com frete PAC grátis acima de R$ 300.",
+   "fontes": [
+    "https://www.imagemfolheados.com.br/dropshipping",
+    "https://www.imagemfolheados.com.br/info/como-revender"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "maisquedistribuidora.com.br": {
+  "produtos": {
+   "quantidade": 4000,
+   "mais_de": true,
+   "detalhe": "O site não mostra o número; o blog E-commerce na Prática (atualizado em 28/04/2026) diz que há mais de 4 mil itens disponíveis para os lojistas.",
+   "fontes": [
+    "https://ecommercenapratica.com/blog/fornecedores-dropshipping-nacional/"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": null,
+   "detalhe": "O site não publica preço, mensalidade nem pedido mínimo; o cadastro é por formulário do Google ou WhatsApp e o acesso é pela plataforma Seller7.",
+   "fontes": [
+    "https://maisquedistribuidora.com.br/"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "revendadecalcados.com.br": {
+  "produtos": {
+   "quantidade": 300,
+   "mais_de": true,
+   "detalhe": "A página de dropshipping diz que a coleção tem mais de 300 modelos diferentes, com mais de 20 mil pares em estoque.",
+   "fontes": [
+    "https://www.revendadecalcados.com.br/dropshipping-calcados.php"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Taxa única de R$ 200 + 10%",
+   "detalhe": "O FAQ diz que o cadastro de revendedor é grátis e sem mensalidade, mas habilitar o dropshipping custa uma taxa única de R$ 200 e cada produto vendido em dropshipping tem 10% a mais sobre o atacado; o mínimo é 1 par.",
+   "fontes": [
+    "https://www.revendadecalcados.com.br/duvidas-frequentes-revenda-calcados-sapatos-femininos.php",
+    "https://www.revendadecalcados.com.br/dropshipping-calcados.php"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "biovittas.com.br": {
+  "produtos": {
+   "quantidade": null,
+   "detalhe": "O site estava fora do ar (página da Tray 'loja não está disponível no momento') e não achei outra fonte com o número de produtos.",
+   "fontes": [
+    "https://www.biovittas.com.br/"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Grátis ou R$ 5 mil de entrada",
+   "detalhe": "O site estava fora do ar; o blog da Nuvemshop (atualizado em 06/11/2026) diz que basta preencher o formulário e escolher o plano iniciante, sem custo para começar, ou o empresário, com investimento inicial de R$ 5 mil.",
+   "fontes": [
+    "https://www.nuvemshop.com.br/blog/fornecedor-de-suplementos-dropshipping/"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "allnations.com.br": {
+  "produtos": {
+   "quantidade": 391,
+   "mais_de": true,
+   "detalhe": "A lista Produtos do site, vista sem login, mostra 14 páginas de 30 itens (13 cheias e 1 com um produto), ou seja 391 produtos; o catálogo completo para revendedor logado pode ser maior.",
+   "fontes": [
+    "https://allnations.com.br/all",
+    "https://allnations.com.br/all?pagenumber=14"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Sem mensalidade; exige CNPJ",
+   "detalhe": "Só vende para empresa do ramo de informática ou segurança eletrônica com CNPJ e inscrição estadual; não tem mínimo para pagamento à vista e o mínimo a prazo é R$ 300; no faturamento direto a All Nations fatura e entrega ao cliente final e paga comissão à revenda.",
+   "fontes": [
+    "https://allnations.com.br/duvidas-frequentes"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "capasnoatacado.com.br": {
+  "produtos": {
+   "quantidade": 315,
+   "detalhe": "A busca de todos os produtos da loja mostra 315 produtos em 10 páginas.",
+   "fontes": [
+    "https://www.capasnoatacado.com.br/loja/busca.php?loja=968316&palavra_busca="
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": null,
+   "detalhe": "O site é um atacado com cadastro e não fala em dropshipping, mensalidade nem pedido mínimo; só informa frete grátis acima de R$ 2.500 e taxa de R$ 70 para entrega no Brás.",
+   "fontes": [
+    "https://www.capasnoatacado.com.br/",
+    "https://www.capasnoatacado.com.br/termos-e-condicoes-de-compra",
+    "https://www.capasnoatacado.com.br/formas-de-envio"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "kaisan.com.br": {
+  "produtos": {
+   "quantidade": 4099,
+   "detalhe": "A página Produtos da loja mostra 4099 produtos.",
+   "fontes": [
+    "https://www.kaisan.com.br/produtos"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Sem mensalidade; paga peças e frete",
+   "detalhe": "O site pede só um cadastro para comprar e não fala em dropshipping nem em taxa; o frete é grátis acima de R$ 249 no Sul e Sudeste e acima de R$ 299 nas demais regiões.",
+   "fontes": [
+    "https://www.kaisan.com.br/duvidas/compra-facil",
+    "https://www.kaisan.com.br/duvidas/compra-facil/frete-e-envio"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "lojaodomdf.com.br": {
+  "produtos": {
+   "quantidade": 1446,
+   "detalhe": "A busca da loja por todos os itens mostra 1446 produtos encontrados.",
+   "fontes": [
+    "https://lojaodomdf.com.br/consulta.php?palavra=%25"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Pelo app Dropi (pago)",
+   "detalhe": "A página de dropshipping do Lojão manda importar os produtos pelo Dropi, e o site do Dropi oferece teste grátis e planos pagos sem mostrar o preço, dizendo que o lojista só paga o fornecedor depois que o cliente compra.",
+   "fontes": [
+    "https://lojaodomdf.com.br/interna.php?cod=345911",
+    "https://www.dropi.com.br/"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "mirao.com.br": {
+  "produtos": {
+   "quantidade": null,
+   "detalhe": "O site não mostra o total de produtos; só cada categoria mostra a sua contagem (Hardware, por exemplo, tem 814 itens).",
+   "fontes": [
+    "https://www.mirao.com.br/",
+    "https://www.mirao.com.br/hardware.html"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Pedido mínimo de R$ 50",
+   "detalhe": "Basta se cadastrar e o pedido mínimo é R$ 50, com 10% de desconto à vista; o site não fala em dropshipping nem em mensalidade.",
+   "fontes": [
+    "https://www.mirao.com.br/como-comprar",
+    "https://www.mirao.com.br/sobre"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "relogiostore.com.br": {
+  "produtos": {
+   "quantidade": 296,
+   "detalhe": "A página Todos os produtos da loja mostra 296 itens.",
+   "fontes": [
+    "https://www.relogiostore.com.br/todos-produtos/"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": null,
+   "detalhe": "O site vende relógios no atacado para revenda, mas não publica pedido mínimo, mensalidade nem condição de dropshipping; o blog pediu verificação anti-robô e não abriu.",
+   "fontes": [
+    "https://www.relogiostore.com.br/",
+    "https://www.relogiostore.com.br/sobre/",
+    "https://www.relogiostore.com.br/m/politica-de-entrega/"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "dropi.com.br": {
+  "produtos": {
+   "quantidade": 1000000,
+   "mais_de": true,
+   "detalhe": "O site do Dropi diz \"milhões de produtos prontos para importar\" (AliExpress e fornecedores integrados), sem dar o número exato.",
+   "fontes": [
+    "https://dropi.com.br/"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Grátis ou R$ 59 a R$ 249/mês",
+   "detalhe": "Nível Zero grátis com R$ 0,50 por pedido e até 3 produtos; Nível 1 R$ 59/mês (500 pedidos, 200 produtos), Nível 2 R$ 97/mês (1.000 pedidos, 1.500 produtos, 3 dias grátis) e Nível 3 R$ 249/mês (3.000 pedidos, 20.000 produtos), com pedido excedente de R$ 0,12 a R$ 0,08; na Shopify a cobrança é em dólar e aparece convertida (R$ 71,37 a R$ 285,46/mês).",
+   "fontes": [
+    "https://www.nuvemshop.com.br/loja-aplicativos-nuvem/dropi",
+    "https://apps.shopify.com/dropi?locale=pt-BR"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "dslite.com.br": {
+  "produtos": {
+   "quantidade": null,
+   "detalhe": "A página inicial fala só em \"milhares de produtos\" dos fornecedores integrados, sem número; os planos limitam a integração a 1.000 ou 5.000 produtos, o que não é o tamanho do catálogo.",
+   "fontes": [
+    "https://www.dslite.com.br/"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "R$ 129 a R$ 189/mês",
+   "detalhe": "Plano Crossdocking R$ 129/mês, Dropshipping PJ R$ 189/mês e Venda Direta PF R$ 134/mês (menos fornecedores); adicionais de R$ 15 por fornecedor, R$ 30 por mais 1.000 produtos e R$ 60 por integrador, com período grátis só na primeira adesão.",
+   "fontes": [
+    "https://www.dslite.com.br/"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "dropnacional.com.br": {
+  "produtos": {
+   "quantidade": null,
+   "detalhe": "Nem o site do Drop Nacional nem a página do app na Nuvemshop dão um número de produtos.",
+   "fontes": [
+    "https://dropnacional.com.br/",
+    "https://www.nuvemshop.com.br/loja-aplicativos-nuvem/drop-nacional"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "R$ 59 a R$ 249/mês",
+   "detalhe": "O Drop Nacional é usado pelo app Dropi e os fornecedores nacionais entram a partir do Nível 1 (R$ 59/mês), passando pelo Nível 2 (R$ 97/mês, 3 dias grátis) até o Nível 3 (R$ 249/mês); o valor antigo \"a partir de R$ 89\" não aparece mais e o site próprio não mostra preço, só o teste grátis de 3 dias.",
+   "fontes": [
+    "https://www.nuvemshop.com.br/loja-aplicativos-nuvem/drop-nacional",
+    "https://dropnacional.com.br/"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "onedrop.com.br": {
+  "produtos": {
+   "quantidade": 500,
+   "mais_de": true,
+   "detalhe": "O site diz mais de 500 produtos de fornecedores nacionais.",
+   "fontes": [
+    "https://onedrop.com.br/"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "R$ 397,90 uma vez",
+   "detalhe": "Plano Vitalício com pagamento único, sem mensalidade nem renovação; o lojista paga o produto só depois de vender.",
+   "fontes": [
+    "https://onedrop.com.br/"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "cjdropshipping.com": {
+  "produtos": {
+   "quantidade": 1000000,
+   "mais_de": true,
+   "detalhe": "O guia oficial no blog da CJ diz que ela dá acesso a \"millions of products\" (mais de 1 milhão), sem número exato.",
+   "fontes": [
+    "https://cjdropshipping.com/blogs/cj-news/What-is-CJdropshipping"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Grátis; paga produto e envio",
+   "detalhe": "A CJ diz que não cobra mensalidade nem taxa de adesão e não limita produtos nem pedidos; existe o plano Prime opcional, cujo preço não foi conferido porque a página pede verificação humana.",
+   "fontes": [
+    "https://cjdropshipping.com/blogs/cj-news/What-is-CJdropshipping"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "printful.com": {
+  "produtos": {
+   "quantidade": 610,
+   "detalhe": "A página de preços da Printful diz que o plano grátis dá acesso a 610 produtos personalizáveis.",
+   "fontes": [
+    "https://www.printful.com/pricing"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "Grátis ou US$ 24,99/mês",
+   "detalhe": "O plano Free não tem mensalidade e o lojista paga só o produto e o envio de cada pedido; o Growth custa US$ 24,99/mês (14 dias de teste, fica grátis ao passar de US$ 12 mil/ano em vendas) e dá até 33% de desconto nos produtos; o Enterprise tem preço sob consulta.",
+   "fontes": [
+    "https://www.printful.com/pricing"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ },
+ "spocket.co": {
+  "produtos": {
+   "quantidade": 100000000,
+   "mais_de": true,
+   "detalhe": "A página de preços diz catálogo de mais de 100 milhões de produtos (\"100million+ product catalog\"), contando o AliExpress.",
+   "fontes": [
+    "https://www.spocket.co/pricing"
+   ],
+   "checado_em": "2026-11-23"
+  },
+  "valor": {
+   "resumo": "US$ 39,99 a US$ 299,99/mês",
+   "detalhe": "Starter US$ 39,99 (25 produtos únicos), Professional US$ 59,99 (250), Empire US$ 99,99 (10.000) e Unicorn US$ 299,99 (25.000), todos com 7 dias grátis e 0% de taxa por transação; o plano anual tem desconto.",
+   "fontes": [
+    "https://www.spocket.co/pricing"
+   ],
+   "checado_em": "2026-11-23"
+  }
+ }
+}

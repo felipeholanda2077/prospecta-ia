@@ -1129,9 +1129,17 @@ app.post("/api/fornecedores", async (req, res) => {
   res.json({ novos });
 });
 app.put("/api/fornecedores/:id", async (req, res) => {
-  const { status, observacao } = req.body ?? {};
+  const { status, observacao, produtos, valor } = req.body ?? {};
   if (status !== undefined && !STATUS_FORNECEDOR.includes(status)) return res.status(400).json({ erro: "Situação inválida" });
-  await db.atualizarFornecedor(req.params.id, { status, observacao: observacao === undefined ? undefined : String(observacao).slice(0, 1000) });
+  // Produtos aceita "12.000" ou "12000"; vazio apaga o que foi anotado.
+  const digitos = produtos == null ? "" : String(produtos).replace(/[.\s]/g, "");
+  if (digitos && !/^\d{1,9}$/.test(digitos)) return res.status(400).json({ erro: "Produtos: informe só o número" });
+  await db.atualizarFornecedor(req.params.id, {
+    status,
+    observacao: observacao === undefined ? undefined : String(observacao).slice(0, 1000),
+    produtos: produtos === undefined ? undefined : digitos ? Number(digitos) : null,
+    valor: valor === undefined ? undefined : String(valor ?? "").replace(/\s+/g, " ").trim().slice(0, 80) || null,
+  });
   res.json({ ok: true });
 });
 

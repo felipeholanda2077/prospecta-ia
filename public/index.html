@@ -643,6 +643,36 @@
   .forn-botoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; }
   .forn-botoes .btn { min-height: 36px; padding: 6px 12px; font-size: 13.5px; }
   .forn-acoes { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+  /* Cartão do fornecedor: cabeçalho, os dois números que importam (produtos e valor) e o resto recolhido. */
+  .forn-card.destaque { border-color: var(--ok); box-shadow: 0 0 0 1px var(--ok), var(--shadow); }
+  .forn-card.descartado { opacity: .62; }
+  .forn-cab { display: flex; align-items: flex-start; gap: 12px; }
+  .forn-logo { flex: none; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 17px;
+               background: var(--accent-soft); color: var(--accent-text); }
+  .forn-titulo { flex: 1; min-width: 0; display: grid; gap: 2px; }
+  .forn-titulo .muted { font-size: 12.5px; overflow-wrap: anywhere; }
+  .forn-numeros { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .forn-num { display: grid; gap: 2px; align-content: start; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); min-width: 0; }
+  .forn-num > span { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .forn-num b { font-size: 17px; line-height: 1.25; overflow-wrap: anywhere; }
+  .forn-num b.sem-dado { font-size: 13.5px; font-weight: 600; color: var(--subtle); }
+  .forn-num small { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .forn-num.destaque { background: var(--ok-soft); }
+  .forn-num.destaque b { color: var(--ok); }
+  .forn-canais { display: flex; flex-wrap: wrap; gap: 6px; }
+  .forn-mais summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--accent-text); }
+  .forn-mais[open] summary { margin-bottom: 8px; }
+  .forn-anotar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding-top: 10px; border-top: 1px solid var(--border); }
+  .forn-anotar .campo { margin: 0; }
+  .forn-anotar .largo { grid-column: 1 / -1; }
+  .forn-anotar label { font-size: 12px; }
+  .forn-anotar input, .forn-anotar select, .forn-anotar textarea { font-size: 13.5px; padding: 7px 10px; }
+  .forn-anotar textarea { min-height: 58px; }
+  .forn-num.valor b { font-size: 15px; }
+  .forn-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; width: 100%; }
+  .forn-barra .filtros { margin: 0; flex: 1; min-width: 0; }
+  .forn-barra select { width: auto; font-size: 13.5px; padding: 7px 10px; }
+  @media (max-width: 520px) { .forn-anotar { grid-template-columns: 1fr 1fr; } .forn-anotar .situacao { grid-column: 1 / -1; } }
   #view-contratos button.link { font: inherit; color: inherit; font-weight: 600; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
   #ct-abas { position: static; }
   .ct-documento { display: grid; gap: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: clip; background: var(--surface); }
@@ -8467,7 +8497,7 @@ $("#prod-lista").addEventListener("click", async (ev) => {
 });
 
 // ===================== Fornecedores de dropshipping =====================
-let estadoForn = { aba: "resultados", resultados: [], salvos: [], buscou: false, filtros: new Set() };
+let estadoForn = { aba: "resultados", resultados: [], salvos: [], buscou: false, filtros: new Set(), situacao: "todos", ordem: "produtos" };
 
 const STATUS_DE_CANAL = { sim: ["ok", "Integra"], parcial: ["atencao", "Parcial"], nao: ["perigo", "Não integra"] };
 const INFO_DO_FORN = [
@@ -8513,22 +8543,104 @@ function botoesDoForn(f) {
   ].join("");
 }
 
-function cardDoForn(f, i) {
+const SITUACOES_DO_FORN = [["novo", "Novo", ""], ["contatado", "Contatado", "acc"], ["aprovado", "Aprovado", "ok"], ["descartado", "Descartado", "perigo"]];
+const CANAIS_DO_FORN = [["api", "API"], ["mercado_livre", "Mercado Livre"], ["shopee", "Shopee"]];
+const ORDENS_DO_FORN = [["produtos", "Mais produtos"], ["recentes", "Mais recentes"], ["nome", "Nome (A a Z)"]];
+
+const quantidadeDoForn = (f) => f.catalogo?.produtos?.quantidade ?? -1;
+// Até 9.999 o número inteiro; daí para cima, "12 mil", "1,5 mi".
+const numeroDeProdutos = (n) => (n >= 10000 ? new Intl.NumberFormat("pt-BR", { notation: "compact", maximumFractionDigits: 1 }).format(n) : n.toLocaleString("pt-BR"));
+const dominioDoForn = (site) => (site ? site.replace(/^https?:\/\/(www\.)?/, "").replace(/\/.*$/, "") : "");
+
+/** Os dois números que mais pesam na escolha: quantos produtos e quanto custa usar. */
+function numerosDoForn(f, maisProdutos) {
+  const { produtos, valor } = f.catalogo ?? {};
+  const preco = f.integracoes?.preco;
+  const valorTexto = valor?.resumo ?? (preco?.status === "gratis" ? "Grátis" : null);
+  const origem = (x) => (x?.anotado ? "Anotado por você" : x?.checado_em ? `Conferido em ${dataDaFonte(x.checado_em)}` : "");
+  return `<div class="forn-numeros">
+    <div class="forn-num ${maisProdutos ? "destaque" : ""}"><span>Produtos</span>
+      ${produtos ? `<b>${numeroDeProdutos(produtos.quantidade)}${produtos.mais_de ? "+" : ""}</b>` : `<b class="sem-dado">Não informado</b>`}
+      ${produtos ? `<small>${esc(origem(produtos))}</small>` : ""}</div>
+    <div class="forn-num valor"><span>Valor</span>
+      ${valorTexto ? `<b>${esc(valorTexto)}</b>` : `<b class="sem-dado">Não informado</b>`}
+      ${valor ? `<small>${esc(origem(valor))}</small>` : ""}</div>
+  </div>`;
+}
+
+/** API e marketplaces numa linha só; o detalhe e as fontes ficam no "Detalhes e fontes". */
+function canaisDoForn(f) {
+  return CANAIS_DO_FORN.map(([campo, titulo]) => {
+    const status = f.integracoes?.[campo]?.status;
+    if (status === "sim") return `<span class="pilula ok">${ic("check", "sm")}${titulo}</span>`;
+    if (status === "parcial") return `<span class="pilula atencao" title="Integra em parte">${titulo} · parcial</span>`;
+    if (status === "nao") return `<span class="pilula perigo">Sem ${titulo}</span>`;
+    return `<span class="pilula" title="Não confirmado">${titulo} ?</span>`;
+  }).join("");
+}
+
+/** Produtos e valor por extenso, com as fontes, no mesmo formato das outras linhas do "Detalhes e fontes". */
+function catalogoPorExtenso(f) {
+  const linhas = [["Produtos", f.catalogo?.produtos], ["Valor", f.catalogo?.valor]].filter(([, x]) => x?.fontes?.length);
+  if (!linhas.length) return "";
+  return `<dl class="forn-info" style="border-top:0;padding-top:0">${linhas.map(([titulo, x]) => `<div><dt>${titulo}</dt><dd><span>${esc(x.detalhe)}</span>
+    <span>${x.fontes.map((url, i) => `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">Fonte${i ? ` ${i + 1}` : ""}</a>`).join(" · ")} · conferido em ${esc(dataDaFonte(x.checado_em))}</span></dd></div>`).join("")}</dl>`;
+}
+
+function anotacoesDoForn(f) {
+  return `<div class="forn-anotar">
+    <div class="campo situacao"><label for="forn-status-${f.id}">Situação</label>
+      <select id="forn-status-${f.id}" data-forn-status>${SITUACOES_DO_FORN.map(([v, t]) => `<option value="${v}"${f.status === v ? " selected" : ""}>${t}</option>`).join("")}</select></div>
+    <div class="campo"><label for="forn-produtos-${f.id}">Produtos</label>
+      <input id="forn-produtos-${f.id}" data-forn-produtos inputmode="numeric" placeholder="${f.catalogo?.produtos && !f.catalogo.produtos.anotado ? esc(f.catalogo.produtos.quantidade.toLocaleString("pt-BR")) : "Ex.: 1.200"}" value="${f.produtos != null ? esc(Number(f.produtos).toLocaleString("pt-BR")) : ""}"></div>
+    <div class="campo"><label for="forn-valor-${f.id}">Valor</label>
+      <input id="forn-valor-${f.id}" data-forn-valor maxlength="80" placeholder="${f.catalogo?.valor && !f.catalogo.valor.anotado ? esc(f.catalogo.valor.resumo) : "Ex.: R$ 99/mês"}" value="${esc(f.valor ?? "")}"></div>
+    <div class="campo largo"><label for="forn-obs-${f.id}">Anotações</label>
+      <textarea id="forn-obs-${f.id}" data-forn-obs rows="2" placeholder="Prazo, preço mínimo, contato...">${esc(f.observacao ?? "")}</textarea></div>
+  </div>`;
+}
+
+function cardDoForn(f, i, maior) {
   const salvo = estadoForn.aba === "salvos";
-  const detalhes = [f.nichos, f.cidade].filter(Boolean).map(esc).join(" · ");
-  return `<article class="cartao forn-card" data-forn="${salvo ? f.id : i}">
-    <h3>${esc(f.nome)}</h3>
-    <div class="forn-pilulas">${pilulasDoForn(f)}</div>
-    ${detalhes ? `<div class="meta">${detalhes}</div>` : ""}
-    ${infoDoForn(f)}
-    ${f.evidencia ? `<p class="forn-prova">“${esc(f.evidencia)}”</p>` : ""}
+  const maisProdutos = maior > 0 && quantidadeDoForn(f) === maior;
+  const sub = [dominioDoForn(f.site), f.nichos, f.cidade].filter(Boolean).map(esc).join(" · ");
+  const [, rotulo, cor] = SITUACOES_DO_FORN.find(([v]) => v === f.status) ?? SITUACOES_DO_FORN[0];
+  return `<article class="cartao forn-card ${maisProdutos ? "destaque" : ""} ${salvo && f.status === "descartado" ? "descartado" : ""}" data-forn="${salvo ? f.id : i}">
+    <div class="forn-cab">
+      <span class="forn-logo" aria-hidden="true">${esc((f.nome.match(/[A-Za-zÀ-ÿ0-9]/)?.[0] ?? "?").toUpperCase())}</span>
+      <div class="forn-titulo"><h3>${esc(f.nome)}</h3>${sub ? `<span class="muted">${sub}</span>` : ""}</div>
+      ${salvo ? `<span class="pilula ${cor}">${rotulo}</span>` : ""}
+    </div>
+    <div class="forn-pilulas">${maisProdutos ? `<span class="pilula ok">${ic("crown", "sm")}Mais produtos</span>` : ""}${pilulasDoForn(f)}</div>
+    ${numerosDoForn(f, maisProdutos)}
+    <div class="forn-canais">${canaisDoForn(f)}</div>
+    <details class="forn-mais"><summary>Detalhes e fontes</summary>
+      ${infoDoForn(f)}
+      ${catalogoPorExtenso(f)}
+      ${f.evidencia ? `<p class="forn-prova" style="margin-top:8px">“${esc(f.evidencia)}”</p>` : ""}
+    </details>
     ${f.motivo ? `<div class="muted" style="font-size:13px">Não deu para ler o site: ${esc(f.motivo)}.</div>` : ""}
-    ${salvo ? `<div class="campo"><label for="forn-status-${f.id}">Situação</label>
-        <select id="forn-status-${f.id}" data-forn-status>${[["novo", "Novo"], ["contatado", "Contatado"], ["aprovado", "Aprovado"], ["descartado", "Descartado"]].map(([v, t]) => `<option value="${v}"${f.status === v ? " selected" : ""}>${t}</option>`).join("")}</select></div>
-      <div class="campo"><label for="forn-obs-${f.id}">Anotações</label>
-        <textarea id="forn-obs-${f.id}" data-forn-obs rows="2" placeholder="Prazo, preço mínimo, contato...">${esc(f.observacao ?? "")}</textarea></div>` : ""}
+    ${salvo ? anotacoesDoForn(f) : ""}
     <div class="forn-botoes">${botoesDoForn(f)}${salvo || f.jaSalvo ? "" : `<button class="btn primario" type="button" data-forn-salvar>${ic("save")}Salvar</button>`}</div>
   </article>`;
+}
+
+/** Na aba Salvos: filtro pela situação e a ordem dos cartões. */
+function barraDosSalvos(salvos) {
+  const conta = (s) => salvos.filter((f) => f.status === s).length;
+  const chips = [["todos", "Todos", salvos.length], ...SITUACOES_DO_FORN.map(([v, t]) => [v, t, conta(v)])]
+    .filter(([v, , n]) => v === "todos" || n)
+    .map(([v, t, n]) => `<button type="button" class="filtro" data-forn-situacao="${v}" aria-pressed="${estadoForn.situacao === v}">${t} <span class="muted">${n}</span></button>`).join("");
+  return `<div class="forn-barra"><div class="filtros" role="group" aria-label="Filtrar pela situação">${chips}</div>
+    <label class="muted" for="forn-ordem" style="font-size:13px">Ordenar</label>
+    <select id="forn-ordem" data-forn-ordem>${ORDENS_DO_FORN.map(([v, t]) => `<option value="${v}"${estadoForn.ordem === v ? " selected" : ""}>${t}</option>`).join("")}</select></div>`;
+}
+
+function salvosEmOrdem(salvos) {
+  const lista = salvos.filter((f) => estadoForn.situacao === "todos" || f.status === estadoForn.situacao);
+  if (estadoForn.ordem === "nome") return lista.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  if (estadoForn.ordem === "produtos") return lista.sort((a, b) => quantidadeDoForn(b) - quantidadeDoForn(a));
+  return lista; // já vêm do mais recente para o mais antigo
 }
 
 function desenharFornecedores() {
@@ -8537,15 +8649,19 @@ function desenharFornecedores() {
   $$("[data-forn-filtro]").forEach((b) => b.setAttribute("aria-pressed", String(estadoForn.filtros.has(b.dataset.fornFiltro))));
   $("#forn-total-salvos").textContent = salvos.length ? `(${salvos.length})` : "";
   const faltando = resultados.filter((f) => !f.jaSalvo && f.confirmacao === "confirmado");
-  $("#forn-acoes").hidden = aba !== "resultados" || !faltando.length;
-  $("#forn-acoes").innerHTML = faltando.length ? `<button class="btn" type="button" data-forn-salvar-todos>${ic("save")}Salvar os ${faltando.length} que fazem dropshipping</button>` : "";
-  const lista = aba === "salvos" ? salvos : resultados;
+  $("#forn-acoes").hidden = aba === "salvos" ? !salvos.length : !faltando.length;
+  $("#forn-acoes").innerHTML = aba === "salvos" ? (salvos.length ? barraDosSalvos(salvos) : "")
+    : faltando.length ? `<button class="btn" type="button" data-forn-salvar-todos>${ic("save")}Salvar os ${faltando.length} que fazem dropshipping</button>` : "";
   const vazio = aba === "salvos" ? "Nenhum fornecedor salvo ainda. Faça uma busca e salve os que interessarem."
     : buscou ? "A busca não achou fornecedores. Tente um segmento mais amplo ou sem cidade."
     : "Escolha um segmento e clique em Buscar fornecedores. Sem segmento, aparece a lista geral.";
-  // O índice é o da lista inteira: é por ele que o botão Salvar acha o fornecedor.
-  const cartoes = lista.map((f, i) => (passaNosFiltrosDoForn(f) ? cardDoForn(f, i) : "")).join("");
-  $("#forn-lista").innerHTML = cartoes || `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">${lista.length ? "Nenhum fornecedor desta lista atende a esses filtros." : vazio}</div>`;
+  // Nos resultados, o índice é o da lista inteira: é por ele que o botão Salvar acha o fornecedor.
+  const lista = (aba === "salvos" ? salvosEmOrdem([...salvos]) : resultados).map((f, i) => [f, i]).filter(([f]) => passaNosFiltrosDoForn(f));
+  // "Mais produtos" marca quem tem o maior catálogo entre os que estão na tela.
+  const maior = Math.max(0, ...lista.map(([f]) => quantidadeDoForn(f)));
+  const cartoes = lista.map(([f, i]) => cardDoForn(f, i, maior)).join("");
+  const total = aba === "salvos" ? salvos.length : resultados.length;
+  $("#forn-lista").innerHTML = cartoes || `<div class="cartao cartao-corpo muted" style="grid-column:1/-1">${total ? "Nenhum fornecedor desta lista atende a esses filtros." : vazio}</div>`;
 }
 
 // ===================== Agentes de atendimento =====================
@@ -9047,6 +9163,11 @@ $("#view-fornecedores").addEventListener("click", async (ev) => {
     if (!estadoForn.filtros.delete(campo)) estadoForn.filtros.add(campo);
     return desenharFornecedores();
   }
+  const situacao = ev.target.closest("[data-forn-situacao]");
+  if (situacao) {
+    estadoForn.situacao = situacao.dataset.fornSituacao;
+    return desenharFornecedores();
+  }
   try {
     if (ev.target.closest("[data-forn-salvar-todos]")) await salvarFornecedores(estadoForn.resultados.filter((f) => !f.jaSalvo && f.confirmacao === "confirmado"));
     else if (ev.target.closest("[data-forn-salvar]")) await salvarFornecedores([estadoForn.resultados[Number(ev.target.closest("[data-forn]").dataset.forn)]]);
@@ -9056,15 +9177,23 @@ $("#view-fornecedores").addEventListener("click", async (ev) => {
 });
 
 $("#view-fornecedores").addEventListener("change", async (ev) => {
-  const status = ev.target.closest("[data-forn-status]");
-  const obs = ev.target.closest("[data-forn-obs]");
-  if (!status && !obs) return;
+  if (ev.target.matches("[data-forn-ordem]")) {
+    estadoForn.ordem = ev.target.value;
+    return desenharFornecedores();
+  }
+  const campo = ["status", "obs", "produtos", "valor"].find((c) => ev.target.matches(`[data-forn-${c}]`));
+  if (!campo) return;
   const id = ev.target.closest("[data-forn]").dataset.forn;
   const f = estadoForn.salvos.find((x) => String(x.id) === id);
-  const mudanca = status ? { status: status.value } : { observacao: obs.value };
+  const mudanca = { [campo === "obs" ? "observacao" : campo]: ev.target.value };
   try {
     await api(`/api/fornecedores/${id}`, { method: "PUT", body: JSON.stringify(mudanca) });
-    Object.assign(f, mudanca);
+    // Situação, produtos e valor mudam o cartão (cor, destaque, ordem): a lista volta do servidor já calculada.
+    if (campo === "obs") Object.assign(f, mudanca);
+    else {
+      estadoForn.salvos = await api("/api/fornecedores");
+      desenharFornecedores();
+    }
   } catch (e) {
     avisar(e.message, "perigo");
   }

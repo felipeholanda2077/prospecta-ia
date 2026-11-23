@@ -155,6 +155,24 @@ test("fornecedores: o que foi conferido tem situação válida, fonte e data, e 
   for (const i of Object.values(novo.integracoes)) assert.deepEqual([i.status, i.fontes], ["nao_confirmado", []]);
 });
 
+test("fornecedores: produtos e valor conferidos têm número inteiro ou nada, fonte e data", async () => {
+  const fs = await import("node:fs");
+  const catalogo = JSON.parse(fs.readFileSync(new URL("../config/fornecedores-catalogo.json", import.meta.url), "utf8"));
+  for (const [chave, { produtos, valor }] of Object.entries(catalogo)) {
+    assert.ok(produtos.quantidade === null || (Number.isSafeInteger(produtos.quantidade) && produtos.quantidade > 0), chave);
+    assert.ok(produtos.mais_de === undefined || (produtos.mais_de === true && produtos.quantidade), chave);
+    assert.ok(valor.resumo === null || (typeof valor.resumo === "string" && valor.resumo.length <= 80), chave);
+    for (const x of [produtos, valor]) {
+      assert.ok(x.detalhe && x.fontes.length && x.fontes.every((u) => u.startsWith("https://")), chave);
+      assert.match(x.checado_em, /^\d{4}-\d{2}-\d{2}$/);
+    }
+    // O que não tem número não entra no cartão (aparece "Não informado").
+    const { catalogo: c } = forn.comIntegracoes({ chave, nome: chave });
+    assert.equal(c.produtos?.quantidade ?? null, produtos.quantidade, chave);
+    assert.equal(c.valor?.resumo ?? null, valor.resumo, chave);
+  }
+});
+
 test("fornecedores: as rotas exigem login", async () => {
   const { app } = await import("../src/app.js");
   const servidor = app.listen(0);
@@ -175,6 +193,16 @@ test("fornecedores: as rotas exigem login", async () => {
     assert.equal((await fetch(`${base}/api/fornecedores/${rota.id}`, { method: "PUT", headers: cabecalhos, body: JSON.stringify({ status: "qualquer" }) })).status, 400);
     assert.equal((await fetch(`${base}/api/fornecedores/${rota.id}`, { method: "PUT", headers: cabecalhos, body: JSON.stringify({ status: "aprovado" }) })).status, 200);
     assert.equal((await (await fetch(`${base}/api/fornecedores`, { headers: cabecalhos })).json()).find((f) => f.id === rota.id).status, "aprovado");
+    // Produtos e valor anotados à mão: aparecem no catálogo, e vazio apaga.
+    assert.equal(rota.catalogo.produtos, null);
+    assert.equal((await fetch(`${base}/api/fornecedores/${rota.id}`, { method: "PUT", headers: cabecalhos, body: JSON.stringify({ produtos: "muitos" }) })).status, 400);
+    assert.equal((await fetch(`${base}/api/fornecedores/${rota.id}`, { method: "PUT", headers: cabecalhos, body: JSON.stringify({ produtos: "12.000", valor: "  R$ 99/mês " }) })).status, 200);
+    let anotado = (await (await fetch(`${base}/api/fornecedores`, { headers: cabecalhos })).json()).find((f) => f.id === rota.id);
+    assert.deepEqual(anotado.catalogo, { produtos: { quantidade: 12000, anotado: true }, valor: { resumo: "R$ 99/mês", anotado: true } });
+    assert.equal(anotado.status, "aprovado");
+    await fetch(`${base}/api/fornecedores/${rota.id}`, { method: "PUT", headers: cabecalhos, body: JSON.stringify({ produtos: "", valor: "" }) });
+    anotado = (await (await fetch(`${base}/api/fornecedores`, { headers: cabecalhos })).json()).find((f) => f.id === rota.id);
+    assert.deepEqual([anotado.produtos, anotado.valor, anotado.catalogo.produtos], [null, null, null]);
   } finally {
     servidor.close();
   }
