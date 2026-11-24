@@ -204,6 +204,34 @@ footer .links span{margin-left:auto;opacity:.6}
 @media(max-width:600px){.road li:nth-child(even) a{display:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}#rig,#wheel,#awning,.pop{transform:none!important}#glow{opacity:1!important}html{scroll-behavior:auto}}
 @media(min-width:901px){.hero{padding-top:0}.hero .txt{position:absolute;left:0;right:0;top:clamp(104px,15vh,150px);z-index:2;pointer-events:none}.hero .txt *{pointer-events:auto}.hero .lead{max-width:30ch}.hero .acts{flex-direction:column;align-items:flex-start;gap:16px}.scene{height:calc(100vh - 54px);min-height:620px;max-height:900px}}
+.rig{display:block}.rig:hover svg{transform:translateY(-8px) rotate(-2deg)}
+.rig svg{animation:idle 4s ease-in-out infinite;animation-delay:calc(var(--i)*-1.3s)}
+@keyframes idle{50%{transform:translateY(-5px)}}
+.mgrid{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:clamp(30px,6vw,80px);margin-top:46px;align-items:start}
+.pieside{position:sticky;top:30px;text-align:center}
+.pie{animation:turn 60s linear infinite}
+@keyframes turn{to{rotate:360deg}}
+.pcap{margin:18px auto 0;font-family:var(--disp);font-size:1.6rem;line-height:1.2}.pcap b{font-weight:400;color:var(--berry)}.pcap span{font-family:var(--body);font-size:.92rem;color:var(--soft)}
+@media(max-width:860px){.mgrid{grid-template-columns:1fr}.pieside{position:static}.pie{max-width:260px}}
+.mg{margin-bottom:46px}.mg h3{font-size:2.2rem;border-bottom:2px solid var(--navy);padding-bottom:10px;margin-bottom:6px}
+.mt{width:100%;border-collapse:collapse}
+.mt th{text-align:left;font-size:.85rem;color:var(--soft);font-weight:600;padding:10px 8px}
+.mt td{padding:12px 8px;border-bottom:1.5px dashed #17213b22;transition:background .3s}
+.mt td:first-child{font-weight:600}
+.mt td i{display:inline-block;width:18px;height:18px;border-radius:50%;border:2px solid #c99560;vertical-align:-3px;margin-right:10px;transition:transform .3s}
+.mt td:nth-child(n+2),.mt th:nth-child(n+2){text-align:right;white-space:nowrap}
+.mt td:nth-child(n+2){font-family:var(--disp);font-size:1.25rem;color:var(--berry)}
+.mt tr.on td{background:var(--mint3)}.mt tr.on td i{transform:scale(1.35)}
+h2{background:linear-gradient(var(--butter),var(--butter)) 0 96%/0 .16em no-repeat;display:inline;transition:background-size 1.1s .3s cubic-bezier(.2,.8,.2,1);box-decoration-break:clone;-webkit-box-decoration-break:clone}
+h2.in,html:not(.anim) h2{background-size:100% .16em}
+.quote h2{background-image:linear-gradient(#f4cf6b55,#f4cf6b55)}footer h2{background-image:linear-gradient(#bfe0cd33,#bfe0cd33)}
+.anim [data-r]:not(h2){opacity:0;transform:translateY(28px);transition:opacity .7s,transform .7s cubic-bezier(.2,.8,.2,1);transition-delay:calc(var(--i,0)*.13s)}
+.anim [data-r].in:not(h2){opacity:1;transform:none}
+.anim .ticket[data-r]{transform:translateY(28px) rotate(-4deg)}.anim .ticket.in{transform:rotate(1.4deg)}
+.menu-list li{transition:padding .25s}.menu-list li:hover{padding-left:10px}
+.sign{animation:sway 5s ease-in-out infinite;transform-origin:50% -40px}
+@keyframes sway{0%,100%{rotate:-.8deg}50%{rotate:.8deg}}
+.facts b{display:inline-block;transition:transform .3s cubic-bezier(.3,1.8,.5,1)}.facts div:hover b{transform:scale(1.15) rotate(-4deg)}
 </style>
 </head>
 <body>
@@ -282,39 +310,35 @@ footer .links span{margin-left:auto;opacity:.6}
 
 <section id="estruturas"><div class="wrap">
 <p class="kicker">Para eventos, feiras e condomínios</p>
-<h2>Três jeitos de a Caron chegar.</h2>
-<p style="margin-top:18px;color:var(--soft)">Escolha a estrutura que cabe no seu espaço. Ela já entra no pedido de orçamento logo abaixo.</p>
+<h2 data-r>Três jeitos de a Caron chegar.</h2>
+<p style="margin-top:18px;color:var(--soft)">A gente leva a confeitaria montada até o seu evento. É só escolher a estrutura que cabe no espaço.</p>
 <div class="rigs" id="rigs">
-<button class="rig" type="button" data-v="Trailer" aria-pressed="false">
+<div class="rig" data-r style="--i:0">
 <svg viewBox="0 0 240 150" aria-hidden="true"><ellipse cx="116" cy="136" rx="100" ry="5" fill="#1c2a4a" opacity=".15"/><path d="M26 46h150a20 20 0 0 1 20 20v52a8 8 0 0 1-8 8H18a8 8 0 0 1-8-8V62a16 16 0 0 1 16-16z" fill="#bfe0cd" stroke="#1c2a4a" stroke-width="3"/><path d="M10 106h186v12a8 8 0 0 1-8 8H18a8 8 0 0 1-8-8z" fill="#1c2a4a"/><rect x="30" y="60" width="96" height="36" rx="4" fill="#22304f" stroke="#1c2a4a" stroke-width="3"/><path d="M30 60h96l10 20H20z" fill="url(#stripe)" stroke="#1c2a4a" stroke-width="2.5" stroke-linejoin="round"/><rect x="24" y="96" width="108" height="6" rx="2" fill="#b98452" stroke="#1c2a4a" stroke-width="2"/><rect x="146" y="62" width="30" height="58" rx="4" fill="#a9d3bc" stroke="#1c2a4a" stroke-width="2.5"/><circle cx="84" cy="128" r="14" fill="#20242e"/><circle cx="84" cy="128" r="7" fill="#bfe0cd"/><path d="M196 118l22 8h10" fill="none" stroke="#1c2a4a" stroke-width="4" stroke-linecap="round"/></svg>
-<h3>Trailer</h3><p>A Caron motorizada: vitrine, balcão e toldo. Para eventos ao ar livre, feiras e condomínios.</p><span class="pick">Quero o trailer</span></button>
-<button class="rig" type="button" data-v="Foodcart" aria-pressed="false">
+<h3>Trailer</h3><p>A Caron motorizada: vitrine, balcão e toldo. Para eventos ao ar livre, feiras e condomínios.</p></div>
+<div class="rig" data-r style="--i:1">
 <svg viewBox="0 0 240 150" aria-hidden="true"><ellipse cx="120" cy="138" rx="80" ry="5" fill="#1c2a4a" opacity=".15"/><path d="M120 18v68" stroke="#1c2a4a" stroke-width="4"/><path d="M48 44q72-60 144 0z" fill="url(#stripe)" stroke="#1c2a4a" stroke-width="3" stroke-linejoin="round"/><rect x="62" y="80" width="116" height="42" rx="6" fill="#bfe0cd" stroke="#1c2a4a" stroke-width="3"/><rect x="62" y="104" width="116" height="18" rx="0" fill="#1c2a4a"/><rect x="54" y="74" width="132" height="8" rx="3" fill="#b98452" stroke="#1c2a4a" stroke-width="2.2"/><path d="M178 86h26v-10" fill="none" stroke="#1c2a4a" stroke-width="4" stroke-linecap="round"/><circle cx="88" cy="126" r="13" fill="none" stroke="#1c2a4a" stroke-width="4"/><circle cx="88" cy="126" r="3" fill="#1c2a4a"/><path d="M88 113v26M75 126h26" stroke="#1c2a4a" stroke-width="2"/><path d="M160 122v14" stroke="#1c2a4a" stroke-width="4" stroke-linecap="round"/><g fill="#4b2e24" stroke="#1c2a4a" stroke-width="1.8"><circle cx="86" cy="68" r="6"/><circle cx="99" cy="68" r="6"/><circle cx="92.5" cy="58" r="6"/></g><rect x="130" y="58" width="30" height="16" rx="3" fill="#f6e3c5" stroke="#1c2a4a" stroke-width="2"/></svg>
-<h3>Foodcart</h3><p>O carrinho compacto, que entra em salões, recepções e áreas internas.</p><span class="pick">Quero o foodcart</span></button>
-<button class="rig" type="button" data-v="Barraca" aria-pressed="false">
+<h3>Foodcart</h3><p>O carrinho compacto, que entra em salões, recepções e áreas internas.</p></div>
+<div class="rig" data-r style="--i:2">
 <svg viewBox="0 0 240 150" aria-hidden="true"><ellipse cx="120" cy="138" rx="96" ry="5" fill="#1c2a4a" opacity=".15"/><path d="M40 60v76M200 60v76" stroke="#1c2a4a" stroke-width="5" stroke-linecap="round"/><path d="M26 60 120 14l94 46z" fill="url(#stripe)" stroke="#1c2a4a" stroke-width="3" stroke-linejoin="round"/><path d="M26 60q11.750 14 23.500 0t23.500 0 23.500 0 23.500 0 23.500 0 23.500 0 23.500 0 23.500 0" fill="#fdf9ee" stroke="#1c2a4a" stroke-width="3" stroke-linejoin="round"/><rect x="48" y="96" width="144" height="38" fill="#bfe0cd" stroke="#1c2a4a" stroke-width="3"/><rect x="42" y="90" width="156" height="8" rx="3" fill="#b98452" stroke="#1c2a4a" stroke-width="2.2"/><use href="#slice" x="104" y="100" width="32" height="32"/><rect x="66" y="74" width="34" height="16" rx="3" fill="#f6e3c5" stroke="#1c2a4a" stroke-width="2"/><g fill="#c2334d" stroke="#1c2a4a" stroke-width="1.8"><circle cx="150" cy="84" r="6"/><circle cx="164" cy="84" r="6"/></g></svg>
-<h3>Barraca</h3><p>Montagem rápida para feiras, festivais e eventos de rua.</p><span class="pick">Quero a barraca</span></button>
+<h3>Barraca</h3><p>Montagem rápida para feiras, festivais e eventos de rua.</p></div>
 </div></div></section>
 
 <section class="quote" id="orcamento"><div class="wrap">
-<h2>Monte o pedido do seu evento.</h2>
-<p style="margin-top:16px;opacity:.8">Preencha o que já souber. A comanda ao lado vai direto para o nosso WhatsApp, sem aquele vai e volta de perguntas.</p>
+<h2 data-r>Peça o orçamento do seu evento.</h2>
+<p style="margin-top:16px;opacity:.8">Responda quatro perguntas e envie a comanda pronta para o nosso WhatsApp.</p>
 <form class="qgrid" id="qf" onsubmit="return false">
 <div>
 <fieldset><legend>Que tipo de evento?</legend><div class="chips" id="cEv"></div></fieldset>
 <fieldset><legend>Como a Caron chega?</legend><div class="chips" id="cRig"></div></fieldset>
 <fieldset><legend>Quantos convidados?</legend>
 <div class="guests"><output id="gOut">80</output><input type="range" id="gIn" min="20" max="500" step="10" value="80" aria-label="Número de convidados"></div></fieldset>
-<div class="row2">
-<label><span class="lab">Data do evento</span><input class="inp" type="date" id="dIn"></label>
-<label><span class="lab">Cidade ou bairro</span><input class="inp" type="text" id="lIn" placeholder="Ex.: Alphaville" autocomplete="address-level2"></label>
+<label style="display:block;max-width:300px"><span class="lab">Data do evento</span><input class="inp" type="date" id="dIn"></label>
 </div>
-<fieldset style="margin-top:30px"><legend>O que não pode faltar?</legend><div class="chips" id="cDoc"></div></fieldset>
-</div>
-<aside class="ticket" aria-live="polite">
+<aside class="ticket" aria-live="polite" data-r>
 <svg width="46" height="46" style="display:block;margin:auto"><use href="#slice"/></svg>
 <h3>CARON</h3><p class="sub">COMANDA DE ORÇAMENTO</p>
-<dl><div><dt>Evento</dt><dd id="tEv"></dd></div><div><dt>Estrutura</dt><dd id="tRig"></dd></div><div><dt>Convidados</dt><dd id="tG"></dd></div><div><dt>Data</dt><dd id="tD"></dd></div><div><dt>Local</dt><dd id="tL"></dd></div><div><dt>Doces</dt><dd id="tDoc"></dd></div></dl>
+<dl><div><dt>Evento</dt><dd id="tEv"></dd></div><div><dt>Estrutura</dt><dd id="tRig"></dd></div><div><dt>Convidados</dt><dd id="tG"></dd></div><div><dt>Data</dt><dd id="tD"></dd></div></dl>
 <a class="btn" id="wa" target="_blank" rel="noopener">Enviar pelo WhatsApp</a>
 <p class="fine">Abre a conversa com tudo preenchido. Você confere antes de enviar.</p>
 </aside>
@@ -322,66 +346,50 @@ footer .links span{margin-left:auto;opacity:.6}
 
 <section id="cardapio"><div class="wrap">
 <p class="kicker">Sob encomenda</p>
-<h2>Feito para a sua data.</h2>
+<h2 data-r>Feito para a sua data.</h2>
 <p style="margin-top:18px;color:var(--soft)">Não trabalhamos com pronta entrega: cada pedido é produzido para o dia combinado. Pedido mínimo de R$ 110.</p>
-<div class="tabs" role="tablist" id="tabs"><button role="tab" aria-selected="true" data-t="tortas">Tortas</button><button role="tab" aria-selected="false" data-t="bolos">Bolos</button><button role="tab" aria-selected="false" data-t="brig">Brigadeiros</button><button role="tab" aria-selected="false" data-t="sobr">Sobremesas</button></div>
 
-<div class="panel" id="p-tortas" role="tabpanel"><div class="two">
+<div class="mgrid">
+<aside class="pieside" data-r>
 <svg class="pie" id="pie" viewBox="-170 -170 340 340" role="img" aria-label="Torta vista de cima, cortada em 14 fatias">
 <defs><clipPath id="wedge"><path id="wPath"/></clipPath><mask id="notWedge"><rect x="-170" y="-170" width="340" height="340" fill="#fff"/><path id="wPath2" fill="#000"/></mask></defs>
 <g id="pieScale"><circle r="150" fill="#fff" stroke="#e7dcc6" stroke-width="2"/><circle r="141" fill="none" stroke="#e7dcc6"/>
 <g mask="url(#notWedge)"><g id="pieA"></g></g><g id="slice"><g clip-path="url(#wedge)"><g id="pieB"></g></g></g></g>
 </svg>
-<div>
-<h3 id="pfName" style="font-size:clamp(1.8rem,3.4vw,2.6rem)"></h3>
-<div class="seg" id="pSeg"><button type="button" data-s="P" aria-pressed="true">P, 23 cm</button><button type="button" data-s="G" aria-pressed="false">G, 28 cm</button></div>
-<div class="price" id="pPrice"></div>
-<p class="note">14 fatias bem servidas. Passe o mouse na torta para puxar a primeira.</p>
-<p class="lab" style="color:var(--ink);margin-top:26px">Sabores</p>
-<div class="flavs" id="flavs"></div>
-</div></div></div>
-
-<div class="panel" id="p-bolos" role="tabpanel" hidden>
-<p style="margin-bottom:10px;color:var(--soft)">Os cinco tamanhos na mesma escala, vistos de cima. Toque em um para ver o preço.</p>
-<svg class="sizes" id="sizes" viewBox="0 0 780 250" role="group" aria-label="Tamanhos de bolo em escala"></svg>
-<div class="bolo-info">
-<svg class="layers" viewBox="0 0 150 96" aria-hidden="true"><g stroke="#1c2a4a" stroke-width="2.5"><rect x="12" y="8" width="126" height="18" rx="3" fill="#f6e3c5"/><rect x="12" y="26" width="126" height="10" fill="#c2334d"/><rect x="12" y="36" width="126" height="18" fill="#f6e3c5"/><rect x="12" y="54" width="126" height="10" fill="#c2334d"/><rect x="12" y="64" width="126" height="18" rx="3" fill="#f6e3c5"/></g><path d="M4 86h142" stroke="#1c2a4a" stroke-width="3" stroke-linecap="round"/></svg>
-<div><h3 id="bName" style="font-size:2rem"></h3><div class="price" id="bPrice"></div><p class="note">3 partes de massa e 2 de recheio. Valores a partir de.</p></div>
-</div></div>
-
-<div class="panel" id="p-brig" role="tabpanel" hidden><div class="two">
-<div class="box" id="box" aria-hidden="true"></div>
-<div><h3 style="font-size:clamp(1.8rem,3.4vw,2.6rem)">Brigadeiros</h3>
-<div class="seg" id="bSeg"><button type="button" data-n="25" aria-pressed="true">25</button><button type="button" data-n="50" aria-pressed="false">50</button><button type="button" data-n="100" aria-pressed="false">100</button></div>
-<div class="price" id="brPrice"></div><p class="note" id="brUnit"></p>
-<ul class="menu-list" style="margin-top:22px"><li><span>Coxinha de morango</span><b>sob consulta</b></li><li><span>Bombom de morango</span><b>sob consulta</b></li><li><span>Morango do amor</span><b>sob consulta</b></li></ul>
-</div></div></div>
-
-<div class="panel" id="p-sobr" role="tabpanel" hidden><ul class="menu-list">
-<li><span>Pudim M<small>Leite condensado, 500 ml, serve até 6</small></span><b>R$ 65</b></li>
-<li><span>Pudim G<small>Leite condensado, 1 litro, serve até 12</small></span><b>R$ 115</b></li>
-<li><span>Mousse de chocolate<small>Cakebox de 2 litros com tampa, serve até 6</small></span><b>R$ 145</b></li>
-<li><span>Mousse de limão<small>Cakebox de 2 litros com tampa, serve até 6</small></span><b>R$ 125</b></li>
-<li><span>Mousse de maracujá<small>Cakebox de 2 litros com tampa, serve até 6</small></span><b>R$ 125</b></li>
-<li><span>Bombom gelado de uva<small>Cakebox de 2 litros com tampa, serve até 6</small></span><b>R$ 260</b></li>
-<li><span>Bombom gelado de morango<small>Cakebox de 2 litros com tampa, serve até 6</small></span><b>R$ 260</b></li>
+<p class="pcap">Torta de <b id="pfName"></b><br><span>14 fatias bem servidas</span></p>
+</aside>
+<div class="menus">
+<div class="mg" data-r><h3>Tortas</h3>
+<table class="mt"><thead><tr><th>Sabor</th><th>P, 23 cm</th><th>G, 28 cm</th></tr></thead><tbody id="tRows"></tbody></table></div>
+<div class="mg" data-r><h3>Bolos</h3><p class="note" style="margin:0 0 6px">3 partes de massa e 2 de recheio. Valores a partir de.</p>
+<ul class="menu-list"><li><span>PP<small>11 cm de diâmetro</small></span><b>R$ 115</b></li><li><span>P<small>15 cm de diâmetro</small></span><b>R$ 205</b></li><li><span>M<small>23 cm de diâmetro</small></span><b>R$ 295</b></li><li><span>G<small>28 cm de diâmetro</small></span><b>R$ 465</b></li><li><span>GG<small>30 cm, forma quadrada</small></span><b>R$ 630</b></li></ul></div>
+<div class="mg" data-r><h3>Brigadeiros</h3>
+<ul class="menu-list"><li><span>25 unidades</span><b>R$ 110</b></li><li><span>50 unidades</span><b>R$ 210</b></li><li><span>100 unidades</span><b>R$ 390</b></li><li><span>Coxinha de morango, bombom de morango e morango do amor</span><b>sob consulta</b></li></ul></div>
+<div class="mg" data-r><h3>Sobremesas</h3>
+<ul class="menu-list">
+<li><span>Pudim M<small>500 ml, serve até 6</small></span><b>R$ 65</b></li>
+<li><span>Pudim G<small>1 litro, serve até 12</small></span><b>R$ 115</b></li>
+<li><span>Mousse de chocolate<small>2 litros, serve até 6</small></span><b>R$ 145</b></li>
+<li><span>Mousse de limão ou maracujá<small>2 litros, serve até 6</small></span><b>R$ 125</b></li>
+<li><span>Bombom gelado de uva ou morango<small>2 litros, serve até 6</small></span><b>R$ 260</b></li>
 </ul></div>
+</div></div>
 </div></section>
 
 <section class="stops" id="paradas"><div class="wrap two">
 <div>
 <p class="kicker" style="color:var(--navy)">Oficialmente motorizados</p>
-<h2>Onde a Caron vai parar.</h2>
+<h2 data-r>Onde a Caron vai parar.</h2>
 <p style="margin-top:18px">Uma confeitaria itinerante não tem endereço fixo, tem agenda. Aqui ficam as próximas feiras e eventos abertos, para quem quer encontrar o trailer.</p>
-<div class="facts"><div><b>2020</b><span>ano em que tudo começou</span></div><div><b>3</b><span>estruturas para eventos</span></div><div><b>14</b><span>fatias em cada torta</span></div></div>
+<div class="facts" data-r><div><b>2020</b><span>ano em que tudo começou</span></div><div><b>3</b><span>estruturas para eventos</span></div><div><b>14</b><span>fatias em cada torta</span></div></div>
 </div>
-<div class="sign" style="margin-top:40px"><h3 style="font-size:1.6rem;margin-bottom:6px">Próximas paradas</h3>
+<div class="sign" style="margin-top:40px" data-r><h3 style="font-size:1.6rem;margin-bottom:6px">Próximas paradas</h3>
 <ul><li><b>dia</b><span>Nome da feira ou evento, com endereço e horário de funcionamento.</span></li><li><b>dia</b><span>Cada parada nova entra aqui em um minuto, direto pelo celular.</span></li><li><b>dia</b><span>Quem pesquisa a Caron no Google encontra onde ela está nesta semana.</span></li></ul></div>
 </div></section>
 </main>
 
 <footer id="contato"><div class="wrap">
-<div class="cols"><h2>Vamos adoçar o seu evento?</h2><a class="btn" id="wa2" target="_blank" rel="noopener">Chamar no WhatsApp</a></div>
+<div class="cols"><h2 data-r>Vamos adoçar o seu evento?</h2><a class="btn" id="wa2" target="_blank" rel="noopener">Chamar no WhatsApp</a></div>
 <div class="links"><a href="https://wa.me/5511978104050" target="_blank" rel="noopener">(11) 97810-4050</a><a href="https://www.instagram.com/caronconfeitaria/" target="_blank" rel="noopener">@caronconfeitaria</a><a>Alphaville, Barueri e Santana de Parnaíba</a><span>Prévia de site criada pela Ascend Digital</span></div>
 </div></footer>
 
@@ -405,20 +413,15 @@ const mqS=matchMedia('(max-width:900px)'),fitS=()=>{const sc=$('#scene');sc.setA
 /* ---------- comanda ---------- */
 const EV=['Casamento','Aniversário','Evento de empresa','Feira ou festival','Condomínio'],RG=['Trailer','Foodcart','Barraca','Só encomenda'],DC=['Brigadeiros','Tortas','Bolo','Morangos','Sobremesas no pote'];
 const chips=(el,arr,name,type,def)=>el.innerHTML=arr.map(v=>`<label><input type="${type}" name="${name}" value="${v}" ${def.includes(v)?'checked':''}><span>${v}</span></label>`).join('');
-chips($('#cEv'),EV,'ev','radio',['Casamento']);chips($('#cRig'),RG,'rig','radio',['Trailer']);chips($('#cDoc'),DC,'doc','checkbox',['Brigadeiros']);
+chips($('#cEv'),EV,'ev','radio',['Casamento']);chips($('#cRig'),RG,'rig','radio',['Trailer']);
 const setT=(id,v)=>{const e=$(id);if(e.textContent!==v){e.textContent=v;e.classList.remove('flash');void e.offsetWidth;e.classList.add('flash')}};
-function ticket(){const ev=$('input[name=ev]:checked').value,rig=$('input[name=rig]:checked').value,g=$('#gIn').value,d=$('#dIn').value,l=$('#lIn').value.trim(),doc=$$('input[name=doc]:checked').map(i=>i.value);
+function ticket(){const ev=$('input[name=ev]:checked').value,rig=$('input[name=rig]:checked').value,g=$('#gIn').value,d=$('#dIn').value;
 const dt=d?new Date(d+'T12:00').toLocaleDateString('pt-BR'):'a definir';
-$('#gOut').textContent=g;setT('#tEv',ev);setT('#tRig',rig);setT('#tG',g+(g>=500?' ou mais':''));setT('#tD',dt);setT('#tL',l||'a definir');setT('#tDoc',doc.join(', ')||'a definir');
-$$('.rig').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v==rig));
-const msg=`Oi, Caron! Quero um orçamento.\n\nEvento: ${ev}\nEstrutura: ${rig}\nConvidados: ${g}\nData: ${dt}\nLocal: ${l||'a definir'}\nDoces: ${doc.join(', ')||'a definir'}`;
+$('#gOut').textContent=g;setT('#tEv',ev);setT('#tRig',rig);setT('#tG',g+(g>=500?' ou mais':''));setT('#tD',dt);
+const msg=`Oi, Caron! Quero um orçamento.\n\nEvento: ${ev}\nEstrutura: ${rig}\nConvidados: ${g}\nData: ${dt}`;
 $('#wa').href=`https://wa.me/${WA}?text=`+encodeURIComponent(msg)}
 $('#qf').addEventListener('input',ticket);ticket();
 $('#wa2').href=`https://wa.me/${WA}?text=`+encodeURIComponent('Oi, Caron! Vim pelo site e quero saber mais.');
-$$('.rig').forEach(b=>b.addEventListener('click',()=>{$(`input[name=rig][value="${b.dataset.v}"]`).checked=true;ticket();$('#orcamento').scrollIntoView({behavior:reduce?'auto':'smooth'})}));
-
-/* ---------- abas ---------- */
-$$('#tabs button').forEach(b=>b.addEventListener('click',()=>{$$('#tabs button').forEach(x=>x.setAttribute('aria-selected',x==b));$$('.panel').forEach(p=>p.hidden=p.id!='p-'+b.dataset.t);if(b.dataset.t=='brig')fillBox()}));
 
 /* ---------- tortas ---------- */
 let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
@@ -443,31 +446,14 @@ function pie(){const f=F[fi];seed=11+fi*97;
 const cuts=[...Array(14)].map((_,i)=>{const a=-Math.PI/2+i/14*6.283;return `<path d="M0 0L${(Math.cos(a)*118).toFixed(1)} ${(Math.sin(a)*118).toFixed(1)}" stroke="#00000022" stroke-width="1.6"/>`}).join('');
 const crust=[...Array(42)].map((_,i)=>{const a=i/42*6.283;return `<circle cx="${(Math.cos(a)*120).toFixed(1)}" cy="${(Math.sin(a)*120).toFixed(1)}" r="8.6" fill="${f.ring||'#d9a66b'}" stroke="#b98452" stroke-width="1.1"/>`}).join('');
 const h=`<circle r="126" fill="#c99560"/>${crust}<circle r="112" fill="${f.c}"/><circle r="112" fill="none" stroke="#00000018" stroke-width="5"/>${f.top()}${cuts}`;
-$('#pieA').innerHTML=h;$('#pieB').innerHTML=h;
-$('#pieScale').style.transform=`scale(${fs=='P'?.84:1})`;
-$('#pfName').textContent=f.n;$('#pPrice').textContent='R$ '+f[fs];
-$$('#flavs button').forEach((b,i)=>b.setAttribute('aria-pressed',i==fi));$$('#pSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.s==fs))}
-$('#flavs').innerHTML=F.map((f,i)=>`<button type="button" data-i="${i}"><i style="background:${f.c}"></i>${f.n.replace(/ \(.*/,'')}</button>`).join('');
-$('#flavs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;fi=+b.dataset.i;pie();const p=$('#pie');p.classList.add('out');setTimeout(()=>p.classList.remove('out'),900)});
-$('#pSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(b){fs=b.dataset.s;pie()}});pie();
+$('#pieA').innerHTML=h;$('#pieB').innerHTML=h;$('#pfName').textContent=f.n.replace(/ \(.*/,'').toLowerCase();
+$$('#tRows tr').forEach((r,i)=>r.classList.toggle('on',i==fi));
+const p=$('#pie');p.classList.add('out');setTimeout(()=>p.classList.remove('out'),1500)}
+$('#tRows').innerHTML=F.map((f,i)=>`<tr data-i="${i}"><td><i style="background:${f.c}"></i>${f.n}</td><td>R$ ${f.P}</td><td>R$ ${f.G}</td></tr>`).join('');
+let auto=reduce?0:setInterval(()=>{fi=(fi+1)%F.length;pie()},3200);
+$('#tRows').addEventListener('mouseover',e=>{const r=e.target.closest('tr');if(r&&+r.dataset.i!=fi){clearInterval(auto);auto=0;fi=+r.dataset.i;pie()}});pie();
 
-/* ---------- bolos ---------- */
-const B=[{n:'PP',cm:11,p:115},{n:'P',cm:15,p:205},{n:'M',cm:23,p:295},{n:'G',cm:28,p:465},{n:'GG',cm:30,p:630,sq:1}];let bi=2;
-(function(){const k=5.4,base=178;let x=24,h='';B.forEach((b,i)=>{const s=b.cm*k,cx=x+s/2;
-h+=`<g class="sz" data-i="${i}" tabindex="0" role="button" aria-label="Bolo ${b.n}, ${b.cm} centímetros">`+(b.sq?`<rect class="top" x="${x}" y="${base-s}" width="${s}" height="${s}" rx="8"/><rect x="${x+9}" y="${base-s+9}" width="${s-18}" height="${s-18}" rx="5" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2" stroke-dasharray="3 6"/>`:`<circle class="top" cx="${cx}" cy="${base-s/2}" r="${s/2}"/><circle cx="${cx}" cy="${base-s/2}" r="${s/2-8}" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="2" stroke-dasharray="3 6"/>`)+
-`<path d="M${x} ${base+14}h${s}M${x} ${base+9}v10M${x+s} ${base+9}v10" stroke="#1c2a4a" stroke-width="1.6"/><text x="${cx}" y="${base+38}">${b.n}</text><text x="${cx}" y="${base+57}" style="font-weight:400;font-size:13px;fill:#4c5876">${b.cm} cm</text></g>`;x+=s+26});
-$('#sizes').innerHTML=h})();
-function bolo(){const b=B[bi];$$('.sz').forEach((g,i)=>g.classList.toggle('on',i==bi));$('#bName').textContent=`Bolo ${b.n}, ${b.cm} cm${b.sq?' (quadrado)':' de diâmetro'}`;$('#bPrice').textContent='R$ '+b.p}
-$('#sizes').addEventListener('click',e=>{const g=e.target.closest('.sz');if(g){bi=+g.dataset.i;bolo()}});
-$('#sizes').addEventListener('keydown',e=>{const g=e.target.closest('.sz');if(g&&(e.key=='Enter'||e.key==' ')){e.preventDefault();bi=+g.dataset.i;bolo()}});bolo();
-
-/* ---------- brigadeiros ---------- */
-const BR={25:110,50:210,100:390};let bn=25;
-function fillBox(){const box=$('#box'),c=bn==25?5:10,rows=bn==50?5:c;box.style.setProperty('--c',c);box.style.aspectRatio=bn==50?'2':'1';
-box.innerHTML=[...Array(bn)].map((_,i)=>`<i style="animation-delay:${(i%c+Math.floor(i/c))*28}ms"></i>`).join('');
-$('#brPrice').textContent='R$ '+BR[bn];$('#brUnit').textContent=`${bn} unidades. Sai R$ ${(BR[bn]/bn).toFixed(2).replace('.',',')} cada.`;
-$$('#bSeg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.n==bn))}
-$('#bSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(b){bn=+b.dataset.n;fillBox()}});fillBox();
+if(!reduce){document.documentElement.classList.add('anim');const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.15,rootMargin:'0px 0px -6% 0px'});$$('[data-r]').forEach(e=>io.observe(e))}
 
 /* ---------- estrada ---------- */
 const ST=[['inicio','Partida'],['estruturas','Estruturas'],['orcamento','Orçamento'],['cardapio','Cardápio'],['paradas','Agenda'],['contato','Contato']];
