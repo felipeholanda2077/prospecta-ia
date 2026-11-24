@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mirae Ateliê | Porta-alianças bordado à mão</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Mulish:wght@400;600;700&family=Pinyon+Script&display=swap" rel="stylesheet">
+<style>
+/* VOICE: terno e devoto, feito à mão; poucas cores, muito ar, relevo de linha de verdade.
+   IDEA: a página é um pano de linho. Uma linha costura o site de cima a baixo conforme a pessoa rola, e o bastidor é bordado ponto a ponto na frente dela.
+   PICTURE: bastidor de madeira com linho trançado; agulha e linha bordam imagem, guirlanda de rosas, versículo e nomes.
+   COLOUR and TYPE: linho cru, verde musgo da escrita dela, vinho das rosas, fio dourado; Marcellus (letra de igreja), Mulish, Pinyon Script nos nomes.
+   LAYOUT: título largo, bastidor grande e ficha de encomenda em frase; depois bastidores pendurados, etiqueta kraft, passos costurados, lenço e alianças. */
+:root{color-scheme:light dark;
+--bg:light-dark(#e7e0d1,#1a231f);--ink:light-dark(#222e28,#ece6d8);--mute:light-dark(#55605a,#a8b1a6);
+--wine:light-dark(#8c2a45,#e592a8);--onwine:light-dark(#fbf6ec,#2a1018);--moss:light-dark(#3d5a44,#a3c4a5);--gold:#b28a3c;--line:light-dark(#c4b9a2,#3a4640)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{margin:0;background:var(--bg) var(--linen,none);color:var(--ink);font:17px/1.6 Mulish,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:Marcellus,Georgia,serif;font-weight:400;line-height:1.06;text-wrap:balance;margin:0}
+h1{font-size:clamp(36px,4.7vw,60px);max-width:14ch;letter-spacing:-.01em}
+h2{font-size:clamp(30px,3.8vw,46px);max-width:18ch}
+h3{font-size:23px}
+p{margin:0}a{color:inherit}
+.wrap{max-width:1180px;margin:0 auto}
+.band{padding:clamp(44px,6.4vw,96px) max(5vw,16px);position:relative;z-index:1}
+.lead{color:var(--mute);max-width:46ch;margin-top:18px}
+.top{display:flex;align-items:baseline;gap:28px;flex-wrap:wrap;padding:22px max(5vw,16px) 0;max-width:calc(1180px + 10vw);margin:0 auto;position:relative;z-index:2}
+.logo{font-family:Marcellus,serif;font-size:21px;letter-spacing:.14em;text-transform:uppercase;text-decoration:none;margin-right:auto}
+.logo b{font:400 30px 'Pinyon Script',cursive;letter-spacing:0;text-transform:none;color:var(--wine);margin-left:6px}
+.top a.l{text-decoration:none;color:var(--mute);font-size:15px;padding:10px 0}
+.top a.l:hover,.under:hover{color:var(--wine)}
+.under{text-decoration:underline dashed 1.5px;text-underline-offset:6px;font-weight:600;font-size:15px;background:none;border:0;color:inherit;font-family:inherit;cursor:pointer;padding:10px 0}
+@media(max-width:780px){.top a.l{display:none}}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:54px;padding:0 30px;background:var(--wine);color:var(--onwine);text-decoration:none;font:700 15px Mulish,sans-serif;letter-spacing:.04em;border:0;border-radius:3px;cursor:pointer;outline:1.5px dashed color-mix(in srgb,var(--onwine) 65%,transparent);outline-offset:-7px;box-shadow:0 2px 0 rgb(0 0 0/.18),0 10px 22px -10px rgb(70 10 30/.6);transition:translate .2s,box-shadow .2s}
+.btn:hover{translate:0 -2px;box-shadow:0 4px 0 rgb(0 0 0/.18),0 16px 26px -10px rgb(70 10 30/.6)}
+.btn:focus-visible,.under:focus-visible,input:focus-visible{box-shadow:0 0 0 3px var(--bg),0 0 0 6px var(--moss)}
+.kick{display:flex;align-items:center;gap:10px;color:var(--moss);font-weight:600;font-size:15px;margin-bottom:18px}
+.knot{width:9px;height:9px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e7a3b4,#8c2a45 70%);box-shadow:1px 1px 1px rgb(0 0 0/.3);flex:none;display:inline-block}
+.hgrid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);grid-template-areas:"hoop head" "hoop form";grid-template-rows:auto 1fr;column-gap:clamp(28px,5vw,80px);row-gap:26px}.hhead{grid-area:head;align-self:end}.hoopbox{grid-area:hoop;align-self:center}#f{grid-area:form}
+.hoopbox{perspective:1100px;max-width:600px;width:100%;margin:0 auto}
+.tilt{transform:rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .25s ease-out;filter:drop-shadow(0 30px 26px rgb(40 25 10/.32))}
+.hoopbox svg{display:block;width:100%;height:auto;aspect-ratio:1}
+.frase{font:400 clamp(22px,2.3vw,27px)/1.9 Marcellus,serif;margin-top:26px}
+.frase input{font:inherit;color:var(--wine);background:none;border:0;border-bottom:1.5px dashed var(--line);border-radius:0;padding:0 4px;min-height:44px}
+.frase input[type=text]{font:400 1.45em/1 'Pinyon Script',cursive;text-align:center}
+.frase input[type=date]{font:600 17px Mulish,sans-serif;color:var(--ink)}
+fieldset{border:0;padding:0;margin:22px 0 28px}
+legend{padding:0;font-size:14px;color:var(--mute);margin-bottom:6px}
+.mods{display:flex;flex-wrap:wrap;gap:4px 22px}
+.mods label{display:inline-flex;align-items:center;gap:9px;min-height:44px;cursor:pointer;color:var(--mute);position:relative}
+.mods input{position:absolute;opacity:0}
+.mods i{width:11px;height:11px;border-radius:50%;flex:none;box-shadow:1px 1px 1px rgb(0 0 0/.3),inset -2px -2px 2px rgb(0 0 0/.25)}
+.mods label:has(:checked){color:var(--ink);font-weight:700;text-decoration:underline dashed 1.5px var(--wine);text-underline-offset:7px}
+.mods label:has(:focus-visible){outline:2px solid var(--moss);outline-offset:4px}
+.acts{display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center}
+.small{font-size:13.5px;color:var(--mute);margin-top:18px;max-width:46ch}
+@media(max-width:900px){.hgrid{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "hoop" "form";grid-template-rows:auto}.hoopbox{max-width:460px}}
+.rod{height:11px;border-radius:6px;background:linear-gradient(#d9ae7f,#a8754a 55%,#7a4f30);box-shadow:0 6px 10px -4px rgb(40 25 10/.5);margin-top:44px}
+.varal{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(14px,2.4vw,34px);list-style:none;margin:0;padding:0}
+.varal li{display:flex;flex-direction:column;align-items:flex-start}
+.hang{align-self:stretch;padding:var(--d) 0 0;position:relative;transform-origin:50% 0;cursor:pointer;background:none;border:0;font:inherit;color:inherit}
+.hang::before{content:"";position:absolute;left:50%;top:-4px;width:1.5px;height:calc(var(--d) + 10px);background:var(--wine)}
+.hang svg{display:block;width:100%;height:auto;aspect-ratio:1;filter:drop-shadow(0 16px 14px rgb(40 25 10/.3))}
+.in .hang{animation:sway 3.4s cubic-bezier(.4,0,.3,1) both}.in .hang.again{animation:sway2 2.2s ease-in-out both}
+@keyframes sway{0%{rotate:8deg}22%{rotate:-6deg}44%{rotate:4deg}66%{rotate:-2deg}84%{rotate:1deg}100%{rotate:0deg}}
+@keyframes sway2{0%{rotate:0deg}25%{rotate:4deg}50%{rotate:-3deg}75%{rotate:1.5deg}100%{rotate:0deg}}
+@keyframes swayt{0%{rotate:5deg}25%{rotate:-8deg}50%{rotate:0deg}75%{rotate:-4deg}100%{rotate:-2.5deg}}
+.varal h3{margin-top:22px}.varal p{color:var(--mute);font-size:15.5px;margin:8px 0 4px}
+@media(max-width:900px){.varal{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:40px}}
+@media(max-width:460px){.varal{column-gap:14px}.varal h3{font-size:19px}.varal p{font-size:14px}}
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(32px,6vw,96px);align-items:center}
+@media(max-width:860px){.split{grid-template-columns:minmax(0,1fr)}}
+.tagbox{position:relative;padding-top:70px;transform-origin:50% 0;rotate:-2.5deg;filter:drop-shadow(0 18px 16px rgb(40 25 10/.3));max-width:460px;margin:0 auto;width:100%}
+.in.tagbox{animation:swayt 3.2s cubic-bezier(.4,0,.3,1) both}
+.tagbox::before{content:"";position:absolute;left:50%;top:0;width:1.5px;height:96px;background:var(--wine);z-index:1}
+.tag{background:#c9a87b var(--linen,none);color:#33241a;padding:74px clamp(22px,4vw,40px) 34px;clip-path:polygon(22% 0,78% 0,100% 14%,100% 100%,0 100%,0 14%);position:relative}
+.tag::before{content:"";position:absolute;left:50%;top:22px;width:22px;height:22px;margin-left:-11px;border-radius:50%;background:var(--bg);box-shadow:inset 0 2px 3px rgb(0 0 0/.35),0 0 0 5px #b8956a}
+.tag::after{content:"";position:absolute;inset:60px 12px 12px;border:1.5px dashed rgb(70 45 25/.5);pointer-events:none}
+.tag dl{margin:0;display:grid;gap:14px}
+.tag dt{font:400 19px Marcellus,serif}.tag dd{margin:2px 0 0;font-size:15.5px;color:#5a4433}
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px;list-style:none;margin:56px 0 0;padding:0;position:relative}
+.steps::before{content:"";position:absolute;left:0;right:0;top:0;border-top:2.5px dashed var(--wine);clip-path:inset(-2px 100% -2px 0);transition:clip-path 2.2s ease-out}
+.steps.in::before{clip-path:inset(-2px 0 -2px 0)}
+.steps li{padding-top:30px;position:relative}
+.steps li::before{content:"";position:absolute;top:-8px;left:0;width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e7a3b4,#8c2a45 70%);box-shadow:1px 2px 2px rgb(0 0 0/.35);scale:0;transition:scale .5s cubic-bezier(.3,1.8,.5,1) calc(var(--i)*.5s)}
+.steps.in li::before{scale:1}
+.num{font:400 54px/1 'Pinyon Script',cursive;color:var(--wine);display:block}
+.steps p{color:var(--mute);font-size:15.5px;margin-top:8px}
+@media(max-width:900px){.steps{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:44px}}
+@media(max-width:460px){.steps{grid-template-columns:minmax(0,1fr)}}
+.lenco{max-width:400px;width:100%;margin:0 auto;rotate:-6deg;filter:drop-shadow(0 22px 18px rgb(40 25 10/.3))}
+.lenco svg{display:block;width:100%;height:auto}
+.fim{text-align:center}
+.rings{width:150px;height:auto;display:block;margin:0 auto 10px;overflow:visible}
+.rings circle{fill:none;stroke:url(#gBrass);stroke-width:6;stroke-dasharray:1;stroke-dashoffset:1;transition:stroke-dashoffset 1.6s ease-in-out}
+.rings circle+circle{transition-delay:.9s}
+.fim.in .rings circle{stroke-dashoffset:0}
+.fim h2{font:400 clamp(46px,8.4vw,104px)/1 'Pinyon Script',cursive;max-width:none;color:var(--wine)}
+.fim .lead{margin:18px auto 34px}
+.tel{margin-top:22px;color:var(--mute);font-size:15px}
+footer{padding:28px max(5vw,16px) 40px;font-size:14px;color:var(--mute);border-top:1.5px dashed var(--line);position:relative;z-index:1}
+footer .wrap{display:flex;flex-wrap:wrap;gap:12px 40px;justify-content:space-between}
+main{position:relative}
+#thread{position:absolute;left:0;top:0;pointer-events:none;z-index:0;overflow:visible}
+#tp{fill:none;stroke:var(--wine);stroke-width:2.4;stroke-dasharray:13 8;stroke-linecap:round}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.in .hang,.in.tagbox,.in .hang.again{animation:none}.steps::before,.steps li::before,.rings circle,.tilt,.btn{transition:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<linearGradient id="gWood" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#deb588"/><stop offset=".5" stop-color="#b37f50"/><stop offset="1" stop-color="#7c5132"/></linearGradient>
+<radialGradient id="gLin" cx="42%" cy="36%" r="75%"><stop offset="0" stop-color="#faf5ea"/><stop offset="1" stop-color="#e3d8c2"/></radialGradient>
+<linearGradient id="gBrass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3dd95"/><stop offset=".5" stop-color="#c39b45"/><stop offset="1" stop-color="#8f6c24"/></linearGradient>
+<linearGradient id="gSteel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbfcfd"/><stop offset="1" stop-color="#8b939c"/></linearGradient>
+<filter id="th" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
+<feGaussianBlur in="SourceAlpha" stdDeviation="1.1" result="b"/>
+<feSpecularLighting in="b" surfaceScale="2.6" specularConstant=".5" specularExponent="11" lighting-color="#fff" result="sp"><feDistantLight azimuth="235" elevation="46"/></feSpecularLighting>
+<feComposite in="sp" in2="SourceAlpha" operator="in" result="sp2"/>
+<feOffset in="b" dx="1.3" dy="2" result="o"/><feComponentTransfer in="o" result="sh"><feFuncA type="linear" slope=".4"/></feComponentTransfer>
+<feMerge><feMergeNode in="sh"/><feMergeNode in="SourceGraphic"/><feMergeNode in="sp2"/></feMerge></filter>
+<filter id="weave" x="0" y="0" width="100%" height="100%">
+<feTurbulence type="fractalNoise" baseFrequency=".05 1" numOctaves="2" seed="4"/><feColorMatrix values="0 0 0 0 .45 0 0 0 0 .37 0 0 0 0 .25 0 0 0 1.5 -.66" result="h"/>
+<feTurbulence type="fractalNoise" baseFrequency="1 .05" numOctaves="2" seed="9"/><feColorMatrix values="0 0 0 0 .45 0 0 0 0 .37 0 0 0 0 .25 0 0 0 1.5 -.66" result="v"/>
+<feMerge result="m"><feMergeNode in="h"/><feMergeNode in="v"/></feMerge><feComposite in="m" in2="SourceAlpha" operator="in"/></filter>
+<filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".012 .35" numOctaves="3" seed="7"/><feColorMatrix values="0 0 0 0 .25 0 0 0 0 .14 0 0 0 0 .06 0 0 0 2.6 -1.05"/><feComposite in2="SourceAlpha" operator="in"/></filter>
+</defs></svg>
+
+<header class="top">
+<a class="logo" href="#topo">Mirae<b>Ateliê</b></a>
+<a class="l" href="#modelos">Modelos</a><a class="l" href="#detalhes">A peça</a><a class="l" href="#encomenda">Como encomendar</a><a class="l" href="#outras">Outras peças</a>
+<a class="under" id="wa0" href="https://wa.me/5511940715195">Orçamento no WhatsApp</a>
+</header>
+
+<main>
+<svg id="thread" aria-hidden="true"><clipPath id="tclip" clipPathUnits="userSpaceOnUse"><rect id="trect" x="0" y="0" width="0" height="0"/></clipPath><path id="tp" clip-path="url(#tclip)"/>
+<g id="tneedle"><path d="M4 0L-50 -2.6Q-57 0 -50 2.6Z" fill="url(#gSteel)" stroke="#6d747c" stroke-width=".5"/><ellipse cx="-49" cy="0" rx="3.2" ry="1" fill="#3a3f45"/></g></svg>
+
+<section class="band" id="topo"><div class="wrap">
+<div class="hgrid">
+<div class="hhead"><p class="kick"><i class="knot"></i>Agenda 2027 aberta</p>
+<h1>Porta-alianças religioso bordado à mão</h1></div>
+<div class="hoopbox" id="hb"><div class="tilt"><svg id="hoop" viewBox="0 0 600 600" role="img" aria-label="Prévia do porta-alianças sendo bordado"></svg></div></div>
+<form id="f">
+<p class="lead" style="margin-top:0">Cada peça é desenhada para o casal e bordada ponto a ponto pela Ketlyn Mira. Escreva os nomes, escolha o modelo e veja o bastidor de vocês ser bordado.</p>
+<p class="frase" style="margin-top:20px">Para <input type="text" id="n1" value="Mariana" maxlength="14" autocomplete="off" aria-label="Nome da noiva"> e <input type="text" id="n2" value="Nilison" maxlength="14" autocomplete="off" aria-label="Nome do noivo">, que se casam em <input type="date" id="dt" value="2027-05-15" aria-label="Data do casamento">.</p>
+<fieldset><legend>Modelo do bordado</legend><div class="mods" id="mods"></div></fieldset>
+<div class="acts"><button class="btn" type="submit">Pedir orçamento deste modelo</button><button class="under" type="button" id="replay">Bordar de novo</button></div>
+<p class="small">A prévia é uma ilustração. Cada bordado é único e o desenho final é combinado com você.</p>
+</form>
+</div>
+</div></section>
+
+<section class="band" id="modelos"><div class="wrap">
+<h2>Os modelos mais amados pelas noivas</h2>
+<p class="lead">Todos bordados à mão em bastidor de madeira, com o versículo, os nomes e as cores que vocês escolherem. Toque em um bastidor para bordar no seu.</p>
+<div class="rod"></div>
+<ul class="varal" id="varal" data-in></ul>
+</div></section>
+
+<section class="band" id="detalhes"><div class="wrap split">
+<div><h2>Uma peça autoral, feita uma única vez</h2>
+<p class="lead">O porta-alianças sobe ao altar com as alianças e depois vira lembrança na parede de casa. Por isso cada bordado é criado só para o casal, sem cópias.</p>
+<p style="margin-top:26px"><a class="under" href="https://wa.me/c/5511940715195">Ver o catálogo no WhatsApp</a></p></div>
+<div class="tagbox" data-in><div class="tag"><dl>
+<div><dt>Bastidor de madeira</dt><dd>20 cm de diâmetro.</dd></div>
+<div><dt>Moldura opcional</dt><dd>25 x 25 cm, para pendurar depois da cerimônia.</dd></div>
+<div><dt>Bordado à mão</dt><dd>Imagem religiosa, flores, versículo e monograma, ponto a ponto.</dd></div>
+<div><dt>Do jeito de vocês</dt><dd>Nomes, local da cerimônia, versículo e a cor da escrita, como o verde.</dd></div>
+<div><dt>Criação exclusiva</dt><dd>Desenho autoral da Ketlyn Mira, feito para o seu momento.</dd></div>
+</dl></div></div>
+</div></section>
+
+<section class="band" id="encomenda"><div class="wrap">
+<h2>Como encomendar o seu porta-alianças</h2>
+<ol class="steps" data-in>
+<li style="--i:1"><span class="num">1</span><h3>Conte sobre o casamento</h3><p>Chame no WhatsApp com a data e o estilo da cerimônia.</p></li>
+<li style="--i:2"><span class="num">2</span><h3>Escolha o modelo</h3><p>Sagrada Família, Nossa Senhora Aparecida, Floral ou Cerimônia, com os textos que vocês quiserem.</p></li>
+<li style="--i:3"><span class="num">3</span><h3>Bordado à mão</h3><p>A Ketlyn desenha e borda a peça ponto a ponto, do jeito que vocês combinaram.</p></li>
+<li style="--i:4"><span class="num">4</span><h3>Pronto para o altar</h3><p>A peça chega no bastidor de madeira, pronta para levar as alianças.</p></li>
+</ol>
+</div></section>
+
+<section class="band" id="outras"><div class="wrap split">
+<div class="lenco"><svg id="lenco" viewBox="0 0 400 400" role="img" aria-label="Lenço bordado com rosas vermelhas"></svg></div>
+<div><h2>Quadros e lenços bordados</h2>
+<p class="lead">Além dos porta-alianças, o ateliê borda quadros decorativos e lenços com imagens de devoção, como Santa Teresinha com rosas vermelhas. Um presente cheio de significado para batizados, aniversários e para a própria casa.</p>
+<p style="margin-top:30px"><a class="btn" id="wa2" href="https://wa.me/5511940715195">Encomendar uma peça</a></p></div>
+</div></section>
+
+<section class="band fim" id="fim"><div class="wrap">
+<svg class="rings" id="rings" viewBox="0 0 150 90" aria-hidden="true"><circle cx="55" cy="45" r="34" pathLength="1"/><circle cx="95" cy="45" r="34" pathLength="1"/></svg>
+<h2>Um detalhe para a vida toda</h2>
+<p class="lead">A agenda 2027 já está aberta. Fale com a Ketlyn e comece a desenhar o porta-alianças de vocês.</p>
+<a class="btn" id="wa3" href="https://wa.me/5511940715195">Chamar no WhatsApp</a>
+<p class="tel">WhatsApp (11) 94071-5195</p>
+</div></section>
+</main>
+
+<footer><div class="wrap">
+<div>Mirae Ateliê. Ketlyn Mira, bordado à mão.</div>
+<div><a href="https://www.instagram.com/miraeatelie/">Instagram @miraeatelie</a></div>
+<div>Prévia criada pela Ascend Digital</div>
+</div></footer>
+
+<script>
+{
+const WA='5511940715195',$=s=>document.querySelector(s),PI=Math.PI;
+const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const F=n=>Math.round(n*10)/10;
+const P=(cx,cy,r,a)=>[cx+r*Math.cos(a),cy+r*Math.sin(a)];
+const rotp=(x,y,a)=>[x*Math.cos(a)-y*Math.sin(a),x*Math.sin(a)+y*Math.cos(a)];
+const col={moss:'#46664a',leaf2:'#6f9066',wine:'#8c2a45',gold:'#b28a3c',brown:'#6d4a2c',blue:'#2c4b86'};
+const ROSE={w:['#fbf5ec','#cdbfa9'],p:['#e9adbc','#c27c91'],r:['#c4687f','#963f58'],v:['#9a2f4a','#6a1b32'],red:['#b82a42','#7a1427']};
+let uid=0;
+/* pontos: s = ponto atras, c = linha continua (cheio, espiral, revelar texto), k = no frances */
+const S=(d,c,w=3,g='art')=>`<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="9 2.6" data-k="s" data-g="${g}"/>`;
+const C=(d,c,w,g='art',x='')=>`<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" data-k="c" data-g="${g}" ${x}/>`;
+const K=(x,y,r,c,g='art')=>`<circle cx="${F(x)}" cy="${F(y)}" r="${r}" fill="${c}" data-k="k" data-r="${r}" data-g="${g}"/>`;
+const MK=(d,w,g,c)=>`<path d="${d}" fill="none" stroke="#fff" stroke-width="${w}" data-k="c" data-m="1" data-g="${g}" data-c="${c}"/>`;
+const circ=(x,y,r)=>`M${x-r} ${y}a${r} ${r} 0 1 1 ${2*r} 0a${r} ${r} 0 1 1 ${-2*r} 0`;
+function hatch(cx,cy,R,ang,sp=3.3){let d='',i=0;for(let t=-R;t<=R;t+=sp,i++){const a=i%2?R:-R,[x1,y1]=rotp(a,t,ang),[x2,y2]=rotp(-a,t,ang);d+=`${i?'L':'M'}${F(cx+x1)} ${F(cy+y1)}L${F(cx+x2)} ${F(cy+y2)}`}return d}
+function satin(clipD,cx,cy,R,ang,c){const id='c'+(uid++);return `<clipPath id="${id}"><path d="${clipD}"/></clipPath>`+C(hatch(cx,cy,R,ang),c,3.1,'art',`clip-path="url(#${id})" data-cx="${F(cx)}" data-cy="${F(cy)}"`)}
+function leaf(x,y,a,L,w,c){const T=(px,py)=>{const[q,r]=rotp(px,py,a);return F(x+q)+' '+F(y+r)};
+const d=`M${T(0,0)}Q${T(L*.5,-w)} ${T(L,0)}Q${T(L*.5,w)} ${T(0,0)}Z`,[mx,my]=rotp(L/2,0,a);
+return satin(d,x+mx,y+my,L*.56,a+.95,c)+S(`M${T(1,0)}L${T(L*.82,0)}`,'#2f4a34',1.3)}
+function rose(x,y,R,[c,dk]){let d='';const T=PI*2*(R/5),ph=(x*.07+y*.11)%6.28;for(let t=0,i=0;t<=T;t+=.3,i++){const r=1+(R-2.4)*t/T,[px,py]=P(x,y,r,t+ph);d+=(i?'L':'M')+F(px)+' '+F(py)}
+return K(x,y,R-.4,dk)+C(d,c,3.1)}
+function garland(cx,cy,R,cols,a0=.14,a1=.86){let d='',out='';const n=14,mid=(a0+a1)/2;
+for(let i=0;i<=40;i++){const[x,y]=P(cx,cy,R,PI*(a0+(a1-a0)*i/40));d+=(i?'L':'M')+F(x)+' '+F(y)}
+out+=S(d,col.moss,2.4);
+for(let i=0;i<n;i++){const f=a0+(a1-a0)*(i+.5)/n,a=PI*f,[x,y]=P(cx,cy,R,a),dir=a+PI/2+(f<mid?PI:0);out+=leaf(x,y,dir+(i%2?.7:-.7),21,6.6,i%3?col.moss:col.leaf2)}
+[[mid-.1,11,1],[mid+.1,11,2],[mid,15,0],[a0+.02,8,1],[a1-.02,8,2]].forEach(([f,r,k])=>{const[x,y]=P(cx,cy,R,PI*f);out+=rose(x,y,r,cols[k%cols.length])});
+return out}
+const arc=(r,a0,a1,sw)=>{const[x0,y0]=P(300,300,r,a0*PI/180),[x1,y1]=P(300,300,r,a1*PI/180);return `M${F(x0)} ${F(y0)}A${r} ${r} 0 0 ${sw} ${F(x1)} ${F(y1)}`};
+function arcText(txt,pathD,maskD,mw,font,size,fill,g,ls=0){const id='t'+(uid++);return `<path id="${id}" d="${pathD}" fill="none"/><mask id="${id}m" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600">${MK(maskD,mw,g,fill)}</mask><g mask="url(#${id}m)"><text font-family="${font}" font-size="${F(size)}" fill="${fill}" letter-spacing="${ls}"><textPath href="#${id}" startOffset="50%" text-anchor="middle">${esc(txt)}</textPath></text></g>`}
+function lineText(txt,x,y,font,size,fill,g,w,ls=0){const id='l'+(uid++);return `<mask id="${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600">${MK(`M${x-w/2} ${y-size*.3}H${x+w/2}`,size*1.6,g,fill)}</mask><g mask="url(#${id})"><text x="${x}" y="${y}" text-anchor="middle" font-family="${font}" font-size="${size}" fill="${fill}" letter-spacing="${ls}">${esc(txt)}</text></g>`}
+const SERIF="Marcellus,Georgia,serif",SCR="'Pinyon Script',cursive";
+const M=[
+{id:'sagrada',nome:'Sagrada Família',cor:'#b28a3c',ink:'#3f5a42',top:'Jesus, Maria e José, nossa família vossa é',txt:'A Sagrada Família em traço fino, com um arranjo de rosas e a escrita em verde.'},
+{id:'aparecida',nome:'Nossa Senhora Aparecida',cor:'#2c4b86',ink:'#8c2a45',top:'Nossa Senhora Aparecida, rogai por nós',txt:'Nossa Senhora Aparecida com a medalha de São Bento ao lado.'},
+{id:'floral',nome:'Floral',cor:'#c4687f',ink:'#8c2a45',top:'O amor tudo sofre, tudo crê, tudo espera',txt:'Versículo e uma guirlanda de rosas brancas e rosa claro em volta das iniciais.'},
+{id:'cerimonia',nome:'Cerimônia',cor:'#46664a',ink:'#3f5a42',top:'Já não são dois, mas uma só carne',txt:'Versículo, o local da cerimônia e o monograma dos noivos na mesma peça.'}];
+function motif(m,a,b){const br=col.brown,g=col.gold,ini=(a[0]||'')+' & '+(b[0]||'');
+if(m=='sagrada')return S(circ(262,212,26),g,2)+S(circ(340,234,24),g,2)+S(circ(301,297,15),g,2)
++S('M226 196V356',br,2.6)+S('M226 196c0-12 14-12 14-2',br,2.6)
++S(circ(262,212,16),br)+S('M240 356C238 292 246 240 262 236C278 240 288 282 290 322',br)
++S(circ(340,234,14.5),br)+S('M322 238C320 210 360 210 358 238C360 262 366 300 366 356',br)+S('M324 254C316 276 314 300 314 322',br)
++S(circ(301,297,8.5),br)+S('M288 310C290 334 312 334 314 310',br)+S('M292 322C286 336 286 348 290 356M310 322C316 336 316 348 312 356',br)
++S('M218 356Q296 370 372 356',br)
++garland(300,310,112,[ROSE.p,ROSE.w,ROSE.v]);
+if(m=='aparecida'){const md='M300 194C262 236 250 300 256 352Q300 366 344 352C350 300 338 236 300 194Z';let r='';
+for(let i=0;i<11;i++){const t=PI*(1.1+i*.08),[x1,y1]=P(300,272,100,t),[x2,y2]=P(300,272,118,t);r+=`M${F(x1)} ${F(y1)}L${F(x2)} ${F(y2)}`}
+return S(r,g,2)+satin(md,300,275,102,PI/2,col.blue)+S(md,g,2.4)+K(300,238,10.5,'#5a3b24')+S('M288 226l3-15 9 9 9-9 3 15Z',g,2.4)
++K(300,264,3,g)+K(300,287,2.6,g)+K(300,309,2.6,g)+K(300,331,2.6,g)+S(circ(392,310,21),g,2.4)+S('M392 296V324M378 310H406',g,2.4)
++garland(300,306,116,[ROSE.w,ROSE.p,ROSE.r])}
+if(m=='floral')return garland(300,296,98,[ROSE.w,ROSE.p,ROSE.r],1.14,1.86)+garland(300,296,98,[ROSE.p,ROSE.w,ROSE.r])+lineText(ini,300,318,SCR,66,col.wine,'names',230);
+return S(circ(300,262,60),col.moss,2.2)+lineText(ini,300,284,SCR,56,col.wine,'names',200)+lineText('Igreja Matriz',300,350,SERIF,15,col.moss,'art',150,1.6)+garland(300,300,124,[ROSE.p,ROSE.w,ROSE.r])}
+function hoopSVG(m,a,b,dt,main){const mm=M.find(x=>x.id==m),n=a.length+b.length+3;
+const date=dt?new Date(dt+'T12:00').toLocaleDateString('pt-BR'):'';
+const emb=motif(m,a,b)
++arcText(mm.top,arc(190,180,360,1),arc(195,198,342,1),46,SERIF,Math.min(19,455/(mm.top.length*.6)),mm.ink,'top',.8)
++arcText(a+' e '+b,arc(203,180,0,0),arc(186,150,30,0),80,SCR,Math.min(46,400/(n*.4)),mm.ink,'names')
++(date?arcText(date,arc(237,180,0,0),arc(232,112,68,0),26,SERIF,15,'#59452f','date',2.2):'');
+return `<rect x="280" y="4" width="40" height="42" rx="5" fill="url(#gWood)"/><rect x="266" y="17" width="68" height="9" rx="4.5" fill="url(#gBrass)"/><circle cx="339" cy="21.5" r="7.5" fill="url(#gBrass)"/>
+<circle cx="300" cy="300" r="275" fill="url(#gWood)"/><circle cx="300" cy="300" r="275" fill="#000" filter="url(#grain)" opacity=".55"/>
+<circle cx="300" cy="300" r="273" fill="none" stroke="#f3d7b0" stroke-width="2" opacity=".5"/>
+<circle cx="300" cy="300" r="258" fill="#5f3b20"/><circle cx="300" cy="300" r="252" fill="url(#gLin)"/><circle cx="300" cy="300" r="252" fill="#000" filter="url(#weave)"/>
+<circle cx="300" cy="300" r="248" fill="none" stroke="rgb(50 30 10/.22)" stroke-width="9"/>
+<g filter="url(#th)">${emb}</g>`
++(main?`<g class="needle"><path class="nt" fill="none" stroke-width="1.7" stroke-linecap="round"/><g class="nb"><path d="M3 0L-50 -2.6Q-57 0 -50 2.6Z" fill="url(#gSteel)" stroke="#6d747c" stroke-width=".5"/><ellipse cx="-49" cy="0" rx="3.2" ry="1" fill="#3a3f45"/></g></g>`:'')}
+/* animacao do bordado */
+let raf=0;const SPEED=1.9;
+function park(nd,c){if(!nd)return;nd.querySelector('.nb').setAttribute('transform','translate(176 372) rotate(-41)');const t=nd.querySelector('.nt');t.setAttribute('stroke',c||col.wine);t.setAttribute('d','M139 404q-16 14 -8 30q8 14 -6 26')}
+function play(svg,groups){cancelAnimationFrame(raf);const nd=svg.querySelector('.needle');
+const steps=[...svg.querySelectorAll('[data-k]')].map(el=>{const k=el.dataset.k;let L=0,dur=170;
+if(k!='k'){L=el.getTotalLength();dur=k=='s'?L/.62:el.dataset.m?L/.5:el.hasAttribute('clip-path')?Math.max(110,L/20):L/.42}
+return{el,k,L,dur:Math.max(70,dur/SPEED),on:!groups||groups.includes(el.dataset.g),c:el.dataset.c||el.getAttribute('stroke')||el.getAttribute('fill')}});
+const fin=s=>{s.el.style.visibility='';s.el.style.strokeDasharray='';s.el.style.strokeDashoffset='';if(s.k=='k')s.el.setAttribute('r',s.el.dataset.r)};
+const act=steps.filter(s=>s.on);let last=act.length?act[act.length-1].c:col.wine;
+if(reduce||!act.length){steps.forEach(fin);park(nd,last);return}
+steps.forEach(s=>s.on?s.el.style.visibility='hidden':fin(s));
+let i=0,t0=performance.now(),ang=0,px=300,py=300;const nb=nd&&nd.querySelector('.nb'),nt=nd&&nd.querySelector('.nt');
+const tick=now=>{if(now<t0)now=t0;let s=act[i],p=(now-t0)/s.dur;
+while(p>=1){fin(s);t0+=s.dur;if(++i>=act.length){park(nd,last);return}s=act[i];p=(now-t0)/s.dur}
+s.el.style.visibility='';let x,y;
+if(s.k=='k'){const e=1+1.7*Math.pow(p-1,3)+.7*Math.pow(p-1,2);s.el.setAttribute('r',F(Math.max(0,s.el.dataset.r*e)));x=+s.el.getAttribute('cx');y=+s.el.getAttribute('cy')}
+else{const cur=p*s.L;if(s.k=='c'){s.el.style.strokeDasharray=s.L+1;s.el.style.strokeDashoffset=(s.L+1)*(1-p)}
+else{const n=Math.floor(cur/11.6);s.el.style.strokeDasharray='9 2.6 '.repeat(n)+F(Math.min(cur-n*11.6,9))+' '+F(s.L+20)}
+const pt=s.el.getPointAtLength(cur);x=pt.x;y=pt.y;if(s.el.dataset.cx){x=+s.el.dataset.cx+(x-s.el.dataset.cx)*.3;y=+s.el.dataset.cy+(y-s.el.dataset.cy)*.3}}
+if(nb){const dx=x-px,dy=y-py;if(dx*dx+dy*dy>.5){let ta=Math.atan2(dy,dx),df=ta-ang;while(df>PI)df-=2*PI;while(df<-PI)df+=2*PI;ang+=df*.18}px=x;py=y;
+const ex=x-50*Math.cos(ang),ey=y-50*Math.sin(ang),sw=Math.sin(now/260)*14;
+nb.setAttribute('transform',`translate(${F(x)} ${F(y)}) rotate(${F(ang*180/PI)})`);nt.setAttribute('stroke',s.c);nt.setAttribute('d',`M${F(ex)} ${F(ey)}Q${F((ex+585)/2+sw)} ${F((ey+70)/2+70)} 585 70`)}
+raf=requestAnimationFrame(tick)};raf=requestAnimationFrame(tick)}
+/* estado */
+let cur='sagrada';const hoop=$('#hoop'),mods=$('#mods');
+mods.innerHTML=M.map(m=>`<label><input type="radio" name="m" value="${m.id}" ${m.id==cur?'checked':''}><i style="background:${m.cor}"></i>${m.nome}</label>`).join('');
+$('#varal').innerHTML=M.map((m,i)=>`<li><button class="hang" type="button" data-m="${m.id}" style="--d:${[34,74,46,90][i]}px" aria-label="Bordar o modelo ${m.nome} no bastidor"><svg viewBox="0 0 600 600" aria-hidden="true">${hoopSVG(m.id,'Ana','Pedro','',false)}</svg></button><h3>${m.nome}</h3><p>${m.txt}</p></li>`).join('');
+function vals(){return{a:$('#n1').value.trim()||'Noiva',b:$('#n2').value.trim()||'Noivo',d:$('#dt').value}}
+function size(){for(const q of['#n1','#n2']){const e=$(q);e.style.width=Math.max(e.value.length,4)*.46+.8+'em'}}
+function draw(groups,anim=true){const{a,b,d}=vals();size();hoop.innerHTML=hoopSVG(cur,a,b,d,true);play(hoop,anim?groups:['none']);
+const mm=M.find(x=>x.id==cur),msg=`Olá, Ketlyn! Vi a prévia do site e quero um orçamento de porta-alianças.\nModelo: ${mm.nome}\nNoivos: ${a} e ${b}${d?`\nData: ${new Date(d+'T12:00').toLocaleDateString('pt-BR')}`:''}`;
+const url=`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;['#wa0','#wa3'].forEach(q=>$(q).href=url)}
+mods.addEventListener('change',e=>{cur=e.target.value;draw()});
+$('#n1').addEventListener('input',()=>draw(['names']));$('#n2').addEventListener('input',()=>draw(['names']));$('#dt').addEventListener('input',()=>draw(['date']));
+$('#replay').addEventListener('click',()=>draw());
+$('#varal').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(!b)return;cur=b.dataset.m;mods.querySelector(`input[value=${cur}]`).checked=true;$('#topo').scrollIntoView({behavior:reduce?'auto':'smooth'});setTimeout(()=>draw(),reduce?0:650)});
+$('#varal').addEventListener('pointerover',e=>{const b=e.target.closest('.hang');if(!b||b.classList.contains('again'))return;b.classList.add('again');setTimeout(()=>b.classList.remove('again'),2300)});
+$('#f').addEventListener('submit',e=>{e.preventDefault();location.href=$('#wa3').href});
+$('#wa2').href=`https://wa.me/${WA}?text=${encodeURIComponent('Olá, Ketlyn! Vi o site e quero encomendar uma peça bordada.')}`;
+/* lenco */
+{const n=9,a=54,s=(346-a)/n;let d=`M${a} ${a}`;for(const[dx,dy]of[[1,0],[0,1],[-1,0],[0,-1]])for(let i=0;i<n;i++)d+=`a${F(s/2)} ${F(s/2)} 0 0 1 ${F(dx*s)} ${F(dy*s)}`;
+$('#lenco').innerHTML=`<path d="${d}Z" fill="#fcf9f2" stroke="#d9cfbd" stroke-width="1.5"/><path d="${d}Z" fill="#000" filter="url(#weave)" opacity=".7"/>
+<rect x="72" y="72" width="256" height="256" fill="none" stroke="#e3a3b3" stroke-width="2" stroke-dasharray="7 4"/>
+<path d="M346 262L262 346H346Z" fill="#eee6d6" stroke="#d9cfbd"/><path d="M262 346L346 262" stroke="rgb(60 40 20/.25)" stroke-width="3"/>
+<g filter="url(#th)" transform="translate(-48 -58) scale(1.5)">${S('M112 208C132 176 166 150 214 122',col.moss,2.4)}${[[122,192,-2.2],[140,170,-.2],[160,152,-2.5],[184,138,-.4],[204,126,-2.6]].map(([x,y,r])=>leaf(x,y,r,24,7,col.moss)).join('')}
+${leaf(146,150,.5,22,7,col.leaf2)}${leaf(110,118,-2.4,22,7,col.leaf2)}${rose(126,138,22,ROSE.red)}${rose(170,112,16,ROSE.red)}${rose(102,176,14,ROSE.v)}</g>`}
+/* linha que costura a pagina */
+const main=$('main'),ts=$('#thread'),tp=$('#tp'),trect=$('#trect'),tn=$('#tneedle');let TL=0,endY=0,tick2=0;
+function onScroll(){tick2=0;if(!TL)return;const y=reduce?1e9:innerHeight*.62-main.getBoundingClientRect().top,yy=Math.min(Math.max(y,0),endY);trect.setAttribute('height',F(yy));
+let lo=0,hi=TL;for(let i=0;i<18;i++){const m=(lo+hi)/2;tp.getPointAtLength(m).y<yy?lo=m:hi=m}
+const p=tp.getPointAtLength(lo),q=tp.getPointAtLength(Math.max(lo-4,0));tn.setAttribute('transform',`translate(${F(p.x)} ${F(p.y)}) rotate(${F(Math.atan2(p.y-q.y,p.x-q.x)*180/PI)})`);
+const done=yy>=endY-2;tn.style.display=reduce||done||yy<=0?'none':'';if(done)$('#fim').classList.add('in')}
+function buildThread(){const W=main.clientWidth,H=main.offsetHeight;ts.setAttribute('width',W);ts.setAttribute('height',H);ts.setAttribute('viewBox',`0 0 ${W} ${H}`);trect.setAttribute('width',W);
+const g=Math.max(W*.05,16)/2,secs=[...main.querySelectorAll('section')],k=W>700?72:30;let x=W-g,d=`M${F(x)} 0`;
+for(let i=1;i<secs.length-1;i++){const b=secs[i].offsetTop,nx=x>W/2?g:W-g;d+=`V${b-k}C${F(x)} ${F(b+k*.2)} ${F(nx)} ${F(b-k*.2)} ${F(nx)} ${b+k}`;x=nx}
+const mr=main.getBoundingClientRect(),rr=$('#rings').getBoundingClientRect(),ry=rr.top-mr.top+8,rx=rr.left-mr.left+rr.width/2,b=secs[secs.length-1].offsetTop;
+d+=`V${b-k}C${F(x)} ${F(b+k*.3)} ${F(rx)} ${F(b-k*.3)} ${F(rx)} ${F(ry)}`;endY=ry;tp.setAttribute('d',d);TL=tp.getTotalLength();onScroll()}
+addEventListener('scroll',()=>{if(!tick2)tick2=requestAnimationFrame(onScroll)},{passive:true});
+const ro=new ResizeObserver(buildThread);ro.observe(main);
+/* entradas e inclinacao */
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}}),{threshold:.25});
+document.querySelectorAll('[data-in]').forEach(e=>io.observe(e));
+if(!reduce&&matchMedia('(hover:hover)').matches){const hb=$('#hb'),t=hb.firstElementChild;hb.addEventListener('pointermove',e=>{const r=hb.getBoundingClientRect();t.style.setProperty('--ry',F(((e.clientX-r.left)/r.width-.5)*9)+'deg');t.style.setProperty('--rx',F(-((e.clientY-r.top)/r.height-.5)*9)+'deg')});
+hb.addEventListener('pointerleave',()=>{t.style.setProperty('--rx','0deg');t.style.setProperty('--ry','0deg')})}
+/* textura de linho do fundo */
+document.body.style.setProperty('--linen',`url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='260' height='260'><filter id='w' x='0' y='0' width='100%' height='100%'><feTurbulence type='fractalNoise' baseFrequency='.04 .95' numOctaves='2' seed='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5 0 0 0 0 .44 0 0 0 0 .34 0 0 0 1.1 -.5' result='h'/><feTurbulence type='fractalNoise' baseFrequency='.95 .04' numOctaves='2' seed='9' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5 0 0 0 0 .44 0 0 0 0 .34 0 0 0 1.1 -.5' result='v'/><feMerge><feMergeNode in='h'/><feMergeNode in='v'/></feMerge></filter><rect width='260' height='260' filter='url(#w)'/></svg>`)}")`);
+draw(null,false);size();
+document.fonts.ready.then(()=>{buildThread();draw()});
+}
+</script>
+</body>
+</html>
