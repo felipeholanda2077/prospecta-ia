@@ -249,20 +249,57 @@ const M=[
 {id:'foto',nome:'Sua imagem',cor:'#7a6248',ink:'#3f5a42',top:'Um detalhe para a vida toda',txt:''}];
 let foto=null;
 /* transforma uma imagem em ponto cheio: remove o fundo, reduz a 6 cores de linha e gera uma carreira de pontos por linha */
-function fromImage(img){const N=100,R=60,cv=document.createElement('canvas');cv.width=cv.height=N;const cx=cv.getContext('2d',{willReadFrequently:true});
-cx.fillStyle='#fff';cx.fillRect(0,0,N,N);const sc=Math.max(N/img.width,N/img.height),w=img.width*sc,h=img.height*sc;cx.drawImage(img,(N-w)/2,(N-h)/2,w,h);
-const px=cx.getImageData(0,0,N,N).data,at=(x,y)=>{const i=(y*N+x)*4;return[px[i],px[i+1],px[i+2]]},d2=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;
-let bs=[0,0,0],bn=0,ring=[];for(let y=0;y<N;y++)for(let x=0;x<N;x++){const r=Math.hypot(x-49.5,y-49.5);if(r>45&&r<=50){const c=at(x,y);ring.push(c);bs[0]+=c[0];bs[1]+=c[1];bs[2]+=c[2];bn++}}
-const bg=bs.map(v=>v/bn),sd=Math.sqrt(ring.reduce((t,c)=>t+d2(c,bg),0)/bn),cut=sd<34;
-const keep=(x,y)=>Math.hypot(x-49.5,y-49.5)<=50&&(!cut||d2(at(x,y),bg)>46*46);
-const smp=[];for(let y=0;y<N;y+=2)for(let x=0;x<N;x+=2)if(keep(x,y))smp.push(at(x,y));
-if(smp.length<40)return null;
-smp.sort((a,b)=>a[0]+a[1]+a[2]-b[0]-b[1]-b[2]);const k=6;let cen=[...Array(k)].map((_,i)=>smp[Math.floor((i+.5)*smp.length/k)].slice());
+function fromImage(img){const N=240,R=120,X0=160,Y0=145,SZ=280,u=SZ/N,cv=document.createElement('canvas');cv.width=cv.height=N;
+const cx=cv.getContext('2d',{willReadFrequently:true});cx.imageSmoothingQuality='high';const W=img.naturalWidth||img.width,H=img.naturalHeight||img.height;
+const d2=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;
+/* 1. fundo: olha a moldura da imagem; se for lisa, recorta o desenho e enquadra só ele */
+cx.fillStyle='#fff';cx.fillRect(0,0,N,N);cx.drawImage(img,0,0,N,N);let px=cx.getImageData(0,0,N,N).data;
+let at=(x,y)=>{const i=(y*N+x)*4;return[px[i],px[i+1],px[i+2]]};
+const fr=[];for(let y=0;y<N;y++)for(let x=0;x<N;x++)if(x<5||y<5||x>=N-5||y>=N-5)fr.push(at(x,y));
+const bg=[0,1,2].map(j=>fr.reduce((t,c)=>t+c[j],0)/fr.length),cut=Math.sqrt(fr.reduce((t,c)=>t+d2(c,bg),0)/fr.length)<30,T=44*44;
+cx.fillStyle=`rgb(${bg.map(Math.round).join(' ')})`;cx.fillRect(0,0,N,N);
+if(cut){let a=N,b=N,c=-1,d=-1;for(let y=0;y<N;y++)for(let x=0;x<N;x++)if(d2(at(x,y),bg)>T){a=Math.min(a,x);b=Math.min(b,y);c=Math.max(c,x);d=Math.max(d,y)}
+if(c<0)return null;const sx=Math.max(0,a-3)/N*W,sy=Math.max(0,b-3)/N*H,sw=Math.min(N,c+4)/N*W-sx,sh=Math.min(N,d+4)/N*H-sy,sc=Math.min(N/sw,N/sh);
+cx.drawImage(img,sx,sy,sw,sh,(N-sw*sc)/2,(N-sh*sc)/2,sw*sc,sh*sc)}
+else{const sc=Math.max(N/W,N/H);cx.drawImage(img,(N-W*sc)/2,(N-H*sc)/2,W*sc,H*sc)}
+px=cx.getImageData(0,0,N,N).data;
+const keep=new Uint8Array(N*N);let nk=0;for(let y=0;y<N;y++)for(let x=0;x<N;x++){const k=cut?d2(at(x,y),bg)>T:Math.hypot(x-N/2+.5,y-N/2+.5)<=N/2-1;keep[y*N+x]=k;nk+=k}
+if(nk<300)return null;
+/* 2. cores de linha: k-means em 12 tons, partindo das cores mais distantes entre si */
+const smp=[];for(let y=0;y<N;y+=2)for(let x=0;x<N;x+=2)if(keep[y*N+x])smp.push(at(x,y));
+const k=12;let cen=[smp[smp.length>>1].slice()];{const md=smp.map(c=>d2(c,cen[0]));while(cen.length<k){let bi=0;for(let i=1;i<smp.length;i++)if(md[i]>md[bi])bi=i;cen.push(smp[bi].slice());smp.forEach((c,i)=>{const v=d2(c,smp[bi]);if(v<md[i])md[i]=v})}}
 const near=c=>{let b=0,m=1e9;for(let i=0;i<k;i++){const v=d2(c,cen[i]);if(v<m){m=v;b=i}}return b};
-for(let it=0;it<7;it++){const a=cen.map(()=>[0,0,0,0]);for(const c of smp){const j=near(c);a[j][0]+=c[0];a[j][1]+=c[1];a[j][2]+=c[2];a[j][3]++}cen=cen.map((c,i)=>a[i][3]?[a[i][0]/a[i][3],a[i][1]/a[i][3],a[i][2]/a[i][3]]:c)}
-const ds=cen.map(()=>'');for(let r=0;r<R;r++){const iy=Math.min(N-1,Math.floor((r+.5)*N/R)),Y=F(190+(r+.5)*200/R);let run=-1,x0=0;
-for(let x=0;x<=N;x++){const l=x<N&&keep(x,iy)?near(at(x,iy)):-1;if(l!=run){if(run>=0&&x-x0>=2)ds[run]+=`M${200+x0*2} ${Y}H${200+x*2-1}`;run=l;x0=x}}}
-return cen.map((c,i)=>({c:`rgb(${c.map(Math.round).join(' ')})`,d:ds[i],l:c[0]+c[1]+c[2]})).filter(o=>o.d).sort((a,b)=>b.l-a.l)}
+for(let it=0;it<10;it++){const a=cen.map(()=>[0,0,0,0]);for(const c of smp){const j=near(c);a[j][0]+=c[0];a[j][1]+=c[1];a[j][2]+=c[2];a[j][3]++}cen=cen.map((c,i)=>a[i][3]?[a[i][0]/a[i][3],a[i][1]/a[i][3],a[i][2]/a[i][3]]:c)}
+/* 3. ponto cheio: uma carreira a cada 2 px, pontos soltos de 1 px entram na cor vizinha */
+const ds=cen.map(()=>'');for(let r=0;r<R;r++){const y=r*2,Y=F(Y0+(r+.5)*SZ/R),lab=[];for(let x=0;x<N;x++)lab.push(keep[y*N+x]||keep[(y+1)*N+x]?near(at(x,keep[y*N+x]?y:y+1)):-1);
+for(let x=1;x<N-1;x++)if(lab[x]>=0&&lab[x]!=lab[x-1]&&lab[x]!=lab[x+1]&&lab[x-1]>=0)lab[x]=lab[x-1];
+let run=-1,x0=0;for(let x=0;x<=N;x++){const l=x<N?lab[x]:-1;if(l!=run){if(run>=0)ds[run]+=`M${F(X0+x0*u)} ${Y}H${F(X0+x*u-.6)}`;run=l;x0=x}}}
+const out=cen.map((c,i)=>({c:`rgb(${c.map(Math.round).join(' ')})`,d:ds[i],l:c[0]+c[1]+c[2],w:2.7})).filter(o=>o.d).sort((a,b)=>b.l-a.l);
+/* 4. contorno: diferenca de gaussianas acha tracos e bordas, afina ate 1 px e segue cada traco como uma linha de ponto atras */
+const lum=new Float32Array(N*N),bl=.299*bg[0]+.587*bg[1]+.114*bg[2];for(let i=0;i<N*N;i++)lum[i]=cut&&!keep[i]?bl:.299*px[i*4]+.587*px[i*4+1]+.114*px[i*4+2];
+const blur=(s,sg)=>{const rd=Math.ceil(sg*2.5),kr=[];let ks=0;for(let i=-rd;i<=rd;i++){const v=Math.exp(-i*i/(2*sg*sg));kr.push(v);ks+=v}
+const t=new Float32Array(N*N),o=new Float32Array(N*N),cl=v=>v<0?0:v>=N?N-1:v;
+for(let y=0;y<N;y++)for(let x=0;x<N;x++){let v=0;for(let i=-rd;i<=rd;i++)v+=s[y*N+cl(x+i)]*kr[i+rd];t[y*N+x]=v/ks}
+for(let y=0;y<N;y++)for(let x=0;x<N;x++){let v=0;for(let i=-rd;i<=rd;i++)v+=t[cl(y+i)*N+x]*kr[i+rd];o[y*N+x]=v/ks}return o};
+const g1=blur(lum,1),g2=blur(lum,2.1),D=new Float32Array(N*N);let sm=0,sn=0;
+for(let i=0;i<N*N;i++){D[i]=g1[i]-g2[i];const x=i%N,y=(i-x)/N;if(Math.hypot(x-N/2+.5,y-N/2+.5)<N/2-3||cut){sm+=D[i]*D[i];sn++}}
+const th=Math.max(2.4,Math.sqrt(sm/sn)*.8),E=new Uint8Array(N*N);
+for(let y=2;y<N-2;y++)for(let x=2;x<N-2;x++){const i=y*N+x;if(D[i]<-th&&(cut||Math.hypot(x-N/2+.5,y-N/2+.5)<N/2-3))E[i]=1}
+const O=[-N,-N+1,1,N+1,N,N-1,-1,-N-1];
+/* tira manchas pequenas */
+{const seen=new Uint8Array(N*N);for(let i=0;i<N*N;i++)if(E[i]&&!seen[i]){const st=[i],cmp=[];seen[i]=1;while(st.length){const p=st.pop();cmp.push(p);for(const o of O){const q=p+o;if(E[q]&&!seen[q]){seen[q]=1;st.push(q)}}}if(cmp.length<14)for(const p of cmp)E[p]=0}}
+/* afinamento de Zhang-Suen */
+for(let ch=1,it=0;ch&&it<40;it++){ch=0;for(let ps=0;ps<2;ps++){const del=[];for(let y=1;y<N-1;y++)for(let x=1;x<N-1;x++){const i=y*N+x;if(!E[i])continue;const p=O.map(o=>E[i+o]);let b=0,a=0;for(let j=0;j<8;j++){b+=p[j];if(!p[j]&&p[(j+1)%8])a++}
+if(b>=2&&b<=6&&a==1&&(ps?!(p[0]&&p[2]&&p[6])&&!(p[0]&&p[4]&&p[6]):!(p[0]&&p[2]&&p[4])&&!(p[2]&&p[4]&&p[6])))del.push(i)}
+for(const i of del)E[i]=0;ch+=del.length}}
+/* segue os tracos */
+const O2=[1,N,-1,-N,N+1,N-1,-N-1,-N+1],deg=i=>O.reduce((t,o)=>t+E[i+o],0),used=new Uint8Array(N*N),walk=i=>{const c=[];for(;;){let n=-1;for(const o of O2)if(E[i+o]&&!used[i+o]){n=i+o;break}if(n<0)return c;used[n]=1;c.push(n);i=n}};
+const starts=[];for(let i=0;i<N*N;i++)if(E[i]&&deg(i)==1)starts.push(i);for(let i=0;i<N*N;i++)if(E[i])starts.push(i);
+const chains=[];for(const s of starts){if(used[s])continue;used[s]=1;const a=walk(s),b=walk(s);const c=b.reverse().concat([s],a);if(c.length>=7)chains.push(c.map(i=>[i%N+.5,Math.floor(i/N)+.5]))}
+let ld='';for(let c of chains){for(let t=0;t<2;t++)c=c.map((p,i)=>i&&i<c.length-1?[(c[i-1][0]+2*p[0]+c[i+1][0])/4,(c[i-1][1]+2*p[1]+c[i+1][1])/4]:p);
+c=c.filter((p,i)=>i%2==0||i==c.length-1);ld+='M'+c.map(p=>F(X0+p[0]*u)+' '+F(Y0+p[1]*u)).join('L')}
+if(ld){const dk=out[out.length-1].c.match(/\d+/g).map(v=>Math.round(v*.35+[38,30,28][0]*.65));out.push({c:`rgb(${dk.join(' ')})`,d:ld,w:1.5})}
+out.round=!cut;return out}
 function motif(m,a,b){const br=col.brown,g=col.gold,ini=(a[0]||'')+' & '+(b[0]||'');
 if(m=='sagrada')return S(circ(262,212,26),g,2)+S(circ(340,234,24),g,2)+S(circ(301,297,15),g,2)
 +S('M226 196V356',br,2.6)+S('M226 196c0-12 14-12 14-2',br,2.6)
@@ -276,7 +313,7 @@ for(let i=0;i<11;i++){const t=PI*(1.1+i*.08),[x1,y1]=P(300,272,100,t),[x2,y2]=P(
 return S(r,g,2)+satin(md,300,275,102,PI/2,col.blue)+S(md,g,2.4)+K(300,238,10.5,'#5a3b24')+S('M288 226l3-15 9 9 9-9 3 15Z',g,2.4)
 +K(300,264,3,g)+K(300,287,2.6,g)+K(300,309,2.6,g)+K(300,331,2.6,g)+S(circ(392,310,21),g,2.4)+S('M392 296V324M378 310H406',g,2.4)
 +garland(300,306,116,[ROSE.w,ROSE.p,ROSE.r])}
-if(m=='foto')return (foto||[]).map(o=>`<path d="${o.d}" fill="none" stroke="${o.c}" stroke-width="3.2" stroke-linecap="round" data-k="c" data-fast="1" data-g="art"/>`).join('')+garland(300,304,126,[ROSE.p,ROSE.w,ROSE.r],.2,.8);
+if(m=='foto')return (foto||[]).map(o=>`<path d="${o.d}" fill="none" stroke="${o.c}" stroke-width="${o.w}" stroke-linecap="round" stroke-linejoin="round" data-k="c" data-fast="1" data-g="art"/>`).join('')+(foto&&foto.round?S(circ(300,285,144),col.gold,2):'');
 if(m=='floral')return garland(300,296,98,[ROSE.w,ROSE.p,ROSE.r],1.14,1.86)+garland(300,296,98,[ROSE.p,ROSE.w,ROSE.r])+lineText(ini,300,318,SCR,66,col.wine,'names',230);
 return S(circ(300,262,60),col.moss,2.2)+lineText(ini,300,284,SCR,56,col.wine,'names',200)+lineText('Igreja Matriz',300,350,SERIF,15,col.moss,'art',150,1.6)+garland(300,300,124,[ROSE.p,ROSE.w,ROSE.r])}
 function hoopSVG(m,a,b,dt,main){const mm=M.find(x=>x.id==m),n=a.length+b.length+3;
