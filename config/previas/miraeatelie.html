@@ -55,6 +55,7 @@ legend{padding:0;font-size:14px;color:var(--mute);margin-bottom:6px}
 .mods i{width:11px;height:11px;border-radius:50%;flex:none;box-shadow:1px 1px 1px rgb(0 0 0/.3),inset -2px -2px 2px rgb(0 0 0/.25)}
 .mods label:has(:checked){color:var(--ink);font-weight:700;text-decoration:underline dashed 1.5px var(--wine);text-underline-offset:7px}
 .mods label:has(:focus-visible){outline:2px solid var(--moss);outline-offset:4px}
+.up{margin:-12px 0 26px}.upl{display:inline-block;position:relative}.upl input{position:absolute;inset:0;width:100%;opacity:0;cursor:pointer}.upl:has(:focus-visible){outline:2px solid var(--moss);outline-offset:4px}#upmsg{display:block;margin-top:4px}
 .acts{display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center}
 .small{font-size:13.5px;color:var(--mute);margin-top:18px;max-width:46ch}
 @media(max-width:900px){.hgrid{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "hoop" "form";grid-template-rows:auto}.hoopbox{max-width:460px}}
@@ -147,6 +148,7 @@ main{position:relative}
 <p class="lead" style="margin-top:0">Cada peça é desenhada para o casal e bordada ponto a ponto pela Ketlyn Mira. Escreva os nomes, escolha o modelo e veja o bastidor de vocês ser bordado.</p>
 <p class="frase" style="margin-top:20px">Para <input type="text" id="n1" value="Mariana" maxlength="14" autocomplete="off" aria-label="Nome da noiva"> e <input type="text" id="n2" value="Nilison" maxlength="14" autocomplete="off" aria-label="Nome do noivo">, que se casam em <input type="date" id="dt" value="2027-05-15" aria-label="Data do casamento">.</p>
 <fieldset><legend>Modelo do bordado</legend><div class="mods" id="mods"></div></fieldset>
+<div class="up"><label class="under upl"><input type="file" id="img" accept="image/*">Bordar a partir de uma imagem sua</label><span id="upmsg" class="small" role="status">Foto, desenho ou logo. A imagem fica só no seu aparelho.</span></div>
 <div class="acts"><button class="btn" type="submit">Pedir orçamento deste modelo</button><button class="under" type="button" id="replay">Bordar de novo</button></div>
 <p class="small">A prévia é uma ilustração. Cada bordado é único e o desenho final é combinado com você.</p>
 </form>
@@ -243,7 +245,24 @@ const M=[
 {id:'sagrada',nome:'Sagrada Família',cor:'#b28a3c',ink:'#3f5a42',top:'Jesus, Maria e José, nossa família vossa é',txt:'A Sagrada Família em traço fino, com um arranjo de rosas e a escrita em verde.'},
 {id:'aparecida',nome:'Nossa Senhora Aparecida',cor:'#2c4b86',ink:'#8c2a45',top:'Nossa Senhora Aparecida, rogai por nós',txt:'Nossa Senhora Aparecida com a medalha de São Bento ao lado.'},
 {id:'floral',nome:'Floral',cor:'#c4687f',ink:'#8c2a45',top:'O amor tudo sofre, tudo crê, tudo espera',txt:'Versículo e uma guirlanda de rosas brancas e rosa claro em volta das iniciais.'},
-{id:'cerimonia',nome:'Cerimônia',cor:'#46664a',ink:'#3f5a42',top:'Já não são dois, mas uma só carne',txt:'Versículo, o local da cerimônia e o monograma dos noivos na mesma peça.'}];
+{id:'cerimonia',nome:'Cerimônia',cor:'#46664a',ink:'#3f5a42',top:'Já não são dois, mas uma só carne',txt:'Versículo, o local da cerimônia e o monograma dos noivos na mesma peça.'},
+{id:'foto',nome:'Sua imagem',cor:'#7a6248',ink:'#3f5a42',top:'Um detalhe para a vida toda',txt:''}];
+let foto=null;
+/* transforma uma imagem em ponto cheio: remove o fundo, reduz a 6 cores de linha e gera uma carreira de pontos por linha */
+function fromImage(img){const N=100,R=60,cv=document.createElement('canvas');cv.width=cv.height=N;const cx=cv.getContext('2d',{willReadFrequently:true});
+cx.fillStyle='#fff';cx.fillRect(0,0,N,N);const sc=Math.max(N/img.width,N/img.height),w=img.width*sc,h=img.height*sc;cx.drawImage(img,(N-w)/2,(N-h)/2,w,h);
+const px=cx.getImageData(0,0,N,N).data,at=(x,y)=>{const i=(y*N+x)*4;return[px[i],px[i+1],px[i+2]]},d2=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;
+let bs=[0,0,0],bn=0,ring=[];for(let y=0;y<N;y++)for(let x=0;x<N;x++){const r=Math.hypot(x-49.5,y-49.5);if(r>45&&r<=50){const c=at(x,y);ring.push(c);bs[0]+=c[0];bs[1]+=c[1];bs[2]+=c[2];bn++}}
+const bg=bs.map(v=>v/bn),sd=Math.sqrt(ring.reduce((t,c)=>t+d2(c,bg),0)/bn),cut=sd<34;
+const keep=(x,y)=>Math.hypot(x-49.5,y-49.5)<=50&&(!cut||d2(at(x,y),bg)>46*46);
+const smp=[];for(let y=0;y<N;y+=2)for(let x=0;x<N;x+=2)if(keep(x,y))smp.push(at(x,y));
+if(smp.length<40)return null;
+smp.sort((a,b)=>a[0]+a[1]+a[2]-b[0]-b[1]-b[2]);const k=6;let cen=[...Array(k)].map((_,i)=>smp[Math.floor((i+.5)*smp.length/k)].slice());
+const near=c=>{let b=0,m=1e9;for(let i=0;i<k;i++){const v=d2(c,cen[i]);if(v<m){m=v;b=i}}return b};
+for(let it=0;it<7;it++){const a=cen.map(()=>[0,0,0,0]);for(const c of smp){const j=near(c);a[j][0]+=c[0];a[j][1]+=c[1];a[j][2]+=c[2];a[j][3]++}cen=cen.map((c,i)=>a[i][3]?[a[i][0]/a[i][3],a[i][1]/a[i][3],a[i][2]/a[i][3]]:c)}
+const ds=cen.map(()=>'');for(let r=0;r<R;r++){const iy=Math.min(N-1,Math.floor((r+.5)*N/R)),Y=F(190+(r+.5)*200/R);let run=-1,x0=0;
+for(let x=0;x<=N;x++){const l=x<N&&keep(x,iy)?near(at(x,iy)):-1;if(l!=run){if(run>=0&&x-x0>=2)ds[run]+=`M${200+x0*2} ${Y}H${200+x*2-1}`;run=l;x0=x}}}
+return cen.map((c,i)=>({c:`rgb(${c.map(Math.round).join(' ')})`,d:ds[i],l:c[0]+c[1]+c[2]})).filter(o=>o.d).sort((a,b)=>b.l-a.l)}
 function motif(m,a,b){const br=col.brown,g=col.gold,ini=(a[0]||'')+' & '+(b[0]||'');
 if(m=='sagrada')return S(circ(262,212,26),g,2)+S(circ(340,234,24),g,2)+S(circ(301,297,15),g,2)
 +S('M226 196V356',br,2.6)+S('M226 196c0-12 14-12 14-2',br,2.6)
@@ -257,6 +276,7 @@ for(let i=0;i<11;i++){const t=PI*(1.1+i*.08),[x1,y1]=P(300,272,100,t),[x2,y2]=P(
 return S(r,g,2)+satin(md,300,275,102,PI/2,col.blue)+S(md,g,2.4)+K(300,238,10.5,'#5a3b24')+S('M288 226l3-15 9 9 9-9 3 15Z',g,2.4)
 +K(300,264,3,g)+K(300,287,2.6,g)+K(300,309,2.6,g)+K(300,331,2.6,g)+S(circ(392,310,21),g,2.4)+S('M392 296V324M378 310H406',g,2.4)
 +garland(300,306,116,[ROSE.w,ROSE.p,ROSE.r])}
+if(m=='foto')return (foto||[]).map(o=>`<path d="${o.d}" fill="none" stroke="${o.c}" stroke-width="3.2" stroke-linecap="round" data-k="c" data-fast="1" data-g="art"/>`).join('')+garland(300,304,126,[ROSE.p,ROSE.w,ROSE.r],.2,.8);
 if(m=='floral')return garland(300,296,98,[ROSE.w,ROSE.p,ROSE.r],1.14,1.86)+garland(300,296,98,[ROSE.p,ROSE.w,ROSE.r])+lineText(ini,300,318,SCR,66,col.wine,'names',230);
 return S(circ(300,262,60),col.moss,2.2)+lineText(ini,300,284,SCR,56,col.wine,'names',200)+lineText('Igreja Matriz',300,350,SERIF,15,col.moss,'art',150,1.6)+garland(300,300,124,[ROSE.p,ROSE.w,ROSE.r])}
 function hoopSVG(m,a,b,dt,main){const mm=M.find(x=>x.id==m),n=a.length+b.length+3;
@@ -277,7 +297,7 @@ let raf=0;const SPEED=1.9;
 function park(nd,c){if(!nd)return;nd.querySelector('.nb').setAttribute('transform','translate(176 372) rotate(-41)');const t=nd.querySelector('.nt');t.setAttribute('stroke',c||col.wine);t.setAttribute('d','M139 404q-16 14 -8 30q8 14 -6 26')}
 function play(svg,groups){cancelAnimationFrame(raf);const nd=svg.querySelector('.needle');
 const steps=[...svg.querySelectorAll('[data-k]')].map(el=>{const k=el.dataset.k;let L=0,dur=170;
-if(k!='k'){L=el.getTotalLength();dur=k=='s'?L/.62:el.dataset.m?L/.5:el.hasAttribute('clip-path')?Math.max(110,L/20):L/.42}
+if(k!='k'){L=el.getTotalLength();dur=k=='s'?L/.62:el.dataset.m?L/.5:el.dataset.fast?Math.min(2600,Math.max(500,L/4)):el.hasAttribute('clip-path')?Math.max(110,L/20):L/.42}
 return{el,k,L,dur:Math.max(70,dur/SPEED),on:!groups||groups.includes(el.dataset.g),c:el.dataset.c||el.getAttribute('stroke')||el.getAttribute('fill')}});
 const fin=s=>{s.el.style.visibility='';s.el.style.strokeDasharray='';s.el.style.strokeDashoffset='';if(s.k=='k')s.el.setAttribute('r',s.el.dataset.r)};
 const act=steps.filter(s=>s.on);let last=act.length?act[act.length-1].c:col.wine;
@@ -297,16 +317,20 @@ nb.setAttribute('transform',`translate(${F(x)} ${F(y)}) rotate(${F(ang*180/PI)})
 raf=requestAnimationFrame(tick)};raf=requestAnimationFrame(tick)}
 /* estado */
 let cur='sagrada';const hoop=$('#hoop'),mods=$('#mods');
-mods.innerHTML=M.map(m=>`<label><input type="radio" name="m" value="${m.id}" ${m.id==cur?'checked':''}><i style="background:${m.cor}"></i>${m.nome}</label>`).join('');
-$('#varal').innerHTML=M.map((m,i)=>`<li><button class="hang" type="button" data-m="${m.id}" style="--d:${[34,74,46,90][i]}px" aria-label="Bordar o modelo ${m.nome} no bastidor"><svg viewBox="0 0 600 600" aria-hidden="true">${hoopSVG(m.id,'Ana','Pedro','',false)}</svg></button><h3>${m.nome}</h3><p>${m.txt}</p></li>`).join('');
+function renderMods(){mods.innerHTML=M.filter(m=>m.id!='foto'||foto).map(m=>`<label><input type="radio" name="m" value="${m.id}" ${m.id==cur?'checked':''}><i style="background:${m.cor}"></i>${m.nome}</label>`).join('')}renderMods();
+$('#varal').innerHTML=M.filter(m=>m.id!='foto').map((m,i)=>`<li><button class="hang" type="button" data-m="${m.id}" style="--d:${[34,74,46,90][i]}px" aria-label="Bordar o modelo ${m.nome} no bastidor"><svg viewBox="0 0 600 600" aria-hidden="true">${hoopSVG(m.id,'Ana','Pedro','',false)}</svg></button><h3>${m.nome}</h3><p>${m.txt}</p></li>`).join('');
 function vals(){return{a:$('#n1').value.trim()||'Noiva',b:$('#n2').value.trim()||'Noivo',d:$('#dt').value}}
 function size(){for(const q of['#n1','#n2']){const e=$(q);e.style.width=Math.max(e.value.length,4)*.46+.8+'em'}}
 function draw(groups,anim=true){const{a,b,d}=vals();size();hoop.innerHTML=hoopSVG(cur,a,b,d,true);play(hoop,anim?groups:['none']);
-const mm=M.find(x=>x.id==cur),msg=`Olá, Ketlyn! Vi a prévia do site e quero um orçamento de porta-alianças.\nModelo: ${mm.nome}\nNoivos: ${a} e ${b}${d?`\nData: ${new Date(d+'T12:00').toLocaleDateString('pt-BR')}`:''}`;
+const mm=M.find(x=>x.id==cur),msg=`Olá, Ketlyn! Vi a prévia do site e quero um orçamento de porta-alianças.\nModelo: ${cur=='foto'?'a partir de uma imagem minha (vou enviar a imagem aqui na conversa)':mm.nome}\nNoivos: ${a} e ${b}${d?`\nData: ${new Date(d+'T12:00').toLocaleDateString('pt-BR')}`:''}`;
 const url=`https://wa.me/${WA}?text=${encodeURIComponent(msg)}`;['#wa0','#wa3'].forEach(q=>$(q).href=url)}
 mods.addEventListener('change',e=>{cur=e.target.value;draw()});
 $('#n1').addEventListener('input',()=>draw(['names']));$('#n2').addEventListener('input',()=>draw(['names']));$('#dt').addEventListener('input',()=>draw(['date']));
 $('#replay').addEventListener('click',()=>draw());
+$('#img').addEventListener('change',e=>{const f=e.target.files[0],msg=$('#upmsg');if(!f)return;const u=URL.createObjectURL(f),im=new Image();
+im.onload=()=>{URL.revokeObjectURL(u);const r=fromImage(im);if(!r){msg.textContent='Não encontrei um desenho nessa imagem. Tente outra com mais contraste.';return}
+foto=r;cur='foto';renderMods();msg.textContent='Pronto. Este é um esboço automático: a Ketlyn redesenha o bordado final à mão.';draw()};
+im.onerror=()=>{URL.revokeObjectURL(u);msg.textContent='Não consegui abrir essa imagem. Tente um JPG ou PNG.'};im.src=u;e.target.value=''});
 $('#varal').addEventListener('click',e=>{const b=e.target.closest('[data-m]');if(!b)return;cur=b.dataset.m;mods.querySelector(`input[value=${cur}]`).checked=true;$('#topo').scrollIntoView({behavior:reduce?'auto':'smooth'});setTimeout(()=>draw(),reduce?0:650)});
 $('#varal').addEventListener('pointerover',e=>{const b=e.target.closest('.hang');if(!b||b.classList.contains('again'))return;b.classList.add('again');setTimeout(()=>b.classList.remove('again'),2300)});
 $('#f').addEventListener('submit',e=>{e.preventDefault();location.href=$('#wa3').href});
