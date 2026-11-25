@@ -25,13 +25,13 @@ globalThis.fetch = async (url, op = {}) => {
   return new Response(JSON.stringify({ error: { message: `não esperado: ${caminho}` } }), { status: 400 });
 };
 
-test("checkout fixo do site com agendamento: €150 agora e €25 por mês a partir de 1º de janeiro de 2027", async () => {
+test("checkout fixo do site com API: €150 agora e €25 por mês a partir de 1º de janeiro de 2027", async () => {
   const compra = await stripe.compraDoCheckout("site-agendamento");
   assert.equal(compra.implantacao, 150);
   assert.equal(compra.valor, 25);
   assert.equal(compra.moeda, "EUR");
   assert.equal(compra.pais, "PT");
-  assert.equal((await stripe.compraDoCheckout("site-agendamento", { lang: "en" })).plano, "Custom business website with booking integration");
+  assert.equal((await stripe.compraDoCheckout("site-agendamento", { lang: "en" })).plano, "Business website with API for other systems");
 
   await assert.rejects(stripe.intencaoDoCheckout("site-agendamento", { nome: "", email: "x" }), /Preencha o nome/);
   const r = await stripe.intencaoDoCheckout("site-agendamento", { nome: "Ana Costa", email: "Ana@Exemplo.pt" });
@@ -72,7 +72,7 @@ test("a página mostra €150 hoje e a mensalidade de €25 a partir de 1 de jan
   assert.match(html, /25,00\s€\/mês/);
   assert.match(html, /1 de janeiro de 2027/);
   assert.match(html, /Pagar 150,00\s€/);
-  assert.match(html, /API do seu sistema de agendamento|API ao seu sistema interno de agendamento/);
+  assert.match(html, /Site institucional com API para outros sistemas/);
   assert.match(html, /mode: "payment", amount: 15000, currency: "eur"/);
   const en = paginaDoCheckoutStripe(await stripe.compraDoCheckout("site-agendamento", { lang: "en" }), { publica: "pk_test_x", base: "/b" });
   assert.match(en, /€25\.00\/mo/);

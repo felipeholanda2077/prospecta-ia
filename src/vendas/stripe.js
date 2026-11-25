@@ -343,13 +343,13 @@ export async function checkoutTransparente({ lead, nome, valor, moeda, unico = t
  */
 export const CHECKOUTS_FIXOS = {
   "site-agendamento": {
-    nome: { pt: "Site institucional personalizado com agendamento", en: "Custom business website with booking integration" },
+    nome: { pt: "Site institucional com API para outros sistemas", en: "Business website with API for other systems" },
     implantacao: 150, valor: 25, moeda: "EUR", inicio: "2027-01-01",
     itens: {
-      pt: ["Site institucional feito à medida, com a cara da sua empresa", "Ligação por API ao seu sistema interno de agendamento",
+      pt: ["Site institucional feito à medida, com a cara da sua empresa", "Ligação por API aos outros sistemas da sua empresa",
         "Versão para telemóvel, rápida", "Botão do WhatsApp em todas as páginas", "Pronto para aparecer no Google",
         "Alojamento, manutenção e alterações na mensalidade"],
-      en: ["A custom-made business website with your brand", "API connection to your internal booking system",
+      en: ["A custom-made business website with your brand", "API connection to your other business systems",
         "Fast mobile version", "WhatsApp button on every page", "Ready to show up on Google",
         "Hosting, maintenance and changes in the monthly plan"],
     },
@@ -370,7 +370,7 @@ function compraFixa(codigo, lang) {
 
 /** Os preços do Stripe do checkout fixo (criados no primeiro pagamento; valor novo, preço novo). */
 async function precosDoFixo(compra) {
-  const guarda = `checkout_fixo_precos:${compra.codigo}:${compra.implantacao}+${compra.valor}${compra.moeda}`;
+  const guarda = `checkout_fixo_precos:${compra.codigo}:${compra.implantacao}+${compra.valor}${compra.moeda}:${simples(compra.nomeInterno)}`;
   const salvo = await db.lerEstado(guarda);
   if (salvo) return JSON.parse(salvo);
   const moeda = compra.moeda.toLowerCase();

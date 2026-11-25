@@ -21,7 +21,7 @@ const TEXTOS = {
     depoisRec: (m, d) => `Depois, ${m} por mês no mesmo cartão. O primeiro débito é a ${d}; até lá não paga mais nada.`,
     autorizo: (m, d) => `Ao pagar, aceita o contrato de serviço da FluxDeck e autoriza a cobrança de ${m} por mês neste cartão a partir de ${d}, até cancelar`,
     okRec: (i, m, d) => `Obrigado! Recebemos os ${i} da criação do site. A mensalidade de ${m} fica agendada para ${d}. Vamos entrar em contacto consigo para começar.`,
-    passosRec: (d) => ["Recebe a confirmação no e-mail.", "Entramos em contacto para pedir as informações do site e o acesso à API do seu sistema de agendamento.", `A primeira mensalidade só é cobrada a ${d}.`],
+    passosRec: (d) => ["Recebe a confirmação no e-mail.", "Entramos em contacto para pedir as informações do site e o acesso à API dos seus outros sistemas.", `A primeira mensalidade só é cobrada a ${d}.`],
     itensSite: ["Site profissional com a cara da sua empresa", "Versão para telemóvel, rápida", "Botão do WhatsApp em todas as páginas", "Pronto para aparecer no Google", "Domínio e publicação incluídos", "Alterações sempre que precisar"],
   },
   en: {
@@ -40,7 +40,7 @@ const TEXTOS = {
     depoisRec: (m, d) => `Then ${m} per month on the same card. The first charge is on ${d}; nothing else until then.`,
     autorizo: (m, d) => `By paying, you agree to the FluxDeck Service Agreement and authorize a charge of ${m} per month on this card starting ${d}, until you cancel`,
     okRec: (i, m, d) => `Thank you! We received ${i} for your website build. The ${m} monthly plan is scheduled to start on ${d}. We'll reach out to get started.`,
-    passosRec: (d) => ["You get the confirmation by email.", "We reach out for your website details and access to your booking system's API.", `The first monthly charge only happens on ${d}.`],
+    passosRec: (d) => ["You get the confirmation by email.", "We reach out for your website details and access to your other systems' APIs.", `The first monthly charge only happens on ${d}.`],
     itensSite: ["A professional website with your brand", "Fast mobile version", "WhatsApp button on every page", "Ready to show up on Google", "Domain and publishing included", "Changes whenever you need"],
   },
 };
