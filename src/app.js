@@ -167,31 +167,37 @@ app.get("/checkout/_/logo.jpg", async (req, res) => {
 });
 // Checkout transparente da FluxDeck para empresas de fora do Brasil: a página é nossa (logo e cores da FluxDeck) e o
 // cartão vai no campo seguro do Stripe, dentro dela. fluxdeck.com.br/checkout/x/<código>.
+// O idioma do checkout fixo (sem empresa): português de Portugal, ou inglês com ?lang=en.
+const idiomaDoCheckout = (req) => (String(req.query.lang ?? "").toLowerCase() === "en" ? "en" : null);
 app.get("/checkout/x/:codigo", async (req, res) => {
-  const compra = await stripe.compraDoCheckout(req.params.codigo).catch(() => null);
+  const lang = idiomaDoCheckout(req);
+  const compra = await stripe.compraDoCheckout(req.params.codigo, { lang }).catch(() => null);
   const publica = await stripe.chavePublica();
   if (!compra || !publica) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
   const campanha = await carregarCampanhaCompleta();
   const { empresa } = campanha;
   const telefone = String(empresa.telefone ?? "").replace(/\D/g, "");
   // O site de exemplo da empresa (quando ela tem), para quem paga ver de novo o que está a comprar.
-  const previa = (!compra.lead.pais || ["BR", "PT"].includes(compra.lead.pais)) ? enderecoDaPrevia(compra.lead, origemDaPrevia(campanha)) : "";
+  const previa = compra.lead && (!compra.lead.pais || ["BR", "PT"].includes(compra.lead.pais)) ? enderecoDaPrevia(compra.lead, origemDaPrevia(campanha)) : "";
   res.set(SEM_MOLDURA).send(paginaDoCheckoutStripe(compra, { publica, base: `/checkout/x/${compra.codigo}`, previa,
+    volta: `/checkout/x/${compra.codigo}/obrigado${compra.fixo && lang ? `?lang=${lang}` : ""}`,
+    intencao: `/checkout/x/${compra.codigo}/intencao${compra.fixo && lang ? `?lang=${lang}` : ""}`,
     // Nunca a versão do Brasil em reais: Portugal vê fluxdeck.com.br/pt (site 150 €, sistemas em euro); os outros países, /en.
-    email: empresa.email || "", site: `${origemDaPrevia(campanha)}/${compra.lead.pais === "PT" ? "pt" : "en"}`,
+    email: empresa.email || "", site: `${origemDaPrevia(campanha)}/${compra.pais === "PT" ? "pt" : "en"}`,
     whatsapp: telefone ? `https://wa.me/${telefone.startsWith("55") ? telefone : `55${telefone}`}` : "" }));
 });
 app.post("/checkout/x/:codigo/intencao", async (req, res) => {
   res.set(SEM_MOLDURA);
   try {
-    res.json(await stripe.intencaoDoCheckout(req.params.codigo));
+    res.json(await stripe.intencaoDoCheckout(req.params.codigo, { nome: req.body?.nome, email: req.body?.email, lang: idiomaDoCheckout(req) }));
   } catch (e) {
     console.error("Checkout transparente:", e.message);
-    res.status(400).json({ erro: /já foi feito|already/i.test(e.message) ? e.message : "Não foi possível abrir o pagamento agora." });
+    res.status(400).json({ erro: /já foi feito|already|Preencha|Please fill/i.test(e.message) ? e.message : "Não foi possível abrir o pagamento agora." });
   }
 });
 app.get("/checkout/x/:codigo/obrigado", async (req, res) => {
-  const r = await stripe.confirmarCheckout(req.params.codigo, String(req.query.payment_intent ?? "") || null).catch(() => ({ compra: null }));
+  const r = await stripe.confirmarCheckout(req.params.codigo, String(req.query.payment_intent ?? "") || null, { lang: idiomaDoCheckout(req) })
+    .catch(() => ({ compra: null }));
   if (!r.compra) return res.status(404).set(SEM_CACHE).send(LINK_INVALIDO);
   res.set(SEM_MOLDURA).send(paginaDoCheckoutStripeFeito(r.compra, { pago: r.pago }));
 });

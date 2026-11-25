@@ -17,6 +17,11 @@ const TEXTOS = {
     rapido: "Pagamento rápido", ouCartao: "ou pague com cartão", incluido: "O que está incluído", depoisTitulo: "Depois do pagamento",
     passos: ["Recebe a confirmação no e-mail.", "Falamos consigo pelo WhatsApp e pedimos as fotos e as informações.", "O seu site fica no ar no prazo de uma semana."],
     exemplo: "Ver o exemplo do seu site", empresaTitulo: "Quem está a receber", aceitos: "Aceitamos", contratoOpc: "Se preferir, fazemos um contrato de prestação de serviço.",
+    hoje: "Hoje", criacao: "Criação do site (pagamento único)", mensalidade: "Mensalidade", porMes: "/mês", aPartir: "a partir de",
+    depoisRec: (m, d) => `Depois, ${m} por mês no mesmo cartão. O primeiro débito é a ${d}; até lá não paga mais nada.`,
+    autorizo: (m, d) => `Ao pagar, aceita o contrato de serviço da FluxDeck e autoriza a cobrança de ${m} por mês neste cartão a partir de ${d}, até cancelar`,
+    okRec: (i, m, d) => `Obrigado! Recebemos os ${i} da criação do site. A mensalidade de ${m} fica agendada para ${d}. Vamos entrar em contacto consigo para começar.`,
+    passosRec: (d) => ["Recebe a confirmação no e-mail.", "Entramos em contacto para pedir as informações do site e o acesso à API do seu sistema de agendamento.", `A primeira mensalidade só é cobrada a ${d}.`],
     itensSite: ["Site profissional com a cara da sua empresa", "Versão para telemóvel, rápida", "Botão do WhatsApp em todas as páginas", "Pronto para aparecer no Google", "Domínio e publicação incluídos", "Alterações sempre que precisar"],
   },
   en: {
@@ -31,6 +36,11 @@ const TEXTOS = {
     rapido: "Express checkout", ouCartao: "or pay with card", incluido: "What's included", depoisTitulo: "After payment",
     passos: ["You get the confirmation by email.", "We reach out on WhatsApp for your photos and details.", "Your website goes live within one week."],
     exemplo: "See your website preview", empresaTitulo: "Who you're paying", aceitos: "We accept", contratoOpc: "If you prefer, we sign a service agreement.",
+    hoje: "Due today", criacao: "Website build (one-time)", mensalidade: "Monthly plan", porMes: "/mo", aPartir: "from",
+    depoisRec: (m, d) => `Then ${m} per month on the same card. The first charge is on ${d}; nothing else until then.`,
+    autorizo: (m, d) => `By paying, you agree to the FluxDeck Service Agreement and authorize a charge of ${m} per month on this card starting ${d}, until you cancel`,
+    okRec: (i, m, d) => `Thank you! We received ${i} for your website build. The ${m} monthly plan is scheduled to start on ${d}. We'll reach out to get started.`,
+    passosRec: (d) => ["You get the confirmation by email.", "We reach out for your website details and access to your booking system's API.", `The first monthly charge only happens on ${d}.`],
     itensSite: ["A professional website with your brand", "Fast mobile version", "WhatsApp button on every page", "Ready to show up on Google", "Domain and publishing included", "Changes whenever you need"],
   },
 };
@@ -95,21 +105,34 @@ const cabeca = (t, titulo, logo) => `<!doctype html><html lang="${t.lang}"><head
 // A FluxDeck, para quem paga saber quem recebe (o mesmo do rodapé de fluxdeck.com.br).
 const CNPJ_FLUXDECK = "57.167.092/0001-16";
 
-export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkout/_/logo.jpg", contrato = "https://fluxdeck.com.br/en/terms", whatsapp = "", email = "", previa = "", site = "https://fluxdeck.com.br" }) {
+const dataDoInicio = (t, inicio) => new Date(`${inicio}T12:00:00Z`).toLocaleDateString(t.lang === "en" ? "en-US" : t.lang, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+export function paginaDoCheckoutStripe(compra, { publica, base, volta = `${base}/obrigado`, intencao = `${base}/intencao`, logo = "/checkout/_/logo.jpg", contrato = "https://fluxdeck.com.br/en/terms", whatsapp = "", email = "", previa = "", site = "https://fluxdeck.com.br" }) {
   const t = textosDoCheckout(compra.pais);
-  const preco = new Intl.NumberFormat(t.lang, { style: "currency", currency: compra.moeda }).format(compra.valor);
+  const dinheiro = (v) => new Intl.NumberFormat(t.lang, { style: "currency", currency: compra.moeda }).format(v);
+  const rec = Boolean(compra.recorrente);
+  // Assinatura com criação: hoje paga só a criação; a mensalidade começa na data marcada.
+  const preco = dinheiro(rec ? compra.implantacao : compra.valor);
+  const mensal = dinheiro(compra.valor);
+  const inicio = rec ? dataDoInicio(t, compra.inicio) : "";
   const local = compra.pais === "PT" ? "pt" : "en";
+  const itens = compra.itens ?? (/site/i.test(compra.plano) ? t.itensSite : null);
+  const passos = rec ? t.passosRec(inicio) : t.passos;
   return `${cabeca(t, compra.plano, logo)}
 <main class="grade">
   <aside class="painel">
     <span class="rotulo">${esc(t.contratando)}</span>
-    <h1>${esc(compra.plano)}</h1><div class="empresa">${esc(compra.empresa)}</div>
-    <div class="linha"><span>${esc(compra.plano)}</span><b>${esc(preco)}</b></div>
+    <h1>${esc(compra.plano)}</h1>${compra.empresa ? `<div class="empresa">${esc(compra.empresa)}</div>` : '<div class="empresa"></div>'}
+    ${rec ? `<div class="linha"><span>${esc(t.criacao)}</span><b>${esc(preco)}</b></div>
+    <div class="linha"><span>${esc(t.mensalidade)}<br><small style="color:var(--suave)">${esc(t.aPartir)} ${esc(inicio)}</small></span><b>${esc(mensal)}${esc(t.porMes)}</b></div>
+    <div class="total"><span>${esc(t.hoje)}</span><b>${esc(preco)}</b></div>
+    <p class="depois">${esc(t.depoisRec(mensal, inicio))}</p>`
+    : `<div class="linha"><span>${esc(compra.plano)}</span><b>${esc(preco)}</b></div>
     <div class="total"><span>${esc(t.total)}</span><b>${esc(preco)}</b></div>
-    <p class="depois">${esc(compra.unico ? t.unico : t.mensal)}</p>
-    ${/site/i.test(compra.plano) ? `<div class="sub">${esc(t.incluido)}</div><ul class="incluido">${t.itensSite.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : ""}
+    <p class="depois">${esc(compra.unico ? t.unico : t.mensal)}</p>`}
+    ${itens ? `<div class="sub">${esc(t.incluido)}</div><ul class="incluido">${itens.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>` : ""}
     ${previa ? `<a class="exemplo" href="${esc(previa)}" target="_blank" rel="noopener">👀 ${esc(t.exemplo)}</a>` : ""}
-    <div class="sub">${esc(t.depoisTitulo)}</div><ol class="passos">${t.passos.map((p) => `<li>${esc(p)}</li>`).join("")}</ol>
+    <div class="sub">${esc(t.depoisTitulo)}</div><ol class="passos">${passos.map((p) => `<li>${esc(p)}</li>`).join("")}</ol>
     <p class="depois" style="margin-top:12px">${esc(t.contratoOpc)}</p>
     <ul class="selos">
       <li>${ESCUDO}<span><b>${esc(t.processado)}</b>${esc(t.processadoTxt)}</span></li>
@@ -121,7 +144,7 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
       ${whatsapp ? `<span>${esc(t.duvidas)} <a href="${esc(whatsapp)}" target="_blank" rel="noopener">WhatsApp</a></span>` : ""}</div>
   </aside>
   <section class="painel pagamento">
-    <div class="resumo-movel"><span>${esc(compra.plano)} · ${esc(compra.empresa)}</span><b>${esc(preco)}</b></div>
+    <div class="resumo-movel"><span>${esc(compra.plano)}${compra.empresa ? ` · ${esc(compra.empresa)}` : ""}${rec ? ` · ${esc(t.hoje)}` : ""}</span><b>${esc(preco)}</b></div>
     <div id="caixa-rapido" hidden><div class="sub" style="margin-top:0">${esc(t.rapido)}</div><div id="rapido"></div><div class="ou">${esc(t.ouCartao)}</div></div>
     <form id="form">
       <div class="campo"><label for="nome">${esc(t.nome)}</label><input id="nome" autocomplete="name" required></div>
@@ -131,7 +154,7 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
       <div class="msg" id="msg" role="alert"></div>
       <div class="marcas">${esc(t.aceitos)}: <span>VISA</span><span>Mastercard</span><span>AMEX</span><span>Apple Pay</span><span>Google Pay</span></div>
       <div class="stripe">${CADEADO.replace("<svg", '<svg width="14" height="14"')} SSL · <b>stripe</b></div>
-      <p class="letra">${esc(t.contrato)}: <a href="${esc(contrato)}" target="_blank" rel="noopener">Service Agreement</a></p>
+      <p class="letra">${esc(rec ? t.autorizo(mensal, inicio) : t.contrato)}: <a href="${esc(contrato)}" target="_blank" rel="noopener">Service Agreement</a></p>
     </form>
   </section>
 </main>
@@ -141,19 +164,46 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
   var t = ${JSON.stringify({ preencha: t.preencha, erro: t.erro })};
   var stripe = Stripe(${JSON.stringify(publica)}, { locale: ${JSON.stringify(local)} });
   var msg = document.getElementById("msg"), botao = document.getElementById("pagar");
-  var r = await fetch(${JSON.stringify(`${base}/intencao`)}, { method: "POST" }).then(function(x){ return x.json(); }).catch(function(){ return {}; });
-  if (!r.clientSecret) { msg.textContent = r.erro || t.erro; botao.disabled = true; return; }
-  var elements = stripe.elements({ clientSecret: r.clientSecret, appearance: { theme: "night", variables: { colorPrimary: "#00d4ff", colorBackground: "#131c33", borderRadius: "12px", fontFamily: "Plus Jakarta Sans, system-ui, sans-serif" } },
-    fonts: [{ cssSrc: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600&display=swap" }] });
+  var volta = location.origin + ${JSON.stringify(volta)}, rec = ${JSON.stringify(rec)};
+  var aparencia = { theme: "night", variables: { colorPrimary: "#00d4ff", colorBackground: "#131c33", borderRadius: "12px", fontFamily: "Plus Jakarta Sans, system-ui, sans-serif" } };
+  var fontes = [{ cssSrc: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600&display=swap" }];
+  var pedir = function(dados){ return fetch(${JSON.stringify(intencao)}, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados || {}) })
+    .then(function(x){ return x.json(); }).catch(function(){ return {}; }); };
+  var elements, segredo = null;
+  if (rec) {
+    // Assinatura: o campo do cartão abre já; a cobrança (só a criação do site) é criada quando a pessoa paga, com o nome e o e-mail.
+    elements = stripe.elements({ mode: "payment", amount: ${Math.round((rec ? compra.implantacao : compra.valor) * 100)}, currency: ${JSON.stringify(String(compra.moeda).toLowerCase())},
+      setupFutureUsage: "off_session", paymentMethodTypes: ["card"], appearance: aparencia, fonts: fontes });
+  } else {
+    var r = await pedir();
+    if (!r.clientSecret) { msg.textContent = r.erro || t.erro; botao.disabled = true; return; }
+    segredo = r.clientSecret;
+    elements = stripe.elements({ clientSecret: segredo, appearance: aparencia, fonts: fontes });
+  }
   elements.create("payment", { layout: { type: "accordion", defaultCollapsed: false, radios: true, spacedAccordionItems: true }, wallets: { applePay: "auto", googlePay: "auto" },
     defaultValues: { billingDetails: { address: { country: ${JSON.stringify(compra.pais || "PT")} } } } }).mount("#elemento");
+  // Na assinatura, confirma a cobrança criada agora para esta pessoa; no pagamento único, a que já veio com a página.
+  async function pagar(nome, email, carteira){
+    var cs = segredo, extra = {};
+    if (rec) {
+      var envio = await elements.submit();
+      if (envio.error) return envio;
+      var a = await pedir({ nome: nome, email: email });
+      if (!a.clientSecret) return { error: { message: a.erro || t.erro } };
+      cs = a.clientSecret;
+    } else if (email && !carteira) extra.receipt_email = email;
+    if (!carteira && (nome || email)) extra.payment_method_data = { billing_details: { name: nome, email: email } };
+    var params = Object.assign({ return_url: volta }, extra);
+    return stripe.confirmPayment(rec ? { elements: elements, clientSecret: cs, confirmParams: params } : { elements: elements, confirmParams: params });
+  }
   // Apple Pay e Google Pay num toque (aparecem só no aparelho que tem).
   try {
-    var rapido = elements.create("expressCheckout", { buttonHeight: 48, buttonType: { applePay: "buy", googlePay: "buy" } });
+    var rapido = elements.create("expressCheckout", { buttonHeight: 48, buttonType: { applePay: "buy", googlePay: "buy" }, emailRequired: rec });
     rapido.on("ready", function(ev){ if (ev.availablePaymentMethods) document.getElementById("caixa-rapido").hidden = false; });
-    rapido.on("confirm", async function(){
-      var res = await stripe.confirmPayment({ elements: elements, confirmParams: { return_url: location.origin + ${JSON.stringify(`${base}/obrigado`)} } });
-      if (res.error) msg.textContent = res.error.message || t.erro;
+    rapido.on("confirm", async function(ev){
+      var d = (ev && ev.billingDetails) || {};
+      var res = await pagar(d.name || document.getElementById("nome").value.trim(), d.email || document.getElementById("email").value.trim(), true);
+      if (res && res.error) msg.textContent = res.error.message || t.erro;
     });
     rapido.mount("#rapido");
   } catch (e) {}
@@ -162,13 +212,17 @@ export function paginaDoCheckoutStripe(compra, { publica, base, logo = "/checkou
     var nome = document.getElementById("nome").value.trim(), email = document.getElementById("email").value.trim();
     if (!nome || !email) { msg.textContent = t.preencha; return; }
     botao.disabled = true;
-    var res = await stripe.confirmPayment({ elements: elements, confirmParams: { return_url: location.origin + ${JSON.stringify(`${base}/obrigado`)}, receipt_email: email,
-      payment_method_data: { billing_details: { name: nome, email: email } } } });
-    if (res.error) { msg.textContent = res.error.message || t.erro; botao.disabled = false; }
+    var res = await pagar(nome, email);
+    if (res && res.error) { msg.textContent = res.error.message || t.erro; botao.disabled = false; }
   });
 })();
 </script>
 </body></html>`;
+}
+
+function okDaAssinatura(t, compra) {
+  const d = (v) => new Intl.NumberFormat(t.lang, { style: "currency", currency: compra.moeda }).format(v);
+  return t.okRec(d(compra.implantacao), d(compra.valor), dataDoInicio(t, compra.inicio));
 }
 
 /** A página de volta, depois do pagamento: confirmado ou em processamento. */
@@ -176,5 +230,5 @@ export function paginaDoCheckoutStripeFeito(compra, { pago, logo = "/checkout/_/
   const t = textosDoCheckout(compra.pais);
   return `${cabeca(t, compra.plano, logo)}
 <main class="grade" style="grid-template-columns:1fr;max-width:640px"><section class="painel feito">${CERTO}
-<h1>${esc(pago ? t.ok : t.pendente)}</h1><p>${esc(pago ? t.okTxt : t.pendenteTxt)}</p></section></main></body></html>`;
+<h1>${esc(pago ? t.ok : t.pendente)}</h1><p>${esc(!pago ? t.pendenteTxt : compra.recorrente ? okDaAssinatura(t, compra) : t.okTxt)}</p></section></main></body></html>`;
 }

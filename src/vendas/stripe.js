@@ -18,10 +18,11 @@ async function chave() {
   return c?.chave ? decifrar(c.chave) : null;
 }
 
-async function chamar(caminho, { metodo = "GET", campos = null, segredo } = {}) {
+async function chamar(caminho, { metodo = "GET", campos = null, segredo, versao = null } = {}) {
   const r = await fetch(`${API}${caminho}`, {
     method: metodo,
-    headers: { Authorization: `Bearer ${segredo ?? (await chave())}`, ...(campos ? { "Content-Type": "application/x-www-form-urlencoded" } : {}) },
+    headers: { Authorization: `Bearer ${segredo ?? (await chave())}`, ...(campos ? { "Content-Type": "application/x-www-form-urlencoded" } : {}),
+      ...(versao ? { "Stripe-Version": versao } : {}) },
     ...(campos ? { body: new URLSearchParams(campos).toString() } : {}),
   });
   const dados = await r.json().catch(() => ({}));
@@ -333,8 +334,121 @@ export async function checkoutTransparente({ lead, nome, valor, moeda, unico = t
   return `${origemDaPrevia(await carregarCampanhaCompleta())}/checkout/x/${codigo}`;
 }
 
+// ---------- Checkouts fixos: sem empresa, um link só para mandar a qualquer cliente ----------
+
+/**
+ * Cada checkout fixo fica em fluxdeck.com.br/checkout/x/<código> (em inglês com ?lang=en). A criação do site é
+ * cobrada na hora; a mensalidade começa em `inicio` (o cartão fica salvo e, até lá, a assinatura fica em período
+ * de teste no Stripe, sem cobrar). Para mudar valor ou data, mude aqui: o Stripe ganha preços novos sozinho.
+ */
+export const CHECKOUTS_FIXOS = {
+  "site-agendamento": {
+    nome: { pt: "Site institucional personalizado com agendamento", en: "Custom business website with booking integration" },
+    implantacao: 150, valor: 25, moeda: "EUR", inicio: "2027-01-01",
+    itens: {
+      pt: ["Site institucional feito à medida, com a cara da sua empresa", "Ligação por API ao seu sistema interno de agendamento",
+        "Versão para telemóvel, rápida", "Botão do WhatsApp em todas as páginas", "Pronto para aparecer no Google",
+        "Alojamento, manutenção e alterações na mensalidade"],
+      en: ["A custom-made business website with your brand", "API connection to your internal booking system",
+        "Fast mobile version", "WhatsApp button on every page", "Ready to show up on Google",
+        "Hosting, maintenance and changes in the monthly plan"],
+    },
+  },
+};
+
+// A versão da API do Stripe nas chamadas da assinatura (a fatura traz o confirmation_secret do pagamento).
+const VERSAO_ASSINATURA = "2025-03-31.basil";
+const inicioEmSegundos = (inicio) => Math.floor(Date.parse(`${inicio}T00:00:00Z`) / 1000);
+
+function compraFixa(codigo, lang) {
+  const o = CHECKOUTS_FIXOS[codigo];
+  if (!o) return null;
+  const l = lang === "en" ? "en" : "pt";
+  return { codigo, fixo: true, recorrente: true, lang: l, plano: o.nome[l], nome: o.nome[l], nomeInterno: o.nome.pt, empresa: "",
+    pais: l === "pt" ? "PT" : null, lead: null, valor: o.valor, implantacao: o.implantacao, moeda: o.moeda, inicio: o.inicio, itens: o.itens[l], unico: false };
+}
+
+/** Os preços do Stripe do checkout fixo (criados no primeiro pagamento; valor novo, preço novo). */
+async function precosDoFixo(compra) {
+  const guarda = `checkout_fixo_precos:${compra.codigo}:${compra.implantacao}+${compra.valor}${compra.moeda}`;
+  const salvo = await db.lerEstado(guarda);
+  if (salvo) return JSON.parse(salvo);
+  const moeda = compra.moeda.toLowerCase();
+  const mensal = await chamar("/prices", { metodo: "POST", campos: {
+    currency: moeda, unit_amount: String(Math.round(compra.valor * 100)), "recurring[interval]": "month",
+    "product_data[name]": `FluxDeck · ${compra.nomeInterno} (mensalidade)`, "metadata[checkout]": compra.codigo,
+  } });
+  const taxa = await chamar("/prices", { metodo: "POST", campos: {
+    currency: moeda, unit_amount: String(Math.round(compra.implantacao * 100)),
+    "product_data[name]": `FluxDeck · ${compra.nomeInterno} (criação, pagamento único)`, "metadata[checkout]": compra.codigo,
+  } });
+  const precos = { mensal: mensal.id, taxa: taxa.id };
+  await db.gravarEstado(guarda, JSON.stringify(precos));
+  return precos;
+}
+
+const piDoSegredo = (segredo) => String(segredo ?? "").split("_secret_")[0] || null;
+
+/**
+ * A assinatura de quem está pagando o checkout fixo: cliente no Stripe com o nome e o e-mail, a mensalidade com o
+ * primeiro débito em `inicio` e a criação do site na primeira fatura, cobrada agora. Retorna o client secret dela.
+ * Tentar de novo com o mesmo e-mail (cartão recusado) reaproveita a mesma assinatura.
+ */
+async function assinaturaDoFixo(compra, { nome, email }) {
+  const quem = String(nome ?? "").trim().slice(0, 200);
+  const mail = String(email ?? "").trim().toLowerCase().slice(0, 200);
+  if (!quem || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) throw new Error(compra.lang === "pt" ? "Preencha o nome e o e-mail." : "Please fill in your name and email.");
+  const tentativa = `checkout_x_tentativa:${compra.codigo}:${mail}`;
+  const anterior = await db.lerEstado(tentativa);
+  if (anterior) {
+    const { pi: idAnterior, segredo } = JSON.parse(anterior);
+    const pi = await chamar(`/payment_intents/${encodeURIComponent(idAnterior)}`).catch(() => null);
+    if (pi?.status === "succeeded") throw new Error(compra.lang === "pt" ? "Este pagamento já foi feito." : "This payment was already made.");
+    if (pi && ["requires_payment_method", "requires_confirmation", "requires_action"].includes(pi.status)) return { clientSecret: segredo };
+  }
+  const precos = await precosDoFixo(compra);
+  const cliente = await chamar("/customers", { metodo: "POST", campos: {
+    name: quem, email: mail, "preferred_locales[0]": compra.lang === "pt" ? "pt-PT" : "en", "metadata[checkout]": compra.codigo,
+  } });
+  const assinatura = await chamar("/subscriptions", { metodo: "POST", versao: VERSAO_ASSINATURA, campos: {
+    customer: cliente.id, "items[0][price]": precos.mensal, "add_invoice_items[0][price]": precos.taxa,
+    trial_end: String(inicioEmSegundos(compra.inicio)), payment_behavior: "default_incomplete",
+    "payment_settings[save_default_payment_method]": "on_subscription", "payment_settings[payment_method_types][0]": "card",
+    description: `FluxDeck · ${compra.nomeInterno}`, "metadata[checkout]": compra.codigo, "metadata[plano]": compra.nomeInterno,
+    "expand[0]": "latest_invoice.confirmation_secret",
+  } });
+  const segredo = assinatura.latest_invoice?.confirmation_secret?.client_secret;
+  const pi = piDoSegredo(segredo);
+  if (!segredo || !pi) throw new Error("O Stripe não devolveu a cobrança da criação do site");
+  await db.gravarEstado(`checkout_x_assinatura:${pi}`, JSON.stringify({ codigo: compra.codigo, assinatura: assinatura.id, cliente: cliente.id, nome: quem, email: mail }));
+  await db.gravarEstado(tentativa, JSON.stringify({ pi, segredo }));
+  return { clientSecret: segredo };
+}
+
+async function registrarPagamentoFixo(compra, pi, dados) {
+  if (await db.lerEstado(`stripe_pago:${pi.id}`)) return null;
+  await db.gravarEstado(`stripe_pago:${pi.id}`, new Date().toISOString());
+  const dinheiro = (v) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: compra.moeda }).format(v);
+  const data = new Date(`${compra.inicio}T12:00:00Z`).toLocaleDateString("pt-BR", { timeZone: "UTC" });
+  const contato = [dados.nome, dados.email].filter(Boolean).join(" · ");
+  const resumo = `Pagou pelo checkout da FluxDeck (Stripe): ${compra.nomeInterno}, ${dinheiro(compra.implantacao)} agora e ${dinheiro(compra.valor)} por mês a partir de ${data} (${contato})`;
+  const lead = dados.email ? await db.leadPorContato({ email: dados.email }).catch(() => null) : null;
+  const { enviarNotificacao } = await import("../envio/email.js");
+  if (lead) {
+    await db.atualizarLead(lead.id, { status: "fechado", observacao: resumo });
+    await db.cancelarPendentes(lead.id, "a empresa pagou pelo checkout");
+    const { pausarIA } = await import("../respostas/processar.js");
+    await pausarIA(lead.id, `${resumo}: a conversa agora é com você (próximos passos do projeto)`);
+  }
+  await enviarNotificacao(`${lead?.nome ?? dados.nome} pagou: ${compra.nomeInterno} (${dinheiro(compra.implantacao)} + ${dinheiro(compra.valor)}/mês)`,
+    `${contato} pagou ${dinheiro(compra.implantacao)} da criação do ${compra.nomeInterno.toLowerCase()} pelo checkout da FluxDeck, pelo Stripe.\n\nA mensalidade de ${dinheiro(compra.valor)} já está agendada no mesmo cartão: o primeiro débito sai em ${data} e depois todo mês no mesmo dia.\n\n${lead ? "A empresa foi marcada como fechada no painel e a IA parou de responder: mande os próximos passos." : "Não achei essa empresa no sistema pelo e-mail: fale com ela e mande os próximos passos."}`).catch(() => {});
+  return { leadId: lead?.id ?? null, assinatura: dados.assinatura };
+}
+
 /** O que o checkout cobra (sem nada do Stripe). Código que não existe: null. */
-export async function compraDoCheckout(codigo) {
+export async function compraDoCheckout(codigo, { lang = null } = {}) {
+  const fixa = compraFixa(String(codigo ?? ""), lang);
+  if (fixa) return fixa;
   if (!/^[A-Za-z0-9_-]{12,40}$/.test(String(codigo ?? ""))) return null;
   const salvo = await db.lerEstado(chaveDoCheckout(codigo));
   if (!salvo) return null;
@@ -344,9 +458,10 @@ export async function compraDoCheckout(codigo) {
 }
 
 /** A intenção de pagamento do checkout (cria uma vez; reaproveita enquanto não foi paga). Retorna o client secret. */
-export async function intencaoDoCheckout(codigo) {
-  const compra = await compraDoCheckout(codigo);
+export async function intencaoDoCheckout(codigo, pagador = {}) {
+  const compra = await compraDoCheckout(codigo, { lang: pagador.lang });
   if (!compra) throw new Error("Checkout não encontrado");
+  if (compra.fixo) return assinaturaDoFixo(compra, pagador);
   const salvo = await db.lerEstado(`checkout_x_pi:${codigo}`);
   if (salvo) {
     const pi = await chamar(`/payment_intents/${encodeURIComponent(salvo)}`);
@@ -364,9 +479,18 @@ export async function intencaoDoCheckout(codigo) {
 }
 
 /** Confere no Stripe se o pagamento do checkout entrou e, se entrou, registra (fecha a empresa e avisa você). */
-export async function confirmarCheckout(codigo, idDaIntencao = null) {
-  const compra = await compraDoCheckout(codigo);
+export async function confirmarCheckout(codigo, idDaIntencao = null, { lang = null } = {}) {
+  const compra = await compraDoCheckout(codigo, { lang });
   if (!compra) return { compra: null, pago: false };
+  if (compra.fixo) {
+    const salvo = idDaIntencao ? await db.lerEstado(`checkout_x_assinatura:${idDaIntencao}`) : null;
+    const dados = salvo ? JSON.parse(salvo) : null;
+    if (!dados || dados.codigo !== codigo) return { compra, pago: false };
+    const pi = await chamar(`/payment_intents/${encodeURIComponent(idDaIntencao)}`);
+    if (pi.status !== "succeeded") return { compra, pago: false };
+    await registrarPagamentoFixo(compra, pi, dados);
+    return { compra, pago: true };
+  }
   const id = idDaIntencao || (await db.lerEstado(`checkout_x_pi:${codigo}`));
   if (!id) return { compra, pago: false };
   const pi = await chamar(`/payment_intents/${encodeURIComponent(id)}`);
@@ -495,7 +619,10 @@ export async function processarAviso(corpoBruto, cabecalho) {
   const evento = JSON.parse(Buffer.from(corpoBruto).toString("utf8"));
   if (evento.type === EVENTO_INTENCAO) {
     const pi = evento.data?.object;
-    return { aceito: true, pagamento: pi?.metadata?.checkout ? (await confirmarCheckout(pi.metadata.checkout, pi.id)).pago : null };
+    if (pi?.metadata?.checkout) return { aceito: true, pagamento: (await confirmarCheckout(pi.metadata.checkout, pi.id)).pago };
+    // A cobrança da criação do site de um checkout fixo (fatura da assinatura, sem o código nos metadados).
+    const fixo = pi?.id ? await db.lerEstado(`checkout_x_assinatura:${pi.id}`) : null;
+    return { aceito: true, pagamento: fixo ? (await confirmarCheckout(JSON.parse(fixo).codigo, pi.id)).pago : null };
   }
   if (evento.type !== EVENTO_PAGO) return { aceito: true };
   return { aceito: true, pagamento: await registrarPagamento(evento.data?.object) };
