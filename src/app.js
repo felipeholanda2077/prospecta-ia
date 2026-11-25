@@ -40,6 +40,7 @@ import * as produtos from "./vendas/produtos.js";
 import * as dropshipping from "./vendas/dropshipping.js";
 import { createCanvas, loadImage } from "@napi-rs/canvas";
 import { rodadaDoMercadoLivre, enviarResposta, refazerSugestao, testarSugestao } from "./vendas/mercadolivre.js";
+import * as visualizacoes from "./vendas/visualizacoes.js";
 import { lerBaseDeConteudo, gravarBaseDeConteudo } from "./conteudo/base.js";
 import { postarNoInstagram, assinaturaDaMidia, gerarArquivos, rodadaDasOutrasContas } from "./conteudo/instagram.js";
 import { narracaoDisponivel, carregarChaveDaVoz, salvarChaveDoGemini } from "./conteudo/narracao.js";
@@ -531,6 +532,8 @@ const TAREFAS_CRON = {
   mercadolivre: async (c) => ({
     ...(await rodadaDoMercadoLivre(c)),
     ...(await dropshipping.conferirVendas().catch((e) => ({ compras: `erro: ${e.message}` }))),
+    // E, a cada 6 horas, as visitas de cada anúncio, para a aba "Mais vistos".
+    ...(await visualizacoes.atualizarSeVelho().catch((e) => ({ visitas: `erro: ${e.message}` }))),
   }),
   // A cada hora: as parcelas perto de vencer e o que já foi pago, inclusive pelos links de pagamento.
   cobrancas: async () => ({ ...(await cobrancas.rodadaDeCobrancas()), ...(await entrada.conferirVendas()),
@@ -1010,6 +1013,16 @@ const painelDoMl = async () => ({
 app.get("/api/mercadolivre", rotaMl(painelDoMl));
 app.post("/api/mercadolivre/atualizar", rotaMl(async () => ({ rodada: await rodadaDoMercadoLivre(await carregarCampanhaCompleta()), ...(await painelDoMl()) })));
 app.post("/api/mercadolivre/testar", rotaMl(() => testarSugestao()));
+// Os produtos mais vistos: Mercado Livre pela API, TikTok Shop pelo arquivo que a Central do vendedor exporta.
+app.get("/api/visualizacoes", rotaMl(() => visualizacoes.painelDeVisualizacoes()));
+app.post("/api/visualizacoes/mercadolivre", rotaMl(async () => {
+  await visualizacoes.atualizarVisitasDoMercadoLivre();
+  return visualizacoes.painelDeVisualizacoes();
+}));
+app.post("/api/visualizacoes/tiktok", rotaMl(async (req) => {
+  await visualizacoes.importarTiktok(req.body ?? {});
+  return visualizacoes.painelDeVisualizacoes();
+}));
 // Os pedidos de todas as contas e lojas. O erro de uma não esconde as outras.
 app.get("/api/marketplaces/pedidos", rotaMl(async () => {
   const erros = [];

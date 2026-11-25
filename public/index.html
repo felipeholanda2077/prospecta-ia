@@ -627,6 +627,20 @@
   @media (max-width: 900px) { .post-corpo { grid-template-columns: 1fr; } .post-previa { justify-items: center; } }
 
   /* Contratos: o papel é sempre claro, como vai sair no PDF */
+  .vis-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 14px; align-items: start; }
+  .vis-lista { display: grid; gap: 2px; }
+  .vis-linha { display: grid; grid-template-columns: 26px 48px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 4px; border-top: 1px solid var(--border); }
+  .vis-linha:first-child { border-top: 0; }
+  .vis-pos { font-weight: 700; color: var(--muted); text-align: center; font-variant-numeric: tabular-nums; }
+  .vis-linha:nth-child(-n+3) .vis-pos { color: var(--accent-text); }
+  .vis-foto { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; background: var(--bg); }
+  .vis-nome { font-weight: 600; font-size: 14px; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .vis-nome a { color: inherit; text-decoration: none; }
+  .vis-nome a:hover { text-decoration: underline; }
+  .vis-det { font-size: 12.5px; }
+  .vis-num { text-align: right; font-variant-numeric: tabular-nums; }
+  .vis-num b { display: block; font-size: 18px; line-height: 1.1; }
+  .vis-num span { font-size: 11.5px; }
   .forn-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; }
   .forn-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; min-width: 0; }
   .forn-card h3 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
@@ -1456,6 +1470,7 @@
         <div id="ml-aviso"></div>
         <div class="filtros" id="ml-abas" role="tablist" aria-label="Marketplaces" style="margin:0 0 12px;flex-wrap:wrap">
           <button type="button" class="filtro" role="tab" data-ml-aba="produtos" aria-pressed="true">Produtos</button>
+          <button type="button" class="filtro" role="tab" data-ml-aba="vistos" aria-pressed="false">Mais vistos</button>
           <button type="button" class="filtro" role="tab" data-ml-aba="perguntas" aria-pressed="false">Perguntas <span id="ml-total"></span></button>
           <button type="button" class="filtro" role="tab" data-ml-aba="pedidos" aria-pressed="false">Pedidos</button>
           <button type="button" class="filtro" role="tab" data-ml-aba="conexao" aria-pressed="false">Contas</button>
@@ -1499,6 +1514,37 @@
               <button class="btn fantasma" type="button" id="prod-cancelar">Cancelar</button></div>
           </form>
           <div class="forn-grade" id="prod-lista"></div>
+        </div>
+        <div data-ml-painel="vistos" hidden>
+          <div id="vis-avisos"></div>
+          <div class="vis-grade">
+            <section class="cartao">
+              <div class="cartao-cab"><span class="kpi-ic" data-ic-span="store"></span><div class="titulos"><h3>Mercado Livre</h3>
+                <div class="meta" id="vis-ml-meta">Visitas de cada anúncio, direto da API.</div></div></div>
+              <div class="cartao-corpo" style="display:grid;gap:10px">
+                <div class="forn-pilulas" style="align-items:center"><button class="btn" type="button" id="vis-ml-atualizar"><span data-ic="refresh"></span>Atualizar agora</button>
+                  <label class="muted" style="font-size:13px;display:flex;gap:6px;align-items:center"><input type="checkbox" id="vis-ml-ativos" checked>Só anúncios ativos</label></div>
+                <div class="vis-lista" id="vis-ml-lista"></div>
+              </div>
+            </section>
+            <section class="cartao">
+              <div class="cartao-cab"><span class="kpi-ic" data-ic-span="tiktok"></span><div class="titulos"><h3>TikTok Shop</h3>
+                <div class="meta" id="vis-tk-meta">Impressões e visualizações de cada produto, pelo relatório da Central do vendedor.</div></div></div>
+              <div class="cartao-corpo" style="display:grid;gap:10px">
+                <details class="ajuda"><summary>Como trazer os números do TikTok Shop</summary>
+                  <ol><li>Na Central do vendedor do TikTok Shop, abra <b>Análise → Análise de produtos → Detalhes</b>.</li>
+                    <li>Escolha o período (por exemplo, últimos 30 dias). Em <b>Personalizar métricas</b>, deixe marcadas <b>Impressões do produto</b> e <b>Visualizações da página do produto</b> (ou <b>Cliques no produto</b>).</li>
+                    <li>Clique em <b>Exportar</b> e envie o arquivo aqui. Também dá para selecionar a tabela na tela, copiar e colar abaixo.</li></ol></details>
+                <div class="forn-pilulas" style="align-items:center">
+                  <label class="btn" style="cursor:pointer"><span data-ic="file"></span>Enviar arquivo (.xlsx ou .csv)<input type="file" id="vis-tk-arquivo" accept=".xlsx,.csv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden></label>
+                  <input id="vis-tk-periodo" placeholder="Período (ex.: últimos 30 dias)" maxlength="60" style="max-width:220px"></div>
+                <details><summary class="muted" style="font-size:13px;cursor:pointer">Colar a tabela</summary>
+                  <div style="display:grid;gap:8px;margin-top:8px"><textarea id="vis-tk-texto" rows="5" placeholder="Cole aqui a tabela copiada, com a linha do cabeçalho"></textarea>
+                    <div><button class="btn" type="button" id="vis-tk-colar"><span data-ic="save"></span>Importar tabela colada</button></div></div></details>
+                <div class="vis-lista" id="vis-tk-lista"></div>
+              </div>
+            </section>
+          </div>
         </div>
         <div data-ml-painel="perguntas" hidden>
           <div class="forn-acoes"><button class="btn" type="button" id="ml-atualizar"><span data-ic="refresh"></span>Buscar perguntas agora</button>
@@ -8173,6 +8219,7 @@ function desenharMercadoLivre() {
   $$("[data-ml-aba]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mlAba === aba)));
   $$("[data-ml-painel]").forEach((p) => (p.hidden = p.dataset.mlPainel !== aba));
   if (aba === "conexao") $("[data-ml-painel=conexao]").style.display = "grid"; else $("[data-ml-painel=conexao]").style.display = "none";
+  if (aba === "vistos") desenharVistos();
   $("#ml-total").textContent = pendentes.length ? `(${pendentes.length})` : "";
   $("#ml-aviso").innerHTML = [c.erro, sp.erro].filter(Boolean).map((e) => `<div class="alerta perigo" style="margin-bottom:12px">${ic("alert")}<div>${esc(e)}</div></div>`).join("");
   const f = $("#form-ml");
@@ -8228,6 +8275,106 @@ $("#ml-abas").addEventListener("click", (ev) => {
   estadoMl.aba = b.dataset.mlAba;
   desenharMercadoLivre();
   if (estadoMl.aba === "pedidos" && destinos().length) carregarPedidosMl();
+  if (estadoMl.aba === "vistos") carregarVistos();
+});
+
+// ---------- Mais vistos: Mercado Livre (API) e TikTok Shop (arquivo exportado) ----------
+
+const numeroBr = (n) => (n == null ? "–" : Number(n).toLocaleString("pt-BR", { maximumFractionDigits: 2 }));
+
+function linhaVista(pos, { foto, nome, link, principal, rotulo, detalhes, pilula }) {
+  return `<div class="vis-linha"><div class="vis-pos">${pos}</div>
+    ${foto ? `<img class="vis-foto" src="${esc(foto)}" alt="" loading="lazy">` : `<div class="vis-foto"></div>`}
+    <div style="min-width:0"><div class="vis-nome">${link ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">${esc(nome)}</a>` : esc(nome)}</div>
+      <div class="vis-det muted">${pilula ? `<span class="pilula" style="font-size:11px;padding:1px 7px;margin-right:4px">${esc(pilula)}</span>` : ""}${detalhes.filter(Boolean).map(esc).join(" · ")}</div></div>
+    <div class="vis-num"><b>${numeroBr(principal)}</b><span class="muted">${esc(rotulo)}</span></div></div>`;
+}
+
+function desenharVistos() {
+  const v = estadoMl.vistos;
+  const vazioVis = (t) => `<div class="muted" style="font-size:13.5px;padding:8px 0">${t}</div>`;
+  if (!v) { $("#vis-ml-lista").innerHTML = vazioVis("Carregando…"); $("#vis-tk-lista").innerHTML = ""; return; }
+  const m = v.mercadoLivre;
+  $("#vis-avisos").innerHTML = (m?.erros ?? []).map((e) => `<div class="alerta perigo" style="margin-bottom:12px">${ic("alert")}<div>${esc(e)}</div></div>`).join("");
+  $("#vis-ml-meta").textContent = m ? `Visitas dos últimos ${m.dias} dias, de ${m.itens.length} anúncios. Atualizado em ${dataHora(m.atualizadoEm)}; o sistema refaz sozinho a cada 6 horas.` : "Visitas de cada anúncio, direto da API.";
+  const soAtivos = $("#vis-ml-ativos").checked;
+  const itensMl = (m?.itens ?? []).filter((x) => !soAtivos || x.status === "active");
+  $("#vis-ml-lista").innerHTML = !v.mlConectado && !m ? vazioVis("Conecte uma conta do Mercado Livre na aba <b>Contas</b> para ver as visitas.")
+    : estadoMl.vistosCarregandoMl && !m ? vazioVis("Buscando as visitas no Mercado Livre…")
+    : !m ? vazioVis("Clique em <b>Atualizar agora</b> para buscar as visitas.")
+    : !itensMl.length ? vazioVis("Nenhum anúncio ativo.")
+    : itensMl.map((x, i) => linhaVista(i + 1, {
+      foto: x.foto, nome: x.titulo, link: x.link, principal: x.visitasPeriodo, rotulo: `visitas em ${m.dias} dias`,
+      pilula: x.status === "active" ? null : x.status === "paused" ? "pausado" : x.status,
+      detalhes: [x.visitasTotal != null && `${numeroBr(x.visitasTotal)} no total`, `${numeroBr(x.vendidos)} ${x.vendidos === 1 ? "vendido" : "vendidos"}`, x.preco != null && dinheiro(x.preco), (m.itens.some((y) => y.loja !== x.loja)) && x.loja],
+    })).join("");
+  const t = v.tiktok;
+  $("#vis-tk-meta").textContent = t ? `${t.itens.length} produtos${t.periodo ? `, ${t.periodo}` : ""}. Importado em ${dataHora(t.importadoEm)}${t.arquivo ? ` (${t.arquivo})` : ""}. Envie um arquivo novo para atualizar.` : "Impressões e visualizações de cada produto, pelo relatório da Central do vendedor.";
+  const temVis = t?.colunas?.includes("visualizacoes");
+  $("#vis-tk-lista").innerHTML = !t ? vazioVis("Ainda não há números do TikTok Shop. Siga o passo a passo acima e envie o arquivo.")
+    : t.itens.map((x, i) => linhaVista(i + 1, {
+      nome: x.nome, principal: temVis ? x.visualizacoes : x.impressoes, rotulo: temVis ? "visualizações" : "impressões",
+      detalhes: [temVis && x.impressoes != null && `${numeroBr(x.impressoes)} impressões`, x.clientes != null && `${numeroBr(x.clientes)} clientes`,
+        x.vendidos != null && `${numeroBr(x.vendidos)} vendidos`, x.pedidos != null && x.vendidos == null && `${numeroBr(x.pedidos)} pedidos`, x.gmv != null && x.gmv > 0 && dinheiro(x.gmv)],
+    })).join("");
+}
+
+async function atualizarVistosMl({ silencioso = false } = {}) {
+  const btn = $("#vis-ml-atualizar");
+  btn.disabled = true;
+  estadoMl.vistosCarregandoMl = true;
+  desenharVistos();
+  try {
+    estadoMl.vistos = await post("/api/visualizacoes/mercadolivre");
+    if (!silencioso) avisar("Visitas do Mercado Livre atualizadas.", "ok");
+  } catch (e) {
+    avisar(e.message, "perigo", 8000);
+  } finally {
+    btn.disabled = false;
+    estadoMl.vistosCarregandoMl = false;
+    desenharVistos();
+  }
+}
+
+async function carregarVistos() {
+  try {
+    estadoMl.vistos = await api("/api/visualizacoes");
+  } catch (e) {
+    avisar(e.message, "perigo");
+    estadoMl.vistos = estadoMl.vistos ?? { mlConectado: false };
+  }
+  desenharVistos();
+  if (estadoMl.vistos.mlConectado && !estadoMl.vistos.mercadoLivre && !estadoMl.vistosCarregandoMl) atualizarVistosMl({ silencioso: true });
+}
+
+async function importarTiktok(corpo) {
+  try {
+    estadoMl.vistos = await post("/api/visualizacoes/tiktok", { ...corpo, periodo: $("#vis-tk-periodo").value.trim() });
+    avisar(`TikTok Shop: ${estadoMl.vistos.tiktok.itens.length} produtos importados.`, "ok");
+    desenharVistos();
+    return true;
+  } catch (e) {
+    avisar(e.message, "perigo", 9000);
+    return false;
+  }
+}
+
+$("#vis-ml-atualizar").addEventListener("click", () => atualizarVistosMl());
+$("#vis-ml-ativos").addEventListener("change", desenharVistos);
+$("#vis-tk-arquivo").addEventListener("change", (ev) => {
+  const arq = ev.target.files?.[0];
+  ev.target.value = "";
+  if (!arq) return;
+  if (arq.size > 600_000) { avisar("Arquivo grande demais. Exporte só a lista de produtos.", "perigo"); return; }
+  const leitor = new FileReader();
+  leitor.onload = () => importarTiktok({ arquivo: leitor.result, nome: arq.name });
+  leitor.onerror = () => avisar("Não consegui ler o arquivo.", "perigo");
+  leitor.readAsDataURL(arq);
+});
+$("#vis-tk-colar").addEventListener("click", async () => {
+  const texto = $("#vis-tk-texto").value;
+  if (!texto.trim()) { avisar("Cole a tabela primeiro.", "perigo"); return; }
+  if (await importarTiktok({ texto })) $("#vis-tk-texto").value = "";
 });
 
 $("#ml-atualizar").addEventListener("click", async (ev) => {

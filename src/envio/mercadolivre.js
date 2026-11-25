@@ -213,6 +213,9 @@ export async function primeiroAnuncio(id, agora) {
 
 export const apelidoDaLoja = async (id) => (await lerConta(id)).apelido ?? "";
 
+/** Uma leitura qualquer na API, com o acesso da conta (usada para os anúncios e as visitas). */
+export const consultar = (id, caminho, agora) => chamar(id, "GET", caminho, null, agora);
+
 export const responderPergunta = (contaId, perguntaId, texto, agora) => chamar(contaId, "POST", "/answers", { question_id: Number(perguntaId), text: texto }, agora);
 
 /** As vendas mais recentes, só com o necessário: nem endereço nem documento do comprador entram aqui. */
