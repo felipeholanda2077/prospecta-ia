@@ -395,10 +395,10 @@ if(!touch){let px=0,py=0,tx=0,ty=0;$('#rows').addEventListener('pointermove',e=>
 
 /* cria o teu estilo */
 const COLS=[['Nude rosado','#e9b9a9'],['Leite','#f4ece3'],['Vermelho cereja','#9e1b2b'],['Castanho café','#5b3527'],['Azul-marinho','#1f3767'],['Verde-sálvia','#8c9a78'],['Lilás','#b9a4c9'],['Preto','#1d1b1c']];
-const N=[{x:146,y:774,a:-13.8,w:60,l:128},{x:445,y:287,a:0,w:72,l:88},{x:605,y:225,a:0,w:78,l:98},{x:767,y:342,a:1,w:80,l:101},{x:957,y:560,a:2,w:64,l:79}];
+const N=[{x:149,y:764,a:-10,w:58,l:117},{x:444,y:284,a:0,w:80,l:91},{x:611,y:221,a:0,w:84,l:98},{x:771,y:337,a:0,w:81,l:99},{x:956,y:560,a:0,w:63,l:86}];
 const EXT={quadrada:30,amendoa:46,oval:22,stiletto:84};
-function shape(s,w,l){const h=w/2,r=h*.55,L=l+EXT[s]*(w/72);
- const base=`M${-h} ${-r} Q${-h} 2 0 2 Q${h} 2 ${h} ${-r}`;
+function shape(s,w,l){const h=w/2,r=h*.6,L=l+EXT[s]*(w/72);
+ const base=`M${-h} ${-r} Q${-h} 0 0 0 Q${h} 0 ${h} ${-r}`;
  if(s==='quadrada')return `${base} L${h} ${-L+8} Q${h} ${-L} ${h-8} ${-L} L${-h+8} ${-L} Q${-h} ${-L} ${-h} ${-L+8} Z`;
  if(s==='oval')return `${base} L${h} ${-L+h*.9} Q${h} ${-L} 0 ${-L} Q${-h} ${-L} ${-h} ${-L+h*.9} Z`;
  if(s==='amendoa')return `${base} L${h} ${-L*.62} C${h} ${-L*.88} ${h*.45} ${-L} 0 ${-L} C${-h*.45} ${-L} ${-h} ${-L*.88} ${-h} ${-L*.62} Z`;
