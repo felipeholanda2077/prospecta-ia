@@ -224,6 +224,13 @@ test("checkouts dos planos: um por plano em reais e em dólar; rodar de novo rea
     assert.equal(desativados.length, 0);
     // A página em inglês já leva o botão para o checkout em dólar.
     assert.ok((await stripe.precosPublicos("USD")).planos.every((p) => /^https:\/\/buy\.stripe\.com\//.test(p.checkout)));
+    // Portugal: checkout em euro de cada plano (menos os sites mensais), com o nome e o aviso em português de Portugal.
+    const comEuro = await stripe.criarCheckoutsDosPlanos({ moedas: ["BRL", "USD", "EUR"] });
+    const euro = comEuro.filter((x) => x.moeda === "EUR");
+    assert.ok(euro.length && !euro.some((x) => /^(site profissional|moderniza)/i.test(x.plano)));
+    assert.ok(criados.some((c) => /^Ao subscrever/.test(c["custom_text[submit][message]"] ?? "")));
+    const pt = (await stripe.precosPublicos("EUR")).planos.filter((p) => !/website/i.test(p.nome));
+    assert.ok(pt.length && pt.every((p) => /^https:\/\/buy\.stripe\.com\//.test(p.checkout)));
 
     // Pagou pelo checkout do plano: a empresa da conversa é achada pelo telefone e fecha.
     await db.inserirLead({ place_id: "ChIJcheckout0000000000000001", nome: "Clínica Paga", cidade: "Osasco - SP", whatsapp: "5511987654321" });

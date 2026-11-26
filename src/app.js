@@ -1335,7 +1335,7 @@ app.post("/api/asaas/planos", async (req, res) => {
     res.status(400).json({ erro: e.message });
   }
 });
-// Checkouts fixos dos planos (reais para o Brasil, dólar para os EUA): listar e criar/atualizar no Stripe.
+// Checkouts fixos dos planos (dólar para os EUA, euro para Portugal): listar e criar/atualizar no Stripe.
 app.get("/api/stripe/planos", async (req, res) => res.json({ links: await stripe.checkoutsDosPlanos() }));
 app.post("/api/stripe/planos", async (req, res) => {
   try {

@@ -157,6 +157,19 @@ const NOMES_EM_INGLES = {
   "loja virtual": "Online store",
   "sistema de gestao sob medida": "Custom management system",
 };
+// O nome de cada plano em português de Portugal (os mesmos da página fluxdeck.com.br/pt), para o checkout em euro.
+const NOMES_PT_PT = {
+  "professional com ia de atendimento no whatsapp": "Profissional + IA no WhatsApp",
+  "professional": "Profissional",
+  "app mobile": "Aplicação para telemóvel",
+  "correcoes avulsas": "Ajustes e melhorias",
+  "automacao de atendimento e crm": "Atendimento automático e CRM",
+  "sistema de agendamento online": "Sistema de marcações online",
+  "loja virtual": "Loja online",
+  "sistema de gestao sob medida": "Sistema de gestão à medida",
+};
+// Em Portugal o site é o checkout fixo (150 € + 25 €/mês): os planos de site mensais não ganham checkout em euro.
+const SITES_FORA_DO_EURO = new Set(["modernizacao de site", "site profissional"]);
 /** "Loja virtual" → "Online store"; nome que não está na lista fica como está. */
 export const nomeEmIngles = (nome) => NOMES_EM_INGLES[simples(nome)] ?? nome;
 
@@ -174,8 +187,9 @@ export const checkoutsDosPlanos = async () => (await db.lerConfig(CHAVE_PLANOS))
  * página em inglês). Rodar de novo reaproveita o que não mudou; plano com valor novo ganha um link novo e o antigo
  * é desativado. O diagnóstico do site fica de fora (tem página e relatório próprios, pelo Asaas).
  */
-// Só dólar: as vendas do Brasil vão pelo Asaas (taxas menores, ver checkoutsAsaas.js). Rodar de novo desativa os em reais.
-export async function criarCheckoutsDosPlanos({ moedas = ["USD"] } = {}) {
+// Dólar (EUA) e euro (Portugal, botões de fluxdeck.com.br/pt): as vendas do Brasil vão pelo Asaas (taxas menores, ver
+// checkoutsAsaas.js). Rodar de novo desativa os em reais.
+export async function criarCheckoutsDosPlanos({ moedas = ["USD", "EUR"] } = {}) {
   if (!(await situacao()).conectado) throw new Error("Conecte o Stripe em Configurações primeiro");
   const [cot, conf] = await Promise.all([cotacoes(), configInternacional()]);
   const antigos = await checkoutsDosPlanos();
@@ -188,6 +202,7 @@ export async function criarCheckoutsDosPlanos({ moedas = ["USD"] } = {}) {
     for (const p of fontes[moeda] ?? fontes.USD) {
       // Pagamento único (a oferta do site da Black Friday) é só do Brasil, pelo Asaas.
       if (p.promocao || p.intervalo === "once" || vistos.has(simples(p.nome)) || /diagn[oó]stico/i.test(p.nome)) continue;
+      if (moeda === "EUR" && SITES_FORA_DO_EURO.has(simples(p.nome))) continue;
       vistos.add(simples(p.nome));
       const emPortugues = moeda === "BRL";
       const valor = emPortugues ? p.reais : arredondarPreco(p.reais * cot[moeda] * (1 + conf.ajustePct / 100));
@@ -196,7 +211,8 @@ export async function criarCheckoutsDosPlanos({ moedas = ["USD"] } = {}) {
       const igual = antigos.find((a) => a.plano === p.nome && a.moeda === moeda && a.valor === valor
         && (a.intervalo ?? "month") === intervalo && (a.implantacao ?? null) === implantacao);
       if (igual) { novos.push(igual); continue; }
-      const nome = emPortugues ? p.nome : nomeEmIngles(p.nome);
+      const emEuro = moeda === "EUR";
+      const nome = emPortugues ? p.nome : emEuro ? NOMES_PT_PT[simples(p.nome)] ?? p.nome : nomeEmIngles(p.nome);
       const preco = await chamar("/prices", { metodo: "POST", campos: {
         currency: moeda.toLowerCase(), unit_amount: String(Math.round(valor * 100)), "recurring[interval]": intervalo,
         "product_data[name]": `FluxDeck · ${nome}`, "metadata[plano]": p.nome,
@@ -214,7 +230,8 @@ export async function criarCheckoutsDosPlanos({ moedas = ["USD"] } = {}) {
         "phone_number_collection[enabled]": "true",
         "custom_text[submit][message]": emPortugues
           ? `Ao assinar, você concorda com os Termos de Uso da FluxDeck: ${TERMOS_BR}`
-          : `By subscribing, you agree to the FluxDeck Service Agreement: ${CONTRATO_EN}`,
+          : emEuro ? `Ao subscrever, concorda com o contrato de serviço da FluxDeck: ${CONTRATO_EN}`
+            : `By subscribing, you agree to the FluxDeck Service Agreement: ${CONTRATO_EN}`,
       } });
       await db.gravarEstado(`stripe_link_plano:${link.id}`, JSON.stringify({ plano: p.nome, valor, moeda }));
       novos.push({ plano: p.nome, nome, moeda, valor, intervalo, implantacao, url: link.url, id: link.id });

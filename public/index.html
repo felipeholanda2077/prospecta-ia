@@ -3092,7 +3092,7 @@ async function mostrarCheckoutsDosPlanos() {
   if (!alvo) return;
   const { links } = await api("/api/stripe/planos").catch(() => ({ links: [] }));
   const { links: doAsaas } = await api("/api/asaas/planos").catch(() => ({ links: [] }));
-  const valor = (l) => new Intl.NumberFormat(l.moeda === "BRL" ? "pt-BR" : "en-US", { style: "currency", currency: l.moeda, maximumFractionDigits: 0 }).format(l.valor);
+  const valor = (l) => new Intl.NumberFormat(l.moeda === "BRL" ? "pt-BR" : l.moeda === "EUR" ? "pt-PT" : "en-US", { style: "currency", currency: l.moeda, maximumFractionDigits: 0 }).format(l.valor);
   const grupo = (moeda, titulo) => {
     const da = links.filter((l) => l.moeda === moeda);
     return da.length ? `<div style="display:grid;gap:6px"><b style="font-size:13px">${titulo}</b>${da.map((l) => `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:13px">
@@ -3102,8 +3102,8 @@ async function mostrarCheckoutsDosPlanos() {
   };
   alvo.innerHTML = `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><b style="flex:1">Checkouts dos planos</b>
       <button class="btn ${links.length ? "" : "primario"} sm" type="button" data-criar-checkouts>${ic("refresh", "sm")}${links.length ? "Atualizar com os valores de hoje" : "Criar os checkouts na Stripe"}</button></div>
-    <p class="muted" style="font-size:12.5px;margin:0 0 10px">Um link de pagamento fixo por plano, no cartão: em reais (Brasil: a implantação, uma vez, e a mensalidade ou anuidade da apresentação daqui) e em dólar (EUA: a mensalidade da apresentação de fora, pela cotação do dia com o ajuste de fora). Quem paga é ligado à empresa da conversa pelo e-mail ou telefone; se não for de nenhuma, você recebe o aviso por e-mail. Os botões da página em inglês já levam para eles.</p>
-    ${links.length ? `<div style="display:grid;gap:14px">${grupo("BRL", "Brasil pelo Stripe (R$)")}${grupo("USD", "Estados Unidos (US$)")}</div>` : ""}
+    <p class="muted" style="font-size:12.5px;margin:0 0 10px">Um link de pagamento fixo por plano, no cartão: em reais (Brasil: a implantação, uma vez, e a mensalidade ou anuidade da apresentação daqui) em dólar (EUA) e em euro (Portugal), com a mensalidade da apresentação de fora pela cotação do dia com o ajuste de fora. Quem paga é ligado à empresa da conversa pelo e-mail ou telefone; se não for de nenhuma, você recebe o aviso por e-mail. Os botões das páginas em inglês e de Portugal já levam para eles.</p>
+    ${links.length ? `<div style="display:grid;gap:14px">${grupo("BRL", "Brasil pelo Stripe (R$)")}${grupo("USD", "Estados Unidos (US$)")}${grupo("EUR", "Portugal (€, botões de fluxdeck.com.br/pt)")}</div>` : ""}
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border);display:grid;gap:8px">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b style="flex:1">Brasil pelo Asaas (taxas menores)</b>
         <button class="btn ${doAsaas.length ? "" : "primario"} sm" type="button" data-criar-checkouts-asaas>${ic("refresh", "sm")}${doAsaas.length ? "Atualizar com a apresentação" : "Criar os checkouts no Asaas"}</button></div>
