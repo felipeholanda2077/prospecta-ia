@@ -293,6 +293,55 @@ h2.in,html:not(.anim) h2{background-size:100% .16em}
 @media(max-width:860px){.pieside .order{position:static}#oList{max-height:none}}
 [hidden]{display:none!important}
 @media(max-width:860px){.pieside{order:2}.mt td .add{font-size:1rem;padding:3px 9px}.mt td .add::before{content:""}.mt td,.mt th{padding-left:4px;padding-right:4px}.mt td:first-child{font-size:.95rem}.mt td i{display:none}}
+
+.odet{display:block;font-size:.8rem;color:var(--soft);margin-top:2px;line-height:1.35}
+.cfg{margin:auto;border:0;padding:0;border-radius:22px;width:min(560px,94vw);max-height:90vh;background:var(--cream);color:var(--ink);box-shadow:0 30px 80px #17213b66}
+.cfg::backdrop{background:#17213b99;backdrop-filter:blur(3px)}
+.cfg[open]{animation:cfgin .35s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes cfgin{from{opacity:0;transform:translateY(30px) scale(.97)}}
+.cfg form{display:flex;flex-direction:column;max-height:90vh}
+.cfg header{padding:22px 24px 14px;border-bottom:2px dashed #17213b22;display:flex;justify-content:space-between;gap:12px;align-items:start}
+.cfg header h3{font-size:1.7rem;line-height:1.1}.cfg header small{display:block;color:var(--soft);font-size:.9rem;margin-top:4px}
+.cfg .x{background:none;border:1.5px solid var(--navy);border-radius:50%;width:34px;height:34px;font-size:1.1rem;line-height:1;flex:none}
+.cfg .bd{overflow:auto;padding:6px 24px 10px}
+.cg{padding:14px 0;border-bottom:1.5px dashed #17213b1a}
+.cg h4{font-size:.98rem;display:flex;justify-content:space-between;gap:10px;margin-bottom:10px}
+.cg h4 em{font-style:normal;font-weight:500;font-size:.82rem;color:var(--soft)}
+.cg h4 em.bad{color:var(--berry);font-weight:700}
+.opts{display:flex;flex-wrap:wrap;gap:8px}
+.opt{font:inherit;font-size:.92rem;background:#fff;border:1.5px solid #17213b33;border-radius:999px;padding:8px 14px;display:inline-flex;gap:8px;align-items:center;transition:all .15s}
+.opt b{font-weight:600;color:var(--berry);font-size:.84rem}
+.opt[aria-pressed=true]{background:var(--navy);color:var(--cream);border-color:var(--navy)}
+.opt[aria-pressed=true] b{color:var(--butter)}
+.opt:disabled{opacity:.4}
+.cfg footer{padding:14px 24px 20px;border-top:2px dashed #17213b22;display:flex;justify-content:space-between;align-items:center;gap:14px;background:#fff8e7;border-radius:0 0 22px 22px}
+.cfg footer b{font-family:var(--disp);font-weight:400;font-size:1.9rem;color:var(--berry)}
+.cfg footer small{display:block;color:var(--soft);font-size:.8rem}
+.cfg footer .btn{padding:12px 22px;background:var(--navy);color:var(--cream);border-color:var(--navy);box-shadow:0 4px 0 #0e1630}
+.cfg footer .btn[aria-disabled=true]{opacity:.45;pointer-events:none}
+.bagbtn{position:fixed;right:18px;bottom:142px;z-index:26;display:flex;align-items:center;gap:10px;background:var(--navy);color:var(--cream);border:0;border-radius:999px;padding:10px 18px 10px 12px;font:inherit;font-weight:600;box-shadow:0 10px 24px -8px #17213bcc;transform:translateY(160px);transition:transform .45s cubic-bezier(.2,.9,.3,1.3)}
+.bagbtn.on{transform:none}
+.bagbtn svg{width:26px;height:26px}
+.bagbtn i{font-style:normal;position:absolute;left:30px;top:4px;background:var(--berry);color:#fff;border-radius:999px;font-size:.72rem;min-width:19px;height:19px;display:grid;place-items:center;padding:0 5px}
+.bagbtn.pulse{animation:bagp .5s}
+@keyframes bagp{30%{transform:scale(1.12) rotate(-4deg)}}
+.bag{position:fixed;inset:0 0 0 auto;transition:transform .45s cubic-bezier(.2,.8,.2,1),visibility .45s;width:min(420px,100vw);z-index:60;background:var(--cream);transform:translateX(105%);visibility:hidden;transition:transform .45s cubic-bezier(.2,.8,.2,1);display:flex;flex-direction:column}
+.bag.open{transform:none;visibility:visible;box-shadow:-20px 0 60px #17213b55}
+.bagbg{position:fixed;inset:0;z-index:59;background:#17213b66;opacity:0;pointer-events:none;transition:opacity .3s}
+.bagbg.open{opacity:1;pointer-events:auto}
+.bag header{padding:22px 22px 14px;border-bottom:2px dashed #17213b22;display:flex;justify-content:space-between;align-items:center}
+.bag header h3{font-size:1.8rem}
+.bag ul{list-style:none;padding:6px 22px;margin:0;overflow:auto;flex:1}
+.bag li{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:14px 0;border-bottom:1.5px dashed #17213b22}
+.bag li span{font-weight:600}
+.bag li em{font-style:normal;font-family:var(--disp);color:var(--berry);font-size:1.2rem;text-align:right}
+.bag li .odet{grid-column:1/-1;margin:0}
+.bag li .qty{grid-column:1/-1}
+.bag .bft{padding:16px 22px 22px;border-top:2px dashed #17213b22;background:#fff8e7}
+.bag .bft .ototal{padding:0 0 12px}
+.bag .bft .btn{display:block;text-align:center;background:#1f8f55;border-color:#1f8f55;box-shadow:0 4px 0 #14633a;color:#fff}
+.bag .bft .ln{display:block;text-align:center;margin-top:12px;font-weight:600;text-decoration:underline}
+.bag .empty{padding:30px 22px;color:var(--soft)}
 </style>
 </head>
 <body>
@@ -462,6 +511,10 @@ h2.in,html:not(.anim) h2{background-size:100% .16em}
 <svg class="van" id="van" viewBox="0 0 64 34" aria-hidden="true"><path d="M6 4h40a8 8 0 0 1 8 8v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V8a4 4 0 0 1 4-4z" fill="#bfe0cd" stroke="#0e1730" stroke-width="1.5"/><path d="M2 20h52v4a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3z" fill="#1c2a4a"/><rect x="8" y="8" width="24" height="9" rx="1.5" fill="#f4cf6b"/><path d="M54 24l7 3" stroke="#bfe0cd" stroke-width="2" stroke-linecap="round"/><circle cx="24" cy="28" r="5" fill="#0e1730" stroke="#bfe0cd" stroke-width="1.5"/></svg>
 </div>
 
+<dialog class="cfg" id="cfg" aria-labelledby="cfgT"><form method="dialog" onsubmit="return false"><header><div><h3 id="cfgT"></h3><small id="cfgS"></small></div><button type="button" class="x" id="cfgX" aria-label="Fechar">✕</button></header><div class="bd" id="cfgB"></div><footer><div><small>Total deste item</small><b id="cfgP"></b></div><a href="#" class="btn" id="cfgOk" role="button">Adicionar à sacola</a></footer></form></dialog>
+<div class="bagbg" id="bagbg"></div>
+<aside class="bag" id="bag" aria-label="Sacola de encomenda" aria-hidden="true"><header><h3>Sua sacola</h3><button type="button" class="x" id="bagX" aria-label="Fechar sacola" style="background:none;border:1.5px solid var(--navy);border-radius:50%;width:34px;height:34px">✕</button></header><ul id="bagL"></ul><div class="bft"><p class="ototal" id="bagT"></p><a class="btn" id="bagWa" target="_blank" rel="noopener">Enviar encomenda no WhatsApp</a><a href="#of" class="ln" id="bagGo">Informar data e endereço</a></div></aside>
+<button type="button" class="bagbtn" id="bagbtn" aria-label="Abrir sacola"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M5 8h14l-1.2 12H6.2z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></svg><i id="bagN">0</i><span id="bagV">R$ 0</span></button>
 <script>
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],WA='5511978104050';
 const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -514,22 +567,70 @@ $('#pieA').innerHTML=h;$('#pieB').innerHTML=h;$('#pfName').textContent=f.n.repla
 $$('#tRows tr').forEach((r,i)=>r.classList.toggle('on',i==fi));
 const p=$('#pie');p.classList.add('out');setTimeout(()=>p.classList.remove('out'),1500)}
 const nm=f=>f.n.replace(/ \(.*/,'');
-$('#tRows').innerHTML=F.map((f,i)=>`<tr data-i="${i}"><td><i style="background:${f.c}"></i>${f.n}</td><td><button type="button" class="add" data-n="Torta ${nm(f)} P (23 cm)" data-p="${f.P}">R$ ${f.P}</button></td><td><button type="button" class="add" data-n="Torta ${nm(f)} G (28 cm)" data-p="${f.G}">R$ ${f.G}</button></td></tr>`).join('');
-const li=(n,sub,p,from)=>`<li><span>${n}${sub?`<small>${sub}</small>`:''}</span><b><button type="button" class="add" data-n="${n}${sub&&/cm/.test(sub)?' ('+sub.split(' de')[0].split(',')[0]+')':''}" ${p?`data-p="${p}"`:''} ${from?'data-f="1"':''}>${p?'R$ '+p:'sob consulta'}</button></b></li>`;
-$('#mBolos').innerHTML=[['Bolo PP','11 cm de diâmetro',115],['Bolo P','15 cm de diâmetro',205],['Bolo M','23 cm de diâmetro',295],['Bolo G','28 cm de diâmetro',465],['Bolo GG','30 cm, forma quadrada',630]].map(b=>li(b[0],b[1],b[2],1)).join('');
-$('#mBrig').innerHTML=[['25 brigadeiros','',110],['50 brigadeiros','',210],['100 brigadeiros','',390],['Coxinha de morango','',0],['Bombom de morango','',0],['Morango do amor','',0]].map(b=>li(b[0],b[1],b[2])).join('');
+const cf=f=>/Cookie/.test(f.n)?'cookie':/Cheesecake/.test(f.n)?'cheese':'';
+$('#tRows').innerHTML=F.map((f,i)=>`<tr data-i="${i}"><td><i style="background:${f.c}"></i>${f.n}</td>`+['P','G'].map(z=>`<td><button type="button" class="add" data-n="Torta ${nm(f)} ${z} (${z=='P'?23:28} cm)" data-p="${f[z]}" ${cf(f)?`data-cfg="${cf(f)}" data-s="${z}"`:''}>R$ ${f[z]}</button></td>`).join('')+`</tr>`).join('');
+const li=(n,sub,p,from,cfg,lab)=>`<li><span>${n}${sub?`<small>${sub}</small>`:''}</span><b><button type="button" class="add" data-n="${n}${sub&&/cm/.test(sub)?' ('+sub.split(' de')[0].split(',')[0]+')':''}" ${p?`data-p="${p}"`:''} ${from?'data-f="1"':''} ${cfg?`data-cfg="${cfg}"`:''}>${lab||(p?'R$ '+p:'sob consulta')}</button></b></li>`;
+$('#mBolos').innerHTML=[['Bolo PP','11 cm de diâmetro',115],['Bolo P','15 cm de diâmetro',205],['Bolo M','23 cm de diâmetro',295],['Bolo G','28 cm de diâmetro',465],['Bolo GG','30 cm, forma quadrada',630]].map((b,i)=>li(b[0],b[1],b[2],0,'bolo:'+i,'desde R$ '+b[2])).join('');
+$('#mBrig').innerHTML=[['25 brigadeiros','até 2 sabores',110,'brig:2'],['50 brigadeiros','até 3 sabores',210,'brig:3'],['100 brigadeiros','até 4 sabores',390,'brig:4'],['Coxinha de morango','caixas de 10, 20 ou 30',180,'pack'],['Bombom de morango','caixas de 10, 20 ou 30',180,'pack'],['Morango do amor','caixas de 10, 20 ou 30',180,'pack']].map(b=>li(b[0],b[1],b[2],0,b[3],b[3]=='pack'?'desde R$ 180':'')).join('');
 $('#mSobr').innerHTML=[['Pudim M','500 ml, serve até 6',65],['Pudim G','1 litro, serve até 12',115],['Mousse de chocolate','2 litros, serve até 6',145],['Mousse de limão','2 litros, serve até 6',125],['Mousse de maracujá','2 litros, serve até 6',125],['Bombom gelado de uva','2 litros, serve até 6',260],['Bombom gelado de morango','2 litros, serve até 6',260]].map(b=>li(b[0],b[1],b[2])).join('');
 /* ---------- encomenda ---------- */
 const order=new Map();
 function drawOrder(){const L=[...order.values()];$('#oEmpty').hidden=L.length>0;
-$('#oList').innerHTML=L.map(o=>`<li><span>${o.n}</span><div class="qty"><button type="button" data-k="${o.n}" data-d="-1" aria-label="Diminuir">−</button><b>${o.q}</b><button type="button" data-k="${o.n}" data-d="1" aria-label="Aumentar">+</button></div><em>${o.p?'R$ '+o.p*o.q:'consultar'}</em></li>`).join('');
+$('#oList').innerHTML=L.map(o=>`<li><span>${o.t||o.n}${o.d?`<small class="odet">${o.d}</small>`:''}</span><div class="qty"><button type="button" data-k="${o.n}" data-d="-1" aria-label="Diminuir">−</button><b>${o.q}</b><button type="button" data-k="${o.n}" data-d="1" aria-label="Aumentar">+</button></div><em>${o.p?'R$ '+o.p*o.q:'consultar'}</em></li>`).join('');
 const tot=L.reduce((t,o)=>t+(o.p||0)*o.q,0),from=L.some(o=>o.f),cons=L.some(o=>!o.p);
 $('#oTotal').hidden=!L.length;$('#oTotal').innerHTML=`<span>${from?'A partir de':'Total'}</span><b>R$ ${tot}</b>`+(cons?'<small>mais os itens sob consulta</small>':'');
 $('#oMin').textContent=L.length&&tot<110&&!cons?'O pedido mínimo é de R$ 110.':'Você confere a mensagem antes de enviar.';
 const dt=fmtD($('#oDate').value),ad=$('#oAddr').value.trim()||'a definir';
-$('#oWa').href=`https://wa.me/${WA}?text=`+encodeURIComponent('Oi, Caron! Quero fazer uma encomenda.\n\n'+(L.length?L.map(o=>`${o.q}x ${o.n}`+(o.p?` (R$ ${o.p*o.q})`:'')).join('\n')+`\n\n${from?'A partir de':'Total'}: R$ ${tot}`:'Ainda vou escolher os itens.')+`\nData da entrega: ${dt}\nEndereço: ${ad}`)}
-document.addEventListener('click',e=>{const a=e.target.closest('.add');if(a){const n=a.dataset.n,o=order.get(n)||{n,p:+a.dataset.p||0,f:!!a.dataset.f,q:0};o.q++;order.set(n,o);a.classList.remove('hit');void a.offsetWidth;a.classList.add('hit');drawOrder();const f=$('#of');f.classList.remove('bump');void f.offsetWidth;f.classList.add('bump');return}
+$('#oWa').href=`https://wa.me/${WA}?text=`+encodeURIComponent('Oi, Caron! Quero fazer uma encomenda.\n\n'+(L.length?L.map(o=>`${o.q}x ${o.t||o.n}`+(o.p?` (R$ ${o.p*o.q})`:'')+(o.d?`\n   ${o.d}`:'')).join('\n')+`\n\n${from?'A partir de':'Total'}: R$ ${tot}`:'Ainda vou escolher os itens.')+`\nData da entrega: ${dt}\nEndereço: ${ad}`);drawBag(L,tot,from,cons)}
+document.addEventListener('click',e=>{const a=e.target.closest('.add');if(a&&a.dataset.cfg){openCfg(a);return}if(a){const n=a.dataset.n,o=order.get(n)||{n,p:+a.dataset.p||0,f:!!a.dataset.f,q:0};o.q++;order.set(n,o);bagPulse();a.classList.remove('hit');void a.offsetWidth;a.classList.add('hit');drawOrder();const f=$('#of');f.classList.remove('bump');void f.offsetWidth;f.classList.add('bump');return}
 const q=e.target.closest('.qty button');if(q){const o=order.get(q.dataset.k);o.q+=+q.dataset.d;if(o.q<1)order.delete(q.dataset.k);drawOrder()}});
+
+/* ---------- complementos ---------- */
+const PZ=['PP','P','M','G','GG'];
+const pz=(arr,i)=>arr[i];
+const REC_FREE=['Brigadeiro de chocolate','Brigadeiro de leite ninho','Brigadeiro de cacau','Doce de leite','Brigadeiro de coco'];
+const REC_PAID=[['Ganache de chocolate',[15,25,40,50,60]],['Ganache de chocolate branco',[15,25,40,50,60]],['Maracujá',[20,30,45,55,65]],['Limão',[20,30,45,55,65]],['Frutas vermelhas',[20,30,45,55,65]],['Caramelo salgado',[20,30,45,55,75]],['Pistache',[30,40,55,65,75]],['Cereja',[30,40,55,65,75]]];
+const ADIC=[['Morangos frescos',[20,30,40,50,60]],['Compota de abacaxi',[15,25,35,45,55]],['Compota de ameixa',[15,25,35,45,55]],['Nutella',[30,40,50,60,70]]];
+const COB=[['Naked',[0,0,0,0,0]],['Chantilly',[10,20,25,35,45]],['Ganache de chocolate',[20,30,40,50,60]],['Ganache de chocolate branco',[20,30,40,50,60]]];
+const FLAV=['Chocolate','Cacau','Chocolate branco','Frutas vermelhas','Coco','Limão','Maracujá','Pistache','Caramelo salgado','Cereja','Leite Ninho'];
+function spec(a){const c=a.dataset.cfg,n=a.dataset.n,p=+a.dataset.p||0;
+ if(c.startsWith('bolo:')){const i=+c.split(':')[1];return{t:n,s:'Monte o seu bolo. Preço final já com os adicionais.',base:p,g:[
+  {t:'Massa',min:1,max:1,o:['Branca','Chocolate','Cenoura'].map(x=>[x,0])},
+  {t:'Recheio',min:1,max:2,o:[...REC_FREE.map(x=>[x,0]),...REC_PAID.map(([x,v])=>[x,v[i]])]},
+  {t:'Adicionais',min:0,max:3,o:ADIC.map(([x,v])=>[x,v[i]])},
+  {t:'Cobertura',min:1,max:1,o:COB.map(([x,v])=>[x,v[i]])}]}}
+ if(c.startsWith('brig:')){const m=+c.split(':')[1];return{t:n,s:`Escolha até ${m} sabores.`,base:p,g:[{t:'Sabores',min:1,max:m,o:FLAV.map(x=>[x,0])}]}}
+ if(c==='pack')return{t:n,s:'Pedido mínimo de 10 unidades.',base:0,g:[{t:'Quantidade',min:1,max:1,o:[['10 unidades',180],['20 unidades',350],['30 unidades',510]]}]};
+ if(c==='cookie')return{t:n,s:'Escolha o recheio da sua torta.',base:p,g:[{t:'Recheio',min:1,max:1,o:['Nutella','Creme de Ovomaltine','Kinder','Ganache de chocolate'].map(x=>[x,0])}]};
+ if(c==='cheese'){const G=a.dataset.s==='G';return{t:n,s:'Escolha a cobertura do cheesecake.',base:p,g:[{t:'Cobertura',min:1,max:1,o:[['Geleia de morango artesanal',0],['Nutella',G?50:35],['Doce de leite',G?45:30],['Calda de caramelo com flor de sal',G?30:20]]}]}}}
+let CUR=null;const cfg=$('#cfg');
+function openCfg(a){const sp=spec(a);CUR={sp,sel:sp.g.map(g=>g.min===1&&g.max===1&&g.t!=='Quantidade'&&g.t!=='Cobertura'&&g.t!=='Recheio'?[0]:[])};
+ if(sp.g[0].t==='Quantidade')CUR.sel[0]=[0];
+ $('#cfgT').textContent=sp.t;$('#cfgS').textContent=sp.s;renderCfg();cfg.showModal?cfg.showModal():cfg.setAttribute('open','')}
+function renderCfg(){const{sp,sel}=CUR;
+ $('#cfgB').innerHTML=sp.g.map((g,gi)=>{const k=sel[gi].length,full=k>=g.max&&g.max>1,need=k<g.min;
+  return `<div class="cg"><h4>${g.t}<em class="${need?'bad':''}">${g.max===1?(g.min?'escolha 1':'opcional'):`${k} de até ${g.max}`}${need&&g.min?' (obrigatório)':''}</em></h4><div class="opts">`+g.o.map(([n,v],oi)=>{const on=sel[gi].includes(oi);return `<button type="button" class="opt" data-g="${gi}" data-o="${oi}" aria-pressed="${on}" ${full&&!on?'disabled':''}>${n}${v?`<b>+R$ ${v}</b>`:''}</button>`}).join('')+`</div></div>`}).join('');
+ const tot=sp.base+sp.g.reduce((t,g,gi)=>t+sel[gi].reduce((u,oi)=>u+g.o[oi][1],0),0);
+ $('#cfgP').textContent='R$ '+tot;CUR.tot=tot;
+ const ok=sp.g.every((g,gi)=>sel[gi].length>=g.min);$('#cfgOk').setAttribute('aria-disabled',!ok)}
+$('#cfgB').addEventListener('click',e=>{const b=e.target.closest('.opt');if(!b)return;const gi=+b.dataset.g,oi=+b.dataset.o,g=CUR.sp.g[gi],s=CUR.sel[gi];
+ if(g.max===1){CUR.sel[gi]=s[0]===oi&&g.min===0?[]:[oi]}else{const i=s.indexOf(oi);i>=0?s.splice(i,1):s.length<g.max&&s.push(oi)}renderCfg()});
+const closeCfg=()=>cfg.close?cfg.close():cfg.removeAttribute('open');
+$('#cfgX').addEventListener('click',closeCfg);cfg.addEventListener('click',e=>{if(e.target===cfg)closeCfg()});
+$('#cfgOk').addEventListener('click',e=>{e.preventDefault();const{sp,sel,tot}=CUR;if(!sp.g.every((g,gi)=>sel[gi].length>=g.min))return;
+ let t=sp.t;const parts=[];sp.g.forEach((g,gi)=>{const v=sel[gi].map(oi=>g.o[oi][0]);if(!v.length)return;if(g.t==='Quantidade')t=`${sp.t} (${v[0]})`;else parts.push(`${g.t}: ${v.join(', ')}`)});
+ const d=parts.join(' · ').replace(/ · /g,'; '),key=t+'|'+d;const o=order.get(key)||{n:key,t,d,p:tot,f:false,q:0};o.q++;order.set(key,o);closeCfg();drawOrder();bagPulse();openBag()});
+/* ---------- sacola ---------- */
+const bag=$('#bag'),bagbg=$('#bagbg'),bb=$('#bagbtn');
+function openBag(){bag.classList.add('open');bagbg.classList.add('open');bag.setAttribute('aria-hidden','false')}
+function closeBag(){bag.classList.remove('open');bagbg.classList.remove('open');bag.setAttribute('aria-hidden','true')}
+bb.addEventListener('click',openBag);bagbg.addEventListener('click',closeBag);$('#bagX').addEventListener('click',closeBag);$('#bagGo').addEventListener('click',closeBag);
+addEventListener('keydown',e=>{if(e.key==='Escape')closeBag()});
+function bagPulse(){bb.classList.remove('pulse');void bb.offsetWidth;bb.classList.add('pulse')}
+function drawBag(L,tot,from,cons){const n=L.reduce((t,o)=>t+o.q,0);$('#bagN').textContent=n;$('#bagV').textContent=(from?'desde ':'')+'R$ '+tot;bb.classList.toggle('on',n>0);
+ $('#bagL').innerHTML=L.length?L.map(o=>`<li><span>${o.t||o.n}</span><em>${o.p?'R$ '+o.p*o.q:'consultar'}</em>${o.d?`<small class="odet">${o.d}</small>`:''}<div class="qty"><button type="button" data-k="${o.n}" data-d="-1" aria-label="Diminuir">−</button><b>${o.q}</b><button type="button" data-k="${o.n}" data-d="1" aria-label="Aumentar">+</button></div></li>`).join(''):'<li class="empty" style="display:block;border:0">A sacola está vazia.</li>';
+ $('#bagT').innerHTML=`<span>${from?'A partir de':'Total'}</span><b>R$ ${tot}</b>`+(cons?'<small>mais os itens sob consulta</small>':'')+(tot&&tot<110&&!cons?'<small>O pedido mínimo é de R$ 110.</small>':'');
+ $('#bagWa').href=$('#oWa').href}
 $('#of').addEventListener('input',drawOrder);drawOrder();
 
 let auto=reduce?0:setInterval(()=>{fi=(fi+1)%F.length;pie()},3200);
