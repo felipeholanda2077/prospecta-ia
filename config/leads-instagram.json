@@ -1,0 +1,218 @@
+{
+  "_sobre": "Leads prospectados à mão pelo direct do Instagram (@ascenddigitaloficial). O sistema sincroniza este arquivo com o banco (leads, mensagens e respostas, canal instagram) para entrarem no funil e nas métricas. Cada evento tem um id fixo: editar e reenviar não duplica nada.",
+  "leads": [
+    {
+      "instagram": "eukeila_kris", "nome": "Keila Kris Cachos", "nicho": "cabeleireiro", "cidade": "Sintra", "pais": "PT",
+      "previa": "keilakris", "status": "respondeu", "temperatura": "quente",
+      "proximo_passo": "Recebeu os valores e a proposta de entrada em dezembro. Fechar o pagamento da entrada.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-26T07:32:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: corte a seco e cacheados em Sintra, oferta de prévia sem compromisso." },
+        { "id": 2, "quando": "2026-11-26T20:10:00Z", "autor": "lead", "classificacao": "interessado", "texto": "Sim, claro" },
+        { "id": 3, "quando": "2026-11-27T06:06:00Z", "autor": "nos", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/keilakris" },
+        { "id": 4, "quando": "2026-11-27T07:00:00Z", "autor": "lead", "classificacao": "quer_informacoes", "texto": "Adorei. Vamos fazer um orçamento! Quais são os valores?" },
+        { "id": 5, "quando": "2026-11-27T07:30:00Z", "autor": "nos", "texto": "Tabela enviada: implementação 150€ e mensalidade 25€/mês a partir de janeiro de 2027." },
+        { "id": 6, "quando": "2026-11-27T12:10:00Z", "autor": "nos", "texto": "Follow-up: começar em dezembro só com uma entrada e o restante em janeiro." }
+      ]
+    },
+    {
+      "instagram": "rosa.scakes", "nome": "Rosa's Cakes", "nicho": "confeitaria", "cidade": "Santa Maria da Feira", "pais": "PT",
+      "previa": "rosascakes", "status": "respondeu", "temperatura": "quente",
+      "proximo_passo": "Viu o preço e ficou de rever com calma. Fechar com entrada antes das encomendas de Natal.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-25T20:00:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: cake design e festas em Santa Maria da Feira, oferta de prévia." },
+        { "id": 2, "quando": "2026-11-26T07:10:00Z", "autor": "lead", "classificacao": "interessado", "texto": "Sim claro, sem compromisso aceito olhar na prévia" },
+        { "id": 3, "quando": "2026-11-26T12:27:00Z", "autor": "nos", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/rosascakes" },
+        { "id": 4, "quando": "2026-11-26T14:28:00Z", "autor": "lead", "classificacao": "quer_informacoes", "texto": "Ficou muito bonito, qual seria o preço?" },
+        { "id": 5, "quando": "2026-11-26T14:56:00Z", "autor": "nos", "texto": "Tabela enviada: implementação 150€ e mensalidade 25€/mês a partir de janeiro de 2027." },
+        { "id": 6, "quando": "2026-11-26T17:40:00Z", "autor": "lead", "classificacao": "outro", "texto": "Não tenho dúvida, só estou a conduzir, logo olho com mais detalhe e respondo" },
+        { "id": 7, "quando": "2026-11-27T12:11:00Z", "autor": "nos", "texto": "Follow-up: site no ar antes do Natal, começar só com uma entrada." }
+      ]
+    },
+    {
+      "instagram": "espacobelezaspa", "nome": "Espaço Beleza Spa (Depilação Laser & Massagens)", "nicho": "estética", "cidade": "Odivelas", "pais": "PT",
+      "previa": "espacobelezaspa", "status": "respondeu", "temperatura": "morna",
+      "proximo_passo": "Ficou de pensar. Proposta: 50€ de entrada agora, restante em janeiro (147€ + 22€/mês).",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-24T10:00:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem com prévia do site de depilação laser e massagens." },
+        { "id": 2, "quando": "2026-11-24T15:00:00Z", "autor": "lead", "classificacao": "quer_informacoes", "texto": "Quanto custa esse trabalho que fez? Qual o valor?" },
+        { "id": 3, "quando": "2026-11-24T15:20:00Z", "autor": "nos", "texto": "Valores enviados: implantação 147€ e mensalidade 22€/mês a partir de janeiro." },
+        { "id": 4, "quando": "2026-11-25T10:00:00Z", "autor": "lead", "classificacao": "outro", "texto": "Na altura de festas gastamos mais, não estava a contar gastar já quase 150€. Deixe pensar e amanhã dou uma resposta." },
+        { "id": 5, "quando": "2026-11-27T12:14:00Z", "autor": "nos", "texto": "Follow-up: 50€ de entrada agora e o restante só em janeiro." }
+      ]
+    },
+    {
+      "instagram": "becarebeauty.pt", "nome": "Be Care Beauty (Hillary, Lash Designer)", "nicho": "estética", "cidade": "Porto", "pais": "PT",
+      "previa": "becarebeauty", "status": "respondeu", "temperatura": "morna",
+      "proximo_passo": "Não gostou da mensalidade; aceitou ver o site final com proposta de entrada. Prévia tirada do ar em 27/11, cópia em config/previas-arquivadas.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-24T10:00:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem e prévia do site de lash design no Porto." },
+        { "id": 2, "quando": "2026-11-25T15:00:00Z", "autor": "lead", "classificacao": "outro", "texto": "Não entendi, tem que se pagar várias vezes e não me agrada isso. Se o site seria meu certo?" },
+        { "id": 3, "quando": "2026-11-26T14:00:00Z", "autor": "lead", "classificacao": "interessado", "texto": "Pode ser. Vou ver primeiro o site que me vai mostrar e lhe falo." },
+        { "id": 4, "quando": "2026-11-27T12:30:00Z", "autor": "nos", "texto": "Site final enviado: https://fluxdeck.com.br/previa/becarebeauty, com proposta de entrada e restante após janeiro de 2027." }
+      ]
+    },
+    {
+      "instagram": "refugio.byravi", "nome": "Refúgio by Rávi (Massagem e Drenagem)", "nicho": "estética", "cidade": null, "pais": "FR",
+      "previa": "refugio", "status": "respondeu", "temperatura": "morna",
+      "proximo_passo": "Recebeu a tabela e a prévia com o logo original. Esperar as fotos que prefere.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-25T10:00:00Z", "autor": "nos", "tipo": "inicial", "texto": "Prévia do site enviada." },
+        { "id": 2, "quando": "2026-11-26T13:00:00Z", "autor": "lead", "classificacao": "quer_informacoes", "texto": "Achei legal o conceito. Mas pode melhorar né? Qual o valor? As fotos podem melhorar." },
+        { "id": 3, "quando": "2026-11-26T14:00:00Z", "autor": "nos", "texto": "Link do site da FluxDeck enviado com o catálogo de valores." },
+        { "id": 4, "quando": "2026-11-27T12:05:00Z", "autor": "nos", "texto": "Prévia atualizada com o logo original e tabela: implementação 150€, mensalidade 25€/mês a partir de janeiro de 2027." }
+      ]
+    },
+    {
+      "instagram": "candy_atelier_pastelaria", "nome": "Candy Atelier de Pastelaria", "nicho": "confeitaria", "cidade": "Câmara de Lobos, Madeira", "pais": "PT",
+      "previa": "candyatelier", "status": "respondeu", "temperatura": "morna",
+      "proximo_passo": "Prévia enviada, sem resposta. Follow-up agendado para 28/11.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-26T07:35:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: doces autênticos, oferta de prévia." },
+        { "id": 2, "quando": "2026-11-26T11:26:00Z", "autor": "lead", "classificacao": "quer_informacoes", "texto": "Em que sentido, em que consiste o site?" },
+        { "id": 3, "quando": "2026-11-26T16:59:00Z", "autor": "lead", "classificacao": "interessado", "texto": "Gostaria de ver a prévia" },
+        { "id": 4, "quando": "2026-11-26T22:40:00Z", "autor": "nos", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/candyatelier" }
+      ]
+    },
+    {
+      "instagram": "shirlei.lage", "nome": "Shirlei Lage Beauty Care", "nicho": "cabeleireiro", "cidade": "Sintra", "pais": "PT",
+      "previa": "shirleilage", "status": "respondeu", "temperatura": "morna",
+      "proximo_passo": "Viu a prévia, sem resposta. Follow-up agendado.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-26T07:33:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: referência em loiros e extensões, oferta de prévia." },
+        { "id": 2, "quando": "2026-11-26T17:33:00Z", "autor": "lead", "classificacao": "interessado", "texto": "Poderia sim" },
+        { "id": 3, "quando": "2026-11-26T22:39:00Z", "autor": "nos", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/shirleilage" }
+      ]
+    },
+    {
+      "instagram": "naturenails_lauravalentina", "nome": "Nature Nails (Laura Valentina)", "nicho": "manicure", "cidade": "Lisboa", "pais": "PT",
+      "previa": "naturenails", "status": "respondeu", "temperatura": "morna",
+      "proximo_passo": "Viu a prévia, sem resposta. Follow-up enviado em 27/11.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-25T19:54:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: 11 anos de experiência e atendimento ao domicílio." },
+        { "id": 2, "quando": "2026-11-25T20:19:00Z", "autor": "lead", "classificacao": "quer_informacoes", "texto": "Qual é a proposta?" },
+        { "id": 3, "quando": "2026-11-25T20:40:00Z", "autor": "lead", "classificacao": "interessado", "texto": "Sim por favor" },
+        { "id": 4, "quando": "2026-11-26T12:26:00Z", "autor": "nos", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/naturenails" },
+        { "id": 5, "quando": "2026-11-27T12:07:00Z", "autor": "nos", "texto": "Follow-up: conseguiu ver a prévia?" }
+      ]
+    },
+    {
+      "instagram": "gknailspt", "nome": "GK Nails", "nicho": "manicure", "cidade": "Odivelas", "pais": "PT",
+      "previa": "gknails", "status": "respondeu", "temperatura": "morna",
+      "proximo_passo": "Viu a prévia, sem resposta. Prévia tirada do ar em 27/11, cópia em config/previas-arquivadas.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-26T09:07:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: beleza como arte, oferta de prévia." },
+        { "id": 2, "quando": "2026-11-26T09:48:00Z", "autor": "lead", "classificacao": "interessado", "texto": "Sim" },
+        { "id": 3, "quando": "2026-11-26T10:30:00Z", "autor": "nos", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/gknails" },
+        { "id": 4, "quando": "2026-11-27T12:08:00Z", "autor": "nos", "texto": "Follow-up: conseguiu ver a prévia?" }
+      ]
+    },
+    {
+      "instagram": "natybeauty.pt", "nome": "Natália Brilhante Hair Extensions", "nicho": "cabeleireiro", "cidade": "Gondomar", "pais": "PT",
+      "previa": "natybeauty", "status": "respondeu", "temperatura": "morna",
+      "proximo_passo": "Prévia enviada em 27/11. Aguardar resposta.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-26T10:00:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem sobre identidade visual do negócio." },
+        { "id": 2, "quando": "2026-11-26T11:00:00Z", "autor": "lead", "classificacao": "interessado", "texto": "Estamos a começar agora" },
+        { "id": 3, "quando": "2026-11-27T11:52:00Z", "autor": "nos", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/natybeauty" }
+      ]
+    },
+    {
+      "instagram": "yanetta_cake_cafe", "nome": "Yanetta Cake Café", "nicho": "confeitaria", "cidade": "Porto", "pais": "PT", "idioma": "en",
+      "previa": "yanetta", "status": "respondeu", "temperatura": "morna",
+      "proximo_passo": "Prévia PT/EN enviada em 27/11, conversa em inglês.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-25T20:11:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: bolos e comida ucraniana na Rua do Almada." },
+        { "id": 2, "quando": "2026-11-26T10:48:00Z", "autor": "lead", "classificacao": "quer_informacoes", "texto": "Qual são seus contactos? Tem website? Do you speak English?" },
+        { "id": 3, "quando": "2026-11-27T13:10:00Z", "autor": "nos", "texto": "Website preview sent: https://fluxdeck.com.br/previa/yanetta" }
+      ]
+    },
+    {
+      "instagram": "studiokatianamoreira", "nome": "Studio Katiana Moreira", "nicho": "estética", "cidade": null, "pais": "PT",
+      "previa": "katianamoreira", "status": "contatado", "temperatura": "morna",
+      "proximo_passo": "Prévia e tabela enviadas.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-26T15:00:00Z", "autor": "nos", "tipo": "inicial", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/katianamoreira e tabela 150€ + 25€/mês." }
+      ]
+    },
+    {
+      "instagram": "decorafestasvivi", "nome": "Decoração Vivi", "nicho": "decoração de festas", "cidade": "Porto", "pais": "PT",
+      "status": "sem_interesse", "temperatura": "fria", "proximo_passo": "Recusou por agora. Voltar em janeiro.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-26T06:15:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: aluguer e decoração de festas no Porto." },
+        { "id": 2, "quando": "2026-11-26T10:00:00Z", "autor": "lead", "classificacao": "sem_interesse", "texto": "Agradeço, mas no momento não posso." }
+      ]
+    },
+    {
+      "instagram": "caronconfeitaria", "nome": "Caron Confeitaria", "nicho": "confeitaria", "cidade": "Barueri", "pais": "BR",
+      "previa": "caronconfeitaria", "status": "respondeu", "temperatura": "quente",
+      "proximo_passo": "Pediu layout com logo original e o custo. Conversa seguiu no WhatsApp 11 92577-9432.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-24T14:00:00Z", "autor": "nos", "tipo": "inicial", "texto": "Prévia do site enviada." },
+        { "id": 2, "quando": "2026-11-25T14:00:00Z", "autor": "lead", "classificacao": "quer_informacoes", "texto": "Conseguimos mudar o layout, colocar a logo original, link pra WhatsApp? Qual seria o custo?" }
+      ]
+    },
+    {
+      "instagram": "naturabelle.clinica", "nome": "Natura Belle Clínica", "nicho": "estética", "cidade": "Barueri", "pais": "BR",
+      "previa": "natura-belle", "status": "respondeu", "temperatura": "fria",
+      "proximo_passo": "Sem resposta após 2 follow-ups e a conta do Instagram saiu do ar. Tentar pelo WhatsApp.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-22T18:42:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: oferta de exemplo de site." },
+        { "id": 2, "quando": "2026-11-22T20:37:00Z", "autor": "lead", "classificacao": "interessado", "texto": "Pode mostrar por favor" },
+        { "id": 3, "quando": "2026-11-22T21:06:00Z", "autor": "nos", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/natura-belle" },
+        { "id": 4, "quando": "2026-11-23T18:30:00Z", "autor": "nos", "texto": "Follow-up sem resposta." }
+      ]
+    },
+    {
+      "instagram": "puppys_pet", "nome": "Puppy's Pet", "nicho": "pet shop", "cidade": "Osasco", "pais": "BR",
+      "previa": "puppyspet", "status": "respondeu", "temperatura": "fria",
+      "proximo_passo": "Aceitou ver a prévia, sem resposta depois. Último follow-up em 27/11.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-25T13:52:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: especialistas em Spitz Alemão, oferta de prévia." },
+        { "id": 2, "quando": "2026-11-25T14:09:00Z", "autor": "lead", "classificacao": "interessado", "texto": "Olá, sim" },
+        { "id": 3, "quando": "2026-11-25T14:30:00Z", "autor": "nos", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/puppyspet" },
+        { "id": 4, "quando": "2026-11-27T12:09:00Z", "autor": "nos", "texto": "Follow-up: conseguiram ver a prévia?" }
+      ]
+    },
+    {
+      "instagram": "nburguer__", "nome": "NBurguer", "nicho": "hamburgueria", "cidade": "Osasco", "pais": "BR",
+      "previa": "nburguer", "status": "contatado", "temperatura": "fria",
+      "proximo_passo": "Prévia enviada, sem resposta. Último follow-up em 27/11.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-25T15:00:00Z", "autor": "nos", "tipo": "inicial", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/nburguer" },
+        { "id": 2, "quando": "2026-11-27T12:10:00Z", "autor": "nos", "texto": "Follow-up: conseguiram ver a prévia?" }
+      ]
+    },
+    {
+      "instagram": "vebexcar", "nome": "Vebex Car Spa", "nicho": "estética automotiva", "cidade": "Barueri", "pais": "BR",
+      "previa": "vebexcar", "status": "respondeu", "temperatura": "morna",
+      "proximo_passo": "Disse que ia dar uma olhada na prévia (27/11).",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-23T14:41:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: oferta de exemplo de site." },
+        { "id": 2, "quando": "2026-11-23T15:00:00Z", "autor": "lead", "classificacao": "quer_informacoes", "texto": "No momento não estamos precisando mas manda um exemplo, talvez eu mude de ideia" },
+        { "id": 3, "quando": "2026-11-23T16:14:00Z", "autor": "nos", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/vebexcar" },
+        { "id": 4, "quando": "2026-11-27T12:12:00Z", "autor": "nos", "texto": "Follow-up: conseguiu dar uma olhada?" },
+        { "id": 5, "quando": "2026-11-27T12:20:00Z", "autor": "lead", "classificacao": "outro", "texto": "Opa, tinha esquecido, vou dar uma olhadinha aqui" }
+      ]
+    },
+    {
+      "instagram": "fisiopriscilagrotti", "nome": "Priscila Grotti Fisioterapia Vascular", "nicho": "fisioterapia", "cidade": "Barueri", "pais": "BR",
+      "previa": "priscilagrotti", "status": "respondeu", "temperatura": "fria",
+      "proximo_passo": "Sem resposta após 2 follow-ups. Pausar uma semana.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-23T16:26:00Z", "autor": "nos", "tipo": "inicial", "texto": "Abordagem: oferta de exemplo de site." },
+        { "id": 2, "quando": "2026-11-24T22:31:00Z", "autor": "lead", "classificacao": "interessado", "texto": "Pode mostrar" },
+        { "id": 3, "quando": "2026-11-24T23:14:00Z", "autor": "nos", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/priscilagrotti" },
+        { "id": 4, "quando": "2026-11-26T13:49:00Z", "autor": "nos", "texto": "Follow-up sem resposta." }
+      ]
+    },
+    {
+      "instagram": "confeitaria_dinizdoces", "nome": "Diniz Doces", "nicho": "confeitaria", "cidade": "Cotia", "pais": "BR",
+      "previa": "dinizdoces", "status": "sem_interesse", "temperatura": "fria",
+      "proximo_passo": "Conversa encerrada de forma cordial.",
+      "eventos": [
+        { "id": 1, "quando": "2026-11-24T14:00:00Z", "autor": "nos", "tipo": "inicial", "texto": "Prévia enviada: https://fluxdeck.com.br/previa/dinizdoces" },
+        { "id": 2, "quando": "2026-11-25T17:18:00Z", "autor": "lead", "classificacao": "sem_interesse", "texto": "Igualmente" }
+      ]
+    }
+  ]
+}

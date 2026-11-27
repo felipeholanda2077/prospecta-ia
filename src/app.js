@@ -62,6 +62,7 @@ import { paginaDoCheckout } from "./vendas/paginaCheckout.js";
 import { paginaDoCheckoutStripe, paginaDoCheckoutStripeFeito } from "./vendas/paginaCheckoutStripe.js";
 import { pdfDoGuia, prepararCampanha, mensagemDaCampanha, roteiroDoAudio } from "./vendas/campanha.js";
 import { paginaDoDiagnostico, pdfDoRelatorio, previa } from "./vendas/diagnostico.js";
+import { sincronizarLeadsInstagram } from "./vendas/leadsInstagram.js";
 import { momentoDaPrevia, paginaDaPrevia, podeTerPrevia, origemDaPrevia, enderecoDaPrevia } from "./vendas/previa.js";
 import { dadosDaPrevia, gravarExtraDaPrevia, chaveDaFoto, chaveDaLogo } from "./vendas/dadosDaPrevia.js";
 import { PILAR_BLACK_FRIDAY } from "./ia/conteudo.js";
@@ -526,9 +527,11 @@ const TAREFAS_CRON = {
   },
   // A cada 2 minutos, a qualquer hora: os comentários novos nos posts e as respostas da IA no direct do Instagram.
   instagram: async (c) => {
+    // Leads prospectados à mão pelo direct (config/leads-instagram.json): só grava quando o arquivo mudou.
+    const leadsManuais = await sincronizarLeadsInstagram().catch((e) => ({ erro: e.message }));
     const comentarios = await rodadaDeComentarios(c).catch((e) => ({ erro: e.message }));
     const outrasContas = await rodadaDasOutrasContas(c).catch((e) => ({ erro: e.message }));
-    return { ...(await pipeline.enviarInstagram(c)), comentarios, outrasContas };
+    return { ...(await pipeline.enviarInstagram(c)), comentarios, outrasContas, leadsManuais };
   },
   // A cada 5 minutos: os posts do dia na página do LinkedIn, nos mesmos horários do Instagram.
   linkedin: (c) => rodadaDoLinkedin(c),
