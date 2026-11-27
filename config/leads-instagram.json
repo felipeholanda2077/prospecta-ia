@@ -245,8 +245,8 @@
       "pais": "PT",
       "previa": "candyatelier",
       "status": "respondeu",
-      "temperatura": "morna",
-      "proximo_passo": "Prévia enviada, sem resposta. Follow-up agendado para 28/11.",
+      "temperatura": "quente",
+      "proximo_passo": "Pediu o valor do site oficial; tabela e benefícios enviados. Fechar a implementação.",
       "eventos": [
         {
           "id": 1,
@@ -274,6 +274,19 @@
           "quando": "2026-11-26T22:40:00Z",
           "autor": "nos",
           "texto": "Prévia enviada: https://fluxdeck.com.br/previa/candyatelier"
+        },
+        {
+          "id": 5,
+          "quando": "2026-11-27T18:16:00Z",
+          "autor": "lead",
+          "classificacao": "quer_informacoes",
+          "texto": "Ficou interessante, quanto seria para criar o site oficial?"
+        },
+        {
+          "id": 6,
+          "quando": "2026-11-27T18:25:00Z",
+          "autor": "nos",
+          "texto": "Tabela enviada: implementação 150€ (à vista, entrada ou cartão) e 25€/mês a partir de janeiro de 2027, com benefícios do pacote e prazo para o Natal."
         }
       ]
     },
