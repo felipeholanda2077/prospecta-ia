@@ -286,7 +286,7 @@
       "previa": "shirleilage",
       "status": "respondeu",
       "temperatura": "morna",
-      "proximo_passo": "Viu a prévia, sem resposta. Follow-up agendado.",
+      "proximo_passo": "Viu a prévia, sem resposta. Follow-up enviado em 27/11.",
       "eventos": [
         {
           "id": 1,
@@ -307,6 +307,12 @@
           "quando": "2026-11-26T22:39:00Z",
           "autor": "nos",
           "texto": "Prévia enviada: https://fluxdeck.com.br/previa/shirleilage"
+        },
+        {
+          "id": 4,
+          "quando": "2026-11-27T17:01:00Z",
+          "autor": "nos",
+          "texto": "Follow-up: conseguiu ver a prévia? Botões ligados ao Booksy."
         }
       ]
     },
@@ -437,8 +443,8 @@
       "idioma": "en",
       "previa": "yanetta",
       "status": "respondeu",
-      "temperatura": "morna",
-      "proximo_passo": "Viu a prévia e disse que retoma a conversa nos próximos dias (ocupada com advogados). Retomar no início da semana.",
+      "temperatura": "quente",
+      "proximo_passo": "Perguntou sobre botão de WhatsApp e onde ficamos; respondido. Aguardar e propor o site resolvendo o botão.",
       "eventos": [
         {
           "id": 1,
@@ -472,6 +478,19 @@
           "quando": "2026-11-27T13:50:00Z",
           "autor": "nos",
           "texto": "Sem pressa, a prévia continua no ar e ajusto o que quiser."
+        },
+        {
+          "id": 6,
+          "quando": "2026-11-27T13:48:00Z",
+          "autor": "lead",
+          "classificacao": "quer_informacoes",
+          "texto": "Do you know why I cannot add button to call on my page? WhatsApp Business doesn't want to finish installation. Kaique, where are you located?"
+        },
+        {
+          "id": 7,
+          "quando": "2026-11-27T13:55:00Z",
+          "autor": "nos",
+          "texto": "Estamos em Barueri, SP, Brasil, atendemos Portugal à distância. O WhatsApp Business pode ser instabilidade do telemóvel; o site leva os clientes ao WhatsApp corretamente."
         }
       ]
     },
